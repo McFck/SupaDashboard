@@ -137,6 +137,8 @@ export const mediaSources = new Map<string, MediaSource>();
 export const customIcons = new Map<string, string>();
 export const customIconOwners = new Map<string, string>();
 export const appIcons = new Map<string, string>();
+/** Which plugin registered each app, so app pickers can show the plugin mark. */
+export const appOwners = new Map<string, string>();
 export const plugins: Plugin[] = [];
 export const bundledPlugins: Plugin[] = [];
 export const pluginState = writable<PluginState>(normalizePluginState(null));
@@ -206,7 +208,7 @@ function createApi(owner: string): PluginApi {
       return registryRuntime.emitEvent(id, parameter, payload);
     },
     registerIcon: (name, path) => { customIcons.set(name, path); customIconOwners.set(name, owner); },
-    registerAppIcon: (app, icon) => void appIcons.set(app.toLowerCase(), icon),
+    registerAppIcon: (app, icon) => { appIcons.set(app.toLowerCase(), icon); appOwners.set(app.toLowerCase(), owner); },
   };
 }
 

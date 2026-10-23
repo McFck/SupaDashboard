@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { get } from 'svelte/store';
 import { settings } from '../core/settings.svelte';
-import { mediaSources, runAction, type ActionRef, type Param, type Plugin } from '../core/registry';
+import { appOwners, mediaSources, runAction, type ActionRef, type Param, type Plugin } from '../core/registry';
 import { parseVariableText } from '../core/variables';
 import { findVolumeChannel, initVolumeSync, readVolume, setMuted, setVolume, volumeChannels } from '../core/volume';
 
@@ -44,8 +44,11 @@ function usedTargets() {
       visit(listener.list.steps);
       for (const steps of Object.values(listener.list.byState ?? {})) visit(steps);
     }
-    for (const ref of refs)
-      if (ref && typeof ref === 'object' && 'args' in ref) out.push((ref as { args?: Record<string, unknown> }).args?.target);
+    // Only volume refs name an audio app; other actions use `target` for controls (e.g. 'self').
+    for (const ref of refs) {
+      const r = ref as { id?: string; args?: Record<string, unknown> } | null;
+      if (r && typeof r === 'object' && (r.id === 'volume' || r.id?.startsWith('volume.'))) out.push(r.args?.target);
+    }
     const channels = c.options?.channels;
     if (Array.isArray(channels)) for (const ch of channels) out.push(ch?.target);
   }
@@ -56,7 +59,7 @@ const sourceParam: Param = { key: 'source', label: 'Media source', type: 'select
   suggestions: () => [...mediaSources.values()].map(s => ({ value: s.id, label: s.title, plugin: s.plugin })) };
 const targetParam: Param = { key: 'target', label: 'Volume of', type: 'select', default: 'system',
   suggestions: () => [{ value: 'system', label: 'System' },
-    ...[...new Set([...liveApps, ...usedTargets()])].sort().map(a => ({ value: a, label: title(a) }))],
+    ...[...new Set([...liveApps, ...usedTargets()])].sort().map(a => ({ value: a, label: title(a), plugin: appOwners.get(a.toLowerCase()) }))],
   refresh: mixer };
 
 type Command = 'prev' | 'next' | 'toggle';
