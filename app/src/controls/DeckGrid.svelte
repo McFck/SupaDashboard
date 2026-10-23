@@ -307,8 +307,9 @@ import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, 
     const layoutSignature = JSON.stringify(deck.items);
     const cellObstacles = deck.items.filter(other => other.id !== item.id).map(({ x, y, w, h }) => ({ x, y, w, h }));
     const pixelObstacles = deck.items.filter(other => other.id !== item.id).map(other => {
-      const box = boxForItem(other, pitch, metrics.gap);
-      return { x: box.x, y: box.y, w: box.width, h: box.height };
+      // Grown by one gap, so the live outline stops where the widget could actually end, not at the neighbour's edge.
+      const box = boxForItem(other, pitch, metrics.gap), g = metrics.gap;
+      return { x: box.x - g, y: box.y - g, w: box.width + 2 * g, h: box.height + 2 * g };
     });
     drag = { id: item.id, item: baseItem, mode, pointerId: e.pointerId, capture, startX: e.clientX, startY: e.clientY,
       latest: { x: e.clientX, y: e.clientY }, raf: null,
