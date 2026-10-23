@@ -1,0 +1,158 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:is(.dark *));
+/* shadcn-svelte classes use short state variants; bits-ui expresses them through data-state / data-orientation. */
+@custom-variant data-open (&:where([data-state="open"], [data-open]));
+@custom-variant data-closed (&:where([data-state="closed"], [data-closed]));
+@custom-variant data-checked (&:where([data-state="checked"], [data-checked]));
+@custom-variant data-unchecked (&:where([data-state="unchecked"], [data-unchecked]));
+@custom-variant data-active (&:where([data-state="active"], [data-active]));
+@custom-variant data-horizontal (&:where([data-orientation="horizontal"]));
+@custom-variant data-vertical (&:where([data-orientation="vertical"]));
+
+/* shadcn-svelte zinc, dark only: the dashboard lives on a dim second screen. Skins override these. */
+:root {
+  color-scheme: dark;
+  --radius: 0.75rem;
+  /* Neutral (untinted) greys and a blue primary, after Eleven's dark theme. */
+  --background: oklch(0.205 0 0);
+  --foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.178 0 0);
+  --card: oklch(0.235 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.235 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.63 0.19 245);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.29 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.27 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.29 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.707 0.165 254.6);
+  --canvas-surface: #101010;
+  --tile-surface: #202020;
+  --tile-edge: #333333;
+  --empty-cell-surface: #141414;
+  --empty-cell-edge: #2b2b2b;
+  --empty-cell-hover: #1c1c1c;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-sidebar: var(--sidebar);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html, body, #app { height: 100%; margin: 0; overflow: hidden; }
+  body { user-select: none; -webkit-user-select: none; }
+  input, textarea, [contenteditable='true'], .selectable { user-select: text; -webkit-user-select: text; }
+  body { @apply bg-background text-foreground antialiased; font-family: 'Inter Variable', 'Segoe UI', system-ui, sans-serif; font-feature-settings: 'cv11', 'ss01'; }
+}
+
+/* Scrollbars: reserve their gutter on scrolling panels, reveal the thumb on hover. */
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  *:hover { scrollbar-color: #454545 transparent; }
+}
+@supports selector(::-webkit-scrollbar) {
+  *, *:hover { scrollbar-width: auto; scrollbar-color: auto; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: transparent;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: 999px;
+  }
+  *:hover::-webkit-scrollbar-thumb { background-color: #454545; }
+  *::-webkit-scrollbar-thumb:hover { background-color: #626262; }
+  *::-webkit-scrollbar-corner { background: transparent; }
+}
+
+/* Compact, centered Sonner toasts that keep the library's transform-driven stack motion. */
+.toaster { font-family: inherit; }
+.toaster [data-sonner-toast] {
+  margin-inline: auto;
+  min-width: 0;
+  max-width: calc(100vw - 2rem);
+  gap: 8px;
+  transition: transform 320ms cubic-bezier(.22, 1.12, .36, 1), opacity 160ms ease-out;
+}
+.toaster [data-sonner-toast][data-styled='true'] {
+  border-radius: 12px;
+  font: 12px/16px 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+}
+.toaster [data-sonner-toast] [data-content] { min-width: 0; overflow-wrap: anywhere; }
+.toaster [data-sonner-toast] [data-button] { flex-shrink: 0; height: 24px; align-self: center; }
+.toaster [data-sonner-toast][data-type='success'] [data-icon] svg { color: oklch(.765 .177 163.223); }
+.toaster [data-sonner-toast][data-type='warning'] [data-icon] svg { color: oklch(.828 .189 84.429); }
+.toaster [data-sonner-toast][data-type='error'] [data-icon] svg { color: var(--destructive); }
+.toaster [data-sonner-toast][data-type='info'] [data-icon] svg { color: var(--primary); }
+.toaster [data-sonner-toast][data-removed='true'][data-front='false'][data-expanded='false'] {
+  transition: transform 320ms cubic-bezier(.22, 1.12, .36, 1), opacity 160ms ease-out;
+}
+.toaster [data-sonner-toast][data-swiping='true'] { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .toaster [data-sonner-toast], .toaster [data-sonner-toast] *, .toaster .sonner-loading-bar {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
+
+/* Widget card: flat neutral surface with a restrained accent tint (set --accent on the element). */
+@utility tile {
+  position: relative;
+  isolation: isolate;
+  border-radius: 22px;
+  color: #f5f7fc;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    background: color-mix(in oklab, var(--accent, #8ea8f0) 5%, var(--tile-surface));
+    border: 1px solid color-mix(in oklab, var(--accent, #8ea8f0) 22%, var(--tile-edge));
+    box-shadow: 0 2px 6px rgb(0 0 0 / .16);
+  }
+}
+
+[data-empty-cell] {
+  background: var(--empty-cell-surface);
+  border: 1px solid var(--empty-cell-edge);
+}
+
+[data-empty-cell]:hover { background: var(--empty-cell-hover); }
+
+/* The dashboard window shows only its widgets. */
+html.transparent, html.transparent body, html.transparent #app { background: transparent; }

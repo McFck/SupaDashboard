@@ -1,0 +1,9 @@
+# Third-party train recordings: never commit or publish.
+assets/
+tools/bin/
+tools/__pycache__/
+# Stray screenshot artifacts from browser probes
+1440x900x1
+app/1440x900x1
+app/800x600x1
+.claude/settings.local.json

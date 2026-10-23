@@ -1,0 +1,4 @@
+[
+  { "id": "spotify", "title": "Spotify", "author": "SupaDashboard", "icon": "spotify", "description": "Control the Spotify desktop app from any button and see it in the volume mixer." },
+  { "id": "subway", "title": "Subway skin", "author": "SupaDashboard", "icon": "TrainFront", "description": "Japanese train passenger-information display with a compact control bar." }
+]
