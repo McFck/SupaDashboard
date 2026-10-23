@@ -1,5 +1,6 @@
-# Third-party train recordings: never commit or publish.
-assets/
+# Sound pack build leftovers (the packed audio in assets/ is public domain and tracked).
+assets/lines/*/raw/
+assets/preview/
 tools/bin/
 tools/__pycache__/
 # Stray screenshot artifacts from browser probes
