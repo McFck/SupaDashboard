@@ -11,7 +11,7 @@
 
 <script lang="ts">
   import Wrench from '@lucide/svelte/icons/wrench';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import { Hint } from '$lib/components/ui/tooltip';
 
   let { plugin }: { plugin?: string } = $props();
   const title = $derived(pluginTitle(plugin));
@@ -19,14 +19,11 @@
 
 {#if title}
   <span class="sr-only">Plugin · {title}</span>
-  <Tooltip.Root>
-    <Tooltip.Trigger>
-      {#snippet child({ props })}
-        <span {...props} tabindex="-1" aria-hidden="true" class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground">
-          <Wrench size={12} strokeWidth={1.75} />
-        </span>
-      {/snippet}
-    </Tooltip.Trigger>
-    <Tooltip.Content class="bg-popover text-popover-foreground ring-1 ring-border" arrowClasses="bg-popover fill-popover">Plugin · {title}</Tooltip.Content>
-  </Tooltip.Root>
+  <Hint text="Plugin · {title}">
+    {#snippet children(props)}
+      <span {...props} tabindex="-1" aria-hidden="true" class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground">
+        <Wrench size={12} strokeWidth={1.75} />
+      </span>
+    {/snippet}
+  </Hint>
 {/if}

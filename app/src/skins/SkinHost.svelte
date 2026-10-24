@@ -99,7 +99,7 @@
   });
 </script>
 
-<div bind:clientWidth={width} bind:clientHeight={height} data-skin-host data-skin-id={skin.id} class="relative h-full w-full overflow-hidden"
+<div bind:clientWidth={width} bind:clientHeight={height} data-skin-host data-skin-id={skin.id} class="relative h-full w-full" class:overflow-hidden={mode === 'runtime'}
   onpointerdowncapture={onOriginDown}>
   {#if skin.design}
     {#if fit}

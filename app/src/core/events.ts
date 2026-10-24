@@ -21,7 +21,9 @@ export class EventRegistry {
   private cyclicReported = false;
 
   register(definition: EventDef) {
-    this.definitions.set(definition.id, structuredClone(definition));
+    // parameterSuggestions may be a function, which structuredClone rejects.
+    this.definitions.set(definition.id, { ...definition, ...(Array.isArray(definition.parameterSuggestions)
+      ? { parameterSuggestions: structuredClone(definition.parameterSuggestions) } : {}) });
     return () => {
       if (this.definitions.get(definition.id)?.plugin === definition.plugin) this.definitions.delete(definition.id);
     };

@@ -9,6 +9,9 @@ const control = (id: string, ...events: EventList[]): ControlConfig => ({ id, na
   scenario: { triggers: {}, events } });
 
 describe('event registry', () => {
+  it('accepts function parameter suggestions', () => {
+    expect(() => new EventRegistry().register({ id: 'x.e', title: 'E', parameterSuggestions: () => [] })).not.toThrow();
+  });
   it('matches any, exact and empty parameters and emits once per listener', async () => {
     const registry = new EventRegistry();
     registry.register({ id: 'counter.changed', title: 'Counter changed', plugin: 'core' });
