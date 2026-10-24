@@ -25,6 +25,9 @@ describe('skin declarations', () => {
     expect(() => validateSkinDefinition({ ...base(), defaultView: 'missing' })).toThrow('defaultView');
     expect(() => validateSkinDefinition({ ...base(), pageNavigation: 'external' as any })).toThrow('pageNavigation');
     expect(() => validateSkinDefinition({ ...base(), pageNavigation: 'skin' })).not.toThrow();
+    expect(() => validateSkinDefinition({ ...base(), alters: ['layout', 'logic'] })).not.toThrow();
+    expect(() => validateSkinDefinition({ ...base(), alters: ['layout', 'layout'] })).toThrow('alters');
+    expect(() => validateSkinDefinition({ ...base(), alters: ['appearance'] as any })).toThrow('alters');
   });
 
   it('requires positive finite geometry and skin-prefixed state/event identifiers', () => {

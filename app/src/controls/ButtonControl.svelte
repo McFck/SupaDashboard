@@ -11,6 +11,7 @@
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import StateView from './StateView.svelte';
+  import { buttonLabelVisible } from './face-layout';
 
   let { control, page, compact = false, w = 1, h = 1, pixelWidth, pixelHeight, presentation, face = ButtonFace,
     pressFeedbackDisabled = false, itemId }: {
@@ -29,6 +30,7 @@
   const busy = $derived(($runtimeView.busy[control.id] ?? 0) > 0);
   const fallbackWidth = $derived(w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14));
   const fallbackHeight = $derived(h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14));
+  const faceLabelHidden = $derived(!buttonLabelVisible(width || pixelWidth || fallbackWidth, height || pixelHeight || fallbackHeight));
   const Face = $derived(face ?? ButtonFace);
   function presentationFor(view: Variant): TilePresentation {
     const index = control.variants.indexOf(view);
@@ -45,7 +47,7 @@
   }
 </script>
 
-<button data-dashboard-tile bind:clientWidth={width} bind:clientHeight={height} use:gestures={{
+<button data-dashboard-tile data-face-label-hidden={faceLabelHidden} bind:clientWidth={width} bind:clientHeight={height} use:gestures={{
     onGesture: () => {}, onTrigger, captureTrigger: (trigger, interactionId) =>
       captureRuntimeTrigger(control.id, itemId ?? '', trigger, interactionId),
     enabled: !pressFeedbackDisabled, pullBindings: () => pullBindingsFor(control, current),

@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
-  import { convertFileSrc, isTauri } from '@tauri-apps/api/core';
+  import { convertFileSrc } from '@tauri-apps/api/core';
   import type { ControlConfig } from '../core/controls';
   import type { Trigger } from '../core/scenario';
   import { currentRuntime, runtimeView } from '../core/runtime.svelte';
   import { canRunContent, mediaContentPages, watchDashboardVisibility, watchIntersection } from '../core/content-visibility';
-  import { hasMediaExtension, isVideoSource, mediaSourceKey, mediaUrl, readMediaOptions, stepSlide } from '../core/content';
+  import { hasMediaExtension, isVideoSource, mediaFileUrl, mediaSourceKey, mediaUrl, readMediaOptions, stepSlide } from '../core/content';
   import { preloadNextMedia } from '../core/media-cache';
   import ContentTile from './ContentTile.svelte';
   import MediaFrame from './MediaFrame.svelte';
@@ -18,13 +18,9 @@
   const slide = $derived($runtimeView.content[control.id]?.slide ?? 0);
   const source = $derived(options.sources[slide]);
   const sourceKeyForPosition = $derived(mediaSourceKey(source));
-  let tauriAvailable = $state(false);
   const url = $derived.by(() => {
     if (source?.kind === 'url') return mediaUrl(source.value);
-    if (source?.kind === 'file' && tauriAvailable) {
-      try { return convertFileSrc(source.value); } catch { return undefined; }
-    }
-    return undefined;
+    return mediaFileUrl(source, convertFileSrc);
   });
   let visibilityTarget = $state<HTMLElement>();
   let intersecting = $state(false);
@@ -87,8 +83,7 @@
     const canAdvance = options.sources.length > 1 && (options.loop || slide < options.sources.length - 1);
     const nextIndex = canAdvance ? stepSlide(slide, options.sources.length, 1, options.loop) : -1;
     const next = nextIndex >= 0 ? options.sources[nextIndex] : undefined;
-    const nextUrl = next?.kind === 'url' ? mediaUrl(next.value)
-      : next?.kind === 'file' && tauriAvailable ? safeFileUrl(next.value) : undefined;
+    const nextUrl = next?.kind === 'url' ? mediaUrl(next.value) : mediaFileUrl(next, convertFileSrc);
     const nextKey = visible && nextUrl && next ? JSON.stringify([control.id, mediaSourceKey(next), nextUrl, isVideoSource(next)]) : '';
     if (nextKey === preloadIdentity) return;
     preloadIdentity = nextKey;
@@ -107,10 +102,6 @@
     }, options.interval * 1000);
     return () => clearTimeout(timer);
   });
-
-  function safeFileUrl(path: string) {
-    try { return convertFileSrc(path); } catch { return undefined; }
-  }
 
   function finishPreviousFade() {
     clearTimeout(fadeTimer);
@@ -145,7 +136,6 @@
   }
 
   onMount(() => {
-    tauriAvailable = isTauri();
     let disposed = false;
     let stopDashboard = () => {};
     const updateDocument = () => { documentVisible = document.visibilityState === 'visible'; };

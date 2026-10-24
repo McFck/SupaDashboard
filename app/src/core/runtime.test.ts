@@ -238,7 +238,7 @@ describe('automation runtime', () => {
     const dispatch = vi.spyOn(runtime, 'dispatch').mockResolvedValue({ status: 'completed' });
 
     expect(runtime.changePage('page-2', 'dot')).toBe(true);
-    expect(runtime.changePage('page-2', 'auto')).toBe(false);
+    expect(runtime.changePage('page-2', 'action')).toBe(false);
     await Promise.resolve();
     expect(dispatch).toHaveBeenCalledOnce();
     expect(dispatch.mock.calls[0][0].event).toEqual({ id: 'page.changed', parameter: 'page-2',
@@ -394,61 +394,4 @@ describe('automation runtime', () => {
     expect(() => runtime!.setSkinState(skinId, 'configured', false)).toThrow('Skin runtime is unavailable');
   });
 
-  it('rotates on one owner timer, pauses through interaction and visibility, then clears on disable', async () => {
-    vi.useFakeTimers();
-    let visibilityChanged: (() => void) | undefined;
-    const documentMock = { hidden: false,
-      addEventListener: (_type: string, listener: unknown) => { visibilityChanged = listener as () => void; },
-      removeEventListener: vi.fn() };
-    vi.stubGlobal('document', documentMock);
-    settings.deck.pages = [page('page-1'), page('page-2'), page('page-3')];
-    settings.deck.activePage = 'page-1';
-    settings.pageRotation.intervalSeconds = 5;
-    runtime = new AutomationRuntime();
-    await tick();
-    expect(vi.getTimerCount()).toBe(2);
-
-    await vi.advanceTimersByTimeAsync(5_000);
-    await tick();
-    expect(settings.deck.activePage).toBe('page-2');
-    await vi.advanceTimersByTimeAsync(5_000);
-    await tick();
-    expect(settings.deck.activePage).toBe('page-3');
-    await vi.advanceTimersByTimeAsync(5_000);
-    await tick();
-    expect(settings.deck.activePage).toBe('page-1');
-
-    runtime.setInteractionActive(true);
-    await vi.advanceTimersByTimeAsync(6_000);
-    expect(settings.deck.activePage).toBe('page-1');
-    runtime.setInteractionActive(false);
-    await vi.advanceTimersByTimeAsync(4_999);
-    expect(settings.deck.activePage).toBe('page-1');
-    await vi.advanceTimersByTimeAsync(1);
-    await tick();
-    expect(settings.deck.activePage).toBe('page-2');
-
-    documentMock.hidden = true;
-    visibilityChanged?.();
-    await vi.advanceTimersByTimeAsync(6_000);
-    expect(settings.deck.activePage).toBe('page-2');
-    documentMock.hidden = false;
-    visibilityChanged?.();
-    await vi.advanceTimersByTimeAsync(4_999);
-    expect(settings.deck.activePage).toBe('page-2');
-    await vi.advanceTimersByTimeAsync(1);
-    await tick();
-    expect(settings.deck.activePage).toBe('page-3');
-
-    settings.pageRotation.intervalSeconds = 0;
-    await tick();
-    runtime.setInteractionActive(true);
-    runtime.setInteractionActive(false);
-    expect(vi.getTimerCount()).toBe(1);
-    await vi.advanceTimersByTimeAsync(6_000);
-    expect(settings.deck.activePage).toBe('page-3');
-    await runtime.dispose();
-    runtime = undefined;
-    expect(vi.getTimerCount()).toBe(0);
-  });
 });

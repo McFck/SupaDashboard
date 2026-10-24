@@ -158,6 +158,12 @@
   background: var(--tile-surface, #14161b);
 }
 
+[data-face-label-hidden="true"] .truncate { display: none; }
+[data-face-hide-name="true"] .flex.h-full.w-full.items-center.justify-between > .truncate { display: none; }
+[data-face-hide-percent="true"] .flex.h-full.w-full.items-center.justify-between > .tabular-nums { display: none; }
+[data-face-icon-only="true"] .flex.h-full.w-full.items-center.justify-between { justify-content: center; }
+[data-slider-track] [aria-hidden="true"]:not([data-slider-fill]) { border-radius: var(--track-radius, 18px); }
+
 [data-empty-cell] {
   background: var(--empty-cell-surface);
   border: 1px solid var(--empty-cell-edge);

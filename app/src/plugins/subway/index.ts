@@ -96,7 +96,7 @@ export const subwayPlugin: Plugin = {
     run: (args, context) => context?.signal.aborted ? false : requestSubwayView(String(args.view ?? 'display'), context?.eventAncestry) });
 
     api.registerSkin({
-      id: 'subway', title: 'Subway', component: SubwaySkin, runtime, pageNavigation: 'skin',
+      id: 'subway', title: 'Subway', component: SubwaySkin, runtime, pageNavigation: 'skin', alters: ['layout', 'logic'],
       design: { width: 1920, height: 1200 },
       slots: [
         { id: 'strip', style: 'region', kind: 'strip', rect: { x: 0, y: 1080, w: 1920, h: 120 },

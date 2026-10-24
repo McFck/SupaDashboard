@@ -42,6 +42,7 @@ export type SkinStateField = {
   persistent?: boolean;
 };
 export type SkinPageNavigation = 'swipe' | 'skin';
+export type SkinAlter = 'layout' | 'logic';
 export type SkinConfig = Readonly<Record<string, unknown>>;
 export type SkinRuntimeContext = {
   config: Readable<SkinConfig>;
@@ -60,6 +61,7 @@ export type SkinDef = {
   id: string;
   title: string;
   component: Component<{ page: Page }>;
+  alters?: SkinAlter[];
   design?: { width: number; height: number };
   slots: SkinSlot[];
   views: SkinView[];
@@ -119,6 +121,8 @@ export function validateSkinDefinition(def: SkinDef) {
   if (def.design && (![def.design.width, def.design.height].every(Number.isFinite) || def.design.width <= 0 || def.design.height <= 0))
     fail('design dimensions must be finite and positive');
   if (!Array.isArray(def.slots) || !Array.isArray(def.views)) fail('slots and views are required');
+  if (def.alters !== undefined && (!Array.isArray(def.alters) || new Set(def.alters).size !== def.alters.length ||
+    def.alters.some(alter => alter !== 'layout' && alter !== 'logic'))) fail('alters must contain unique layout or logic values');
   if (def.pageNavigation !== undefined && def.pageNavigation !== 'swipe' && def.pageNavigation !== 'skin')
     fail('pageNavigation must be "swipe" or "skin"');
   const slots = new Map<string, SkinSlot>();

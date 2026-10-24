@@ -24,7 +24,8 @@ describe('plugin bookkeeping', () => {
         slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
         views: [{ id: 'default', title: 'Default', slots: ['main'] }], defaultView: 'default',
         state: [{ key: 'ready', type: 'boolean', initialValue: false, persistent: true }],
-        events: [{ id: 'test.skin.changed', title: 'Skin changed' }] });
+        events: [{ id: 'test.skin.changed', title: 'Skin changed',
+          parameterSuggestions: () => [{ value: 'ready', label: 'Ready' }] }] });
       api.registerIcon('TestIcon', 'M2 2');
       api.registerMediaSource({ id: 'test.source', title: 'Source', command: async () => {} });
     } };
@@ -41,7 +42,11 @@ describe('plugin bookkeeping', () => {
       { id: 'test.skin.view', owner: 'spotify', type: 'string', initialValue: 'default', persistent: false, readOnly: true },
       { id: 'test.skin.ready', owner: 'spotify', type: 'boolean', initialValue: false, persistent: true, readOnly: true },
     ]);
-    expect(registry.registeredEvents().some(event => event.id === 'test.skin.changed')).toBe(true);
+    const skinEvent = registry.registeredEvents().find(event => event.id === 'test.skin.changed');
+    expect(typeof skinEvent?.parameterSuggestions).toBe('function');
+    expect((skinEvent?.parameterSuggestions as () => { value: string; label: string }[])()).toEqual([
+      { value: 'ready', label: 'Ready' },
+    ]);
     const registeredSkin = registry.skins.get('test.skin')!;
     expect(() => ownerApi.registerSkin({ ...registeredSkin, views: [{ id: 'broken', title: 'Broken', slots: ['missing'] }] })).toThrow('slot references');
     expect(registry.skins.get('test.skin')).toBe(registeredSkin);
@@ -66,6 +71,13 @@ describe('plugin bookkeeping', () => {
     expect(store.set.mock.calls.at(-1)![1].uninstalled).not.toContain('subway');
     expect(store.save).toHaveBeenCalled();
     expect(location.reload).toHaveBeenCalledOnce();
+  });
+
+  it('does not record a plugin until its setup succeeds', async () => {
+    const registry = await import('./registry');
+    const plugin = { id: 'broken', title: 'Broken', setup: () => { throw new Error('setup failed'); } };
+    expect(() => registry.install(plugin)).toThrow('setup failed');
+    expect(registry.plugins.some(entry => entry.id === plugin.id)).toBe(false);
   });
 
   it('attributes variable/event APIs to their plugin and passes optional action context', async () => {

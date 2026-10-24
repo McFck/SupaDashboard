@@ -32,7 +32,6 @@ export type Settings = {
   };
   controls: ControlConfig[];
   deck: Deck;
-  pageRotation: { intervalSeconds: number };
   skinSettings: Record<string, Record<string, unknown>>;
   skinLayouts: Record<string, Record<string, Record<string, Item[]>>>;
   /** control id -> active variant (gesture swaps are sticky across restarts) */
@@ -74,14 +73,10 @@ export const DEFAULTS: Settings = {
       variants: [{ label: 'Spotify', icon: 'spotify', color: '#66ce8f', action: { id: 'spotify.open' } }] }),
   ],
   deck: { pages: [structuredClone(DEFAULT_PAGE)], activePage: DEFAULT_PAGE.id },
-  pageRotation: { intervalSeconds: 0 },
   skinSettings: {},
   skinLayouts: {},
   variants: {},
 };
-
-const validInterval = (value: unknown): value is number => Number.isSafeInteger(value) &&
-  (value === 0 || (Number(value) >= 5 && Number(value) <= 3600));
 
 function uniqueId(value: unknown, used: Set<string>, base: string) {
   if (typeof value === 'string' && value.trim() && !used.has(value)) {
@@ -140,7 +135,7 @@ export function migrate(input: any): Settings {
   const out = structuredClone(DEFAULTS);
   if (!input || typeof input !== 'object') return out;
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 5)
+  if (typeof saved.version === 'number' && saved.version > 6)
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   if (saved.version === 1) {
     const icon: Record<string, string> = { prev: 'SkipBack', next: 'SkipForward', playpause: 'Play', volume: 'Volume2' };
@@ -170,7 +165,9 @@ export function migrate(input: any): Settings {
       ? { rows: old.rows, cols: old.cols, size: old.size, gap: old.gap, items }
       : { ...structuredClone(DEFAULT_PAGE), items } };
   }
-  if (saved.version !== 3 && saved.version !== 4 && saved.version !== 5) return out;
+  // v6 was briefly emitted by a development build with this same settings shape; normalize it back to v5.
+  if (saved.version !== 3 && saved.version !== 4 && saved.version !== 5 && saved.version !== 6)
+    throw new Error(`Unsupported settings version ${saved.version}`); // never let an unknown file fall back to defaults and get saved over
 
   // Preserve explicit colours and empty labels while canonicalizing every control once.
   for (const control of saved.controls ?? []) {
@@ -179,7 +176,7 @@ export function migrate(input: any): Settings {
   saved.controls = (saved.controls ?? []).map((control: unknown) => normalizeControl(control));
   delete saved.slots; // the strip editor was removed; skins reuse the deck's controls
 
-  const rawPages: unknown[] = saved.version === 5 && Array.isArray(saved.deck?.pages)
+  const rawPages: unknown[] = saved.version >= 5 && Array.isArray(saved.deck?.pages)
     ? saved.deck.pages
     : [{ ...structuredClone(DEFAULT_PAGE), ...(saved.deck ?? {}), id: 'page-1', name: 'Page 1' }];
   const pages: Page[] = [];
@@ -218,11 +215,11 @@ export function migrate(input: any): Settings {
   }
 
   const activePage = pages.some(page => page.id === saved.deck?.activePage) ? saved.deck.activePage : pages[0].id;
-  const intervalSeconds = validInterval(saved.pageRotation?.intervalSeconds) ? saved.pageRotation.intervalSeconds : 0;
+  delete saved.pageRotation;
   return { ...out, ...saved, version: 5, display: { ...out.display, ...saved.display,
     alwaysOnTop: typeof saved.display?.alwaysOnTop === 'boolean' ? saved.display.alwaysOnTop : false,
     background: { ...out.display.background, ...saved.display?.background } },
-    deck: { pages, activePage }, pageRotation: { intervalSeconds }, skinSettings, skinLayouts,
+    deck: { pages, activePage }, skinSettings, skinLayouts,
     variants: { ...out.variants, ...(saved.variants && typeof saved.variants === 'object' ? saved.variants : {}) } };
 }
 
@@ -244,21 +241,21 @@ export function onRemoteSettings(listener: (next: Settings) => void) {
 export async function loadSettings() {
   const browser = !isTauri();
   const browserKey = 'supadashboard:settings:v5';
-  const legacyBrowserKey = 'supadashboard:settings:v4';
+  const legacyBrowserKeys = ['supadashboard:settings:v6', 'supadashboard:settings:v4'];
   let last = '';
   const assign = (next: Settings, activePage = next.deck.pages[0].id) => {
     next.deck.activePage = activePage;
     Object.assign(settings, next);
   };
   const applyInitial = (raw: unknown, rawJson?: string) => {
-    if ((raw as any)?.version > 5) return false;
+    if ((raw as any)?.version > 6) return false;
     const next = migrate(raw);
     assign(next);
     last = rawJson ?? '';
     return true;
   };
   const applyRemote = (raw: unknown) => {
-    if ((raw as any)?.version > 5) return;
+    if ((raw as any)?.version > 6) return;
     const next = migrate(raw);
     const json = serializeSettings(next);
     if (json === last) return;
@@ -268,8 +265,7 @@ export async function loadSettings() {
   };
 
   if (browser) {
-    const current = localStorage.getItem(browserKey);
-    const rawJson = current ?? localStorage.getItem(legacyBrowserKey);
+    const rawJson = localStorage.getItem(browserKey) ?? legacyBrowserKeys.map(key => localStorage.getItem(key)).find(Boolean);
     let raw: unknown = null;
     if (rawJson) {
       try { raw = JSON.parse(rawJson); } catch { raw = null; }

@@ -219,7 +219,9 @@ function createApi(owner: string): PluginApi {
         registryRuntime?.variables.define({ ...entry.definition, owner }, owner);
       }
       for (const definition of d.events ?? []) {
-        const event = { ...structuredClone(definition), plugin: owner };
+        const event = { ...definition,
+          ...(Array.isArray(definition.parameterSuggestions) ? { parameterSuggestions: structuredClone(definition.parameterSuggestions) } : {}),
+          plugin: owner };
         eventDefinitions.set(event.id, event);
         registryRuntime?.registerEvent(event);
       }
@@ -277,8 +279,8 @@ export function setRegistryRuntime(runtime: RegistryRuntime) {
 export function install(...list: Plugin[]) {
   for (const p of list) {
     if (plugins.some(x => x.id === p.id)) continue;
-    plugins.push(p);
     p.setup(createApi(p.id));
+    plugins.push(p);
   }
 }
 

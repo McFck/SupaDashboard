@@ -16,8 +16,7 @@ import { allPlacements, hasPlacement } from './skin-layouts';
 import { mediaSourceKey, readMediaOptions, sameMediaSource, stepSlide, type MediaSource } from './content';
 import { resolveSkinConfig, validSkinStateValue, type SkinConfig, type SkinDef, type SkinRuntimeContext } from './skins';
 
-export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'skin' | 'auto' | 'reconcile';
-let dashboardInteractionActive = false;
+export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'skin' | 'reconcile';
 
 export type RuntimeSnapshot = {
   online: boolean;
@@ -85,14 +84,11 @@ export class AutomationRuntime {
   private revision = 0;
   private persistTimer: ReturnType<typeof setTimeout> | undefined;
   private clockTimer: ReturnType<typeof setInterval> | undefined;
-  private rotationTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
   private lastValues: Record<string, VariableValue> = {};
   private variableAncestry = new Map<string, EventAncestry>();
   private activePage: string;
   private priorPageOrder: string[];
-  private interactionActive = false;
-  private readonly visibilityChanged = () => this.scheduleRotation();
 
   constructor(options: RuntimeOptions = {}) {
     this.variables = options.variables ?? new VariableStore();
@@ -101,7 +97,6 @@ export class AutomationRuntime {
     this.priorPageOrder = settings.deck.pages.map(page => page.id);
     this.activePage = pageById(settings.deck.pages, settings.deck.activePage)?.id ?? this.priorPageOrder[0] ?? 'page-1';
     if (this.owner) settings.deck.activePage = this.activePage;
-    this.interactionActive = this.owner && dashboardInteractionActive;
     this.onFailure = options.onFailure ?? (() => {});
     this.onQueueFull = options.onQueueFull ?? (() => {});
     this.events.register({ id: 'variables.changed', title: 'Variable changed', plugin: 'core' });
@@ -137,7 +132,6 @@ export class AutomationRuntime {
       this.reconcile(next.controls);
       if (this.owner) this.reconcilePages(next.deck.pages);
       if (this.owner) for (const skinId of this.skinConfigs.keys()) this.updateSkinConfig(skinId, next.skinSettings[skinId] ?? {});
-      if (this.owner) this.scheduleRotation();
     });
     this.stopSettingsEffect = $effect.root(() => {
       $effect(() => {
@@ -150,19 +144,10 @@ export class AutomationRuntime {
         const pages = settings.deck.pages;
         if (this.owner) this.reconcilePages(pages);
       });
-      $effect(() => {
-        const interval = settings.pageRotation.intervalSeconds;
-        const order = settings.deck.pages.map(page => page.id).join('\u0000');
-        const active = settings.deck.activePage;
-        void interval; void order; void active;
-        if (this.owner) this.scheduleRotation();
-      });
     });
     this.publish(this.variables.snapshot());
     if (this.owner) {
-      if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.visibilityChanged);
       this.startClock();
-      this.scheduleRotation();
     }
   }
 
@@ -263,7 +248,6 @@ export class AutomationRuntime {
     this.activePage = pageId;
     settings.deck.activePage = pageId;
     this.publish(this.variables.snapshot());
-    this.scheduleRotation();
     void this.emitEvent('page.changed', pageId, { previousPage, page: pageId, reason }, ancestry ? structuredClone(ancestry) : undefined).catch(() => {
       try { this.onFailure({ controlId: '', itemId: '', trigger: 'event', stepId: 'page.changed', kind: 'condition' }); }
       catch { /* a failure sink must not interrupt page navigation */ }
@@ -278,12 +262,6 @@ export class AutomationRuntime {
     if (index < 0 || pages.length < 2) return false;
     const next = (index + (direction === 'next' ? 1 : pages.length - 1)) % pages.length;
     return this.changePage(pages[next].id, reason, ancestry);
-  }
-
-  setInteractionActive(active: boolean) {
-    if (this.disposed || !this.owner || this.interactionActive === active) return;
-    this.interactionActive = active;
-    this.scheduleRotation();
   }
 
   updateSkinConfig(skinId: string, stored: Record<string, unknown> = settings.skinSettings[skinId] ?? {}) {
@@ -390,9 +368,6 @@ export class AutomationRuntime {
     this.disposed = true;
     if (this.persistTimer) clearTimeout(this.persistTimer);
     if (this.clockTimer) clearInterval(this.clockTimer);
-    if (this.rotationTimer) clearTimeout(this.rotationTimer);
-    this.rotationTimer = undefined;
-    if (this.owner && typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.visibilityChanged);
     this.stopRemoteSettings();
     this.stopSettingsEffect();
     this.unsubscribeVariables();
@@ -499,19 +474,6 @@ export class AutomationRuntime {
     this.priorPageOrder = order;
   }
 
-  private scheduleRotation() {
-    if (this.rotationTimer) clearTimeout(this.rotationTimer);
-    this.rotationTimer = undefined;
-    const interval = settings.pageRotation.intervalSeconds;
-    if (!this.owner || this.disposed || interval < 5 || settings.deck.pages.length < 2 || this.interactionActive ||
-      typeof document !== 'undefined' && document.hidden) return;
-    this.rotationTimer = setTimeout(() => {
-      this.rotationTimer = undefined;
-      if (this.interactionActive || typeof document !== 'undefined' && document.hidden) return;
-      this.changePageInDirection('next', 'auto');
-    }, interval * 1000);
-  }
-
   private schedulePersist() {
     if (!this.persistence || this.disposed) return;
     if (this.persistTimer) clearTimeout(this.persistTimer);
@@ -586,11 +548,6 @@ export async function requestPageChange(change: { direction: 'next' | 'prev' } |
   const payload: PageChangePayload = 'page' in change ? { page: change.page, reason } : { direction: change.direction, reason };
   const snapshot = await requestRuntime({ type: 'changePage', payload }) as RuntimeSnapshot;
   return !!snapshot && typeof snapshot.activePage === 'string' && (!('page' in change) || snapshot.activePage === change.page);
-}
-
-export function setRuntimeInteraction(active: boolean) {
-  dashboardInteractionActive = active;
-  currentRuntime()?.setInteractionActive(active);
 }
 
 export async function dispatchRuntimeTrigger(controlId: string, itemId: string, trigger: Trigger) {

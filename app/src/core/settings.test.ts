@@ -34,6 +34,7 @@ describe('settings migration', () => {
   it('uses defaults for missing data and refuses to overwrite a future settings version', () => {
     expect(migrate(undefined)).toEqual(DEFAULTS);
     expect(() => migrate({ version: 99 })).toThrow('newer than this app supports');
+    expect(() => migrate({ version: "5", controls: [] })).toThrow("Unsupported settings version");
   });
 
   it('adds empty skin maps and round-trips Unicode configs and layouts without a second Deck source', () => {
@@ -199,21 +200,28 @@ describe('settings migration', () => {
     expect(migrate(migrated)).toEqual(migrated);
   });
 
-  it('normalizes empty pages and invalid rotation, and serializes selection as the first page', () => {
-    const malformed: any = { ...structuredClone(DEFAULTS), deck: { pages: [], activePage: 'gone' },
+  it('drops legacy page rotation and serializes selection as the first page', () => {
+    const malformed: any = { ...structuredClone(DEFAULTS), version: 5, deck: { pages: [], activePage: 'gone' },
       pageRotation: { intervalSeconds: 4 } };
     const migrated = migrate(malformed);
     expect(migrated.deck.pages).toHaveLength(1);
     expect(migrated.deck.activePage).toBe(migrated.deck.pages[0].id);
-    expect(migrated.pageRotation.intervalSeconds).toBe(0);
+    expect(migrated).not.toHaveProperty('pageRotation');
     const selected = structuredClone(migrated);
     selected.deck.pages.push({ ...structuredClone(selected.deck.pages[0]), id: 'other', name: 'Other' });
     selected.deck.activePage = 'other';
     const snapshot = serializeSettings(selected);
     expect(JSON.parse(snapshot).deck.activePage).toBe(selected.deck.pages[0].id);
+    expect(JSON.parse(snapshot)).not.toHaveProperty('pageRotation');
     expect(selected.deck.activePage).toBe('other');
-    expect(migrate({ ...selected, pageRotation: { intervalSeconds: 3600 } }).pageRotation.intervalSeconds).toBe(3600);
-    expect(migrate({ ...selected, pageRotation: { intervalSeconds: 3601 } }).pageRotation.intervalSeconds).toBe(0);
+  });
+
+  it('normalizes the short-lived v6 settings shape back to v5 without losing values', () => {
+    const interrupted: any = { ...structuredClone(DEFAULTS), version: 6, skin: 'subway',
+      pageRotation: { intervalSeconds: 10 } };
+    const migrated = migrate(interrupted);
+    expect(migrated).toMatchObject({ version: 5, skin: 'subway' });
+    expect(migrated).not.toHaveProperty('pageRotation');
   });
 
   it('preserves media options through v5 migration and serialization', () => {

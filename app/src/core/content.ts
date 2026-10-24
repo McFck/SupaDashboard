@@ -82,6 +82,11 @@ export function mediaUrl(value: string): string | undefined {
   }
 }
 
+export function mediaFileUrl(source: MediaSource | undefined, convert: (path: string) => string): string | undefined {
+  if (source?.kind !== 'file') return undefined;
+  try { return convert(source.value); } catch { return undefined; }
+}
+
 export function isVideoSource(source: MediaSource): boolean {
   try {
     const path = source.kind === 'url' ? new URL(source.value).pathname : source.value;

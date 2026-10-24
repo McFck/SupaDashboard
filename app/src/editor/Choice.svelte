@@ -2,9 +2,10 @@
   // A plain "pick one of these" dropdown on top of the shadcn Select.
   import type { Component } from 'svelte';
   import * as Select from '$lib/components/ui/select';
+  import { Hint } from '$lib/components/ui/tooltip';
   import PluginMark, { pluginTitle } from './PluginMark.svelte';
 
-  type Option = { value: string; label: string; icon?: Component<any>; iconLabel?: string; disabled?: boolean; plugin?: string };
+  type Option = { value: string; label: string; icon?: Component<any>; iconLabel?: string; iconHint?: string; disabled?: boolean; plugin?: string };
   let {
     value, options, onchange, placeholder = 'Choose…', class: className = 'w-full', id,
     'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledby, onopen,
@@ -19,21 +20,33 @@
 
 <Select.Root type="single" {value} onValueChange={v => onchange(v)} onOpenChange={open => { if (open) onopen?.(); }}>
   <Select.Trigger {id} aria-label={accessibleLabel} aria-labelledby={ariaLabelledby} class={className}>
-    {#if selected?.icon}
-      <selected.icon size={15} class="size-4 shrink-0" aria-hidden={selected.iconLabel ? 'true' : undefined} />
-      {#if selected.iconLabel}<span class="sr-only">{selected.iconLabel}</span>{/if}
-    {/if}
+    {#if selected?.icon && !selected.iconHint}<selected.icon size={15} class="size-4 shrink-0" aria-hidden={selected.iconLabel ? 'true' : undefined} />{/if}
+    {#if selected?.iconLabel}<span class="sr-only">{selected.iconLabel}</span>{/if}
     <span class="min-w-0 flex-1 truncate text-left">{selected?.label ?? placeholder}</span>
-    {#if selected?.plugin}<PluginMark plugin={selected.plugin} />{/if}
+    <span class="inline-flex shrink-0 items-center gap-1">
+      {#if selected?.icon && selected.iconHint}
+        <Hint text={selected.iconHint}>
+          {#snippet children(props)}<span {...props} class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground"><selected.icon size={12} strokeWidth={1.75} aria-hidden="true" /></span>{/snippet}
+        </Hint>
+      {/if}
+      {#if selected?.plugin}<PluginMark plugin={selected.plugin} />{/if}
+    </span>
   </Select.Trigger>
   <Select.Content class="w-max min-w-64 max-w-[calc(100vw-2rem)]">
     <Select.Group>
       {#each options as o (o.value)}
         <Select.Item value={o.value} label={o.label} disabled={o.disabled}>
-          {#if o.icon}<o.icon size={15} class="size-4 shrink-0" aria-hidden={o.iconLabel ? 'true' : undefined} />{/if}
+          {#if o.icon && !o.iconHint}<o.icon size={15} class="size-4 shrink-0" aria-hidden={o.iconLabel ? 'true' : undefined} />{/if}
           {#if o.iconLabel}<span class="sr-only">{o.iconLabel}</span>{/if}
           <span class="min-w-0 flex-1 truncate">{o.label}</span>
-          {#if o.plugin}<PluginMark plugin={o.plugin} />{/if}
+          <span class="inline-flex shrink-0 items-center gap-1">
+            {#if o.icon && o.iconHint}
+              <Hint text={o.iconHint}>
+                {#snippet children(props)}<span {...props} class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground"><o.icon size={12} strokeWidth={1.75} aria-hidden="true" /></span>{/snippet}
+              </Hint>
+            {/if}
+            {#if o.plugin}<PluginMark plugin={o.plugin} />{/if}
+          </span>
         </Select.Item>
       {/each}
     </Select.Group>

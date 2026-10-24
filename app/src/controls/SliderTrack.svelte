@@ -8,6 +8,7 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import SliderFace from './SliderFace.svelte';
   import StateView from './StateView.svelte';
+  import { sliderFaceText } from './face-layout';
 
   type TrackRect = { left: number; right: number; top: number; bottom: number; width: number; height: number };
   type ActiveDrag = { state: PullState; rect: TrackRect; vertical: boolean; bindings: PullBindings;
@@ -30,6 +31,7 @@
   } = $props();
 
   let el = $state<HTMLElement>();
+  let width = $state(0), height = $state(0);
   let drag: ActiveDrag | null = null;
   let active = $state(false);
   let lastTapRect: TrackRect | null = null;
@@ -208,15 +210,19 @@
   const pct = $derived(level == null ? null : Math.round(level * 100));
   const appearance = $derived(presentation ?? { key: `source:${sourceKey}`, view: { label: label ?? '', icon, color: accent } });
   const Face = $derived(face ?? SliderFace);
+  const faceText = $derived(sliderFaceText(width || pixelWidth, height || pixelHeight, vertical));
   const animateFill = $derived(shouldAnimateSliderFill({ level, previousLevel, sourceKey, previousSourceKey: previousSourceKey ?? '',
     vertical, previousVertical: previousVertical ?? vertical, ready: fillReady, dragging: active, reducedMotion }));
 </script>
 
-<div bind:this={el} data-dashboard-tile role="slider" tabindex="0" aria-label={label} aria-valuenow={pct ?? undefined}
+<div bind:this={el} bind:clientWidth={width} bind:clientHeight={height} data-dashboard-tile data-slider-track
+  data-face-hide-name={!faceText.name} data-face-hide-percent={!faceText.percentage}
+  data-face-icon-only={!faceText.name && !faceText.percentage} style:--track-radius="{Math.min(18, (width || pixelWidth) * .2)}px"
+  role="slider" tabindex="0" aria-label={label} aria-valuenow={pct ?? undefined}
   aria-orientation={vertical ? 'vertical' : 'horizontal'}
   onpointerdown={down} onpointermove={move} onpointerup={up} onkeydown={key}
   onpointercancel={e => cancel(e.pointerId)} onlostpointercapture={e => cancel(e.pointerId)}
-  class="relative h-full w-full touch-none select-none overflow-hidden rounded-[18px] outline-none
+  class="relative h-full w-full touch-none select-none overflow-hidden rounded-[var(--track-radius,18px)] outline-none
     ring-white/30 transition-[box-shadow] focus-visible:ring-2 {active ? 'ring-2 ring-white/20' : ''} {level == null ? 'opacity-40' : ''}">
   <div class="pointer-events-none absolute inset-0">
     <StateView presentation={appearance} immediate={presentationImmediate} class="h-full w-full">

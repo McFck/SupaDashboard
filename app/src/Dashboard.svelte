@@ -10,7 +10,7 @@
   import { skins } from './core/registry';
   import { settings } from './core/settings.svelte';
   import { pageById } from './core/pages';
-  import { requestPageChange, runtimeView, setRuntimeInteraction } from './core/runtime.svelte';
+  import { requestPageChange, runtimeView } from './core/runtime.svelte';
   import { pageSwipeIntent, pageSwipeOffset, pageSwipeTarget } from './core/page-swipe';
   import { setMediaContentPages } from './core/content-visibility';
 
@@ -56,10 +56,12 @@
   let cleanupDisplay: (() => void) | undefined;
   let cleanupHover: (() => void) | undefined;
   let cleanupResized: (() => void) | undefined;
+  let cleanupResize: (() => void) | undefined;
   const hovered = $derived(domHovered || nativeHovered);
   $effect(() => setMediaContentPages(pagerFrames.filter(frame => frame.mediaVisible).map(frame => frame.id)));
   // Native resize loops swallow pointer hover, so keep the edge cues up until resize events go quiet.
   let windowResizing = $state(false);
+  let nativeResizing = $state(false);
   let resizeQuiet: ReturnType<typeof setTimeout> | undefined;
   function showResizeCues() {
     windowResizing = true;
@@ -496,21 +498,7 @@
     trackedOrderKey = settings.deck.pages.map(entry => entry.id).join('\u0000');
     trackedSkin = settings.skin;
     trackedFullscreen = appliedFullscreen;
-    const activePointers = new Set<number>();
-    const pointerDown = (event: PointerEvent) => {
-      if (!event.isPrimary || event.button !== 0 || !shell.contains(event.target as Node)) return;
-      activePointers.add(event.pointerId);
-      setRuntimeInteraction(true);
-    };
-    const pointerEnd = (event: PointerEvent) => {
-      if (activePointers.delete(event.pointerId) && !activePointers.size) setRuntimeInteraction(false);
-    };
-    const clearInteractions = () => { activePointers.clear(); setRuntimeInteraction(false); };
     const resize = () => onPagerResize();
-    window.addEventListener('pointerdown', pointerDown, true);
-    window.addEventListener('pointerup', pointerEnd, true);
-    window.addEventListener('pointercancel', pointerEnd, true);
-    window.addEventListener('blur', clearInteractions);
     window.addEventListener('resize', resize);
     document.addEventListener('fullscreenchange', resize);
     gapResizeObserver = new ResizeObserver(scheduleDragGapMeasure);
@@ -547,6 +535,12 @@
             nativeHovered = payload.hovered === true;
             if (payload.clearClient) domHovered = false;
           });
+          cleanupResize = await listen<boolean>('dashboard-resize', event => {
+            nativeResizing = event.payload;
+            clearTimeout(resizeQuiet);
+            resizeQuiet = undefined;
+            windowResizing = event.payload;
+          });
         } catch (error) {
           console.warn('dashboard hover listener', error);
         }
@@ -569,6 +563,7 @@
         cleanup?.();
         cleanupHover?.();
         cleanupResized?.();
+        cleanupResize?.();
         return;
       }
       cleanupDisplay = cleanup;
@@ -590,13 +585,9 @@
       cleanupDisplay?.();
       cleanupHover?.();
       cleanupResized?.();
-      window.removeEventListener('pointerdown', pointerDown, true);
-      window.removeEventListener('pointerup', pointerEnd, true);
-      window.removeEventListener('pointercancel', pointerEnd, true);
-      window.removeEventListener('blur', clearInteractions);
+      cleanupResize?.();
       window.removeEventListener('resize', resize);
       document.removeEventListener('fullscreenchange', resize);
-      clearInteractions();
       clearTimeout(resizeQuiet);
       cleanup?.();
     };
@@ -638,7 +629,7 @@
 </script>
 
 <div role="region" aria-label="Dashboard" class="dashboard-shell relative h-full w-full overflow-hidden" data-fullscreen={appliedFullscreen}
-  data-hovered={hovered || windowResizing}
+  data-hovered={hovered || windowResizing || nativeResizing}
   style:border-radius="{appliedFullscreen ? 0 : bg.radius}px"
   bind:this={shell} onpointerdowncapture={onPagerPointerDown}
   onpointerenter={() => { domHovered = true; }} onpointerleave={() => { domHovered = false; }}>
@@ -834,7 +825,7 @@
   }
 
   @media (pointer: coarse) {
-    :global(.dashboard-shell .resize-cues) { --resize-ink: rgba(255, 255, 255, .08); opacity: 1; }
+    :global(.dashboard-shell .resize-cues) { --resize-ink: rgba(255, 255, 255, .08); }
     :global(.dashboard-shell .dashboard-page-dots) { opacity: 1; pointer-events: auto; }
   }
 </style>

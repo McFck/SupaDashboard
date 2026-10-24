@@ -3,11 +3,13 @@
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
+  import { Badge } from '$lib/components/ui/badge';
   import Icon from '../controls/Icon.svelte';
-  import { pluginState, setPluginEnabled, type Plugin } from '../core/registry';
+  import { pluginState, setPluginEnabled, skins, type Plugin } from '../core/registry';
   import Row from './ui/Row.svelte';
   import Section from './ui/Section.svelte';
   let { plugin, onback }: { plugin: Plugin; onback: () => void } = $props();
+  const pluginSkins = $derived([...skins.values()].filter(skin => skin.plugin === plugin.id));
   let removing = $state(false);
   function date(value?: string) {
     return value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) : '—';
@@ -44,6 +46,19 @@
     <Row label="Installed"><span class="text-sm">{date($pluginState.installed[plugin.id])}</span></Row>
     <Row label="Size"><span class="text-sm tabular-nums">{size(plugin.size)}</span></Row>
   </Section>
+  {#if pluginSkins.length}
+    <Section title="Skins">
+      {#each pluginSkins as skin (skin.id)}
+        <Row label={skin.title}>
+          <div class="flex flex-wrap justify-end gap-1.5">
+            {#each skin.alters ?? [] as alteration (alteration)}
+              <Badge variant="secondary">Changes {alteration}</Badge>
+            {/each}
+          </div>
+        </Row>
+      {/each}
+    </Section>
+  {/if}
   {#if plugin.settings}
     {@const Settings = plugin.settings}
     <Section title="Settings"><Settings /></Section>

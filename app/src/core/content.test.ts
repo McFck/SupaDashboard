@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MEDIA_OPTIONS, DEFAULT_WEB_OPTIONS, hasMediaExtension, isVideoSource, mediaUrl,
-  mediaSourceKey, readMediaOptions, readWebOptions, stepSlide, webUrl } from './content';
+  mediaFileUrl, mediaSourceKey, readMediaOptions, readWebOptions, stepSlide, webUrl } from './content';
 
 describe('media content options', () => {
   it('returns safe defaults without modifying malformed input', () => {
@@ -53,6 +53,14 @@ describe('media content options', () => {
     expect(mediaUrl('http://localhost:5186/image')).toBe('http://localhost:5186/image');
     for (const value of ['file:///secret.png', 'data:image/png,x', 'https://user:pass@example.test/x', '/relative.png'])
       expect(mediaUrl(value)).toBeUndefined();
+  });
+
+  it('converts saved file sources without relying on a window-level Tauri marker', () => {
+    const convert = (path: string) => `asset://localhost/${encodeURIComponent(path)}`;
+    const source = { kind: 'file' as const, value: 'C:/Pictures/photo.jpg' };
+    expect(mediaFileUrl(source, convert)).toBe('asset://localhost/C%3A%2FPictures%2Fphoto.jpg');
+    expect(mediaFileUrl({ kind: 'url', value: 'https://example.test/photo.jpg' }, convert)).toBeUndefined();
+    expect(mediaFileUrl(source, () => { throw new Error('not running in Tauri'); })).toBeUndefined();
   });
 
   it('classifies video by URL pathname, ignoring query, hash and case', () => {

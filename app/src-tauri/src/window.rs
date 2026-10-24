@@ -42,10 +42,10 @@ fn resize_hit(rect: Geometry, point: (i32, i32), dpi: u32, fullscreen: bool) -> 
         return None;
     }
 
-    let band_x = scaled_dip(6, dpi).min((width / 2).max(1));
-    let band_y = scaled_dip(6, dpi).min((height / 2).max(1));
-    let reach_x = scaled_dip(24, dpi).min((width / 2).max(1));
-    let reach_y = scaled_dip(24, dpi).min((height / 2).max(1));
+    let band_x = scaled_dip(12, dpi).min((width / 2).max(1));
+    let band_y = scaled_dip(12, dpi).min((height / 2).max(1));
+    let reach_x = scaled_dip(32, dpi).min((width / 2).max(1));
+    let reach_y = scaled_dip(32, dpi).min((height / 2).max(1));
     let west = x < left + band_x;
     let east = x >= right - band_x;
     let north = y < top + band_y;
@@ -104,8 +104,9 @@ mod win32 {
         HTBOTTOMRIGHT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsIconic, IsWindowVisible,
         MA_NOACTIVATE, PA_NOACTIVATE, SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT, SWP_FRAMECHANGED,
         SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetWindowLongPtrW,
-        SetWindowPos, WM_CANCELMODE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE,
-        WM_NCMOUSEMOVE, WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING,
+        SetWindowPos, WM_CANCELMODE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_MOUSEACTIVATE,
+        WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_POINTERACTIVATE,
+        WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING,
         WM_SYSCOMMAND, WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
     };
 
@@ -116,6 +117,8 @@ mod win32 {
         tracking_leave: bool,
         minimized: bool,
         revision: u64,
+        resize_hit_test: bool,
+        resizing: bool,
     }
 
     #[derive(Clone, Serialize)]
@@ -144,6 +147,8 @@ mod win32 {
             tracking_leave: false,
             minimized: unsafe { IsIconic(hwnd).as_bool() },
             revision: 0,
+            resize_hit_test: false,
+            resizing: false,
         }));
         let installed = unsafe {
             SetWindowSubclass(hwnd, Some(dashboard_subclass), SUBCLASS_ID, state as usize).as_bool()
@@ -233,6 +238,17 @@ mod win32 {
         });
     }
 
+    fn publish_resize(state: &mut PolicyState, resizing: bool) {
+        if state.resizing == resizing {
+            return;
+        }
+        state.resizing = resizing;
+        let app = state.app.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = app.emit_to("main", "dashboard-resize", resizing);
+        });
+    }
+
     unsafe extern "system" fn dashboard_subclass(
         hwnd: HWND,
         message: u32,
@@ -254,11 +270,17 @@ mod win32 {
         }
         if message == WM_SYSCOMMAND {
             let command = wparam.0 as u32 & 0xfff0;
+            if command == SC_SIZE {
+                policy.resize_hit_test = true;
+            }
             if command == SC_MAXIMIZE
                 || (policy.fullscreen && (command == SC_MOVE || command == SC_SIZE))
             {
                 return LRESULT(0);
             }
+        }
+        if message == WM_NCHITTEST && !policy.resizing {
+            policy.resize_hit_test = false;
         }
         if message == WM_NCHITTEST && !policy.fullscreen {
             let mut rect = RECT::default();
@@ -276,6 +298,7 @@ mod win32 {
                     height: i64::from(rect.bottom - rect.top),
                 };
                 if let Some(hit) = resize_hit(bounds, point, dpi, false) {
+                    policy.resize_hit_test = true;
                     return LRESULT(hit_code(hit) as isize);
                 }
             }
@@ -302,6 +325,13 @@ mod win32 {
             policy.tracking_leave = false;
             publish_hover(policy, false, true);
         }
+        if message == WM_ENTERSIZEMOVE {
+            publish_resize(policy, policy.resize_hit_test);
+        }
+        if message == WM_EXITSIZEMOVE || message == WM_CANCELMODE {
+            policy.resize_hit_test = false;
+            publish_resize(policy, false);
+        }
         if message == WM_STYLECHANGING && lparam.0 != 0 {
             let change = unsafe { &mut *(lparam.0 as *mut STYLESTRUCT) };
             match wparam.0 as i32 {
@@ -315,6 +345,8 @@ mod win32 {
         if message == WM_NCDESTROY {
             policy.tracking_leave = false;
             publish_hover(policy, false, true);
+            policy.resize_hit_test = false;
+            publish_resize(policy, false);
             let _ = unsafe { RemoveWindowSubclass(hwnd, Some(dashboard_subclass), subclass_id) };
             let result = unsafe { DefSubclassProc(hwnd, message, wparam, lparam) };
             unsafe { drop(Box::from_raw(reference_data as *mut PolicyState)) };
@@ -412,6 +444,8 @@ mod win32 {
         let policy = unsafe { &mut *(reference_data as *mut PolicyState) };
         policy.fullscreen = fullscreen;
         policy.tracking_leave = false;
+        policy.resize_hit_test = false;
+        publish_resize(policy, false);
         publish_hover(policy, false, true);
         Ok(())
     }
@@ -628,7 +662,8 @@ mod tests {
             resize_hit(rect, (-1909, -100), 192, false),
             Some(ResizeHit::West)
         );
-        assert_eq!(resize_hit(rect, (-1911, -100), 144, false), None);
+        assert_eq!(resize_hit(rect, (-1902, -100), 144, false), None);
+        assert_eq!(resize_hit(rect, (-1896, -100), 192, false), None);
         assert_eq!(
             resize_hit(rect, (-1918, -198), 96, false),
             Some(ResizeHit::NorthWest)
@@ -658,10 +693,14 @@ mod tests {
             width: 200,
             height: 100,
         };
-        assert_eq!(resize_hit(normal, (6, 50), 96, false), None);
+        assert_eq!(resize_hit(normal, (12, 50), 96, false), None);
         assert_eq!(
-            resize_hit(normal, (5, 50), 96, false),
+            resize_hit(normal, (11, 50), 96, false),
             Some(ResizeHit::West)
         );
+        assert_eq!(resize_hit(normal, (11, 31), 96, false), Some(ResizeHit::NorthWest));
+        assert_eq!(resize_hit(normal, (11, 32), 96, false), Some(ResizeHit::West));
+        assert_eq!(resize_hit(normal, (31, 11), 96, false), Some(ResizeHit::NorthWest));
+        assert_eq!(resize_hit(normal, (32, 11), 96, false), Some(ResizeHit::North));
     }
 }
