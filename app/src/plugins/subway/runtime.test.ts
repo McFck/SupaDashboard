@@ -49,14 +49,15 @@ function makeContext(onEvent?: (id: string) => void) {
   const config = writable({ line: 'yamanote', direction: 'inner', station: 'JY30', speed: 1, immersion: true, dwellSeconds: 0 });
   const values = new Map<string, unknown>();
   const events: string[] = [];
+  const ancestries: Array<{ depth: number; listeners: string[] } | undefined> = [];
   const context: SkinRuntimeContext = {
     config,
     getState: key => values.get(key) as never,
     setState: async (key, value) => { values.set(key, value); return true; },
     setView: async () => true,
-    emitEvent: async id => { events.push(id); onEvent?.(id); },
+    emitEvent: async (id, _parameter, _payload, ancestry) => { events.push(id); ancestries.push(ancestry); onEvent?.(id); },
   };
-  return { context, values, events, config };
+  return { context, values, events, ancestries, config };
 }
 
 async function flush(): Promise<void> {
@@ -189,5 +190,41 @@ describe('Subway owner runtime', () => {
     await flush();
     expect(fixture.events).toContain('subway.departed');
     expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', station: 'H14', state: 'stopped' });
+  });
+
+  it('keeps runtime line and immersion overrides through unrelated config changes, then clears each on its own setting edit', async () => {
+    const clock = new FakeClock();
+    const fixture = makeContext();
+    const surface = registerSubwaySurface(true);
+    disposers.push(() => surface.dispose());
+    const handle = createSubwayRuntime(fixture.context, { clock, loadAssets: async () => assets, assetBase: 'http://localhost/subway/' });
+    disposers.push(() => handle.dispose());
+    await flush();
+    expect(handle.requestLine({ line: 'hibiya', direction: 'to-kita-senju', startStation: 'H14' })).toBe(true);
+    expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', direction: 'to-kita-senju', station: 'H14', generation: 1 });
+    expect(handle.setImmersion(false)).toBe(true);
+    fixture.config.update(config => ({ ...config, speed: 2 }));
+    expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', station: 'H14', immersion: false, multiplier: 2 });
+    fixture.config.update(config => ({ ...config, immersion: false }));
+    fixture.config.update(config => ({ ...config, line: 'hibiya', direction: 'to-naka-meguro', startStation: 'H06' }));
+    expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', direction: 'to-naka-meguro', station: 'H06', immersion: false });
+  });
+
+  it('passes scenario ancestry through runtime action events and rejects invalid requested station data without mutation', async () => {
+    const clock = new FakeClock();
+    const fixture = makeContext();
+    const surface = registerSubwaySurface(true);
+    disposers.push(() => surface.dispose());
+    const handle = createSubwayRuntime(fixture.context, { clock, loadAssets: async () => assets, assetBase: 'http://localhost/subway/' });
+    disposers.push(() => handle.dispose());
+    await flush();
+    const before = handle.getSnapshot();
+    expect(handle.requestLine({ line: 'hibiya', direction: 'to-kita-senju', startStation: 'K20' })).toBe(false);
+    expect(handle.getSnapshot()).toEqual(before);
+    const ancestry = { depth: 2, listeners: ['flow-1', 'flow-2'] };
+    expect(handle.dispatch({ type: 'emergency' }, ancestry)).toBe(true);
+    await flush();
+    expect(fixture.events).toContain('subway.emergency');
+    expect(fixture.ancestries).toContainEqual(ancestry);
   });
 });

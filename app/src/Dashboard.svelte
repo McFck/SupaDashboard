@@ -97,6 +97,10 @@
     const surface = shell.getBoundingClientRect();
     const excluded: LocalRect[] = [];
     const add = (node: Element) => {
+      for (let current: Element | null = node; current && current !== skinRoot.parentElement; current = current.parentElement) {
+        const style = getComputedStyle(current);
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return;
+      }
       const bounds = node.getBoundingClientRect();
       if (bounds.width <= 0 || bounds.height <= 0) return;
       const rect = { x: bounds.left - surface.left, y: bounds.top - surface.top, width: bounds.width, height: bounds.height };
@@ -515,7 +519,8 @@
       observeGapNodes();
       scheduleDragGapMeasure();
     });
-    gapMutationObserver.observe(pageHost, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-visible-page'] });
+    gapMutationObserver.observe(pageHost, { childList: true, subtree: true, attributes: true,
+      attributeFilter: ['data-visible-page', 'data-skin-input', 'aria-hidden', 'inert', 'style'] });
     scheduleDragGapMeasure();
     const initialDisplay = $state.snapshot(settings.display);
     let cleanup: (() => void) | undefined;
