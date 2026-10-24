@@ -3,6 +3,7 @@
   import Plus from '@lucide/svelte/icons/plus';
   import Trash from '@lucide/svelte/icons/trash-2';
   import { Button } from '$lib/components/ui/button';
+  import { DropdownMenu } from 'bits-ui';
   import { Label } from '$lib/components/ui/label';
   import * as Dialog from '$lib/components/ui/dialog';
   import type { EventList, Trigger } from '../core/scenario';
@@ -41,7 +42,6 @@
   let selectedState = $state('*');
   let selectedTab = $state<'scenario' | 'views' | 'binding'>('scenario');
   let pickerKey = $state<string | null>(null);
-  let eventToAdd = $state('');
   let variablesOpen = $state(false);
   let manualFallbackStateId = '';
   let opener = $state<HTMLElement | null>(null);
@@ -106,7 +106,6 @@
     selectedState = '*';
     selectedTab = 'scenario';
     pickerKey = null;
-    eventToAdd = '';
     variablesOpen = false;
     manualFallbackStateId = '';
   });
@@ -141,7 +140,6 @@
     draft = { ...draft, scenario: { ...draft.scenario, events: [...draft.scenario.events, listener] } };
     selectedKey = `event:${listener.id}`;
     selectedState = '*';
-    eventToAdd = '';
   }
   function removeEvent(listenerId: string) {
     if (!draft) return;
@@ -344,8 +342,21 @@
               </div>
             {/each}
             {#if eventDefinitions.length}
-              <Choice value={eventToAdd} placeholder="Add event" options={eventDefinitions.map(event => ({ value: event.id, label: event.title, plugin: event.plugin }))}
-                onchange={addEvent} />
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger>
+                  {#snippet child({ props })}<Button {...props} variant="outline" size="sm" class="w-full justify-start"><Plus /> Add event</Button>{/snippet}
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content sideOffset={6} align="start" class="z-50 grid min-w-48 gap-0.5 rounded-xl bg-popover p-1 text-sm text-popover-foreground shadow-lg ring-1 ring-border">
+                    {#each eventDefinitions as definition (definition.id)}
+                      <DropdownMenu.Item onSelect={() => addEvent(definition.id)}
+                        class="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 outline-none data-highlighted:bg-accent">
+                        <span class="min-w-0 flex-1 truncate">{definition.title}</span><PluginMark plugin={definition.plugin} />
+                      </DropdownMenu.Item>
+                    {/each}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
             {/if}
           </div>
         </nav>

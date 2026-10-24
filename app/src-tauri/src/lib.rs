@@ -72,6 +72,14 @@ pub fn run() {
                     } = e
                     {
                         let app = tray.app_handle().clone();
+                        // Left click toggles the control panel: a visible panel hides like its close button.
+                        if let Some(window) = app.get_webview_window("panel") {
+                            if window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false) {
+                                app.state::<panel::PanelState>().close_requested();
+                                let _ = window.hide();
+                                return;
+                            }
+                        }
                         tauri::async_runtime::spawn(async move {
                             if let Err(error) = panel::open_panel(app).await {
                                 log::error!("tray panel open failed: {error}");
