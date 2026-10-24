@@ -10,7 +10,7 @@
   import DeckGrid from '../controls/DeckGrid.svelte';
   import { getSkinHostContext } from './context';
 
-  let { id, editing = false, selected = null, onselect, oncontext }:
+  let { id, editing = false, selected, onselect, oncontext }:
     { id: string; editing?: boolean; selected?: import('../core/layout').Selection;
       onselect?: (selection: import('../core/layout').Selection, target?: LayoutTarget) => void;
       oncontext?: (selection: Exclude<import('../core/layout').Selection, null>, x: number, y: number, target?: LayoutTarget) => void } = $props();

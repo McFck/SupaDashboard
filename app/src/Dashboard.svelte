@@ -76,14 +76,14 @@
     alwaysOnTop: settings.display.alwaysOnTop,
   });
   const grips = [
-    { direction: 'NorthWest', position: 'top-0 left-0 size-6 clip-northwest', cursor: 'cursor-nwse-resize' },
-    { direction: 'North', position: 'top-0 left-6 right-6 h-[6px]', cursor: 'cursor-ns-resize' },
-    { direction: 'NorthEast', position: 'top-0 right-0 size-6 clip-northeast', cursor: 'cursor-nesw-resize' },
-    { direction: 'East', position: 'right-0 top-6 bottom-6 w-[6px]', cursor: 'cursor-ew-resize' },
-    { direction: 'SouthEast', position: 'bottom-0 right-0 size-6 clip-southeast', cursor: 'cursor-nwse-resize' },
-    { direction: 'South', position: 'bottom-0 left-6 right-6 h-[6px]', cursor: 'cursor-ns-resize' },
-    { direction: 'SouthWest', position: 'bottom-0 left-0 size-6 clip-southwest', cursor: 'cursor-nesw-resize' },
-    { direction: 'West', position: 'left-0 top-6 bottom-6 w-[6px]', cursor: 'cursor-ew-resize' },
+    { direction: 'NorthWest', position: 'top-0 left-0 size-8', cursor: 'cursor-nwse-resize' },
+    { direction: 'North', position: 'top-0 left-8 right-8 h-2.5', cursor: 'cursor-ns-resize' },
+    { direction: 'NorthEast', position: 'top-0 right-0 size-8', cursor: 'cursor-nesw-resize' },
+    { direction: 'East', position: 'right-0 top-8 bottom-8 w-2.5', cursor: 'cursor-ew-resize' },
+    { direction: 'SouthEast', position: 'bottom-0 right-0 size-8', cursor: 'cursor-nwse-resize' },
+    { direction: 'South', position: 'bottom-0 left-8 right-8 h-2.5', cursor: 'cursor-ns-resize' },
+    { direction: 'SouthWest', position: 'bottom-0 left-0 size-8', cursor: 'cursor-nesw-resize' },
+    { direction: 'West', position: 'left-0 top-8 bottom-8 w-2.5', cursor: 'cursor-ew-resize' },
   ] as const;
 
   function visibleSkinRoot() {
@@ -708,7 +708,7 @@
     inset: 0;
     pointer-events: none;
     border-radius: inherit;
-    box-shadow: inset 0 0 0 1px var(--resize-ink);
+    box-shadow: inset 0 0 0 1.5px var(--resize-ink);
     opacity: 0;
     transition: opacity 160ms ease-out;
   }
@@ -809,15 +809,11 @@
   }
 
   :global(.dashboard-shell[data-hovered='true'] .resize-cues) {
-    --resize-ink: rgba(255, 255, 255, .2);
+    --resize-ink: rgba(255, 255, 255, .32);
     opacity: 1;
     transition-duration: 120ms;
   }
 
-  :global(.dashboard-shell [data-resize-handle='NorthWest']) { clip-path: polygon(0 0, 100% 0, 100% 25%, 25% 25%, 25% 100%, 0 100%); }
-  :global(.dashboard-shell [data-resize-handle='NorthEast']) { clip-path: polygon(0 0, 100% 0, 100% 100%, 75% 100%, 75% 25%, 0 25%); }
-  :global(.dashboard-shell [data-resize-handle='SouthEast']) { clip-path: polygon(75% 0, 100% 0, 100% 100%, 0 100%, 0 75%, 75% 75%); }
-  :global(.dashboard-shell [data-resize-handle='SouthWest']) { clip-path: polygon(0 0, 25% 0, 25% 75%, 100% 75%, 100% 100%, 0 100%); }
 
   @media (prefers-reduced-motion: reduce) {
     :global(.dashboard-shell .resize-cues),

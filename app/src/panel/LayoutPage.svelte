@@ -72,7 +72,6 @@
   const bg = $derived(settings.display.background);
   const page = $derived(pageById(settings.deck.pages, selectedPageId)!);
   const editorSkin = $derived(skins.get(selectedSkinId) ?? skins.get('deck')!);
-  const skinOptions = $derived([...skins.values()].map(entry => ({ value: entry.id, label: entry.title, plugin: entry.plugin })));
   const viewOptions = $derived(editorSkin.views.map(view => ({ value: view.id, label: view.title })));
   const editorTarget = $derived.by(() => {
     const view = editorSkin.views.find(entry => entry.id === previewViewId);
@@ -199,16 +198,6 @@
     if (context) closeMenu(context.generation);
     scenarioOpen = false;
     closeMoveDialog();
-  }
-  function changeSkin(skinId: string) {
-    const next = skins.get(skinId);
-    if (!next || next.id === selectedSkinId) return;
-    selectedSkinId = next.id;
-    const storedView = layoutPreview.views[next.id];
-    previewViewId = next.views.some(view => view.id === storedView) ? storedView : next.defaultView;
-    selectionTarget = defaultTarget(next, page.id, previewViewId);
-    clearEditorTransient();
-    saveLayoutPreview();
   }
   function changePreviewView(viewId: string) {
     if (!editorSkin.views.some(view => view.id === viewId) || viewId === previewViewId) return;
@@ -521,16 +510,15 @@
     <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--canvas-surface)]">
       <PageTabs pages={settings.deck.pages} bind:selectedPageId active={active} onadd={addPage} onreorder={reorderPages}
         onrename={renamePage} onduplicate={duplicatePage} ondelete={deletePage} />
-      <div class="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-        <Choice value={selectedSkinId} options={skinOptions} aria-label="Skin" onchange={changeSkin} class="min-w-0 flex-1" />
-        {#if editorSkin.views.length > 1}
+      {#if editorSkin.views.length > 1}
+        <div class="flex h-12 shrink-0 items-center gap-2 border-b px-3">
           <Choice value={previewViewId} options={viewOptions} aria-label="Preview view" onchange={changePreviewView} class="min-w-0 flex-1" />
-        {/if}
-      </div>
+        </div>
+      {/if}
       <div bind:this={area} role="presentation" onclick={e => { if (e.target === e.currentTarget || e.target === e.currentTarget.lastElementChild) openDeck(); }}
         class="relative grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden">
         <div aria-hidden="true" class="canvas-grid"></div>
-        <div class="relative grid h-full min-h-0 w-full min-w-0 place-items-center" class:canvas-enter={active && wasInactive}>
+        <div class="relative grid h-full min-h-0 w-full min-w-0 place-items-center p-6" class:canvas-enter={active && wasInactive}>
           {#key `${page.id}:${editorSkin.id}`}
             <SkinLayoutEditor skin={editorSkin} {page} bind:previewViewId selected={selection} onselect={select} oncontext={openMenu} />
           {/key}

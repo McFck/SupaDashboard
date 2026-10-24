@@ -23,7 +23,7 @@
     {#if selected?.icon && !selected.iconHint}<selected.icon size={15} class="size-4 shrink-0" aria-hidden={selected.iconLabel ? 'true' : undefined} />{/if}
     {#if selected?.iconLabel}<span class="sr-only">{selected.iconLabel}</span>{/if}
     <span class="min-w-0 flex-1 truncate text-left">{selected?.label ?? placeholder}</span>
-    <span class="inline-flex shrink-0 items-center gap-1">
+    <span class="ml-2 inline-flex shrink-0 items-center gap-2">
       {#if selected?.icon && selected.iconHint}
         <Hint text={selected.iconHint}>
           {#snippet children(props)}<span {...props} class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground"><selected.icon size={12} strokeWidth={1.75} aria-hidden="true" /></span>{/snippet}
@@ -39,7 +39,7 @@
           {#if o.icon && !o.iconHint}<o.icon size={15} class="size-4 shrink-0" aria-hidden={o.iconLabel ? 'true' : undefined} />{/if}
           {#if o.iconLabel}<span class="sr-only">{o.iconLabel}</span>{/if}
           <span class="min-w-0 flex-1 truncate">{o.label}</span>
-          <span class="inline-flex shrink-0 items-center gap-1">
+          <span class="ml-2 inline-flex shrink-0 items-center gap-2">
             {#if o.icon && o.iconHint}
               <Hint text={o.iconHint}>
                 {#snippet children(props)}<span {...props} class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground"><o.icon size={12} strokeWidth={1.75} aria-hidden="true" /></span>{/snippet}
