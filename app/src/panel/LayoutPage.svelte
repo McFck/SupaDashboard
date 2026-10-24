@@ -1,11 +1,12 @@
 <script lang="ts">
   import PanelRight from '@lucide/svelte/icons/panel-right';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import Undo from '@lucide/svelte/icons/undo-2';
   import Redo from '@lucide/svelte/icons/redo-2';
   import X from '@lucide/svelte/icons/x';
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
+  import * as Dialog from '$lib/components/ui/dialog';
   import { Hint } from '$lib/components/ui/tooltip';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Slider } from '$lib/components/ui/slider';
@@ -18,10 +19,13 @@
   import { splitAlpha, withAlpha } from '../core/palette';
   import { registeredEvents } from '../core/registry';
   import { controlById, settings } from '../core/settings.svelte';
-  import { pageById, pageItems, removePlacement } from '../core/pages';
+  import { addPage as buildPage, deletePage as buildDeletePage, duplicatePage as buildDuplicatePage,
+    movePlacement, pageAfterRemoval, pageById, pageItems, removePlacement, renamePage as buildRenamePage, reorderPage as buildReorderPage } from '../core/pages';
   import ColorField from '../editor/ColorField.svelte';
   import ScenarioEditor from '../editor/ScenarioEditor.svelte';
   import Inspector from './Inspector.svelte';
+  import PageTabs from './PageTabs.svelte';
+  import Choice from '../editor/Choice.svelte';
   import ContextMenu, { type MenuAction } from './ContextMenu.svelte';
   import Row from './ui/Row.svelte';
   import Section from './ui/Section.svelte';
@@ -43,9 +47,25 @@
   let menuGeneration = 0;
   let resizing = $state<{ x: number; width: number } | null>(null);
   let wasInactive = $state(false);
+  const initialSelectedPageId = $runtimeView.activePage || settings.deck.activePage || settings.deck.pages[0].id;
+  let selectedPageId = $state(initialSelectedPageId);
+  let previousSelectedPageId = initialSelectedPageId;
+  let previousPageOrder = settings.deck.pages.map(entry => entry.id);
+  let pageGeneration = 0;
+  let moveDialogOpen = $state(false);
+  let moveRequest = $state<{ sourcePageId: string; itemId: string; destinationPageId: string } | null>(null);
   const bg = $derived(settings.display.background);
-  const page = $derived(pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!);
+  const page = $derived(pageById(settings.deck.pages, selectedPageId)!);
   const allItems = $derived(pageItems(settings.deck.pages));
+  const movePlan = $derived(moveRequest
+    ? movePlacement(settings.deck.pages, moveRequest.sourcePageId, moveRequest.destinationPageId, moveRequest.itemId)
+    : undefined);
+  const moveOptions = $derived.by(() => {
+    const request = moveRequest;
+    return request ? settings.deck.pages.filter(candidate => candidate.id !== request.sourcePageId)
+      .map(candidate => ({ value: candidate.id, label: candidate.name,
+        disabled: !movePlacement(settings.deck.pages, request.sourcePageId, candidate.id, request.itemId) })) : [];
+  });
   const rightWidth = $derived(Math.max(0, Math.min(frame.inspectorWidth, layoutWidth - 32)));
   $effect(() => { if (!active) wasInactive = true; });
   $effect(() => {
@@ -64,6 +84,26 @@
     });
     ro.observe(area);
     return () => ro.disconnect();
+  });
+  $effect(() => {
+    const ids = settings.deck.pages.map(entry => entry.id);
+    const changed = ids.length !== previousPageOrder.length || ids.some((id, index) => id !== previousPageOrder[index]);
+    if (!changed) return;
+    const prior = previousPageOrder;
+    previousPageOrder = ids;
+    pageGeneration++;
+    if (!ids.includes(selectedPageId)) selectedPageId = pageAfterRemoval(settings.deck.pages, selectedPageId, prior) ?? ids[0];
+    if (context) closeMenu(context.generation);
+    if (moveRequest && (!ids.includes(moveRequest.sourcePageId) || !ids.includes(moveRequest.destinationPageId))) closeMoveDialog();
+  });
+  $effect(() => {
+    const current = selectedPageId;
+    if (current === previousSelectedPageId) return;
+    previousSelectedPageId = current;
+    selection = null;
+    if (context) closeMenu(context.generation);
+    scenarioOpen = false;
+    closeMoveDialog();
   });
   $effect(() => {
     if (!active || !layout || !area) return;
@@ -97,9 +137,10 @@
     if (active) return;
     if (context) closeMenu(context.generation);
     scenarioOpen = false;
+    closeMoveDialog();
     if (resizing) { resizing = null; saveFrame(); }
   });
-  onDestroy(() => { if (context) closeMenu(context.generation); });
+  onDestroy(() => { if (context) closeMenu(context.generation); closeMoveDialog(); });
   function select(s: Selection) {
     selection = s;
     rightPage = 'inspector';
@@ -113,6 +154,72 @@
   function closeInspector() { frame.inspectorOpen = false; saveFrame(); }
   function closeMenu(generation: number) {
     if (context?.generation === generation) menuOpen = false;
+  }
+  function closeMoveDialog() { moveDialogOpen = false; moveRequest = null; }
+  function addPage() {
+    const result = buildPage(settings.deck.pages, settings.controls, page.id);
+    if (!result) return;
+    commit('Add page');
+    settings.deck.pages = result.pages;
+    selectedPageId = result.page.id;
+    selection = null;
+  }
+  function renamePage(pageId: string, name: string) {
+    const result = buildRenamePage(settings.deck.pages, pageId, name);
+    if (!result) return false;
+    commit('Rename page');
+    settings.deck.pages = result.pages;
+    return true;
+  }
+  function duplicatePage(pageId: string) {
+    const result = buildDuplicatePage(settings.deck.pages, pageId, settings.controls, settings.variants);
+    if (!result) { toast.error('Unable to duplicate page'); return; }
+    commit('Duplicate page');
+    settings.deck.pages = result.pages;
+    settings.controls = result.controls;
+    settings.variants = result.variants;
+    selectedPageId = result.page.id;
+    selection = null;
+  }
+  function reorderPages(pageId: string, index: number) {
+    const result = buildReorderPage(settings.deck.pages, pageId, index);
+    if (!result) return;
+    commit('Reorder pages');
+    settings.deck.pages = result.pages;
+  }
+  async function deletePage(pageId: string) {
+    const order = settings.deck.pages.map(entry => entry.id);
+    const generation = pageGeneration;
+    if (!await confirm({ title: 'Delete page?', action: 'Delete', destructive: true })) return;
+    if (pageGeneration !== generation || settings.deck.pages.length <= 1 || !settings.deck.pages.some(entry => entry.id === pageId)) return;
+    const result = buildDeletePage(settings.deck.pages, pageId, settings.controls, settings.variants);
+    if (!result) return;
+    const nextSelected = pageAfterRemoval(result.pages, pageId, order) ?? result.pages[0].id;
+    commit('Delete page');
+    settings.deck.pages = result.pages;
+    settings.controls = result.controls;
+    settings.variants = result.variants;
+    selectedPageId = nextSelected;
+    selection = null;
+  }
+  function openMoveDialog(pageId: string, itemId: string) {
+    const candidates = settings.deck.pages.filter(candidate => candidate.id !== pageId);
+    const firstAvailable = candidates.find(candidate => movePlacement(settings.deck.pages, pageId, candidate.id, itemId));
+    moveRequest = { sourcePageId: pageId, itemId, destinationPageId: firstAvailable?.id ?? candidates[0]?.id ?? '' };
+    moveDialogOpen = true;
+  }
+  async function finishMove() {
+    const request = moveRequest;
+    if (!request || selectedPageId !== request.sourcePageId) return;
+    const result = movePlacement(settings.deck.pages, request.sourcePageId, request.destinationPageId, request.itemId);
+    if (!result) { toast.error('No free space for this widget'); return; }
+    const destination = settings.deck.pages.find(candidate => candidate.id === request.destinationPageId);
+    commit(destination ? `Move widget to ${destination.name}` : 'Move widget');
+    settings.deck.pages = result.pages;
+    selectedPageId = request.destinationPageId;
+    closeMoveDialog();
+    await tick();
+    select({ item: result.item.id });
   }
   function openMenu(target: NonNullable<Selection>, x: number, y: number) {
     const snapshot: NonNullable<Selection> = 'item' in target ? { item: target.item } : { cell: { ...target.cell } };
@@ -210,6 +317,7 @@
         clipboard.value = { control: cloneControl(control), w: item.w, h: item.h };
         void navigator.clipboard?.writeText(JSON.stringify(clipboard.value)).catch(() => {});
       } }, paste,
+      { label: 'Move to page…', disabled: settings.deck.pages.length <= 1, run: () => openMoveDialog(pageId, item.id) },
       { label: 'Duplicate', run: () => {
         const result = duplicateWidget({ control, w: item.w, h: item.h }, sourcePage.items, allItems, settings.controls, sourcePage);
         if (!result) { toast.error('No free space for this widget'); return; }
@@ -240,14 +348,18 @@
     </div>
   </header>
   <div bind:this={layout} class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-    <div bind:this={area} role="presentation" onclick={e => { if (e.target === e.currentTarget || e.target === e.currentTarget.lastElementChild) openDeck(); }}
-      class="relative grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden bg-[var(--canvas-surface)]">
-      <div aria-hidden="true" class="canvas-grid"></div>
-      <div class="grid min-h-0 min-w-0 place-items-center" class:canvas-enter={active && wasInactive}>
-        {#key page.id}
-          <DeckGrid {page} editing selected={selection} onselect={select} oncontext={openMenu}
-            availableWidth={Math.max(0, box.w - 48)} availableHeight={Math.max(0, box.h - 48)} />
-        {/key}
+    <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--canvas-surface)]">
+      <PageTabs pages={settings.deck.pages} bind:selectedPageId active={active} onadd={addPage} onreorder={reorderPages}
+        onrename={renamePage} onduplicate={duplicatePage} ondelete={deletePage} />
+      <div bind:this={area} role="presentation" onclick={e => { if (e.target === e.currentTarget || e.target === e.currentTarget.lastElementChild) openDeck(); }}
+        class="relative grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden">
+        <div aria-hidden="true" class="canvas-grid"></div>
+        <div class="grid min-h-0 min-w-0 place-items-center" class:canvas-enter={active && wasInactive}>
+          {#key page.id}
+            <DeckGrid {page} editing selected={selection} onselect={select} oncontext={openMenu}
+              availableWidth={Math.max(0, box.w - 48)} availableHeight={Math.max(0, box.h - 48)} />
+          {/key}
+        </div>
       </div>
     </div>
     <div class="right-slot relative min-h-0 shrink-0 overflow-hidden" class:resizing={resizing !== null} class:inactive={!active} style:width="{frame.inspectorOpen ? rightWidth : 0}px">
@@ -285,6 +397,17 @@
   <ScenarioEditor bind:open={scenarioOpen} controlId={scenarioRequest.controlId} itemId={scenarioRequest.itemId}
     initialTrigger={scenarioRequest.trigger} />
 {/if}
+<Dialog.Root open={moveDialogOpen} onOpenChange={open => { if (!open) closeMoveDialog(); }}>
+  <Dialog.Content class="sm:max-w-sm">
+    <Dialog.Header><Dialog.Title>Move to page</Dialog.Title></Dialog.Header>
+    <Choice value={moveRequest?.destinationPageId ?? ''} options={moveOptions}
+      aria-label="Destination page" onchange={value => { if (moveRequest) moveRequest.destinationPageId = value; }} />
+    <Dialog.Footer class="flex justify-end gap-2">
+      <Button variant="ghost" size="sm" onclick={closeMoveDialog}>Cancel</Button>
+      <Button size="sm" disabled={!moveRequest || !movePlan} onclick={() => void finishMove()}>Move</Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>
 {#each (menuOpen && context ? [context] : []) as payload (payload.generation)}
   <ContextMenu open={menuOpen} x={payload.x} y={payload.y} actions={payload.actions} onclose={() => closeMenu(payload.generation)} />
 {/each}

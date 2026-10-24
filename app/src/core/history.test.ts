@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyEditableSettings, editableChanged, editableSnapshot, SnapshotHistory } from './history.svelte';
 import { DEFAULTS, settings } from './settings.svelte';
+import { addPage, deletePage, duplicatePage, movePlacement, renamePage, reorderPage } from './pages';
+import type { ControlConfig } from './controls';
 
 describe('settings history', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -145,6 +147,64 @@ describe('settings history', () => {
       stack.redo();
       expect(settings.deck.pages[1].cols).toBe(9);
       expect(settings.deck.activePage).toBe('page-second');
+    } finally {
+      Object.assign(settings, before);
+    }
+  });
+
+  it('undoes and redoes page add, rename, duplicate, reorder, move and delete with stable IDs', () => {
+    const before = structuredClone(settings);
+    try {
+      const control: ControlConfig = { id: 'history-control', name: 'Button', type: 'button', variants: [{ id: 'state-one', label: 'One' }] };
+      const firstPage = { ...structuredClone(DEFAULTS.deck.pages[0]), id: 'history-page-one', name: 'First',
+        items: [{ id: 'history-item', control: control.id, x: 0, y: 0, w: 1, h: 1 }] };
+      const secondPage = { ...structuredClone(DEFAULTS.deck.pages[0]), id: 'history-page-two', name: 'Second', items: [] };
+      settings.deck.pages = [firstPage, secondPage];
+      settings.deck.activePage = secondPage.id;
+      settings.controls = [control];
+      settings.variants = { [control.id]: 0 };
+      const states = [editableSnapshot(settings)];
+      const stack = new SnapshotHistory(states[0], applyEditableSettings, () => {});
+      const record = (label: string) => {
+        const next = editableSnapshot(settings);
+        stack.commit(label, next);
+        vi.advanceTimersByTime(400);
+        states.push(editableSnapshot(settings));
+      };
+
+      const added = addPage(settings.deck.pages, settings.controls, firstPage.id)!;
+      settings.deck.pages = added.pages;
+      record('Add page');
+      const renamed = renamePage(settings.deck.pages, added.page.id, '工作')!;
+      settings.deck.pages = renamed.pages;
+      record('Rename page');
+      const duplicated = duplicatePage(settings.deck.pages, firstPage.id, settings.controls, settings.variants)!;
+      settings.deck.pages = duplicated.pages;
+      settings.controls = duplicated.controls;
+      settings.variants = duplicated.variants;
+      record('Duplicate page');
+      settings.deck.pages = reorderPage(settings.deck.pages, secondPage.id, 0)!.pages;
+      record('Reorder pages');
+      settings.deck.pages = movePlacement(settings.deck.pages, firstPage.id, secondPage.id, 'history-item')!.pages;
+      record('Move widget');
+      const deleted = deletePage(settings.deck.pages, duplicated.page.id, settings.controls, settings.variants)!;
+      settings.deck.pages = deleted.pages;
+      settings.controls = deleted.controls;
+      settings.variants = deleted.variants;
+      record('Delete page');
+
+      for (let index = states.length - 2; index >= 0; index--) {
+        stack.undo();
+        expect(editableSnapshot(settings)).toEqual(states[index]);
+        expect(settings.deck.activePage).toBe(secondPage.id);
+      }
+      for (let index = 1; index < states.length; index++) {
+        stack.redo();
+        expect(editableSnapshot(settings)).toEqual(states[index]);
+        expect(settings.deck.activePage).toBe(secondPage.id);
+      }
+      expect(settings.deck.pages.flatMap(page => page.items).map(item => item.id)).toContain('history-item');
+      expect(settings.controls.map(entry => entry.id)).toContain('history-control');
     } finally {
       Object.assign(settings, before);
     }
