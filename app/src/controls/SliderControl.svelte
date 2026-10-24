@@ -9,15 +9,15 @@
   import type { TriggerPacket } from '../core/scenario-runner';
   import { onDestroy } from 'svelte';
   import { value as valueOf } from '../core/registry';
-  import { settings } from '../core/settings.svelte';
+  import { settings, type Page } from '../core/settings.svelte';
   import { findVolumeChannel, setVolume, volumeChannels } from '../core/volume';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
 
-  let { control, compact = false, w = 1, h = 3, pixelWidth, pixelHeight, presentation,
+  let { control, page, compact = false, w = 1, h = 3, pixelWidth, pixelHeight, presentation,
     pressFeedbackDisabled = false, itemId }: {
-    control: ControlConfig; compact?: boolean; w?: number; h?: number; pixelWidth?: number; pixelHeight?: number;
+    control: ControlConfig; page?: Page; compact?: boolean; w?: number; h?: number; pixelWidth?: number; pixelHeight?: number;
     presentation?: TilePresentation; pressFeedbackDisabled?: boolean; itemId?: string;
   } = $props();
   const manualIndex = $derived(settings.variants[control.id] ?? 0);
@@ -28,8 +28,8 @@
   const source = $derived(variant.value && variant.value.id !== 'volume' ? valueOf(variant.value) : null);
   const sourceKey = $derived(variant.value ? `${variant.value.id}:${JSON.stringify(variant.value.args ?? {})}` : `${control.id}:unavailable`);
   let width = $state(0), height = $state(0);
-  const vertical = $derived(!compact && sliderOrientation(pixelWidth ?? (width || w * settings.deck.size + (w - 1) * settings.deck.gap),
-    pixelHeight ?? (height || h * settings.deck.size + (h - 1) * settings.deck.gap)) === 'vertical');
+  const vertical = $derived(!compact && sliderOrientation(pixelWidth ?? (width || w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)),
+    pixelHeight ?? (height || h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14))) === 'vertical');
   let content = $state<PullContent>();
   /** Level a not-yet-active variant would show; only volume sources can be read without subscribing. */
   function previewLevel(v: Variant) {

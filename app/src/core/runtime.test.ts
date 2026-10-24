@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { tick } from 'svelte';
 import { get } from 'svelte/store';
 import { actions } from './registry';
-import { settings } from './settings.svelte';
+import { settings, serializeSettings } from './settings.svelte';
 import { captureTrigger } from './scenario-runner';
-import { AutomationRuntime } from './runtime.svelte';
+import { acceptRuntimeSnapshot, AutomationRuntime, runtimeView } from './runtime.svelte';
 import type { ControlConfig } from './controls';
 import type { Trigger } from './scenario';
 
-const priorControls = structuredClone(settings.controls), priorVariants = structuredClone(settings.variants);
+const priorSettings = structuredClone(settings);
 const control = (): ControlConfig => ({ id: 'runtime-test', name: 'Test', type: 'button', variants: [{ id: 'off', label: 'Off' }],
   scenario: { triggers: { press: { steps: [{ id: 'run', kind: 'action', action: { id: 'test.action' } }] },
     release: { steps: [{ id: 'release', kind: 'action', action: { id: 'test.release' } }] } }, events: [] } });
@@ -18,8 +19,7 @@ let runtime: AutomationRuntime | undefined;
 afterEach(async () => {
   await runtime?.dispose();
   runtime = undefined;
-  settings.controls = structuredClone(priorControls);
-  settings.variants = structuredClone(priorVariants);
+  Object.assign(settings, structuredClone(priorSettings));
   actions.delete('test.action');
   actions.delete('test.release');
   actions.delete('test.pull');
@@ -111,11 +111,35 @@ describe('automation runtime', () => {
     const run = runtime.dispatch(packet(config));
     await Promise.resolve();
     config.name = 'Renamed';
-    runtime.reconcile({ controls: [config] } as never);
+    runtime.reconcile([config]);
     expect(get(runtime.snapshots).busy['runtime-test']).toBe(1);
-    runtime.reconcile({ controls: [] } as never);
+    runtime.reconcile([]);
     await expect(run).resolves.toEqual({ status: 'cancelled' });
     unblock();
     expect(get(runtime.snapshots).busy).toEqual({});
+  });
+
+  it('keeps owner page selection runtime-only and follows a deleted active page once', async () => {
+    settings.deck.pages = [structuredClone(priorSettings.deck.pages[0]),
+      { ...structuredClone(priorSettings.deck.pages[0]), id: 'page-2', name: 'Page 2' },
+      { ...structuredClone(priorSettings.deck.pages[0]), id: 'page-3', name: 'Page 3' }];
+    settings.deck.activePage = 'page-2';
+    runtime = new AutomationRuntime();
+    await tick();
+    expect(runtime.changePage('missing')).toBe(false);
+    expect(runtime.changePage('page-2')).toBe(false);
+    expect(runtime.changePage('page-3')).toBe(true);
+    expect(get(runtime.snapshots)).toMatchObject({ owner: true, activePage: 'page-3' });
+    expect(JSON.parse(serializeSettings()).deck.activePage).toBe('page-1');
+    expect(runtime.changePage('page-2')).toBe(true);
+    settings.deck.pages = settings.deck.pages.filter(page => page.id !== 'page-2');
+    runtime.reconcilePages();
+    await tick();
+    expect(settings.deck.activePage).toBe('page-3');
+    const writesBefore = serializeSettings();
+    acceptRuntimeSnapshot({ activePage: 'page-1', variables: { revision: 0, records: {} }, busy: {} }, 1000);
+    expect(settings.deck.activePage).toBe('page-1');
+    expect(get(runtimeView)).toMatchObject({ owner: false, activePage: 'page-1' });
+    expect(serializeSettings()).toBe(writesBefore);
   });
 });

@@ -18,7 +18,8 @@
   import type { Trigger } from '../core/scenario';
   import { clampToGrid, firstFree, fits, placementForType, type Selection } from '../core/layout';
   import { controlTypes } from '../core/registry';
-  import { controlById, newId, settings } from '../core/settings.svelte';
+  import { controlById, newId, settings, type Page } from '../core/settings.svelte';
+  import { pageItems, removePlacement } from '../core/pages';
   import { newScenarioId, normalizeControl } from '../core/scenario';
   import { commit } from '../core/history.svelte';
   import { toast } from 'svelte-sonner';
@@ -34,20 +35,21 @@
   import Row from './ui/Row.svelte';
   import Section from './ui/Section.svelte';
 
-  let { selection, onselect, oneditScenario }: { selection: Selection; onselect: (s: Selection) => void;
-    oneditScenario: (controlId: string, itemId: string, trigger?: Trigger) => void } = $props();
+  let { selection, onselect, oneditScenario, page }: { selection: Selection; onselect: (s: Selection) => void;
+    oneditScenario: (controlId: string, itemId: string, trigger?: Trigger) => void; page: Page } = $props();
 
-  const item = $derived(selection && 'item' in selection ? settings.deck.items.find(i => i.id === selection.item) : undefined);
+  const allItems = $derived(pageItems(settings.deck.pages));
+  const item = $derived(selection && 'item' in selection ? page.items.find(i => i.id === selection.item) : undefined);
   const control = $derived(item ? controlById(item.control) : undefined);
   const def = $derived(control ? controlTypes.get(control.type) : undefined);
   const cell = $derived(selection && 'cell' in selection ? selection.cell : undefined);
   let existingOpen = $state(true);
   let existingQuery = $state('');
-  const existingRows = $derived(buildExistingControlRows(settings.controls, settings.deck.items, controlTypes).filter(row => row.uses > 0));
+  const existingRows = $derived(buildExistingControlRows(settings.controls, allItems, controlTypes).filter(row => row.uses > 0));
   const filteredExistingRows = $derived(searchExistingControls(existingRows, existingQuery));
 
   function placement(w: number, h: number) {
-    const at = cell && fits(settings.deck.items, { ...cell, w, h }, settings.deck) ? cell : firstFree(settings.deck.items, w, h, settings.deck);
+    const at = cell && fits(page.items, { ...cell, w, h }, page) ? cell : firstFree(page.items, w, h, page);
     if (!at) {
       toast.error('No free space for this widget');
       return null;
@@ -58,32 +60,32 @@
     const existing = settings.controls.find(c => c.id === controlId);
     const type = existing && controlTypes.get(existing.type);
     if (!existing || !type) return;
-    const at = placementForType(settings.deck.items, settings.deck, type, cell);
+    const at = placementForType(page.items, page, type, cell);
     if (!at) {
       toast.error('No free space for this widget');
       return;
     }
     // An independent copy: each placed widget keeps its own state.
     const copy = { ...cloneControl($state.snapshot(existing) as ControlConfig), id: newId(existing.id, settings.controls.map(c => c.id)) };
-    const id = newId('i', settings.deck.items.map(i => i.id));
+    const id = newId('i', allItems.map(i => i.id));
     commit('Add widget');
     settings.controls.push(copy);
-    settings.deck.items.push({ id, control: copy.id, ...at });
+    page.items.push({ id, control: copy.id, ...at });
     onselect({ item: id });
   }
   function addNew(type: string) {
     const t = controlTypes.get(type);
     if (!t) return;
-    const at = placementForType(settings.deck.items, settings.deck, t, cell);
+    const at = placementForType(page.items, page, t, cell);
     if (!at) {
       toast.error('No free space for this widget');
       return;
     }
     const c = normalizeControl({ id: newId(t.title, settings.controls.map(x => x.id)), type, ...structuredClone(t.create()) });
-    const id = newId('i', settings.deck.items.map(i => i.id));
+    const id = newId('i', allItems.map(i => i.id));
     commit(`Add ${t.title}`);
     settings.controls.push(c);
-    settings.deck.items.push({ id, control: c.id, ...at });
+    page.items.push({ id, control: c.id, ...at });
     onselect({ item: id });
   }
   function duplicate() {
@@ -91,20 +93,23 @@
     const at = placement(item.w, item.h);
     if (!at) return;
     const copy = { ...structuredClone($state.snapshot(control)), id: newId(control.name, settings.controls.map(x => x.id)), name: `${control.name} copy` };
-    const id = newId('i', settings.deck.items.map(i => i.id));
+    const id = newId('i', allItems.map(i => i.id));
     commit(`Duplicate ${control.name}`);
     settings.controls.push(copy as ControlConfig);
-    settings.deck.items.push({ id, control: copy.id, ...at, w: item.w, h: item.h });
+    page.items.push({ id, control: copy.id, ...at, w: item.w, h: item.h });
     onselect({ item: id });
   }
   async function removeItem() {
     if (!item) return;
-    const removing = { ...item }, name = control?.name ?? 'widget';
+    const removing = { ...item }, pageId = page.id, name = control?.name ?? 'widget';
     await animateRemoval(removing.id);
-    if (!settings.deck.items.some(i => i.id === removing.id)) return;
+    const currentPage = settings.deck.pages.find(candidate => candidate.id === pageId);
+    if (!currentPage?.items.some(i => i.id === removing.id)) return;
     commit(`Delete ${name}`);
-    settings.deck.items = settings.deck.items.filter(i => i.id !== removing.id);
-    if (!settings.deck.items.some(i => i.control === removing.control)) {
+    const result = removePlacement(settings.deck.pages, pageId, removing.id);
+    if (!result.item) return;
+    settings.deck.pages = result.pages;
+    if (result.orphanControl) {
       settings.controls = settings.controls.filter(c => c.id !== removing.control);
       delete settings.variants[removing.control];
     }
@@ -113,21 +118,21 @@
   function resize(w: number, h: number) {
     if (w < (def?.minSize?.w ?? 1) || h < (def?.minSize?.h ?? 1) ||
       w > (def?.maxSize?.w ?? 99) || h > (def?.maxSize?.h ?? 99)) return;
-    if (!item || !fits(settings.deck.items, { x: item.x, y: item.y, w, h }, settings.deck, [item.id])) return;
-    settings.deck.items = settings.deck.items.map(current => current.id === item.id ? { ...current, w, h } : current);
+    if (!item || !fits(page.items, { x: item.x, y: item.y, w, h }, page, [item.id])) return;
+    page.items = page.items.map(current => current.id === item.id ? { ...current, w, h } : current);
   }
   function setGrid(key: 'rows' | 'cols' | 'size' | 'gap', v: number) {
-    settings.deck[key] = v;
+    page[key] = v;
   }
   // Items outside a shrunk grid are only hidden while the slider is held; releasing it removes them.
   function commitGrid(key: 'rows' | 'cols' | 'size' | 'gap') {
-    if (key === 'rows' || key === 'cols') settings.deck.items = clampToGrid(settings.deck.items, settings.deck);
+    if (key === 'rows' || key === 'cols') page.items = clampToGrid(page.items, page);
   }
   function setSizing(auto: boolean) {
     const sizing = auto ? 'auto' : 'manual';
-    if (settings.deck.sizing === sizing) return;
+    if (page.sizing === sizing) return;
     commit('Deck sizing');
-    settings.deck.sizing = sizing;
+    page.sizing = sizing;
   }
   const addVariant = () => control!.variants.push({ ...structuredClone($state.snapshot(control!.variants.at(-1)!)),
     id: newScenarioId(), label: '' } as Variant);
@@ -379,7 +384,7 @@
     <header class="flex h-16 shrink-0 items-center border-b px-4"><p class="font-semibold">Add widget</p></header>
     <div class="grid min-h-0 min-w-0 flex-1 content-start gap-2 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
       {#each [...controlTypes.values()] as t (t.type)}
-        {@const fit = placementForType(settings.deck.items, settings.deck, t, cell)}
+        {@const fit = placementForType(page.items, page, t, cell)}
         <button type="button" aria-disabled={!fit} onclick={() => addNew(t.type)}
           class:opacity-45={!fit}
           class="flex items-center gap-3 rounded-xl border border-white/[.07] bg-white/[.02] p-3 text-left transition hover:border-white/20 hover:bg-white/[.05]">
@@ -402,7 +407,7 @@
               {#each filteredExistingRows as row (row.id)}
                 {@const type = controlTypes.get(row.typeId)}
                 {@const providerTitle = pluginTitle(type?.plugin)}
-                {@const fit = type ? placementForType(settings.deck.items, settings.deck, type, cell) : null}
+                {@const fit = type ? placementForType(page.items, page, type, cell) : null}
                 <button type="button" disabled={!row.available} aria-disabled={!fit || !row.available}
                   aria-label="{row.name}, {row.typeTitle}{providerTitle ? `, Plugin: ${providerTitle}` : ''}, {row.uses} {row.uses === 1 ? 'use' : 'uses'}{row.available ? '' : ', unavailable'}{fit ? '' : ', no free space'}"
                   onclick={() => placeExisting(row.id)}
@@ -429,16 +434,16 @@
     <header class="flex h-16 shrink-0 items-center border-b px-4"><p class="font-semibold">Deck</p></header>
     <div class="grid min-h-0 min-w-0 flex-1 content-start gap-6 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
       <Section>
-        <Row label="Auto fit" for="auto-fit"><Switch id="auto-fit" checked={settings.deck.sizing === 'auto'} onCheckedChange={setSizing} /></Row>
+        <Row label="Auto fit" for="auto-fit"><Switch id="auto-fit" checked={page.sizing === 'auto'} onCheckedChange={setSizing} /></Row>
       </Section>
       <div class="grid gap-6">
       {#each [{ k: 'rows', label: 'Rows', min: 1, max: 8 }, { k: 'cols', label: 'Columns', min: 1, max: 14 },
-        ...(settings.deck.sizing === 'manual' ? [{ k: 'size', label: 'Cell size', min: 60, max: 240, unit: 'px' }] : []),
+        ...(page.sizing === 'manual' ? [{ k: 'size', label: 'Cell size', min: 60, max: 240, unit: 'px' }] : []),
         { k: 'gap', label: 'Gap', min: 0, max: 40, unit: 'px' }] as s (s.k)}
         {@const key = s.k as 'rows' | 'cols' | 'size' | 'gap'}
         <div class="grid gap-3">
-          <div class="flex justify-between text-sm"><Label>{s.label}</Label><span class="tabular-nums text-muted-foreground">{settings.deck[key]}{s.unit ?? ''}</span></div>
-          <Slider type="single" value={settings.deck[key]} min={s.min} max={s.max} step={1} onValueChange={v => setGrid(key, v)} onValueCommit={() => commitGrid(key)} />
+          <div class="flex justify-between text-sm"><Label>{s.label}</Label><span class="tabular-nums text-muted-foreground">{page[key]}{s.unit ?? ''}</span></div>
+          <Slider type="single" value={page[key]} min={s.min} max={s.max} step={1} onValueChange={v => setGrid(key, v)} onValueCommit={() => commitGrid(key)} />
         </div>
       {/each}
       </div>

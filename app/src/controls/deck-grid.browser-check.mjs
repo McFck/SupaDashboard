@@ -51,9 +51,11 @@ const fixture = {
 const setup = `(() => {
   if (window.__canvasRegressionSetup) return;
   window.__canvasRegressionSetup = true;
-  const key = 'supadashboard:settings:v4';
+  const key = 'supadashboard:settings:v5';
+  const legacyKey = 'supadashboard:settings:v4';
   const fixture = ${JSON.stringify(fixture)};
-  localStorage.setItem(key, JSON.stringify(fixture));
+  localStorage.removeItem(key);
+  localStorage.setItem(legacyKey, JSON.stringify(fixture));
   const nativeSet = Storage.prototype.setItem;
   window.__canvasSettingsWrites = [];
   Storage.prototype.setItem = function(name, value) {
@@ -255,7 +257,10 @@ async function main() {
   };
   const rect = selector => evaluate(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null; const r = el.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height }; })()`);
   const info = () => evaluate(`(() => { const g=document.querySelector('[style*="grid-template-columns"]'); const s=getComputedStyle(g); const cell=parseFloat(s.gridTemplateColumns); const gap=parseFloat(s.gap); const r=g.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height,cell,gap,pitch:cell+gap}; })()`);
-  const settings = () => evaluate(`JSON.parse(localStorage.getItem('supadashboard:settings:v4') ?? 'null')`);
+  const rawSettings = () => evaluate(`JSON.parse(localStorage.getItem('supadashboard:settings:v5') ?? 'null')`);
+  const settings = () => evaluate(`(() => { const value=JSON.parse(localStorage.getItem('supadashboard:settings:v5') ?? 'null');
+    const page=value?.deck.pages.find(entry=>entry.id===value.deck.activePage) ?? value?.deck.pages[0];
+    return page ? {...value,deck:{...page,pages:value.deck.pages,activePage:value.deck.activePage}} : value; })()`);
   const workerStats = () => evaluate('({ ...window.__workerStats, pendingPointerFrames: [...window.__frameCallbacks.values()].filter(s => s.includes("DeckGrid") || s.includes("track (") || s.includes("markPreviewReady")).length, actions: window.__canvasActions.length, audioUpdates: window.__audioUpdates.length, settingsWrites: window.__canvasSettingsWrites.length - (window.__canvasWriteBaseline ?? 0) })');
   const waitGridStable = async () => {
     let previous = await info(), stable = 0;
@@ -337,12 +342,15 @@ async function main() {
   // The deterministic readiness interleaving reproduces the stale-rAF regression.
   await setupPanel(1440, 900);
   const initial = await settings();
-  assert.equal(initial.version, 3, 'The fixture must start at the legacy version');
+  assert.equal(initial.version, 5, 'The legacy fixture did not migrate to version 5');
+  assert.deepEqual(initial.deck.pages.map(page => page.id), ['page-1']);
   assert.ok(initial.deck.items.some(item => item.id === 'action-item'), `The v3 browser fixture did not load: ${JSON.stringify(initial.deck.items)}`);
+  report.migration = { version: initial.version, pages: initial.deck.pages.length, pageId: initial.deck.pages[0].id,
+    controls: initial.controls.length, items: initial.deck.items.length, legacyRetained: !!await evaluate("localStorage.getItem('supadashboard:settings:v4')") };
   const free = await dragItem({ dx: 1, race: process.env.R4_SKIP_READY_RACE ? null : 'ready', screenshotPrefix: 'canvas-free-1440' });
   if (!process.env.R4_SKIP_READY_RACE) assert.equal(await evaluate('window.__readyRaceInjected'), 1, 'The readiness race injection did not run');
   assert.ok(free.maxDrift <= 1, `Free move anchor drift ${free.maxDrift}px exceeds 1px: ${JSON.stringify(free.drift)}`);
-  assert.equal(free.settings.version, 4, 'The first persisted edit did not store migrated version-4 settings');
+  assert.equal(free.settings.version, 5, 'The first persisted edit did not store migrated version-5 settings');
   const freeAction = free.settings.deck.items.find(item => item.id === 'action-item');
   assert.ok(freeAction, `Free move lost its item: ${JSON.stringify(free.settings.deck.items)}`);
   assert.equal(freeAction.x, 6, 'Free move did not commit the shown cell');
@@ -542,18 +550,18 @@ async function main() {
     occupiedRequests: occupied1024.stats.requests, occupiedReplies: occupied1024.stats.replies };
 
   await setupPanel(1024, 700);
-  const remoteBefore = await settings();
+  const remoteBefore = await rawSettings();
   const remote = structuredClone(remoteBefore);
-  remote.deck.gap = 18;
+  remote.deck.pages[0].gap = 18;
   const remoteString = JSON.stringify(remote);
   const remoteBox = await actionBox(), remoteGrid = await info();
   const remoteFrom = { x: remoteBox.x + remoteBox.width / 2, y: remoteBox.y + remoteBox.height / 2 };
   await mouse('mousePressed', remoteFrom.x, remoteFrom.y);
   await pointerMove('[aria-label="Move or select Action"]', remoteFrom.x + 12, remoteFrom.y);
   await delay(50);
-  await evaluate(`(()=>{const value=${JSON.stringify(remoteString)};localStorage.setItem('supadashboard:settings:v4',value);
+  await evaluate(`(()=>{const value=${JSON.stringify(remoteString)};localStorage.setItem('supadashboard:settings:v5',value);
     window.__canvasWriteBaseline=window.__canvasSettingsWrites.length;
-    window.dispatchEvent(new StorageEvent('storage',{key:'supadashboard:settings:v4',newValue:value}))})()`);
+    window.dispatchEvent(new StorageEvent('storage',{key:'supadashboard:settings:v5',newValue:value}))})()`);
   await delay(180);
   const remoteGap = (await info()).gap;
   await mouse('mouseReleased', remoteFrom.x + remoteGrid.pitch * 5, remoteFrom.y, 0);
@@ -653,11 +661,11 @@ async function main() {
   await mouse('mouseReleased', oneMove.x + oneMove.width / 2, oneMove.y + oneMove.height / 2, 0);
   await waitFor('[data-editing-chrome] [data-corner="se"]');
   const chromeBeforeRemoval = await evaluate(`getComputedStyle(document.querySelector('[data-editing-chrome]')).zIndex`);
-  await evaluate(`(() => { const key='supadashboard:settings:v4';const value=JSON.parse(localStorage.getItem(key));value.deck.items=value.deck.items.filter(item=>item.id!=='mixer-item');
+  await evaluate(`(() => { const key='supadashboard:settings:v5';const value=JSON.parse(localStorage.getItem(key));value.deck.pages[0].items=value.deck.pages[0].items.filter(item=>item.id!=='mixer-item');
     const raw=JSON.stringify(value);localStorage.setItem(key,raw);window.dispatchEvent(new StorageEvent('storage',{key,newValue:raw})); })()`);
   await delay(45);
   const chromeDuringRemoval = await evaluate(`(() => {const chrome=document.querySelector('[data-editing-chrome]');const handle=chrome?.querySelector('[data-corner="se"]');const r=handle?.getBoundingClientRect();const hit=r&&document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
-    return {zIndex:getComputedStyle(chrome).zIndex,opacity:Number(getComputedStyle(chrome).opacity),handlePresent:!!handle,hit:hit===handle,items:JSON.parse(localStorage.getItem('supadashboard:settings:v4')).deck.items.length};})()`);
+    return {zIndex:getComputedStyle(chrome).zIndex,opacity:Number(getComputedStyle(chrome).opacity),handlePresent:!!handle,hit:hit===handle,items:JSON.parse(localStorage.getItem('supadashboard:settings:v5')).deck.pages[0].items.length};})()`);
   assert.equal(chromeBeforeRemoval, '60');
   assert.equal(chromeDuringRemoval.zIndex, '60');
   assert.equal(chromeDuringRemoval.handlePresent, true);

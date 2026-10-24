@@ -3,7 +3,7 @@ import { load } from '@tauri-apps/plugin-store';
 import {
   availableMonitors, currentMonitor, getCurrentWindow, primaryMonitor,
 } from '@tauri-apps/api/window';
-import type { Deck, Settings } from './settings.svelte';
+import type { Page, Settings } from './settings.svelte';
 
 export type Geometry = { x: number; y: number; width: number; height: number };
 export type LocalRect = { x: number; y: number; width: number; height: number };
@@ -40,7 +40,7 @@ let activeController: Controller | undefined;
 
 export const monitors = () => availableMonitors();
 
-export const deckSize = (deck: Pick<Deck, 'cols' | 'rows' | 'size' | 'gap'>) => ({
+export const deckSize = (deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>) => ({
   width: deck.cols * deck.size + (deck.cols + 1) * deck.gap,
   height: deck.rows * deck.size + (deck.rows + 1) * deck.gap,
 });
@@ -168,7 +168,7 @@ export function clampGeometryToWorkArea(geometry: Geometry, monitor: MonitorGeom
   return validGeometry(result) ? result : null;
 }
 
-export function firstLaunchGeometry(deck: Pick<Deck, 'cols' | 'rows' | 'size' | 'gap'>, monitor: MonitorGeometry): Geometry | null {
+export function firstLaunchGeometry(deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>, monitor: MonitorGeometry): Geometry | null {
   const area = workAreaOf(monitor);
   if (!area) return null;
   const natural = deckSize(deck);
@@ -502,7 +502,7 @@ export function getAppliedFullscreen() {
 }
 
 export async function initDisplay(
-  display: Settings['display'], deck: Deck, cancelled: () => boolean = () => false,
+  display: Settings['display'], deck: Page, cancelled: () => boolean = () => false,
 ): Promise<() => void> {
   if (!isTauri()) return () => {};
   if (activeController) disposeController(activeController);

@@ -9,15 +9,15 @@ const idFor = (base: string, ids: string[]) => {
   return id;
 };
 
-export function duplicateWidget(copy: WidgetCopy, items: Item[], controls: ControlConfig[], grid: Grid) {
+export function duplicateWidget(copy: WidgetCopy, items: Item[], allItems: Item[], controls: ControlConfig[], grid: Grid) {
   const at = firstFree(items, copy.w, copy.h, grid);
-  return at ? pasteWidget(copy, items, controls, grid, at) : null;
+  return at ? pasteWidget(copy, items, allItems, controls, grid, at) : null;
 }
 
-export function pasteWidget(copy: WidgetCopy, items: Item[], controls: ControlConfig[], grid: Grid,
+export function pasteWidget(copy: WidgetCopy, items: Item[], allItems: Item[], controls: ControlConfig[], grid: Grid,
   at: { x: number; y: number }, replace?: string) {
   if (!fits(items, { ...at, w: copy.w, h: copy.h }, grid, replace ? [replace] : [])) return null;
   const control = { ...cloneControl(copy.control), id: idFor(copy.control.id, controls.map(c => c.id)) };
-  const item = { id: idFor('i', items.map(i => i.id)), control: control.id, ...at, w: copy.w, h: copy.h };
+  const item = { id: idFor('i', allItems.map(i => i.id)), control: control.id, ...at, w: copy.w, h: copy.h };
   return { control, item };
 }

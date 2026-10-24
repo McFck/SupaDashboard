@@ -18,6 +18,7 @@
   import { splitAlpha, withAlpha } from '../core/palette';
   import { registeredEvents } from '../core/registry';
   import { controlById, settings } from '../core/settings.svelte';
+  import { pageById, pageItems, removePlacement } from '../core/pages';
   import ColorField from '../editor/ColorField.svelte';
   import ScenarioEditor from '../editor/ScenarioEditor.svelte';
   import Inspector from './Inspector.svelte';
@@ -37,12 +38,14 @@
   let layoutWidth = $state(0);
   let area = $state<HTMLElement>();
   let box = $state({ w: 0, h: 0 });
-  let context = $state<{ target: NonNullable<Selection>; x: number; y: number; actions: MenuAction[]; generation: number } | null>(null);
+  let context = $state<{ pageId: string; target: NonNullable<Selection>; x: number; y: number; actions: MenuAction[]; generation: number } | null>(null);
   let menuOpen = $state(false);
   let menuGeneration = 0;
   let resizing = $state<{ x: number; width: number } | null>(null);
   let wasInactive = $state(false);
   const bg = $derived(settings.display.background);
+  const page = $derived(pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!);
+  const allItems = $derived(pageItems(settings.deck.pages));
   const rightWidth = $derived(Math.max(0, Math.min(frame.inspectorWidth, layoutWidth - 32)));
   $effect(() => { if (!active) wasInactive = true; });
   $effect(() => {
@@ -74,7 +77,7 @@
     return () => cancelAnimationFrame(frameId);
   });
   $effect(() => {
-    if (selection && 'item' in selection && !settings.deck.items.some(i => i.id === (selection as { item: string }).item)) selection = null;
+    if (selection && 'item' in selection && !page.items.some(i => i.id === (selection as { item: string }).item)) selection = null;
   });
   $effect(() => {
     const payload = context;
@@ -84,10 +87,11 @@
       ? 'item' in current && current.item === payload.target.item
       : 'cell' in current && current.cell.x === payload.target.cell.x && current.cell.y === payload.target.cell.y);
     const target = payload.target;
-    const targetExists = 'item' in target
-      ? settings.deck.items.some(item => item.id === target.item)
-      : target.cell.x >= 0 && target.cell.y >= 0 && target.cell.x < settings.deck.cols && target.cell.y < settings.deck.rows;
-    if (!sameSelection || !targetExists) closeMenu(payload.generation);
+    const targetPage = settings.deck.pages.find(candidate => candidate.id === payload.pageId);
+    const targetExists = !!targetPage && ('item' in target
+      ? targetPage.items.some(item => item.id === target.item)
+      : target.cell.x >= 0 && target.cell.y >= 0 && target.cell.x < targetPage.cols && target.cell.y < targetPage.rows);
+    if (!sameSelection || payload.pageId !== page.id || !targetExists) closeMenu(payload.generation);
   });
   $effect(() => {
     if (active) return;
@@ -112,52 +116,58 @@
   }
   function openMenu(target: NonNullable<Selection>, x: number, y: number) {
     const snapshot: NonNullable<Selection> = 'item' in target ? { item: target.item } : { cell: { ...target.cell } };
-    context = { target: snapshot, x, y, actions: actionsFor(snapshot).map(action => ({ ...action })), generation: ++menuGeneration };
+    context = { pageId: page.id, target: snapshot, x, y, actions: actionsFor(snapshot, page.id).map(action => ({ ...action })), generation: ++menuGeneration };
     menuOpen = true;
   }
   function moveResize(e: PointerEvent) {
     if (active && resizing) frame.inspectorWidth = Math.round(Math.max(320, Math.min(640, resizing.width + resizing.x - e.clientX)));
   }
   function stopResize() { if (active && resizing) { resizing = null; saveFrame(); } }
-  function remove(id: string) {
-    const item = settings.deck.items.find(i => i.id === id);
-    settings.deck.items = settings.deck.items.filter(i => i.id !== id);
-    if (item && !settings.deck.items.some(i => i.control === item.control)) {
-      settings.controls = settings.controls.filter(c => c.id !== item.control);
-      delete settings.variants[item.control];
+  function remove(id: string, pageId: string) {
+    const result = removePlacement(settings.deck.pages, pageId, id);
+    if (!result.item) return;
+    settings.deck.pages = result.pages;
+    if (result.orphanControl) {
+      settings.controls = settings.controls.filter(c => c.id !== result.orphanControl);
+      delete settings.variants[result.orphanControl];
     }
     if (selection && 'item' in selection && selection.item === id) selection = null;
   }
-  function insert(copy: WidgetCopy, target: NonNullable<Selection>, replace = false) {
-    const old = 'item' in target ? settings.deck.items.find(i => i.id === target.item) : undefined;
+  function insert(copy: WidgetCopy, target: NonNullable<Selection>, pageId: string, replace = false) {
+    const targetPage = settings.deck.pages.find(candidate => candidate.id === pageId);
+    if (!targetPage || page.id !== pageId) return;
+    const old = 'item' in target ? targetPage.items.find(i => i.id === target.item) : undefined;
     const at = 'cell' in target ? target.cell : old;
     if (!at) { toast.error('No free space for this widget'); return; }
-    const result = pasteWidget(copy, settings.deck.items, settings.controls, settings.deck, at, replace ? old?.id : undefined);
+    const result = pasteWidget(copy, targetPage.items, allItems, settings.controls, targetPage, at, replace ? old?.id : undefined);
     if (!result) { toast.error('No free space for this widget'); return; }
     commit(replace ? 'Paste over widget' : 'Paste widget');
-    if (replace && old) remove(old.id);
+    if (replace && old) remove(old.id, pageId);
     settings.controls.push(result.control);
-    settings.deck.items.push(result.item);
+    settings.deck.pages.find(candidate => candidate.id === pageId)?.items.push(result.item);
     select({ item: result.item.id });
   }
-  async function pasteSnapshot(copy: WidgetCopy, target: NonNullable<Selection>) {
+  async function pasteSnapshot(copy: WidgetCopy, target: NonNullable<Selection>, pageId: string) {
+    const targetPage = settings.deck.pages.find(candidate => candidate.id === pageId);
+    if (!targetPage || page.id !== pageId) return;
     if ('item' in target) {
       const id = target.item;
-      const current = settings.deck.items.find(i => i.id === id);
+      const current = targetPage.items.find(i => i.id === id);
       if (!current) return;
-      if (!fits(settings.deck.items, { x: current.x, y: current.y, w: copy.w, h: copy.h }, settings.deck, [id])) {
+      if (!fits(targetPage.items, { x: current.x, y: current.y, w: copy.w, h: copy.h }, targetPage, [id])) {
         toast.error('No free space for this widget');
         return;
       }
       if (!await confirm({ title: 'Replace widget?', action: 'Replace', destructive: true })) return;
-      insert(copy, { item: id }, true);
+      if (page.id !== pageId || !settings.deck.pages.find(candidate => candidate.id === pageId)?.items.some(item => item.id === id)) return;
+      insert(copy, { item: id }, pageId, true);
       return;
     }
-    if (!fits(settings.deck.items, { ...target.cell, w: copy.w, h: copy.h }, settings.deck)) {
+    if (!fits(targetPage.items, { ...target.cell, w: copy.w, h: copy.h }, targetPage)) {
       toast.error('No free space for this widget');
       return;
     }
-    insert(copy, target);
+    insert(copy, target, pageId);
   }
   async function simulate(controlId: string, itemId: string, trigger: Trigger) {
     const result = await dispatchRuntimeTrigger(controlId, itemId, trigger);
@@ -166,8 +176,10 @@
   async function simulateEvent(eventId: string, parameter?: string) {
     if (!await simulateRuntimeEvent(eventId, parameter)) toast.error('Runtime owner is unavailable');
   }
-  function actionsFor(target: NonNullable<Selection>): MenuAction[] {
-    const item = 'item' in target ? settings.deck.items.find(i => i.id === target.item) : undefined;
+  function actionsFor(target: NonNullable<Selection>, pageId: string): MenuAction[] {
+    const sourcePage = settings.deck.pages.find(candidate => candidate.id === pageId);
+    if (!sourcePage) return [];
+    const item = 'item' in target ? sourcePage.items.find(i => i.id === target.item) : undefined;
     const control = item ? controlById(item.control) : undefined;
     const copy = clipboard.value;
     const pasteAt = 'cell' in target ? target.cell : item;
@@ -176,7 +188,7 @@
       if (!latest) return;
       const snapshot = structuredClone($state.snapshot(latest));
       const targetSnapshot: NonNullable<Selection> = 'item' in target ? { item: target.item } : { cell: { ...target.cell } };
-      void pasteSnapshot(snapshot, targetSnapshot);
+      void pasteSnapshot(snapshot, targetSnapshot, pageId);
     } };
     if (!item || !control) {
       if (!('cell' in target)) return [];
@@ -199,15 +211,16 @@
         void navigator.clipboard?.writeText(JSON.stringify(clipboard.value)).catch(() => {});
       } }, paste,
       { label: 'Duplicate', run: () => {
-        const result = duplicateWidget({ control, w: item.w, h: item.h }, settings.deck.items, settings.controls, settings.deck);
+        const result = duplicateWidget({ control, w: item.w, h: item.h }, sourcePage.items, allItems, settings.controls, sourcePage);
         if (!result) { toast.error('No free space for this widget'); return; }
-        commit(`Duplicate ${control.name}`); result.control.name += ' copy'; settings.controls.push(result.control); settings.deck.items.push(result.item); select({ item: result.item.id });
+        commit(`Duplicate ${control.name}`); result.control.name += ' copy'; settings.controls.push(result.control); sourcePage.items.push(result.item); select({ item: result.item.id });
       } },
       { label: 'Delete', danger: true, run: async () => {
         const id = item.id, name = control.name;
         await animateRemoval(id);
+        if (page.id !== pageId || !settings.deck.pages.find(candidate => candidate.id === pageId)?.items.some(entry => entry.id === id)) return;
         commit(`Delete ${name}`);
-        remove(id);
+        remove(id, pageId);
       } },
     ];
   }
@@ -231,8 +244,10 @@
       class="relative grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden bg-[var(--canvas-surface)]">
       <div aria-hidden="true" class="canvas-grid"></div>
       <div class="grid min-h-0 min-w-0 place-items-center" class:canvas-enter={active && wasInactive}>
-        <DeckGrid editing selected={selection} onselect={select} oncontext={openMenu}
-          availableWidth={Math.max(0, box.w - 48)} availableHeight={Math.max(0, box.h - 48)} />
+        {#key page.id}
+          <DeckGrid {page} editing selected={selection} onselect={select} oncontext={openMenu}
+            availableWidth={Math.max(0, box.w - 48)} availableHeight={Math.max(0, box.h - 48)} />
+        {/key}
       </div>
     </div>
     <div class="right-slot relative min-h-0 shrink-0 overflow-hidden" class:resizing={resizing !== null} class:inactive={!active} style:width="{frame.inspectorOpen ? rightWidth : 0}px">
@@ -257,8 +272,8 @@
           </div>
         {:else}
           <div class="inspector-content min-h-0 flex-1 overflow-hidden">
-            {#key selection && 'item' in selection ? selection.item : 'collection'}
-              <Inspector {selection} onselect={select} oneditScenario={openScenario} />
+            {#key `${page.id}:${selection && 'item' in selection ? selection.item : 'collection'}`}
+              <Inspector {page} {selection} onselect={select} oneditScenario={openScenario} />
             {/key}
           </div>
         {/if}

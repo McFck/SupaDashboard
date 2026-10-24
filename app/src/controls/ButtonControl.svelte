@@ -5,15 +5,15 @@
   import { effectiveVariant, stateIdAt } from '../core/button-state';
   import { captureRuntimeTrigger, dispatchRuntimePacket, runtimeView } from '../core/runtime.svelte';
   import type { TriggerPacket } from '../core/scenario-runner';
-  import { settings } from '../core/settings.svelte';
+  import { settings, type Page } from '../core/settings.svelte';
   import ButtonFace from './ButtonFace.svelte';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import StateView from './StateView.svelte';
 
-  let { control, compact = false, w = 1, h = 1, pixelWidth, pixelHeight, presentation,
+  let { control, page, compact = false, w = 1, h = 1, pixelWidth, pixelHeight, presentation,
     pressFeedbackDisabled = false, itemId }: {
-    control: ControlConfig; compact?: boolean; w?: number; h?: number; pixelWidth?: number; pixelHeight?: number;
+    control: ControlConfig; page?: Page; compact?: boolean; w?: number; h?: number; pixelWidth?: number; pixelHeight?: number;
     presentation?: TilePresentation; pressFeedbackDisabled?: boolean; itemId?: string;
   } = $props();
   let pull = $state<PullSnapshot | null>(null);
@@ -26,8 +26,8 @@
   const resolvedPresentation = $derived(presentation ?? { key: `state:${effective.stateId}`, view: effective.view });
   const accent = $derived(resolvedPresentation.view.color ?? variant.color ?? '#67c9eb');
   const busy = $derived(($runtimeView.busy[control.id] ?? 0) > 0);
-  const fallbackWidth = $derived(w * settings.deck.size + (w - 1) * settings.deck.gap);
-  const fallbackHeight = $derived(h * settings.deck.size + (h - 1) * settings.deck.gap);
+  const fallbackWidth = $derived(w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14));
+  const fallbackHeight = $derived(h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14));
   const iconSize = $derived(buttonIconSize(pixelWidth ?? (width || fallbackWidth), pixelHeight ?? (height || fallbackHeight), compact));
   function presentationFor(view: Variant): TilePresentation {
     const index = control.variants.indexOf(view);

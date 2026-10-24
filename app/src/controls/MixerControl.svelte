@@ -5,13 +5,13 @@
   import { mixerLayout, type ControlConfig } from '../core/controls';
   import { findVolumeChannel, setMuted, setVolume, volumeChannels } from '../core/volume';
   import { appIcons } from '../core/registry';
-  import { settings } from '../core/settings.svelte';
+  import { settings, type Page } from '../core/settings.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
 
   type Fixed = { target: string; label?: string; icon?: string };
-  let { control, w = 4, h = 2, pixelWidth, pixelHeight, pressFeedbackDisabled = false, itemId: _itemId }: {
-    control: ControlConfig; w?: number; h?: number; pixelWidth?: number; pixelHeight?: number;
+  let { control, page, w = 4, h = 2, pixelWidth, pixelHeight, pressFeedbackDisabled = false, itemId: _itemId }: {
+    control: ControlConfig; page?: Page; w?: number; h?: number; pixelWidth?: number; pixelHeight?: number;
     pressFeedbackDisabled?: boolean; itemId?: string;
   } = $props();
   const options = $derived((control.options ?? {}) as { channels?: 'auto' | Fixed[]; max?: number; layout?: 'auto' | 'vertical' | 'horizontal' });
@@ -31,8 +31,8 @@
     });
   });
   const vertical = $derived((options.layout === 'auto' || !options.layout
-    ? mixerLayout(pixelWidth ?? (width || w * settings.deck.size + (w - 1) * settings.deck.gap),
-      pixelHeight ?? (height || h * settings.deck.size + (h - 1) * settings.deck.gap), channels.length)
+    ? mixerLayout(pixelWidth ?? (width || w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)),
+      pixelHeight ?? (height || h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)), channels.length)
     : options.layout) === 'vertical');
 
   function set(target: string, v: number) {

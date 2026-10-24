@@ -5,17 +5,17 @@
   import { commit } from '../core/history.svelte';
 import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, type FittedDeck, type Item, type Selection } from '../core/layout';
   import { controlTypes } from '../core/registry';
-  import { controlById, settings } from '../core/settings.svelte';
+import { controlById, settings, type Page } from '../core/settings.svelte';
   import { animateRemoval, registerRemovalNode } from './removal';
   import { DropPreviewWorker } from './drop-worker';
   import ResizeFrame from './ResizeFrame.svelte';
 
-  let { editing = false, selected = null, availableWidth, availableHeight, resolvePresentation, onselect, oncontext }:
-    { editing?: boolean; selected?: Selection; availableWidth?: number; availableHeight?: number; onselect?: (s: Selection) => void;
+  let { page, editing = false, selected = null, availableWidth, availableHeight, resolvePresentation, onselect, oncontext }:
+    { page: Page; editing?: boolean; selected?: Selection; availableWidth?: number; availableHeight?: number; onselect?: (s: Selection) => void;
       resolvePresentation?: (control: import('../core/controls').ControlConfig, variantIndex: number) => TilePresentation;
       oncontext?: (target: { item: string } | { cell: { x: number; y: number } }, x: number, y: number) => void } = $props();
 
-  const deck = $derived(settings.deck);
+  const deck = $derived(page);
   const intrinsic: FittedDeck = $derived({ cell: deck.size, gap: deck.gap,
     width: deck.cols * deck.size + (deck.cols + 1) * deck.gap,
     height: deck.rows * deck.size + (deck.rows + 1) * deck.gap });
@@ -236,7 +236,7 @@ import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, 
   $effect.pre(() => {
     const dimensions = `${deck.rows}/${deck.cols}/${deck.size}/${deck.gap}/${deck.sizing}`;
     const pixels = `${metrics.cell}/${metrics.gap}/${metrics.width}/${metrics.height}/${availableWidth}/${availableHeight}`;
-    const layout = deck.items.map(i => `${i.id}:${i.x},${i.y},${i.w},${i.h}`).join(';');
+    const layout = `${deck.id}|${deck.items.map(i => `${i.id}:${i.x},${i.y},${i.w},${i.h}`).join(';')}`;
     const selectedId = selected && 'item' in selected ? selected.item : '';
     const lostResizeSelection = drag?.mode === 'resize' && selectedId !== drag.id;
     if (layout === previousLayout && dimensions === previousGrid && pixels === previousMetrics &&
@@ -304,7 +304,7 @@ import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, 
     const frameRadius = interruptedRadius ?? Math.min(22, (Math.min(min.w, item.w) * pitch - metrics.gap) / 2,
       (Math.min(min.h, item.h) * pitch - metrics.gap) / 2);
     const localX = (e.clientX - gridRect.left) / scale, localY = (e.clientY - gridRect.top) / scale;
-    const layoutSignature = JSON.stringify(deck.items);
+    const layoutSignature = JSON.stringify({ page: deck.id, items: deck.items });
     const cellObstacles = deck.items.filter(other => other.id !== item.id).map(({ x, y, w, h }) => ({ x, y, w, h }));
     const pixelObstacles = deck.items.filter(other => other.id !== item.id).map(other => {
       // Grown by one gap, so the live outline stops where the widget could actually end, not at the neighbour's edge.
@@ -382,7 +382,8 @@ import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, 
       const current = drag;
       if (!current || current !== d || current.requestToken !== requestToken || current.generation !== d.generation ||
         current.layoutSignature !== d.layoutSignature || current.requestedX !== target.x || current.requestedY !== target.y ||
-        current.target.x !== target.x || current.target.y !== target.y || current.layoutSignature !== JSON.stringify(deck.items)) return;
+        current.target.x !== target.x || current.target.y !== target.y ||
+        current.layoutSignature !== JSON.stringify({ page: deck.id, items: deck.items })) return;
       if (!reply) {
         current.pending = false;
         current.placement = null;
@@ -487,7 +488,7 @@ import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, 
     if (d.mode === 'move') {
       const result = d.placement;
       if (!d.pointerInside || !inside(d.target, deck) || d.pending || !d.readyForRelease || !result ||
-        d.layoutSignature !== JSON.stringify(deck.items) || result.kind === 'invalid' ||
+        d.layoutSignature !== JSON.stringify({ page: deck.id, items: deck.items }) || result.kind === 'invalid' ||
         result.items.find(i => i.id === item.id)?.x !== d.target.x || result.items.find(i => i.id === item.id)?.y !== d.target.y ||
         !result.items.some(i => {
           const original = deck.items.find(old => old.id === i.id)!;
@@ -496,7 +497,7 @@ import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, 
       clearDrag();
       offsets[item.id] = { x: 0, y: 0 };
       commit(result.displaced.length ? 'Swap widgets' : 'Move widget');
-      settings.deck.items = result.items;
+      page.items = result.items;
       onselect?.({ item: item.id });
       return;
     }
@@ -509,7 +510,7 @@ import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, 
     settleResize(d.id, d.ghost, destination, d.screenDistance, d.frameRadius);
     clearDrag();
     commit('Resize widget');
-    settings.deck.items = next;
+    page.items = next;
     onselect?.({ item: item.id });
   }
   function resizeKeydown(e: KeyboardEvent, item: Item, corner: ResizeCorner) {
@@ -533,7 +534,7 @@ import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, 
     if ((nextItem.w === item.w && nextItem.h === item.h) || !fits(deck.items, nextItem, deck, [item.id])) return;
     const next = deck.items.map(i => i.id === item.id ? { ...i, ...nextItem } : i);
     commit('Resize widget');
-    settings.deck.items = next;
+    page.items = next;
     onselect?.({ item: item.id });
   }
   const isSelected = (s: Selection, id: string) => !!s && 'item' in s && s.item === id;
@@ -568,7 +569,7 @@ import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, 
         style:translate={lifted && drag ? `${drag.moveX}px ${drag.moveY}px`
           : displaced ? `${(displaced.x - item.x) * pitch}px ${(displaced.y - item.y) * pitch}px` : null}>
         <div data-dashboard-tile class="h-full w-full" inert={editing}>
-          <def.component {control} w={renderItem.w} h={renderItem.h}
+          <def.component {control} {page} w={renderItem.w} h={renderItem.h}
             pixelWidth={renderItem.w * pitch - metrics.gap} pixelHeight={renderItem.h * pitch - metrics.gap}
             {presentation} itemId={item.id} pressFeedbackDisabled={editing} />
         </div>

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { get } from 'svelte/store';
 import { settings } from '../core/settings.svelte';
+import { pageItems } from '../core/pages';
 import { appOwners, mediaSources, runAction, type ActionRef, type Param, type Plugin } from '../core/registry';
 import { parseVariableText } from '../core/variables';
 import { findVolumeChannel, initVolumeSync, readVolume, setMuted, setVolume, volumeChannels } from '../core/volume';
@@ -21,7 +22,7 @@ export const mixer = async () => {
 };
 /** Targets already used by widgets on the deck, so they stay pickable while that app is closed. */
 function usedTargets() {
-  const placed = new Set(settings.deck.items.map(i => i.control));
+  const placed = new Set(pageItems(settings.deck.pages).map(i => i.control));
   const out: unknown[] = [];
   for (const c of settings.controls) {
     if (!placed.has(c.id)) continue;

@@ -11,11 +11,13 @@ import type { EventAncestry } from './registry';
 import { VariableStore, type VariableSnapshot, type VariableValue } from './variables';
 import type { Trigger } from './scenario';
 import type { RuntimeSync, RuntimeRequest } from './runtime-sync';
+import { pageAfterRemoval, pageById } from './pages';
 
 export type RuntimeSnapshot = {
   online: boolean;
   owner: boolean;
   revision: number;
+  activePage: string;
   variables: VariableSnapshot;
   busy: Readonly<Record<string, number>>;
 };
@@ -26,7 +28,8 @@ export type RuntimeOptions = { variables?: VariableStore; persistence?: Variable
 type Job = { packet: TriggerPacket; fingerprint: string; notify: boolean; resolve(result: RunResult): void; controller?: AbortController;
   done?: { promise: Promise<RunResult>; resolve(result: RunResult): void } };
 type Lane = { key: string; controlId: string; queue: Job[]; current?: Job; draining: boolean };
-const EMPTY: RuntimeSnapshot = { online: false, owner: false, revision: 0, variables: { revision: 0, records: {} }, busy: {} };
+const EMPTY: RuntimeSnapshot = { online: false, owner: false, revision: 0, activePage: 'page-1',
+  variables: { revision: 0, records: {} }, busy: {} };
 const VARIABLE_KEY = 'supadashboard:variables:v1';
 const cancelled = (): RunResult => ({ status: 'cancelled' });
 const scenarioId = () => globalThis.crypto?.randomUUID?.() ?? `run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -72,11 +75,16 @@ export class AutomationRuntime {
   private disposed = false;
   private lastValues: Record<string, VariableValue> = {};
   private variableAncestry = new Map<string, EventAncestry>();
+  private activePage: string;
+  private priorPageOrder: string[];
 
   constructor(options: RuntimeOptions = {}) {
     this.variables = options.variables ?? new VariableStore();
     this.persistence = options.persistence;
     this.owner = options.owner ?? true;
+    this.priorPageOrder = settings.deck.pages.map(page => page.id);
+    this.activePage = pageById(settings.deck.pages, settings.deck.activePage)?.id ?? this.priorPageOrder[0] ?? 'page-1';
+    if (this.owner) settings.deck.activePage = this.activePage;
     this.onFailure = options.onFailure ?? (() => {});
     this.onQueueFull = options.onQueueFull ?? (() => {});
     this.events.register({ id: 'variables.changed', title: 'Variable changed', plugin: 'core' });
@@ -106,13 +114,20 @@ export class AutomationRuntime {
       registerEvent: definition => { this.events.register(definition); },
       emitEvent: (id, parameter, payload, ancestry) => this.emitEvent(id, parameter, payload, ancestry),
     });
-    this.stopRemoteSettings = onRemoteSettings(next => this.reconcile(next));
+    this.stopRemoteSettings = onRemoteSettings(next => {
+      this.reconcile(next.controls);
+      if (this.owner) this.reconcilePages(next.deck.pages);
+    });
     this.stopSettingsEffect = $effect.root(() => {
       $effect(() => {
         const next = settings.controls;
         const signature = JSON.stringify(next.map(control => [control.id, fingerprint(control)]));
         void signature;
-        this.reconcile({ controls: next } as Settings);
+        this.reconcile(next);
+      });
+      $effect(() => {
+        const pages = settings.deck.pages;
+        if (this.owner) this.reconcilePages(pages);
       });
     });
     this.publish(this.variables.snapshot());
@@ -166,6 +181,14 @@ export class AutomationRuntime {
     settings.variants[controlId] = resolved;
   }
 
+  changePage(pageId: string) {
+    if (this.disposed || !this.owner || !settings.deck.pages.some(page => page.id === pageId) || pageId === this.activePage) return false;
+    this.activePage = pageId;
+    settings.deck.activePage = pageId;
+    this.publish(this.variables.snapshot());
+    return true;
+  }
+
   setVariable(id: string, value: VariableValue, ancestry?: EventAncestry) {
     if (this.disposed || !this.owner) throw new Error('Variable runtime is unavailable');
     if (ancestry) this.variableAncestry.set(id, ancestry);
@@ -198,8 +221,8 @@ export class AutomationRuntime {
     await Promise.all(stopped);
   }
 
-  reconcile(next: Settings) {
-    const current = new Map(next.controls.map(control => [control.id, fingerprint(control)]));
+  reconcile(controls: Settings['controls']) {
+    const current = new Map(controls.map(control => [control.id, fingerprint(control)]));
     for (const lane of this.lanes.values()) {
       const expected = current.get(lane.controlId);
       if (expected === undefined || lane.current?.fingerprint !== expected) lane.current?.controller?.abort();
@@ -271,8 +294,21 @@ export class AutomationRuntime {
 
   private publish(variables: VariableSnapshot, online = true) {
     this.revision++;
-    this.snapshots.set({ online, owner: this.owner, revision: this.revision, variables,
+    this.snapshots.set({ online, owner: this.owner, revision: this.revision, activePage: this.activePage, variables,
       busy: Object.fromEntries(this.busyCounts) });
+  }
+
+  reconcilePages(pages = settings.deck.pages) {
+    const order = pages.map(page => page.id);
+    const active = pageById(pages, this.activePage);
+    if (!active) return;
+    if (active.id !== this.activePage) {
+      const next = pageAfterRemoval(pages, this.activePage, this.priorPageOrder) ?? active.id;
+      this.activePage = next;
+      settings.deck.activePage = next;
+      this.publish(this.variables.snapshot());
+    }
+    this.priorPageOrder = order;
   }
 
   private schedulePersist() {
@@ -315,9 +351,11 @@ export function setRuntimeSync(sync: RuntimeSync) {
 export function acceptRuntimeSnapshot(snapshot: unknown, revision: number) {
   if (!snapshot || typeof snapshot !== 'object' || !Number.isSafeInteger(revision) || revision <= remoteRevision) return;
   const value = snapshot as RuntimeSnapshot;
-  if (!value.variables || typeof value.variables !== 'object' || !value.busy || typeof value.busy !== 'object') return;
+  if (typeof value.activePage !== 'string' || !value.variables || typeof value.variables !== 'object' ||
+    !value.busy || typeof value.busy !== 'object') return;
   remoteRevision = revision;
   setVariableMirror(Object.values(value.variables.records));
+  settings.deck.activePage = value.activePage;
   runtimeView.set({ ...value, online: true, owner: false, revision });
 }
 

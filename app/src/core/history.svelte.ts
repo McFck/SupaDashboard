@@ -1,12 +1,13 @@
 import { toast } from 'svelte-sonner';
-import { onRemoteSettings, settings, type Settings } from './settings.svelte';
+import { onRemoteSettings, settings, type Deck, type Settings } from './settings.svelte';
 
 type Status = { canUndo: boolean; canRedo: boolean; undoLabel: string; redoLabel: string };
-type EditableSettings = Omit<Settings, 'variants'>;
+type EditableSettings = Omit<Settings, 'variants' | 'deck'> & { deck: Omit<Deck, 'activePage'> };
 
 export function editableSnapshot(source: Settings): EditableSettings {
-  const { variants: _runtime, ...editable } = source;
-  return structuredClone(editable);
+  const { variants: _runtime, deck, ...editable } = source;
+  const { activePage: _activePage, ...editableDeck } = deck;
+  return structuredClone({ ...editable, deck: editableDeck });
 }
 
 export const editableChanged = (current: Settings, next: Settings) =>
@@ -112,9 +113,10 @@ function dismissUndoToast() {
 }
 
 /** Variant indices are runtime state outside history; keep each control on the same variant when undo reorders them. */
-function applyKeepingActiveVariants(snapshot: EditableSettings) {
+export function applyEditableSettings(snapshot: EditableSettings) {
+  const activePage = settings.deck.activePage;
   const active = new Map(settings.controls.map(c => [c.id, JSON.stringify(c.variants[settings.variants[c.id] ?? 0])]));
-  Object.assign(settings, snapshot);
+  Object.assign(settings, { ...snapshot, deck: { ...snapshot.deck, activePage } });
   for (const c of settings.controls) {
     const index = c.variants.findIndex(v => JSON.stringify(v) === active.get(c.id));
     if (index >= 0 && index !== (settings.variants[c.id] ?? 0)) settings.variants[c.id] = index;
@@ -123,7 +125,7 @@ function applyKeepingActiveVariants(snapshot: EditableSettings) {
 
 export function startHistory() {
   if (timeline) return;
-  timeline = new SnapshotHistory<EditableSettings>(editableSnapshot($state.snapshot(settings)), applyKeepingActiveVariants,
+  timeline = new SnapshotHistory<EditableSettings>(editableSnapshot($state.snapshot(settings)), applyEditableSettings,
     status => Object.assign(history, status), label => {
       dismissUndoToast();
       if (/^(delete|reset|paste|replace)/i.test(label))

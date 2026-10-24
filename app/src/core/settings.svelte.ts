@@ -6,7 +6,9 @@ import type { ControlConfig } from './controls';
 import { normalizeControl } from './scenario';
 import type { DeckSizing, Item } from './layout';
 
-export type Deck = {
+export type Page = {
+  id: string;
+  name: string;
   rows: number;
   cols: number;
   /** Cell edge in px and spacing between cells. */
@@ -16,8 +18,10 @@ export type Deck = {
   items: Item[];
 };
 
+export type Deck = { pages: Page[]; activePage: string };
+
 export type Settings = {
-  version: 4;
+  version: 5;
   skin: string;
   display: {
     monitor: string | null;
@@ -28,6 +32,7 @@ export type Settings = {
   };
   controls: ControlConfig[];
   deck: Deck;
+  pageRotation: { intervalSeconds: number };
   /** control id -> active variant (gesture swaps are sticky across restarts) */
   variants: Record<string, number>;
 };
@@ -39,8 +44,19 @@ const media = (id: string, icon: string, name: string, color: string): ControlCo
     { label: name, icon, color: '#66ce8f', action: { id: `media.${id}`, args: { source: 'spotify' } } }],
 });
 
+const DEFAULT_PAGE: Page = {
+  id: 'page-1', name: 'Page 1', rows: 3, cols: 6, size: 112, sizing: 'auto', gap: 14, items: [
+    { id: 'i1', control: 'prev', x: 0, y: 0, w: 1, h: 1 },
+    { id: 'i2', control: 'toggle', x: 1, y: 0, w: 1, h: 1 },
+    { id: 'i3', control: 'next', x: 2, y: 0, w: 1, h: 1 },
+    { id: 'i4', control: 'spotify', x: 3, y: 0, w: 1, h: 1 },
+    { id: 'i5', control: 'mixer', x: 0, y: 1, w: 4, h: 2 },
+    { id: 'i6', control: 'volume', x: 4, y: 0, w: 1, h: 3 },
+  ],
+};
+
 export const DEFAULTS: Settings = {
-  version: 4,
+  version: 5,
   skin: 'deck',
   display: { monitor: null, fullscreen: false, alwaysOnTop: false, background: { color: '#0a0a0a', opacity: 0.55, radius: 28 } },
   controls: [
@@ -55,22 +71,49 @@ export const DEFAULTS: Settings = {
     normalizeControl({ id: 'spotify', name: 'Spotify', type: 'button',
       variants: [{ label: 'Spotify', icon: 'spotify', color: '#66ce8f', action: { id: 'spotify.open' } }] }),
   ],
-  deck: { rows: 3, cols: 6, size: 112, sizing: 'auto', gap: 14, items: [
-    { id: 'i1', control: 'prev', x: 0, y: 0, w: 1, h: 1 },
-    { id: 'i2', control: 'toggle', x: 1, y: 0, w: 1, h: 1 },
-    { id: 'i3', control: 'next', x: 2, y: 0, w: 1, h: 1 },
-    { id: 'i4', control: 'spotify', x: 3, y: 0, w: 1, h: 1 },
-    { id: 'i5', control: 'mixer', x: 0, y: 1, w: 4, h: 2 },
-    { id: 'i6', control: 'volume', x: 4, y: 0, w: 1, h: 3 },
-  ] },
+  deck: { pages: [structuredClone(DEFAULT_PAGE)], activePage: DEFAULT_PAGE.id },
+  pageRotation: { intervalSeconds: 0 },
   variants: {},
 };
 
+const validInterval = (value: unknown): value is number => Number.isSafeInteger(value) &&
+  (value === 0 || (Number(value) >= 5 && Number(value) <= 3600));
+
+function uniqueId(value: unknown, used: Set<string>, base: string) {
+  if (typeof value === 'string' && value.trim() && !used.has(value)) {
+    used.add(value);
+    return value;
+  }
+  let index = 1, id = `${base}-${index}`;
+  while (used.has(id)) id = `${base}-${++index}`;
+  used.add(id);
+  return id;
+}
+
+function normalizePage(raw: any, index: number, pageIds: Set<string>, itemIds: Set<string>): Page {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const fallback = DEFAULT_PAGE;
+  const id = uniqueId(source.id, pageIds, 'page');
+  const rows = Number.isSafeInteger(source.rows) && source.rows > 0 ? source.rows : fallback.rows;
+  const cols = Number.isSafeInteger(source.cols) && source.cols > 0 ? source.cols : fallback.cols;
+  const size = Number.isFinite(source.size) && source.size > 0 ? source.size : fallback.size;
+  const gap = Number.isFinite(source.gap) && source.gap >= 0 ? source.gap : fallback.gap;
+  const items = Array.isArray(source.items) ? source.items.flatMap((item: any) => {
+    if (!item || typeof item !== 'object' || typeof item.control !== 'string' ||
+      ![item.x, item.y, item.w, item.h].every(Number.isFinite) || item.w <= 0 || item.h <= 0) return [];
+    return [{ ...item, id: uniqueId(item.id, itemIds, 'item') } as Item];
+  }) : [];
+  const name = typeof source.name === 'string' && source.name.trim() ? source.name.trim() : `Page ${index + 1}`;
+  return { id, name, rows, cols, size, gap, sizing: source.sizing === 'manual' ? 'manual' : 'auto', items };
+}
+
 /** Bring any saved settings up to the current version without losing the user's controls. */
-export function migrate(saved: any): Settings {
-  const out: Settings = structuredClone(DEFAULTS);
-  if (!saved || typeof saved !== 'object') return out;
-  saved = structuredClone(saved);
+export function migrate(input: any): Settings {
+  const out = structuredClone(DEFAULTS);
+  if (!input || typeof input !== 'object') return out;
+  let saved = structuredClone(input);
+  if (typeof saved.version === 'number' && saved.version > 5)
+    throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   if (saved.version === 1) {
     const icon: Record<string, string> = { prev: 'SkipBack', next: 'SkipForward', playpause: 'Play', volume: 'Volume2' };
     for (const c of saved.controls ?? []) {
@@ -94,37 +137,55 @@ export function migrate(saved: any): Settings {
     const items: Item[] = old?.cells
       ? old.cells.flatMap((control: string, i: number) => control
         ? [{ id: `i${i}`, control, x: i % old.cols, y: Math.floor(i / old.cols), w: 1, h: 1 }] : [])
-      : out.deck.items;
-    saved = { ...saved, version: 3, deck: old?.cells ? { rows: old.rows, cols: old.cols, size: old.size, gap: old.gap, items } : out.deck };
+      : structuredClone(DEFAULT_PAGE.items);
+    saved = { ...saved, version: 3, deck: old?.cells
+      ? { rows: old.rows, cols: old.cols, size: old.size, gap: old.gap, items }
+      : { ...structuredClone(DEFAULT_PAGE), items } };
   }
-  if (typeof saved.version === 'number' && saved.version > 4)
-    throw new Error(`Settings version ${saved.version} is newer than this app supports`);
-  if (saved.version !== 3 && saved.version !== 4) return out;
+  if (saved.version !== 3 && saved.version !== 4 && saved.version !== 5) return out;
+
   // Preserve explicit colours and empty labels while canonicalizing every control once.
   for (const control of saved.controls ?? []) {
     for (const variant of control.variants ?? []) variant.color ??= control.color ?? '#8ea8f0';
   }
   saved.controls = (saved.controls ?? []).map((control: unknown) => normalizeControl(control));
-  saved.version = 4;
   delete saved.slots; // the strip editor was removed; skins reuse the deck's controls
-  const deck = { ...out.deck, ...saved.deck };
+
+  const rawPages: unknown[] = saved.version === 5 && Array.isArray(saved.deck?.pages)
+    ? saved.deck.pages
+    : [{ ...structuredClone(DEFAULT_PAGE), ...(saved.deck ?? {}), id: 'page-1', name: 'Page 1' }];
+  const pages: Page[] = [];
+  const pageIds = new Set<string>(), itemIds = new Set<string>();
+  for (const [index, raw] of rawPages.entries()) pages.push(normalizePage(raw, index, pageIds, itemIds));
+  if (!pages.length) pages.push(structuredClone(DEFAULT_PAGE));
+
   // Placements used to share one control (and its state); give every extra placement its own copy.
-  const seen = new Set<string>();
-  deck.items = (deck.items ?? []).map((item: Item) => {
+  const seen = new Set<string>(), globalIds = new Set([...pageIds, ...itemIds, ...saved.controls.map((c: ControlConfig) => c.id)]);
+  for (const page of pages) page.items = page.items.map(item => {
     if (!seen.has(item.control)) { seen.add(item.control); return item; }
     const source = saved.controls.find((c: ControlConfig) => c.id === item.control);
     if (!source) return item;
-    let id = `${source.id}-${2}`, n = 3;
-    while (saved.controls.some((c: ControlConfig) => c.id === id)) id = `${source.id}-${n++}`;
+    let id = `${source.id}-2`, suffix = 3;
+    while (globalIds.has(id)) id = `${source.id}-${suffix++}`;
+    globalIds.add(id);
     saved.controls.push({ ...structuredClone(source), id });
+    if (Object.hasOwn(saved.variants ?? {}, source.id)) saved.variants[id] = saved.variants[source.id];
     return { ...item, control: id };
   });
-  deck.sizing = saved.deck?.sizing === 'manual' ? 'manual' : 'auto';
-  if (!Number.isFinite(deck.size) || deck.size <= 0) deck.size = DEFAULTS.deck.size;
-  return { ...out, ...saved, display: { ...out.display, ...saved.display,
+
+  const activePage = pages.some(page => page.id === saved.deck?.activePage) ? saved.deck.activePage : pages[0].id;
+  const intervalSeconds = validInterval(saved.pageRotation?.intervalSeconds) ? saved.pageRotation.intervalSeconds : 0;
+  return { ...out, ...saved, version: 5, display: { ...out.display, ...saved.display,
     alwaysOnTop: typeof saved.display?.alwaysOnTop === 'boolean' ? saved.display.alwaysOnTop : false,
     background: { ...out.display.background, ...saved.display?.background } },
-    deck };
+    deck: { pages, activePage }, pageRotation: { intervalSeconds } };
+}
+
+/** Serialize the live settings with a stable launch placeholder, never the runtime page selection. */
+export function serializeSettings(source: Settings = $state.snapshot(settings)) {
+  const snapshot = structuredClone(source);
+  snapshot.deck.activePage = snapshot.deck.pages[0]?.id ?? DEFAULT_PAGE.id;
+  return JSON.stringify(snapshot);
 }
 
 export const settings: Settings = $state(structuredClone(DEFAULTS));
@@ -137,30 +198,46 @@ export function onRemoteSettings(listener: (next: Settings) => void) {
 
 export async function loadSettings() {
   const browser = !isTauri();
-  const browserKey = 'supadashboard:settings:v4';
+  const browserKey = 'supadashboard:settings:v5';
+  const legacyBrowserKey = 'supadashboard:settings:v4';
   let last = '';
-  const apply = (raw: unknown) => {
-    const next = migrate(raw);
-    last = JSON.stringify(next);
+  const assign = (next: Settings, activePage = next.deck.pages[0].id) => {
+    next.deck.activePage = activePage;
     Object.assign(settings, next);
   };
+  const applyInitial = (raw: unknown, rawJson?: string) => {
+    if ((raw as any)?.version > 5) return false;
+    const next = migrate(raw);
+    assign(next);
+    last = rawJson ?? '';
+    return true;
+  };
+  const applyRemote = (raw: unknown) => {
+    if ((raw as any)?.version > 5) return;
+    const next = migrate(raw);
+    const json = serializeSettings(next);
+    if (json === last) return;
+    for (const listener of remoteSettingsListeners) listener(next);
+    assign(next, settings.deck.activePage);
+    last = json;
+  };
+
   if (browser) {
-    const applyRemote = (raw: unknown) => {
-      const next = migrate(raw);
-      if (JSON.stringify(next) === last) return;
-      for (const listener of remoteSettingsListeners) listener(next);
-      apply(next);
-    };
-    try { apply(JSON.parse(localStorage.getItem(browserKey) ?? 'null')); } catch { apply(null); }
+    const current = localStorage.getItem(browserKey);
+    const rawJson = current ?? localStorage.getItem(legacyBrowserKey);
+    let raw: unknown = null;
+    if (rawJson) {
+      try { raw = JSON.parse(rawJson); } catch { raw = null; }
+    }
+    if (!applyInitial(raw, rawJson ?? undefined)) return;
     const onStorage = (event: StorageEvent) => {
       if (event.key !== browserKey || !event.newValue) return;
-      try { applyRemote(JSON.parse(event.newValue)); } catch { /* another tab's partial write is ignored */ }
+      try { applyRemote(JSON.parse(event.newValue)); } catch { /* unsupported or partial remote data is ignored */ }
     };
     window.addEventListener('storage', onStorage);
     $effect.root(() => {
       $effect(() => {
-        const snap = $state.snapshot(settings);
-        const json = JSON.stringify(snap);
+        const json = serializeSettings($state.snapshot(settings));
         if (json !== last) {
           last = json;
           localStorage.setItem(browserKey, json);
@@ -170,21 +247,17 @@ export async function loadSettings() {
     return;
   }
   const store = await load('settings.json', { defaults: {}, autoSave: 200 });
-  apply(await store.get('settings'));
+  const raw = await store.get('settings');
+  if (!applyInitial(raw, raw ? JSON.stringify(raw) : undefined)) return;
   // Another window (dashboard <-> control panel) changed something: take it over.
-  await store.onKeyChange('settings', raw => {
-    if (!raw) return;
-    const next = migrate(raw);
-    if (JSON.stringify(next) !== last) {
-      for (const listener of remoteSettingsListeners) listener(next);
-      apply(next);
-    }
+  await store.onKeyChange('settings', value => {
+    if (!value) return;
+    try { applyRemote(value); } catch { /* unsupported or partial remote data is ignored */ }
   });
   $effect.root(() => {
     $effect(() => {
-      const snap = $state.snapshot(settings);
-      const json = JSON.stringify(snap);
-      if (json !== last) { last = json; void store.set('settings', snap); }
+      const json = serializeSettings($state.snapshot(settings));
+      if (json !== last) { last = json; void store.set('settings', JSON.parse(json)); }
     });
   });
 }

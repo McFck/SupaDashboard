@@ -1,6 +1,7 @@
 // Extension points. Built-in features register through exactly the same API as plugins.
 import type { Component } from 'svelte';
 import type { ControlConfig } from './controls';
+import type { Page } from './settings.svelte';
 import type { ActionStep, Trigger } from './scenario';
 import { VariableStore, type VariableDefinition, type VariableRecord, type VariableValue } from './variables';
 import { get, writable } from 'svelte/store';
@@ -91,7 +92,7 @@ export type MediaSource = {
   command(command: 'prev' | 'next' | 'toggle' | 'play' | 'pause'): Promise<unknown>;
 };
 
-export type SkinDef = { plugin?: string; id: string; title: string; component: Component };
+export type SkinDef = { plugin?: string; id: string; title: string; component: Component<{ page: Page }> };
 
 export type PluginApi = {
   registerAction(def: ActionDef): void;

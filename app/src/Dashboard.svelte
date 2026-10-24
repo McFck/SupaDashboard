@@ -7,10 +7,13 @@
   import { applyDisplay, complementRectangles, getAppliedFullscreen, initDisplay, type LocalRect } from './core/display';
   import { skins } from './core/registry';
   import { settings } from './core/settings.svelte';
+  import { pageById } from './core/pages';
+  import { runtimeView } from './core/runtime.svelte';
 
   type DisplayRequest = { monitor: string | null; fullscreen: boolean; alwaysOnTop: boolean };
   type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
   const Skin = $derived((skins.get(settings.skin) ?? skins.get('deck')!).component);
+  const page = $derived(pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!);
   const bg = $derived(settings.display.background);
   let shell: HTMLDivElement;
   let skinRoot: HTMLDivElement;
@@ -163,7 +166,7 @@
         }
       }
       try {
-        cleanup = await initDisplay(initialDisplay, $state.snapshot(settings.deck), () => disposed);
+        cleanup = await initDisplay(initialDisplay, $state.snapshot(page), () => disposed);
         if (disposed) {
           cleanup?.();
           return;
@@ -206,9 +209,9 @@
   $effect(() => {
     settings.skin;
     appliedFullscreen;
-    const deck = settings.deck;
-    deck.cols; deck.rows; deck.size; deck.gap; deck.sizing;
-    for (const item of deck.items) { item.x; item.y; item.w; item.h; }
+    const active = page;
+    active.id; active.cols; active.rows; active.size; active.gap; active.sizing;
+    for (const item of active.items) { item.x; item.y; item.w; item.h; }
     if (gapResizeObserver) void tick().then(scheduleDragGapMeasure);
   });
 
@@ -227,7 +230,7 @@
   bind:this={shell} onpointerenter={() => { domHovered = true; }} onpointerleave={() => { domHovered = false; }}>
   <div aria-hidden="true" class="dashboard-backdrop" style:background={bg.color}
     style:opacity={Number.isFinite(bg.opacity) ? Math.max(0, Math.min(1, bg.opacity)) : 0}></div>
-  <div class="dashboard-skin" bind:this={skinRoot}><Skin /></div>
+  <div class="dashboard-skin" bind:this={skinRoot}>{#key page.id}<Skin {page} />{/key}</div>
   {#if !appliedFullscreen}
     {#each dragGaps as gap}
       <div aria-hidden="true" class="dashboard-drag-gap" style:left="{gap.x}px" style:top="{gap.y}px"

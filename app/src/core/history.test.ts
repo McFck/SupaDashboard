@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { editableChanged, editableSnapshot, SnapshotHistory } from './history.svelte';
-import { DEFAULTS } from './settings.svelte';
+import { applyEditableSettings, editableChanged, editableSnapshot, SnapshotHistory } from './history.svelte';
+import { DEFAULTS, settings } from './settings.svelte';
 
 describe('settings history', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -82,7 +82,8 @@ describe('settings history', () => {
   it('keeps undo history and the live variant after a remote variant change', () => {
     const current = structuredClone(DEFAULTS);
     let status = { canUndo: false, canRedo: false, undoLabel: '', redoLabel: '' };
-    const stack = new SnapshotHistory(editableSnapshot(current), next => Object.assign(current, next),
+    const stack = new SnapshotHistory(editableSnapshot(current), next => Object.assign(current,
+      { ...next, deck: { ...next.deck, activePage: current.deck.activePage } }),
       next => (status = next));
     current.skin = 'subway';
     stack.observe(editableSnapshot(current));
@@ -121,5 +122,31 @@ describe('settings history', () => {
     stack.observe(current);
     vi.advanceTimersByTime(400);
     expect(undoLabel).toBe('Change settings');
+  });
+
+  it('keeps live page selection outside undo while page data remains editable', () => {
+    const before = structuredClone(settings);
+    try {
+      settings.deck.pages = [structuredClone(DEFAULTS.deck.pages[0]),
+        { ...structuredClone(DEFAULTS.deck.pages[0]), id: 'page-second', name: 'Second', cols: 8 }];
+      settings.deck.activePage = 'page-second';
+      settings.variants.prev = 1;
+      const initial = editableSnapshot(settings);
+      const stack = new SnapshotHistory(initial, applyEditableSettings, () => {});
+      settings.skin = 'subway';
+      settings.deck.pages[1].cols = 9;
+      stack.observe(editableSnapshot(settings));
+      vi.advanceTimersByTime(400);
+      stack.undo();
+      expect(settings.skin).toBe(DEFAULTS.skin);
+      expect(settings.deck.pages[1].cols).toBe(8);
+      expect(settings.deck.activePage).toBe('page-second');
+      expect(settings.variants.prev).toBe(1);
+      stack.redo();
+      expect(settings.deck.pages[1].cols).toBe(9);
+      expect(settings.deck.activePage).toBe('page-second');
+    } finally {
+      Object.assign(settings, before);
+    }
   });
 });

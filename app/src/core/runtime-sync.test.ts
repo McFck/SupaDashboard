@@ -17,10 +17,10 @@ function pair() {
 
 describe('runtime sync protocol', () => {
   it('sends one request to the owner and returns a reconnect snapshot', async () => {
-    const bus = pair(), handler = vi.fn(async request => ({ type: request.type, variables: ['v1'] }));
+    const bus = pair(), handler = vi.fn(async request => ({ type: request.type, activePage: 'page-two', variables: ['v1'] }));
     const owner = bus.endpoint('owner', { owner: true, onRequest: handler });
     const panel = bus.endpoint('panel');
-    await expect(panel.request({ type: 'snapshot' })).resolves.toEqual({ type: 'snapshot', variables: ['v1'] });
+    await expect(panel.request({ type: 'snapshot' })).resolves.toEqual({ type: 'snapshot', activePage: 'page-two', variables: ['v1'] });
     expect(handler).toHaveBeenCalledOnce();
     owner.close();
     panel.close();

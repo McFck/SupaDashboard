@@ -12,6 +12,7 @@
   import { runtimeView } from '../core/runtime.svelte';
   import { registeredEvents } from '../core/registry';
   import { controlById, settings } from '../core/settings.svelte';
+  import { placementById } from '../core/pages';
   import { commit } from '../core/history.svelte';
   import Choice from './Choice.svelte';
   import PluginMark, { pluginTitle } from './PluginMark.svelte';
@@ -27,7 +28,7 @@
   } = $props();
   // A slider's own value axis cannot also be a pull: those triggers stay visible but disabled.
   const blockedTriggers = $derived.by(() => {
-    const item = settings.deck.items.find(i => i.id === itemId);
+    const item = placementById(settings.deck.pages, itemId)?.item;
     const type = controlById(controlId)?.type;
     if (type !== 'slider' || !item) return new Set<Trigger>();
     const allowed = availableGestures(type, item.w, item.h);
@@ -46,10 +47,11 @@
   let opener = $state<HTMLElement | null>(null);
   const control = $derived(controlById(controlId));
   const eventDefinitions = $derived(registeredEvents(Object.values($runtimeView.variables.records)));
-  const previewItem = $derived(settings.deck.items.find(item => item.id === itemId));
+  const previewPlacement = $derived(placementById(settings.deck.pages, itemId));
+  const previewItem = $derived(previewPlacement?.item);
   const previewAspect = $derived.by(() => {
-    if (!previewItem) return 1;
-    const { size, gap } = settings.deck;
+    if (!previewItem || !previewPlacement) return 1;
+    const { size, gap } = previewPlacement.page;
     return (previewItem.w * size + (previewItem.w - 1) * gap) / (previewItem.h * size + (previewItem.h - 1) * gap);
   });
   const selectedEventId = $derived(selectedKey.startsWith('event:') ? selectedKey.slice(6) : '');
