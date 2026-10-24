@@ -273,4 +273,14 @@ describe('Subway run timeline', () => {
     expect(() => createRunState(lines, { lineId: 'sakaisuji', stationCode: 'K21' })).toThrow(/Unknown station/);
     expect(segmentPlanKey('yamanote', 'JY01', 'JY02', 'inner')).toBe('yamanote|JY01|JY02|inner');
   });
+
+  it('atomically reconfigures line, direction and start station in one reset', () => {
+    const initial = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY18', direction: 'outer' });
+    const changed = reduceRun(initial, { type: 'configure', lineId: 'sakaisuji', direction: 'northbound', stationCode: 'K20' }, 42, lines);
+    expect(changed.effects).toEqual([]);
+    expect(changed.state).toMatchObject({ lineId: 'sakaisuji', direction: 'northbound', stationCode: 'K20',
+      phase: 'stopped', doors: 'open', active: false, incident: null, generation: initial.generation + 1, lastTickAt: 42 });
+    expect(() => reduceRun(initial, { type: 'configure', lineId: 'sakaisuji', direction: 'inner', stationCode: 'K11' }, 0, lines))
+      .toThrow(/Unknown direction/);
+  });
 });

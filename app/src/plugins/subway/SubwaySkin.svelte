@@ -11,6 +11,7 @@
   import { createSubwayScene, type SubwaySceneData } from './scene';
   import { registerSubwaySurface, subwaySceneState, type SubwaySurfaceRegistration } from './runtime';
   import { loadSubwayEditorPreview, type SubwayEditorPreview } from './preview';
+  import { displayLanguages as displayPresetLanguages } from './config';
   import { VisibleScreenClock, type ScreenConfig } from './screens';
 
   let { page: _page }: { page: Page } = $props();
@@ -88,7 +89,8 @@
     void pulse;
     if (!source) { sceneData = undefined; return; }
     const rawLanguages = source.config.displayLanguages ?? source.config.languages;
-    const languages = Array.isArray(rawLanguages) ? rawLanguages.filter((item): item is string => typeof item === 'string') : ['ja', 'en'];
+    const languages = Array.isArray(rawLanguages) ? rawLanguages.filter((item): item is string => typeof item === 'string')
+      : displayPresetLanguages(typeof rawLanguages === 'string' ? rawLanguages : source.line.id === 'sakaisuji' ? 'ja-kana' : 'ja-en');
     const config: ScreenConfig = { line: source.line, languages };
     const active = host?.mode === 'runtime' && host.visible && host.pageRenderVisible && runtimeOwner &&
       intersecting && documentVisible && dashboardVisible;
@@ -101,23 +103,26 @@
 </script>
 
 <div bind:this={sceneElement} class="absolute inset-0 overflow-hidden bg-[#10171b] text-[#e5ecef]">
-  <CanvasScene create={createSubwayScene} width={1920} height={480} view={host?.viewId ?? 'display'} data={sceneData}
+  <CanvasScene create={createSubwayScene} width={1920} height={1080} view={host?.viewId ?? 'display'} data={sceneData}
     class="absolute left-0 top-0" />
-  <div class="absolute left-0 top-[480px] h-[120px] w-[1920px]" data-skin-region="strip">
+  <div class="absolute left-0 top-[1080px] h-[120px] w-[1920px]" data-skin-region="strip">
     <Slot id="strip" />
   </div>
-  <div class="absolute left-[1728px] top-[64px] h-[352px] w-[128px]" data-skin-region="side"
-    aria-hidden={!sideActive} inert={!sideActive} style:pointer-events={sideActive ? 'auto' : 'none'}>
+  <div class="absolute left-[1728px] top-[64px] h-[352px] w-[128px] transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
+    aria-hidden={!sideActive} inert={!sideActive} style:pointer-events={sideActive ? 'auto' : 'none'}
+    style:opacity={sideActive ? 1 : 0} style:transform={sideActive ? 'translateY(0)' : 'translateY(4px)'} data-skin-region="side">
     <Slot id="side" />
   </div>
-  <nav data-skin-input="ui" aria-label="Skin view" class="absolute right-16 top-4 z-20 flex gap-2">
+  <nav data-skin-input="ui" aria-label="Skin view" class="absolute left-[1456px] top-[1116px] z-20 flex gap-1.5">
     <Button size="sm" variant={host?.viewId === 'display' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'display'}
       tabindex={host?.mode === 'runtime' ? -1 : 0} onclick={() => void host?.setView('display')}>Display</Button>
+    <Button size="sm" variant={host?.viewId === 'map' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'map'}
+      tabindex={host?.mode === 'runtime' ? -1 : 0} onclick={() => void host?.setView('map')}>Map</Button>
     <Button size="sm" variant={host?.viewId === 'cab' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'cab'}
-      tabindex={host?.mode === 'runtime' ? -1 : 0} onclick={() => void host?.setView('cab')}>Cab</Button>
+      tabindex={host?.mode === 'runtime' ? -1 : 0} onclick={() => void host?.setView('cab')}>Run</Button>
   </nav>
   {#if host?.mode === 'runtime'}
-    <nav data-skin-input="ui" aria-label="Dashboard pages" class="absolute left-[1680px] top-[516px] z-30 flex gap-2">
+    <nav data-skin-input="ui" aria-label="Dashboard pages" class="absolute left-[1780px] top-[1116px] z-30 flex gap-2">
       <Button size="sm" variant="outline" aria-label="Previous page" tabindex={-1} onclick={() => void host?.page.prev()}>‹</Button>
       <Button size="sm" variant="outline" aria-label="Next page" tabindex={-1} onclick={() => void host?.page.next()}>›</Button>
     </nav>

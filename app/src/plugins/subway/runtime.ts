@@ -1,6 +1,8 @@
 import { get, writable, type Readable } from 'svelte/store';
+import type { EventAncestry } from '../../core/registry';
 import type { SkinRuntimeContext } from '../../core/skins';
 import { normalizeSubwayLines, stepStation, type LineDefinition } from './lines';
+import { announcementLanguages, firstStationForDirection, normalizeSubwayConfig, type SubwayLineId } from './config';
 import {
   buildSegmentCuePlan, loadSubwayAssets, type LoadedSubwayAssets, type SegmentCuePlan,
 } from './sound-pack';
@@ -28,7 +30,9 @@ export interface SubwaySurfaceRegistration {
 }
 
 export interface SubwayRuntimeHandle {
-  dispatch(command: RunCommand): boolean;
+  dispatch(command: RunCommand, ancestry?: EventAncestry): boolean;
+  requestLine(args: { line?: unknown; direction?: unknown; startStation?: unknown }, ancestry?: EventAncestry): boolean;
+  setImmersion(enabled?: boolean, ancestry?: EventAncestry): boolean;
   getSnapshot(): RunSnapshot | undefined;
   isReady(): boolean;
   dispose(): void;
@@ -53,6 +57,7 @@ export const subwaySceneState: Readable<SubwaySceneState | undefined> = {
   subscribe: (run, invalidate) => sceneState.subscribe(run, invalidate),
 };
 let activeRuntime: SubwayRuntimeHandle | undefined;
+let activeRuntimeContext: SkinRuntimeContext | undefined;
 
 function anyEligibleSurface(): boolean { return [...surfaces].some(surface => surface.eligible); }
 
@@ -85,22 +90,6 @@ function subscribeSurfaceEligibility(listener: (eligible: boolean) => void): () 
   surfaceListeners.add(listener);
   listener(anyEligibleSurface());
   return () => surfaceListeners.delete(listener);
-}
-
-function configString(config: Readonly<Record<string, unknown>>, key: string, fallback: string): string {
-  const value = config[key];
-  return typeof value === 'string' && value ? value : fallback;
-}
-
-function configNumber(config: Readonly<Record<string, unknown>>, key: string, fallback: number): number {
-  const value = config[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-function configLanguages(config: Readonly<Record<string, unknown>>): string[] {
-  const value = config.languages;
-  const languages = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && ['ja', 'kana', 'en', 'zh', 'ko'].includes(item)) : ['ja', 'en'];
-  return [...new Set(languages.length ? languages : ['ja', 'en'])];
 }
 
 function buildCuePlans(lines: readonly LineDefinition[], assets: LoadedSubwayAssets, base: string, languages: readonly string[]): SubwayCuePlans {
@@ -160,6 +149,7 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
   let epoch = 0;
   let timer: unknown;
   let lines: readonly LineDefinition[] = [];
+  let assets: LoadedSubwayAssets | undefined;
   let plans: SubwayCuePlans = {};
   let state: SubwayRunState | undefined;
   let lastDiscreteProjection = '';
@@ -168,6 +158,8 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
   let lastSceneProjectionAt = Number.NEGATIVE_INFINITY;
   let projectionChain = Promise.resolve();
   let currentConfig = get(context.config);
+  let appliedConfig: ReturnType<typeof normalizeSubwayConfig> | undefined;
+  const overrides = { line: false, direction: false, startStation: false, immersion: false };
   const unsubscribeSurface = subscribeSurfaceEligibility(value => {
     if (eligible === value) return;
     eligible = value;
@@ -176,7 +168,10 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
       if (eligible && unavailable) publishUnavailable();
       return;
     }
-    dispatch({ type: eligible ? 'resume' : 'pause' });
+    if (eligible) {
+      dispatch({ type: 'resume' });
+      syncConfig();
+    } else dispatch({ type: 'pause' });
   });
 
   function publishUnavailable(): void {
@@ -215,14 +210,15 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     const snapshot = snapshotRun(state, now, lines, plans);
     const discrete = [snapshot.station, snapshot.next, snapshot.state, snapshot.line, snapshot.direction,
       snapshot.doorSide, snapshot.doors, snapshot.paused, snapshot.immersion, snapshot.multiplier, snapshot.generation,
-      currentConfig.displayLanguages, currentConfig.languages, currentConfig.manualView].join('|');
+      currentConfig.displayLanguages, currentConfig.announcementLanguages, currentConfig.manualView].join('|');
     if (!force && discrete === lastSceneProjection && now - lastSceneProjectionAt < 250) return;
     lastSceneProjection = discrete;
     lastSceneProjectionAt = now;
     sceneState.set(Object.freeze({ line, snapshot: Object.freeze(snapshot), config: Object.freeze({ ...currentConfig }) }));
   }
 
-  function queueEffects(effects: readonly RunEffect[], nextState: SubwayRunState, runtimeEpoch: number, allowHidden = false): void {
+  function queueEffects(effects: readonly RunEffect[], nextState: SubwayRunState, runtimeEpoch: number,
+    allowHidden = false, ancestry?: EventAncestry): void {
     publishScene();
     const capturedGeneration = nextState.generation;
     projectionChain = projectionChain.then(async () => {
@@ -250,19 +246,47 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
           continue;
         }
         const event = eventFor(effect);
-        await context.emitEvent(event.id, event.parameter, event.payload);
+        await context.emitEvent(event.id, event.parameter, event.payload, ancestry);
       }
     }).catch(() => undefined);
   }
 
-  function dispatch(command: RunCommand): boolean {
+  function dispatch(command: RunCommand, ancestry?: EventAncestry): boolean {
     if (!alive || !ready || (!eligible && command.type !== 'pause') || !state || !lines.length) return false;
     const runtimeEpoch = epoch;
     const transition = reduceRun(state, command, clock.now(), lines, plans);
     state = transition.state;
     scheduleWake();
-    queueEffects(transition.effects, state, runtimeEpoch, command.type === 'pause');
+    queueEffects(transition.effects, state, runtimeEpoch, command.type === 'pause', ancestry);
     return true;
+  }
+
+  function requestLine(args: { line?: unknown; direction?: unknown; startStation?: unknown }, ancestry?: EventAncestry): boolean {
+    if (!alive || !ready || !eligible || !state || !lines.length) return false;
+    const currentLine = lines.find(item => item.id === state!.lineId)!;
+    const requestedLine = typeof args.line === 'string' && args.line.trim() ? args.line : undefined;
+    const nextLine = requestedLine === undefined
+      ? lines[(lines.findIndex(item => item.id === currentLine.id) + 1) % lines.length]
+      : lines.find(item => item.id === requestedLine);
+    if (!nextLine) return false;
+    const requestedDirection = typeof args.direction === 'string' && args.direction.trim() ? args.direction : undefined;
+    const direction = requestedDirection ?? (nextLine.id === currentLine.id && nextLine.directions.some(item => item.id === state!.direction)
+      ? state.direction : nextLine.directions[0].id);
+    if (!nextLine.directions.some(item => item.id === direction)) return false;
+    const requestedStation = typeof args.startStation === 'string' && args.startStation.trim() ? args.startStation : undefined;
+    const stationCode = requestedStation ?? (nextLine.id === currentLine.id && nextLine.stations.some(item => item.code === state!.stationCode)
+      ? state.stationCode : firstStationForDirection(nextLine, direction));
+    if (!nextLine.stations.some(item => item.code === stationCode)) return false;
+    overrides.line = true;
+    if (requestedDirection !== undefined) overrides.direction = true;
+    if (requestedStation !== undefined || nextLine.id !== currentLine.id) overrides.startStation = true;
+    return dispatch({ type: 'configure', lineId: nextLine.id, direction, stationCode }, ancestry);
+  }
+
+  function setImmersion(enabled?: boolean, ancestry?: EventAncestry): boolean {
+    if (!alive || !ready || !eligible || !state) return false;
+    overrides.immersion = true;
+    return dispatch({ type: 'set-immersion', enabled: enabled ?? !state.immersion }, ancestry);
   }
 
   function getSnapshot(): RunSnapshot | undefined {
@@ -282,43 +306,61 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     }
   }
 
-  const handle: SubwayRuntimeHandle = { dispatch, getSnapshot, isReady: () => ready, dispose };
+  const handle: SubwayRuntimeHandle = { dispatch, requestLine, setImmersion, getSnapshot, isReady: () => ready, dispose };
   activeRuntime = handle;
+
+  function syncConfig(): void {
+    if (!alive || !ready || !eligible || !state || !lines.length) return;
+    const config = normalizeSubwayConfig(currentConfig, lines);
+    const previous = appliedConfig;
+    if (previous) {
+      if (config.line !== previous.line) overrides.line = false;
+      if (config.direction !== previous.direction) overrides.direction = false;
+      if (config.startStation !== previous.startStation) overrides.startStation = false;
+      if (config.immersion !== previous.immersion) overrides.immersion = false;
+    }
+    appliedConfig = config;
+    currentConfig = config;
+    const targetLine = overrides.line ? lines.find(item => item.id === state!.lineId)! : lines.find(item => item.id === config.line)!;
+    const requestedDirection = overrides.direction ? state.direction : config.direction;
+    const direction = targetLine.directions.some(item => item.id === requestedDirection) ? requestedDirection : targetLine.directions[0].id;
+    const requestedStation = overrides.startStation ? state.stationCode : config.startStation;
+    const stationCode = targetLine.stations.some(item => item.code === requestedStation)
+      ? requestedStation : firstStationForDirection(targetLine, direction);
+    if (state.lineId !== targetLine.id || state.direction !== direction || state.stationCode !== stationCode)
+      dispatch({ type: 'configure', lineId: targetLine.id, direction, stationCode });
+    if (config.speed !== state.nextMultiplier) dispatch({ type: 'set-speed', multiplier: config.speed });
+    if (!overrides.immersion && config.immersion !== state.immersion)
+      dispatch({ type: 'set-immersion', enabled: config.immersion });
+    if (assets && previous?.announcementLanguages !== config.announcementLanguages)
+      plans = buildCuePlans(lines, assets, assetBase, announcementLanguages(config.announcementLanguages));
+    publishScene(true);
+  }
 
   const unsubscribeConfig = context.config.subscribe(config => {
     currentConfig = config;
-    if (!ready || !state || !eligible) return;
-    const currentState = state;
-    const lineId = configString(config, 'line', currentState.lineId);
-    if (lineId !== currentState.lineId && lines.some(line => line.id === lineId)) dispatch({ type: 'set-line', lineId: lineId as LineDefinition['id'] });
-    const multiplier = configNumber(config, 'speed', currentState.nextMultiplier);
-    if (multiplier !== currentState.nextMultiplier && [0.5, 1, 2].includes(multiplier)) dispatch({ type: 'set-speed', multiplier });
-    const direction = configString(config, 'direction', currentState.direction);
-    if (direction !== currentState.direction && lines.find(line => line.id === currentState.lineId)?.directions.some(item => item.id === direction))
-      dispatch({ type: 'set-direction', direction });
-    if (typeof config.immersion === 'boolean' && config.immersion !== currentState.immersion)
-      dispatch({ type: 'set-immersion', enabled: config.immersion });
-    publishScene(true);
+    syncConfig();
   });
 
   const requestEpoch = epoch;
-  void loadAssets().then(assets => {
+  void loadAssets().then(loadedAssets => {
     if (!alive || requestEpoch !== epoch) return;
-    lines = normalizeSubwayLines(assets.lines);
-    const config = currentConfig;
-    const lineId = configString(config, 'line', 'yamanote') as LineDefinition['id'];
-    const line = lines.find(item => item.id === lineId) ?? lines[0];
-    const stationCode = configString(config, 'station', line.stations[0].code);
-    const direction = configString(config, 'direction', line.directions[0].id);
-    const languages = configLanguages(config);
-    plans = buildCuePlans(lines, assets, assetBase, languages);
+    assets = loadedAssets;
+    lines = normalizeSubwayLines(loadedAssets.lines);
+    const config = normalizeSubwayConfig(currentConfig, lines);
+    currentConfig = config;
+    appliedConfig = config;
+    const line = lines.find(item => item.id === config.line)!;
+    const stationCode = config.startStation;
+    const direction = config.direction;
+    plans = buildCuePlans(lines, loadedAssets, assetBase, announcementLanguages(config.announcementLanguages));
     state = createRunState(lines, {
       lineId: line.id,
-      stationCode: line.stations.some(item => item.code === stationCode) ? stationCode : line.stations[0].code,
-      direction: line.directions.some(item => item.id === direction) ? direction : line.directions[0].id,
-      multiplier: [0.5, 1, 2].includes(configNumber(config, 'speed', 1)) ? configNumber(config, 'speed', 1) : 1,
-      dwellSeconds: Math.max(0, configNumber(config, 'dwellSeconds', 15)),
-      immersion: typeof config.immersion === 'boolean' ? config.immersion : true,
+      stationCode,
+      direction,
+      multiplier: config.speed,
+      dwellSeconds: Math.max(0, typeof config.dwellSeconds === 'number' && Number.isFinite(config.dwellSeconds) ? config.dwellSeconds : 15),
+      immersion: config.immersion,
       now: clock.now(),
     });
     ready = true;
@@ -338,9 +380,26 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
 
 export function runtime(context: SkinRuntimeContext): () => void {
   const handle = createSubwayRuntime(context);
-  return () => handle.dispose();
+  activeRuntimeContext = context;
+  return () => {
+    handle.dispose();
+    if (activeRuntimeContext === context) activeRuntimeContext = undefined;
+  };
 }
 
-export function dispatchSubwayCommand(command: RunCommand): boolean {
-  return activeRuntime?.dispatch(command) ?? false;
+export function dispatchSubwayCommand(command: RunCommand, ancestry?: EventAncestry): boolean {
+  return activeRuntime?.dispatch(command, ancestry) ?? false;
+}
+
+export function requestSubwayLine(args: { line?: unknown; direction?: unknown; startStation?: unknown }, ancestry?: EventAncestry): boolean {
+  return activeRuntime?.requestLine(args, ancestry) ?? false;
+}
+
+export function setSubwayImmersion(enabled?: boolean, ancestry?: EventAncestry): boolean {
+  return activeRuntime?.setImmersion(enabled, ancestry) ?? false;
+}
+
+export function requestSubwayView(viewId: string, ancestry?: EventAncestry): Promise<boolean> {
+  if (!activeRuntimeContext || !['display', 'map', 'cab'].includes(viewId)) return Promise.resolve(false);
+  return activeRuntimeContext.setView(viewId, ancestry);
 }

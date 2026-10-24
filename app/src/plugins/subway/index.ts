@@ -1,22 +1,98 @@
-import type { Plugin } from '../../core/registry';
+import type { Option, Param, Plugin } from '../../core/registry';
+import type { SkinStateField } from '../../core/skins';
+import SubwayButton from './SubwayButton.svelte';
+import SubwaySlider from './SubwaySlider.svelte';
 import SubwaySkin from './SubwaySkin.svelte';
-import { runtime } from './runtime';
+import { ANNOUNCEMENT_LANGUAGE_PRESETS, DISPLAY_LANGUAGE_PRESETS, SUBWAY_DEFAULT_CONFIG, SUBWAY_LINE_IDS } from './config';
+import { requestSubwayLine, requestSubwayView, dispatchSubwayCommand, setSubwayImmersion, runtime } from './runtime';
+
+const lineTitles: Record<string, string> = { yamanote: 'Yamanote', hibiya: 'Hibiya', sakaisuji: 'Sakaisuji' };
+const directionIds: Record<string, string[]> = {
+  yamanote: ['inner', 'outer'], hibiya: ['to-kita-senju', 'to-naka-meguro'], sakaisuji: ['southbound', 'northbound'],
+};
+const stationCodes: Record<string, string[]> = {
+  yamanote: Array.from({ length: 30 }, (_, index) => `JY${String(index + 1).padStart(2, '0')}`),
+  hibiya: Array.from({ length: 22 }, (_, index) => `H${String(index + 1).padStart(2, '0')}`),
+  sakaisuji: Array.from({ length: 10 }, (_, index) => `K${String(index + 11).padStart(2, '0')}`),
+};
+const lineOptions: Option[] = [{ value: '', label: 'Next line' }, ...SUBWAY_LINE_IDS.map(value => ({ value, label: lineTitles[value] }))];
+const directionOptions = (line?: string): Option[] => [{ value: '', label: 'Automatic' },
+  ...(directionIds[line ?? ''] ?? Object.values(directionIds).flat()).map(value => ({ value, label: value }))];
+const stationOptions = (line?: string): Option[] => [{ value: '', label: 'Default start' },
+  (stationCodes[line ?? ''] ?? Object.values(stationCodes).flat()).map(value => ({ value, label: value }))].flat();
+const displayOptions = (line?: string): Option[] => {
+  const values = line === 'sakaisuji' ? ['ja-kana'] : line === 'hibiya'
+    ? ['ja-en', 'ja-zh', 'ja-ko'] : line === 'yamanote' ? ['ja-en'] : DISPLAY_LANGUAGE_PRESETS;
+  const titles: Record<string, string> = { 'ja-en': 'Japanese / English', 'ja-kana': 'Japanese / kana', 'ja-zh': 'Japanese / Chinese', 'ja-ko': 'Japanese / Korean' };
+  return values.map(value => ({ value, label: titles[value] }));
+};
+const announcementOptions: Option[] = ANNOUNCEMENT_LANGUAGE_PRESETS.map(value => ({
+  value, label: value === 'ja-en' ? 'Japanese / English' : value === 'ja' ? 'Japanese' : 'English',
+}));
+const lineParam: Param = { key: 'line', label: 'Line', type: 'select', default: '', suggestions: lineOptions };
+const directionParam: Param = { key: 'direction', label: 'Direction', type: 'select', default: '', suggestions: args => directionOptions(args?.line as string | undefined) };
+const startStationParam: Param = { key: 'startStation', label: 'Start station', type: 'select', default: '', suggestions: args => stationOptions(args?.line as string | undefined) };
+
+const settings: Param[] = [
+  { key: 'line', label: 'Line', type: 'select', default: SUBWAY_DEFAULT_CONFIG.line,
+    suggestions: SUBWAY_LINE_IDS.map(value => ({ value, label: lineTitles[value] })) },
+  { key: 'direction', label: 'Direction', type: 'select', default: SUBWAY_DEFAULT_CONFIG.direction,
+    suggestions: args => directionOptions(args?.line as string | undefined).filter(option => option.value) },
+  { key: 'startStation', label: 'Start station', type: 'select', default: SUBWAY_DEFAULT_CONFIG.startStation,
+    suggestions: args => stationOptions(args?.line as string | undefined).filter(option => option.value) },
+  { key: 'speed', label: 'Run speed (next segment)', type: 'select', default: '1',
+    suggestions: [0.5, 1, 2].map(value => ({ value: String(value), label: `${value}×` })) },
+  { key: 'displayLanguages', label: 'Display languages', type: 'select', default: SUBWAY_DEFAULT_CONFIG.displayLanguages,
+    suggestions: args => displayOptions(args?.line as string | undefined) },
+  { key: 'announcementLanguages', label: 'Announcement languages', type: 'select', default: SUBWAY_DEFAULT_CONFIG.announcementLanguages,
+    suggestions: announcementOptions },
+  { key: 'immersion', label: 'Immersion', type: 'boolean', default: SUBWAY_DEFAULT_CONFIG.immersion },
+  { key: 'announcementVolume', label: 'Announcement volume', type: 'number', default: SUBWAY_DEFAULT_CONFIG.announcementVolume },
+  { key: 'gesture', label: 'Quick actions gesture', type: 'select', default: 'tripleTap', suggestions: [
+    { value: 'tripleTap', label: 'Triple tap' }, { value: 'cornerHold', label: 'Corner hold' }, { value: 'off', label: 'Off' },
+  ] },
+  { key: 'corner', label: 'Gesture corner', type: 'select', default: 'bottomRight', suggestions: [
+    { value: 'topLeft', label: 'Top left' }, { value: 'topRight', label: 'Top right' },
+    { value: 'bottomLeft', label: 'Bottom left' }, { value: 'bottomRight', label: 'Bottom right' },
+  ] },
+];
+
+const state: SkinStateField[] = [
+  { key: 'station', type: 'string', initialValue: 'JY01' }, { key: 'next', type: 'string', initialValue: 'JY02' },
+  { key: 'state', type: 'string', initialValue: 'stopped' }, { key: 'line', type: 'string', initialValue: 'yamanote' },
+  { key: 'direction', type: 'string', initialValue: 'inner' }, { key: 'doorSide', type: 'string', initialValue: 'unknown' },
+  { key: 'speed', type: 'float', initialValue: 0 }, { key: 'progress', type: 'float', initialValue: 0 },
+  { key: 'paused', type: 'boolean', initialValue: true }, { key: 'immersion', type: 'boolean', initialValue: false },
+];
 
 export const subwayPlugin: Plugin = {
-  id: 'subway',
-  title: 'Subway skin',
-  description: 'Japanese train passenger-information display with a compact control bar.',
-  icon: 'TrainFront',
-  author: 'SupaDashboard',
-  version: '1.0.0',
-  updated: '2026-10-23',
-  source: 'bundled',
-  size: 1618,
+  id: 'subway', title: 'Subway skin',
+  description: 'Japanese passenger-information displays with a compact control strip.',
+  icon: 'TrainFront', author: 'SupaDashboard', version: '1.0.0', updated: '2026-10-24', source: 'bundled', size: 1618,
   setup(api) {
-    api.registerSkin({ id: 'subway', title: 'Subway', component: SubwaySkin, runtime, pageNavigation: 'skin',
-      design: { width: 1920, height: 600 },
+    api.registerAction({ id: 'subway.line', title: 'Change Subway line', params: [lineParam, directionParam, startStationParam],
+      run: (args, context) => context?.signal.aborted ? false : requestSubwayLine({ line: args.line, direction: args.direction, startStation: args.startStation }, context?.eventAncestry) });
+    api.registerAction({ id: 'subway.emergency', title: 'Subway emergency stop', run: (_args, context) =>
+      context?.signal.aborted ? false : dispatchSubwayCommand({ type: 'emergency' }, context?.eventAncestry) });
+    api.registerAction({ id: 'subway.immersion', title: 'Toggle Subway immersion', run: (args, context) => {
+      if (context?.signal.aborted) return false;
+      return setSubwayImmersion(typeof args.enabled === 'boolean' ? args.enabled : undefined, context?.eventAncestry);
+    } });
+    api.registerAction({ id: 'subway.resume', title: 'Resume Subway service', run: (_args, context) =>
+      context?.signal.aborted ? false : dispatchSubwayCommand({ type: 'resume-service' }, context?.eventAncestry) });
+    api.registerAction({ id: 'subway.suspend', title: 'Suspend Subway service', params: [
+      { key: 'enabled', label: 'Suspended', type: 'boolean', default: true },
+    ], run: (args, context) => context?.signal.aborted ? false : dispatchSubwayCommand(
+      args.enabled === false ? { type: 'resume-service' } : { type: 'suspend' }, context?.eventAncestry) });
+    api.registerAction({ id: 'subway.view', title: 'Change Subway view', params: [{ key: 'view', label: 'View', type: 'select', default: 'display',
+      suggestions: [{ value: 'display', label: 'Display' }, { value: 'map', label: 'Map' }, { value: 'cab', label: 'Run' }] }],
+    run: (args, context) => context?.signal.aborted ? false : requestSubwayView(String(args.view ?? 'display'), context?.eventAncestry) });
+
+    api.registerSkin({
+      id: 'subway', title: 'Subway', component: SubwaySkin, runtime, pageNavigation: 'skin',
+      design: { width: 1920, height: 1200 },
       slots: [
-        { id: 'strip', style: 'region', kind: 'strip', rect: { x: 0, y: 480, w: 1920, h: 120 },
+        { id: 'strip', style: 'region', kind: 'strip', rect: { x: 0, y: 1080, w: 1920, h: 120 },
           accepts: ['button', 'slider'], max: 8, size: { w: 1, h: 1 },
           grid: { rows: 1, cols: 8, size: 112, gap: 8, sizing: 'auto' } },
         { id: 'side', style: 'anchored', kind: 'grid', rect: { x: 1728, y: 64, w: 128, h: 352 },
@@ -25,7 +101,22 @@ export const subwayPlugin: Plugin = {
       ],
       views: [
         { id: 'display', title: 'Display', slots: ['strip'] },
-        { id: 'cab', title: 'Cab', slots: ['strip', 'side'] },
-      ], defaultView: 'display' });
+        { id: 'map', title: 'Map', slots: ['strip'] },
+        { id: 'cab', title: 'Run', slots: ['strip', 'side'] },
+      ], defaultView: 'display',
+      settings,
+      quickActions: [
+        { id: 'subway.line', args: { line: '', direction: '', startStation: '' } },
+        { id: 'subway.emergency' }, { id: 'subway.immersion' }, { id: 'subway.resume' },
+      ],
+      controlSkins: { button: { component: SubwayButton }, slider: { component: SubwaySlider } },
+      state,
+      events: [
+        { id: 'subway.departed', title: 'Train departed', parameterSuggestions: () => [] },
+        { id: 'subway.arrived', title: 'Train arrived', parameterSuggestions: () => [] },
+        { id: 'subway.stateChanged', title: 'Run state changed', parameterSuggestions: () => [] },
+        { id: 'subway.emergency', title: 'Emergency stop' }, { id: 'subway.suspended', title: 'Service suspended' },
+      ],
+    });
   },
 };

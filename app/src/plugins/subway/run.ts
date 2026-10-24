@@ -71,6 +71,7 @@ export interface SubwayRunState extends RunTimeline {
 export type RunCommand =
   | { type: 'start' }
   | { type: 'set-line'; lineId: LineDefinition['id']; stationCode?: string }
+  | { type: 'configure'; lineId: LineDefinition['id']; direction: string; stationCode: string }
   | { type: 'set-direction'; direction: string }
   | { type: 'reverse' }
   | { type: 'set-speed'; multiplier: number }
@@ -501,6 +502,16 @@ export function reduceRun(
     return { state: { ...current, lastTickAt: now }, effects };
   }
   if (command.type === 'set-immersion') return { state: { ...current, immersion: command.enabled }, effects };
+  if (command.type === 'configure') {
+    const line = lineFor(lines, command.lineId);
+    if (!line.directions.some(item => item.id === command.direction)) throw new Error(`Unknown direction for ${line.id}: ${command.direction}`);
+    if (!line.stations.some(item => item.code === command.stationCode)) throw new Error(`Unknown station for ${line.id}: ${command.stationCode}`);
+    current = { ...current, lineId: line.id, direction: command.direction, stationCode: command.stationCode,
+      phase: 'stopped', doors: 'open', active: false, phaseStartedAt: null, phaseDeadline: null, stopDeadline: null,
+      segment: null, pendingCues: [], loopArrivalsRemaining: line.loop ? line.stations.length : 0, incident: null,
+      pausedAt: null, generation: current.generation + 1, lastTickAt: now };
+    return { state: current, effects };
+  }
   if (command.type === 'set-speed') {
     if (![0.5, 1, 2].includes(command.multiplier)) throw new Error('Run speed must be 0.5, 1, or 2');
     return { state: { ...current, nextMultiplier: command.multiplier }, effects };
