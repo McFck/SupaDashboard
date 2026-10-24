@@ -3,14 +3,16 @@
   import { SceneScheduler } from '../../core/skin-scene';
   import { normalizeSubwayLines, type LineDefinition, type RawLineBundle } from './lines';
   import { scheduleScreen, type ScreenConfig, type ScreenSchedule } from './screens';
+  import { createHibiyaRenderer, scheduleHibiyaPair } from './lcd/hibiya';
   import { createYamanoteRenderer } from './lcd/yamanote';
   import { createRunState, reduceRun, segmentPlanKey, snapshotRun,
     type RunPhase, type RunSnapshot, type SubwayCuePlans, type SubwayRunState } from './run';
+  import { stepStation } from './lines';
   import type { PlatformDirectionDetail } from './station-details';
 
   type Fixture = { id: string; line: LineDefinition; snapshot: RunSnapshot; elapsed: number; config: ScreenConfig };
   type FixtureReport = {
-    id: string; state: RunPhase; page: string; language: string; direction: string; station: string;
+    id: string; line: string; logicalSize: string; state: RunPhase; page: string; language: string; panelLanguages?: [string, string]; direction: string; station: string;
     next: string; sideLabel: string | null; facilityCount: number;
   };
   type HarnessApi = {
@@ -36,6 +38,7 @@
   }
   const lines = normalizeSubwayLines(lineBundles);
   const yamanote = lines.find(line => line.id === 'yamanote')!;
+  const hibiya = lines.find(line => line.id === 'hibiya')!;
   const languages = ['ja', 'en'];
   const fixturePlans: SubwayCuePlans = {
     [segmentPlanKey('yamanote', 'JY01', 'JY02', 'inner')]: {
@@ -47,6 +50,8 @@
   };
   let canvas: HTMLCanvasElement;
   let renderer = createYamanoteRenderer();
+  const hibiyaRenderer = createHibiyaRenderer();
+  let lastLogicalSize = '1280x720';
   let drawCount = 0;
   let renderDurations: number[] = [];
   let widgetOnlyUpdates = 0;
@@ -117,6 +122,35 @@
     };
   }
 
+  function hibiyaLineWithSide(side: 'left' | 'right' | 'unknown'): LineDefinition {
+    const stations = hibiya.stations.map(station => station.code === 'H14'
+      ? Object.freeze({ ...station, doorByDirection: Object.freeze({
+        ...station.doorByDirection,
+        'to-kita-senju': Object.freeze({ side, provenance: 'Browser fixture only', sources: Object.freeze([]), synthetic: true }),
+      }) }) : station);
+    return Object.freeze({ ...hibiya, stations: Object.freeze(stations) });
+  }
+
+  function hibiyaFixture(id: string, state: RunPhase, elapsed = 0, options: {
+    direction?: string; station?: string; languages?: string[]; viewingSide?: 'left' | 'right'; line?: LineDefinition;
+  } = {}): Fixture {
+    const line = options.line ?? hibiya;
+    const direction = options.direction ?? 'to-kita-senju';
+    const station = options.station ?? 'H14';
+    const next = stepStation(line, station, direction)?.code ?? '';
+    return {
+      id, line, elapsed,
+      snapshot: {
+        station, next, state, line: 'hibiya', direction, doorSide: 'unknown',
+        doors: state === 'stopped' ? 'open' : state === 'arriving' ? 'opening' : 'closed',
+        speed: state === 'cruising' ? 48 : state === 'approaching' ? 15 : state === 'departing' ? 6 : 0,
+        power: state === 'departing' || state === 'cruising' ? 0.35 : 0, brake: state === 'approaching' ? 0.2 : 0,
+        progress: 0.42, paused: false, immersion: false, generation: 1, multiplier: 1, remainingMinutes: 12,
+      },
+      config: { line, languages: options.languages ?? ['ja', 'en', 'zh', 'ko'], viewingSide: options.viewingSide },
+    };
+  }
+
   const fixtures: Fixture[] = [
     fixture('stopped-platform', 'stopped'),
     fixture('stopped-nearby-en', 'stopped', 6_000),
@@ -142,6 +176,26 @@
     fixture('en-only', 'cruising', 0, { config: { languages: ['en'] } }),
   ];
 
+  const hibiyaFixtures: Fixture[] = [
+    hibiyaFixture('hibiya-stopped-platform', 'stopped', 0, { station: 'H06' }),
+    hibiyaFixture('hibiya-stopped-broad', 'stopped', 6_000),
+    hibiyaFixture('hibiya-doors-closing', 'doorsClosing'),
+    hibiyaFixture('hibiya-departing', 'departing'),
+    hibiyaFixture('hibiya-cruising-broad', 'cruising'),
+    hibiyaFixture('hibiya-cruising-transfers', 'cruising', 8_000),
+    hibiyaFixture('hibiya-approaching', 'approaching', 0, { station: 'H06' }),
+    hibiyaFixture('hibiya-arriving', 'arriving'),
+    hibiyaFixture('hibiya-emergency', 'emergency'),
+    hibiyaFixture('hibiya-suspended', 'suspended'),
+    hibiyaFixture('hibiya-kana', 'cruising', 0, { languages: ['kana', 'en'] }),
+    hibiyaFixture('hibiya-chinese-korean', 'cruising', 6_000, { languages: ['zh', 'ko'] }),
+    hibiyaFixture('hibiya-reverse', 'cruising', 0, { direction: 'to-naka-meguro' }),
+    hibiyaFixture('hibiya-side-this', 'stopped', 0, { line: hibiyaLineWithSide('right'), viewingSide: 'right' }),
+    hibiyaFixture('hibiya-side-opposite', 'stopped', 0, { line: hibiyaLineWithSide('right'), viewingSide: 'left' }),
+    hibiyaFixture('hibiya-side-unknown', 'stopped', 0, { line: hibiyaLineWithSide('unknown') }),
+    hibiyaFixture('hibiya-h22-terminal', 'stopped', 6_000, { station: 'H22' }),
+  ];
+
   function modelFor(item: Fixture): ScreenSchedule {
     return scheduleScreen(item.snapshot, item.config, item.elapsed);
   }
@@ -149,20 +203,33 @@
   function reportFor(item: Fixture): FixtureReport {
     const model = modelFor(item);
     return {
-      id: item.id, state: item.snapshot.state, page: model.page, language: model.language,
+      id: item.id, line: item.line.id, logicalSize: item.line.id === 'hibiya' ? '2592x720' : '1280x720',
+      state: item.snapshot.state, page: model.page, language: model.language,
       direction: item.snapshot.direction, station: item.snapshot.station, next: item.snapshot.next,
       sideLabel: model.sideLabel,
       facilityCount: model.station.platformByDirection[item.snapshot.direction]?.facilities.length ?? 0,
+      ...(item.line.id === 'hibiya' ? { panelLanguages: [
+        scheduleHibiyaPair(item.snapshot, item.config, item.elapsed).left.language,
+        scheduleHibiyaPair(item.snapshot, item.config, item.elapsed).right.language,
+      ] as [string, string] } : {}),
     };
   }
 
   function render(id: string): FixtureReport {
-    const item = fixtures.find(candidate => candidate.id === id);
+    const item = [...fixtures, ...hibiyaFixtures].find(candidate => candidate.id === id);
     if (!item) throw new Error(`Unknown Subway browser fixture: ${id}`);
+    const logicalWidth = item.line.id === 'hibiya' ? 2592 : 1280;
+    canvas.width = logicalWidth;
+    canvas.height = 720;
+    canvas.style.width = `${logicalWidth}px`;
+    canvas.style.height = '720px';
+    lastLogicalSize = `${logicalWidth}x720`;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas 2D is unavailable');
     const started = performance.now();
-    renderer.draw(context, 1280, 720, modelFor(item));
+    if (item.line.id === 'hibiya') {
+      hibiyaRenderer.draw(context, logicalWidth, 720, scheduleHibiyaPair(item.snapshot, item.config, item.elapsed));
+    } else renderer.draw(context, logicalWidth, 720, modelFor(item));
     drawCount++;
     renderDurations.push(performance.now() - started);
     return reportFor(item);
@@ -171,6 +238,11 @@
   function startStaticProbe(): void {
     staticProbe?.scheduler.dispose();
     staticProbe?.renderer.dispose();
+    canvas.width = 1280;
+    canvas.height = 720;
+    canvas.style.width = '1280px';
+    canvas.style.height = '720px';
+    lastLogicalSize = '1280x720';
     const probeRenderer = createYamanoteRenderer();
     const pending = new Set<number>();
     const probe = { scheduler: undefined as unknown as SceneScheduler, renderer: probeRenderer,
@@ -205,7 +277,7 @@
     const sorted = [...renderDurations].sort((a, b) => a - b);
     const percentile = (p: number) => sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * p) - 1)] : 0;
     return {
-      logicalSize: '1280x720', devicePixelRatio: window.devicePixelRatio,
+      logicalSize: lastLogicalSize, devicePixelRatio: window.devicePixelRatio,
       captureDraws: drawCount, captureDrawMs: { p50: percentile(0.5), p95: percentile(0.95), max: sorted.at(-1) ?? 0 },
       widgetOnlyUpdates: widgetOnlyUpdates,
       staticProbe: staticProbe ? {
@@ -218,12 +290,12 @@
   onMount(() => {
     const harnessWindow = window as HarnessWindow;
     harnessWindow.__subwayHarness = {
-      manifest: fixtures.map(reportFor), render, startStaticProbe,
+      manifest: [...fixtures, ...hibiyaFixtures].map(reportFor), render, startStaticProbe,
       updateWidgetOnly(count: number) { widgetOnlyUpdates += Math.max(0, Math.floor(count)); },
       metrics, stopStaticProbe,
     };
     render('stopped-platform');
-    return () => { stopStaticProbe(); renderer.dispose(); delete harnessWindow.__subwayHarness; };
+    return () => { stopStaticProbe(); renderer.dispose(); hibiyaRenderer.dispose(); delete harnessWindow.__subwayHarness; };
   });
 </script>
 

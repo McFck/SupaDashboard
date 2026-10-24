@@ -2,11 +2,12 @@ import { localizedName, stepStation, type LineDefinition, type StationDefinition
 import type { RunSnapshot } from './run';
 
 export type ScreenPage = 'platform' | 'nearby' | 'broad' | 'transfers' | 'closing' | 'emergency' | 'suspension';
-export type ScreenLanguage = 'ja' | 'en' | 'zh' | 'ko';
+export type ScreenLanguage = 'ja' | 'kana' | 'en' | 'zh' | 'ko';
 
 export interface ScreenConfig {
   line: LineDefinition;
   languages?: readonly string[];
+  languageOffset?: number;
   manualView?: 'display' | 'map';
   viewingSide?: 'left' | 'right';
 }
@@ -37,18 +38,29 @@ const INCIDENT_LANGUAGES: readonly ScreenLanguage[] = ['ja', 'en', 'zh', 'ko'];
 
 function supportedLanguages(config: ScreenConfig): ScreenLanguage[] {
   const requested = config.languages?.filter((language): language is ScreenLanguage =>
-    language === 'ja' || language === 'en' || language === 'zh' || language === 'ko');
-  const present = requested?.filter(language => config.line.stations.some(station => station.names[language])) ?? [];
-  return [...new Set(present.length ? present : ['ja', 'en'].filter(language =>
-    config.line.stations.some(station => station.names[language])))].map(language => language as ScreenLanguage);
+    language === 'ja' || language === 'kana' || language === 'en' || language === 'zh' || language === 'ko');
+  const choices: ScreenLanguage[] = requested?.length ? requested : ['ja', 'en'];
+  const present = choices.filter(language => (language === 'zh' || language === 'ko')
+    ? config.line.id === 'hibiya'
+    : config.line.stations.some(station => station.names[language]));
+  const fallback: ScreenLanguage[] = ['ja', 'en'];
+  return [...new Set(present.length ? present : fallback.filter(language =>
+    config.line.stations.some(station => station.names[language])))];
 }
 
 function cycleFor(snapshot: RunSnapshot, config: ScreenConfig): { pages: { page: ScreenPage; duration: number }[]; period: number } {
+  const current = config.line.stations.find(station => station.code === snapshot.station);
+  const transfers = current?.transfers.length ?? 0;
+  if (config.line.id === 'hibiya') {
+    const pages = snapshot.state === 'stopped'
+      ? [{ page: 'platform' as const, duration: 6_000 }, { page: 'broad' as const, duration: 6_000 }]
+      : [{ page: 'broad' as const, duration: 8_000 },
+        { page: transfers ? 'transfers' as const : 'nearby' as const, duration: 6_000 }];
+    return { pages, period: pages.reduce((sum, page) => sum + page.duration, 0) };
+  }
   const base = snapshot.state === 'stopped'
     ? [{ page: 'platform' as const, duration: 6_000 }, { page: 'nearby' as const, duration: 6_000 }]
     : [{ page: 'broad' as const, duration: 8_000 }, { page: 'nearby' as const, duration: 8_000 }];
-  const current = config.line.stations.find(station => station.code === snapshot.station);
-  const transfers = current?.transfers.length ?? 0;
   const pages = transfers > 0 && snapshot.state !== 'stopped' ? [...base, { page: 'transfers' as const, duration: 6_000 }] : base;
   return { pages, period: pages.reduce((sum, page) => sum + page.duration, 0) };
 }
@@ -89,7 +101,7 @@ function transferNames(station: StationDefinition, language: ScreenLanguage): st
 
 function sessionKey(snapshot: RunSnapshot, config: ScreenConfig): string {
   return [snapshot.line, snapshot.station, snapshot.next, snapshot.direction, snapshot.state, snapshot.doors,
-    snapshot.generation, config.manualView ?? 'display', (config.languages ?? []).join(',')].join('|');
+    snapshot.generation, config.manualView ?? 'display', (config.languages ?? []).join(','), config.languageOffset ?? 0].join('|');
 }
 
 export function scheduleScreen(snapshot: RunSnapshot, config: ScreenConfig, visibleElapsed: number): ScreenSchedule {
@@ -101,7 +113,8 @@ export function scheduleScreen(snapshot: RunSnapshot, config: ScreenConfig, visi
   const nextStation = line.stations.find(item => item.code === snapshot.next);
   const languages = supportedLanguages(config);
   const abnormal = snapshot.state === 'emergency' || snapshot.state === 'suspended';
-  const localeIndex = Math.floor(visibleElapsed / LANGUAGE_DWELL_MS) % Math.max(1, languages.length);
+  const offset = Number.isSafeInteger(config.languageOffset) ? config.languageOffset! : 0;
+  const localeIndex = ((Math.floor(visibleElapsed / LANGUAGE_DWELL_MS) + offset) % languages.length + languages.length) % languages.length;
   const language = languages[localeIndex] ?? 'ja';
   let page: ScreenPage;
   let pageDeadline: number | null = null;

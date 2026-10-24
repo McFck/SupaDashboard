@@ -45,12 +45,12 @@ export function drawStationName(ctx: CanvasRenderingContext2D, station: StationD
   x: number, y: number, maxWidth: number, maxSize: number, minSize: number, color = E235_COLORS.ink,
   align: CanvasTextAlign = 'left'): void {
   const text = station.names[language] ?? station.names.ja ?? station.names.en ?? station.code;
-  const family = language === 'ja' || language === 'zh' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif';
+  const family = language === 'ja' || language === 'kana' || language === 'zh' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif';
   drawFittedText(ctx, text, x, y, maxWidth, maxSize, minSize, color, 700, family, align);
 }
 
 export function drawProgressBar(ctx: CanvasRenderingContext2D, x: number, y: number, width: number,
-  progress: number, color = E235_COLORS.route): void {
+  progress: number, color: string = E235_COLORS.route): void {
   ctx.fillStyle = '#d9dde0';
   ctx.fillRect(x, y, width, 6);
   ctx.fillStyle = color;

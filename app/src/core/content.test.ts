@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MEDIA_OPTIONS, DEFAULT_WEB_OPTIONS, hasMediaExtension, isVideoSource, mediaUrl,
-  readMediaOptions, readWebOptions, stepSlide, webUrl } from './content';
+  mediaSourceKey, readMediaOptions, readWebOptions, stepSlide, webUrl } from './content';
 
 describe('media content options', () => {
   it('returns safe defaults without modifying malformed input', () => {
@@ -35,6 +35,17 @@ describe('media content options', () => {
     ]);
     expect(readMediaOptions({ sources: [{ kind: 'url', value: 'https://example.test/default.mp4' }] }).sources[0])
       .toEqual({ kind: 'url', value: 'https://example.test/default.mp4', fit: 'cover', loop: true, muted: true });
+  });
+
+  it('keeps only small safe data URL thumbnails and excludes them from source identity', () => {
+    const thumbnail = 'data:image/jpeg;base64,AA==';
+    const [source] = readMediaOptions({ sources: [{ id: 'video', kind: 'file', value: 'C:/a.mp4', thumbnail }] }).sources;
+    expect(source.thumbnail).toBe(thumbnail);
+    expect(mediaSourceKey(source)).toBe(mediaSourceKey({ ...source, thumbnail: undefined }));
+    expect(readMediaOptions({ sources: [{ kind: 'file', value: 'C:/a.mp4', thumbnail: 'data:text/html;base64,AA==' }] })
+      .sources[0].thumbnail).toBeUndefined();
+    expect(readMediaOptions({ sources: [{ kind: 'file', value: 'C:/a.mp4', thumbnail: `data:image/jpeg;base64,${'A'.repeat(4100)}` }] })
+      .sources[0].thumbnail).toBeUndefined();
   });
 
   it('accepts absolute HTTP(S) URLs without credentials and rejects other schemes', () => {

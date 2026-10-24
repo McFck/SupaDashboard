@@ -5,6 +5,7 @@ export type MediaSource = {
   fit?: 'cover' | 'contain';
   loop?: boolean;
   muted?: boolean;
+  thumbnail?: string;
 };
 export type MediaOptions = {
   sources: MediaSource[];
@@ -50,9 +51,12 @@ export function readMediaOptions(value: unknown): MediaOptions {
   const sources = Array.isArray(options.sources) ? options.sources.flatMap((source): MediaSource[] => {
     if (!source || typeof source !== 'object') return [];
     const item = source as Record<string, unknown>;
+    const thumbnail = typeof item.thumbnail === 'string' && item.thumbnail.length <= 4096 &&
+      /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(item.thumbnail) ? item.thumbnail : undefined;
     return (item.kind === 'file' || item.kind === 'url') && typeof item.value === 'string' &&
       (item.kind !== 'file' || item.value.trim().length > 0)
       ? [{ ...(typeof item.id === 'string' && item.id ? { id: item.id } : {}),
+        ...(thumbnail ? { thumbnail } : {}),
         kind: item.kind, value: item.value,
         fit: item.fit === 'contain' ? 'contain' : item.fit === 'cover' ? 'cover' : legacyFit,
         loop: typeof item.loop === 'boolean' ? item.loop : true,

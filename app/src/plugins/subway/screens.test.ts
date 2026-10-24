@@ -65,6 +65,35 @@ describe('Subway screen scheduler', () => {
     expect(scheduleScreen(snapshot({ state: 'emergency' }), config, 6_000).languages).toEqual(['ja', 'en', 'zh', 'ko']);
   });
 
+  it('supports Hibiya kanji, kana and four-language headers with a one-locale panel offset', () => {
+    const hibiya = lines.find(line => line.id === 'hibiya')!;
+    const current = snapshot({ line: 'hibiya', station: 'H14', next: 'H15', direction: 'to-kita-senju' });
+    const pair = { line: hibiya, languages: ['ja', 'en', 'zh', 'ko'] };
+    expect(scheduleScreen(current, { line: hibiya, languages: ['kana'] }, 0).language).toBe('kana');
+    expect(scheduleScreen(current, pair, 0).language).toBe('ja');
+    expect(scheduleScreen(current, { ...pair, languageOffset: 1 }, 0).language).toBe('en');
+    expect(scheduleScreen(current, { ...pair, languageOffset: 1 }, 6_000).language).toBe('zh');
+    expect(scheduleScreen(current, { line: hibiya, languages: ['ja'], languageOffset: 1 }, 0).language).toBe('ja');
+    expect(scheduleScreen(current, pair, 0).pageDeadline).toBe(scheduleScreen(current, { ...pair, languageOffset: 1 }, 0).pageDeadline);
+  });
+
+  it('uses Hibiya route guidance as the second stopped page and keeps transfers six seconds', () => {
+    const hibiya = lines.find(line => line.id === 'hibiya')!;
+    const hibiyaConfig = { line: hibiya, languages: ['ja', 'en'] };
+    const stopped = snapshot({ line: 'hibiya', station: 'H14', next: 'H15', state: 'stopped', direction: 'to-kita-senju' });
+    const cruising = { ...stopped, state: 'cruising' as const };
+    expect(scheduleScreen(stopped, hibiyaConfig, 0).page).toBe('platform');
+    expect(scheduleScreen(stopped, hibiyaConfig, 6_000).page).toBe('broad');
+    expect(scheduleScreen(cruising, hibiyaConfig, 0).page).toBe('broad');
+    expect(scheduleScreen(cruising, hibiyaConfig, 8_000).page).toBe('transfers');
+    expect(scheduleScreen(cruising, hibiyaConfig, 13_999).page).toBe('transfers');
+    expect(scheduleScreen(cruising, hibiyaConfig, 14_000).page).toBe('broad');
+    const noTransferStation = hibiya.stations.find(station => station.transfers.length === 0)!;
+    const noTransferNext = stepStation(hibiya, noTransferStation.code, 'to-kita-senju')!;
+    const noTransfers = { ...cruising, station: noTransferStation.code, next: noTransferNext.code };
+    expect(scheduleScreen(noTransfers, hibiyaConfig, 8_000).page).toBe('nearby');
+  });
+
   it('mirrors route ordering, resolves destinations and keeps progress out of the static cache key', () => {
     const inner = scheduleScreen(snapshot({ station: 'JY01', next: 'JY02' }), config, 0);
     const outer = scheduleScreen(snapshot({ station: 'JY01', next: 'JY30', direction: 'outer' }), config, 0);

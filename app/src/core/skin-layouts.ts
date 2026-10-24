@@ -8,7 +8,7 @@ export type LayoutTarget = { skinId: string; pageId: string; slotId: string };
 export type LayoutGeometry = Pick<Page, 'rows' | 'cols' | 'size' | 'gap' | 'sizing'>;
 export type PlacementSource = Pick<Settings, 'deck' | 'skinLayouts'>;
 export type LayoutView = LayoutTarget & { page: Page; slot?: SkinSlot; geometry?: LayoutGeometry; items: Item[] };
-export type Placement = LayoutTarget & { item: Item; page?: Page; geometry?: LayoutGeometry; width?: number; height?: number };
+export type Placement = LayoutTarget & { item: Item; page?: Page; slot?: SkinSlot; geometry?: LayoutGeometry; width?: number; height?: number };
 export type EffectiveSize = { min: { w: number; h: number }; default: { w: number; h: number }; max: { w: number; h: number } };
 
 const deckGeometry = (page: Page): LayoutGeometry => ({ rows: page.rows, cols: page.cols, size: page.size, gap: page.gap, sizing: page.sizing });
@@ -69,15 +69,17 @@ export function setLayoutItems(source: Settings, target: LayoutTarget, items: It
 
 export function allPlacements(source: PlacementSource): Placement[] {
   const placements: Placement[] = [];
-  for (const page of source.deck.pages) for (const item of page.items)
-    placements.push({ skinId: 'deck', pageId: page.id, slotId: 'main', page, geometry: deckGeometry(page), item,
+  for (const page of source.deck.pages) for (const item of page.items) {
+    const slot = slotFor('deck', 'main');
+    placements.push({ skinId: 'deck', pageId: page.id, slotId: 'main', page, slot, geometry: deckGeometry(page), item,
       width: item.w * page.size + (item.w - 1) * page.gap, height: item.h * page.size + (item.h - 1) * page.gap });
+  }
   for (const [skinId, pages] of Object.entries(source.skinLayouts ?? {})) if (skinId !== 'deck') for (const [pageId, slots] of Object.entries(pages))
     for (const [slotId, items] of Object.entries(slots)) for (const item of items) {
       const page = source.deck.pages.find(entry => entry.id === pageId);
       const slot = slotFor(skinId, slotId);
       const geometry = page && slot ? geometryFor(page, slot) : undefined;
-      placements.push({ skinId, pageId, slotId, page, geometry, item,
+      placements.push({ skinId, pageId, slotId, page, slot, geometry, item,
         ...(geometry ? { width: item.w * geometry.size + (item.w - 1) * geometry.gap,
           height: item.h * geometry.size + (item.h - 1) * geometry.gap } : {}) });
     }

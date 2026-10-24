@@ -199,9 +199,10 @@ export function shouldAnimateSliderFill(input: {
 }
 
 /** Gestures a widget can use: sliders keep their drag axis for the value, so only cross-axis swipes remain. */
-export function availableGestures(type: string, w: number, h: number): Gesture[] {
+export function availableGestures(type: string, w: number, h: number, compact = false): Gesture[] {
   if (type === 'button' || type === 'media' || type === 'web') return ['swipeDown', 'swipeUp', 'swipeLeft', 'swipeRight', 'longPress', 'doubleTap'];
-  if (type === 'slider') return sliderOrientation(w, h) === 'vertical' ? ['swipeLeft', 'swipeRight', 'longPress', 'doubleTap'] : ['swipeDown', 'swipeUp', 'longPress', 'doubleTap'];
+  if (type === 'slider') return !compact && sliderOrientation(w, h) === 'vertical'
+    ? ['swipeLeft', 'swipeRight', 'longPress', 'doubleTap'] : ['swipeDown', 'swipeUp', 'longPress', 'doubleTap'];
   return [];
 }
 

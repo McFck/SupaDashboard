@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { controlTypes, skins } from './registry';
 import { DEFAULTS } from './settings.svelte';
-import { allPlacements, layoutFor, movePlacementToSlot, placementById, setLayoutItems, validSlotItems, effectiveSize } from './skin-layouts';
+import { allPlacements, canSetLayoutItems, layoutFor, movePlacementToSlot, placementById, setLayoutItems, validSlotItems, effectiveSize } from './skin-layouts';
 import type { SkinDef } from './skins';
 
 const skinId = 'r5-layout-test';
@@ -61,6 +61,23 @@ describe('skin layout storage', () => {
     expect(validSlotItems(source, skinId, skin.slots[0], skin.slots[0].grid === 'page' ? source.deck.pages[0] : skin.slots[0].grid, [first, second])).toBe(true);
     const impossible = { ...skin.slots[0], size: { w: 2, h: 1 } };
     expect(effectiveSize(skinId, impossible, typeId)).toBeUndefined();
+  });
+
+  it('validates target writes without changing settings or allocating controls', () => {
+    skins.set(skinId, skin);
+    controlTypes.set(typeId, { type: typeId, title: 'Button', icon: 'Square', component: {} as any,
+      size: { w: 1, h: 1 }, maxSize: { w: 1, h: 1 }, create: () => ({ name: 'Button', variants: [] }) } as any);
+    controlTypes.set(otherTypeId, { type: otherTypeId, title: 'Other', icon: 'Square', component: {} as any,
+      size: { w: 1, h: 1 }, maxSize: { w: 1, h: 1 }, create: () => ({ name: 'Other', variants: [] }) } as any);
+    const source = structuredClone(DEFAULTS);
+    source.controls = [{ id: 'a', name: 'A', type: typeId, variants: [] }, { id: 'b', name: 'B', type: otherTypeId, variants: [] }] as any;
+    const target = { skinId, pageId: source.deck.pages[0].id, slotId: 'main' };
+    const candidate = [item('candidate', 'a', 0)];
+    const before = structuredClone(source);
+    expect(canSetLayoutItems(source, target, candidate)).toBe(true);
+    expect(canSetLayoutItems(source, target, [candidate[0], item('invalid', 'b', 1)])).toBe(false);
+    expect(source).toEqual(before);
+    expect(layoutFor(source, skinId, target.pageId, 'main')?.items).toEqual([]);
   });
 
   it('moves between stable page slots atomically while retaining placement and control IDs', () => {

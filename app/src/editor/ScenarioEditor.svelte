@@ -29,10 +29,11 @@
   } = $props();
   // A slider's own value axis cannot also be a pull: those triggers stay visible but disabled.
   const blockedTriggers = $derived.by(() => {
-    const item = placementById(settings, itemId)?.item;
+    const placement = placementById(settings, itemId);
+    const item = placement?.item;
     const type = controlById(controlId)?.type;
     if (type !== 'slider' || !item) return new Set<Trigger>();
-    const allowed = availableGestures(type, item.w, item.h);
+    const allowed = availableGestures(type, placement.width ?? item.w, placement.height ?? item.h, placement.slot?.kind === 'strip');
     return new Set<Trigger>((['swipeUp', 'swipeDown', 'swipeLeft', 'swipeRight'] as Trigger[]).filter(t => !allowed.includes(t as never)));
   });
   let draft = $state<ScenarioDraft | null>(null);

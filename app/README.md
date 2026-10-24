@@ -21,9 +21,21 @@ One frontend bundle serves both; `src/main.ts` picks the view from the window la
 
 ## Layout editor
 
-Centre: the deck at scale. Tap a widget to select it (inspector on the right, edits apply live), drag it to move
-(target footprint shows green/red, other widgets animate into place; equal-size widgets swap), drag the corner
-handle to resize, tap an empty spot to add a widget or place an existing control there.
+Centre: the selected skin at scale. Deck keeps its grid editor: tap a widget to select it, drag it to move, drag the
+corner handle to resize, and tap an empty spot to add a widget or place an existing control. For other skins, the
+editor shows that skin's frozen scene and its visible slots as drop zones. Page tabs select stored layouts; the local
+skin view preview does not change the dashboard's active page or view.
+
+Placements are stored per skin and page. Deck's `main` slot uses the existing `deck.pages[pageId].items` array;
+other skin slots use `skinLayouts[skinId][pageId][slotId]`. Slot rules filter widget kinds and sizes before adding or
+moving a placement. Widgets keep the shared control behavior, with optional skin-specific face renderers.
+
+### Skins
+
+Plugins can register skin views, slots, control faces, settings, owner-scoped state and events, quick actions, and page
+navigation. Swipe is the default page navigation; a skin can own it and use the host's `page.prev()` and
+`page.next()` methods for its own controls. The dashboard remains a non-activating surface; native foreground and
+hide/resume behavior needs an isolated Tauri check and is not established by browser validation.
 
 ## Pieces
 

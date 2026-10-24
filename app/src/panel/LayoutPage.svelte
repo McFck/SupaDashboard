@@ -51,7 +51,7 @@
   let wasInactive = $state(false);
   const initialSelectedPageId = $runtimeView.activePage || settings.deck.activePage || settings.deck.pages[0].id;
   let selectedPageId = $state(initialSelectedPageId);
-  const initialSkinId = skins.has(layoutPreview.skinId) ? layoutPreview.skinId : settings.skin;
+  const initialSkinId = settings.skin;
   const safeInitialSkinId = skins.has(initialSkinId) ? initialSkinId : 'deck';
   const initialSkin = skins.get(safeInitialSkinId) ?? skins.get('deck')!;
   const initialView = layoutPreview.views[safeInitialSkinId];
@@ -61,6 +61,7 @@
   let selectionTarget = $state<LayoutTarget>({ skinId: safeInitialSkinId, pageId: initialSelectedPageId,
     slotId: initialSkin.views.find(view => view.id === safeInitialViewId)?.slots[0] ?? initialSkin.slots[0]?.id ?? 'main' });
   let previousSkinId = safeInitialSkinId, previousViewId = safeInitialViewId;
+  let previousActiveSkinId = settings.skin;
   let previousSelectedPageId = initialSelectedPageId;
   let previousPageOrder = settings.deck.pages.map(entry => entry.id);
   let pageGeneration = 0;
@@ -128,12 +129,23 @@
     closeMoveDialog();
   });
   $effect(() => {
+    const skinId = settings.skin;
+    if (skinId === previousActiveSkinId) return;
+    previousActiveSkinId = skinId;
+    const skin = skins.get(skinId);
+    if (!skin) return;
+    selectedSkinId = skin.id;
+    const storedView = layoutPreview.views[skin.id];
+    previewViewId = skin.views.some(view => view.id === storedView) ? storedView : skin.defaultView;
+    selectionTarget = defaultTarget(skin, page.id, previewViewId);
+    clearEditorTransient();
+  });
+  $effect(() => {
     const skinId = selectedSkinId, viewId = previewViewId;
     if (skinId === previousSkinId && viewId === previousViewId) return;
     previousSkinId = skinId; previousViewId = viewId;
     const skin = skins.get(skinId);
     if (!skin || !skin.views.some(view => view.id === viewId)) return;
-    layoutPreview.skinId = skinId;
     layoutPreview.views[skinId] = viewId;
     if (!skin.views.find(view => view.id === viewId)?.slots.includes(selectionTarget.slotId) || selectionTarget.skinId !== skinId)
       selectionTarget = defaultTarget(skin, page.id, viewId);
@@ -192,7 +204,6 @@
     const next = skins.get(skinId);
     if (!next || next.id === selectedSkinId) return;
     selectedSkinId = next.id;
-    layoutPreview.skinId = next.id;
     const storedView = layoutPreview.views[next.id];
     previewViewId = next.views.some(view => view.id === storedView) ? storedView : next.defaultView;
     selectionTarget = defaultTarget(next, page.id, previewViewId);

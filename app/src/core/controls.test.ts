@@ -189,6 +189,12 @@ describe('single slider orientation', () => {
     expect(buttonIconSize(0, 0)).toBe(0);
     expect(buttonIconSize(0, 0, true)).toBe(20);
   });
+  it('blocks the slider value axis using slot pixels and compact strip orientation', () => {
+    expect(availableGestures('slider', 112, 352)).toContain('swipeLeft');
+    expect(availableGestures('slider', 112, 352)).not.toContain('swipeUp');
+    expect(availableGestures('slider', 112, 112, true)).toContain('swipeUp');
+    expect(availableGestures('slider', 112, 112, true)).not.toContain('swipeLeft');
+  });
 });
 
 describe('move origin projection', () => {

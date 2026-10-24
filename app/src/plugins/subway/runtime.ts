@@ -99,7 +99,7 @@ function configNumber(config: Readonly<Record<string, unknown>>, key: string, fa
 
 function configLanguages(config: Readonly<Record<string, unknown>>): string[] {
   const value = config.languages;
-  const languages = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && ['ja', 'en', 'zh', 'ko'].includes(item)) : ['ja', 'en'];
+  const languages = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && ['ja', 'kana', 'en', 'zh', 'ko'].includes(item)) : ['ja', 'en'];
   return [...new Set(languages.length ? languages : ['ja', 'en'])];
 }
 

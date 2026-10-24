@@ -6,7 +6,7 @@ const cdp = process.env.SUBWAY_CDP_URL ?? 'http://127.0.0.1:9337';
 const base = process.env.SUBWAY_VITE_URL ?? 'http://127.0.0.1:5183';
 const outputRoot = process.argv[2] ?? process.env.BB_THREAD_STORAGE;
 if (!outputRoot) throw new Error('Pass the Subway thread-storage directory as the first argument');
-const output = path.join(outputRoot, 'subway-increment-3');
+const output = path.join(outputRoot, process.argv[3] ?? 'subway-increment-4');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 await mkdir(output, { recursive: true });
@@ -73,16 +73,29 @@ if (!mounted) {
 await evaluate('document.fonts.ready');
 
 const manifest = await evaluate('window.__subwayHarness.manifest');
-assert(manifest.length >= 20, `Expected full increment-3 fixtures, got ${manifest.length}`);
+assert(manifest.length >= 38, `Expected Yamanote and Hibiya fixtures, got ${manifest.length}`);
 const ids = new Set();
 const captures = [];
+let panelCrops = 0;
 for (const fixture of manifest) {
   assert(!ids.has(fixture.id), `Duplicate fixture id ${fixture.id}`);
   ids.add(fixture.id);
+  const [width, height] = fixture.logicalSize.split('x').map(Number);
+  await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   const report = await evaluate(`window.__subwayHarness.render(${JSON.stringify(fixture.id)})`);
   assert.equal(report.id, fixture.id);
   const shot = await call('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
   await writeFile(path.join(output, `${fixture.id}.png`), Buffer.from(shot.data, 'base64'));
+  if (report.line === 'hibiya') {
+    for (const [name, x] of [['panel-a', 0], ['panel-b', 1312]]) {
+      const crop = await call('Page.captureScreenshot', {
+        format: 'png', fromSurface: true, captureBeyondViewport: true,
+        clip: { x, y: 0, width: 1280, height: 720, scale: 1 },
+      });
+      await writeFile(path.join(output, `${fixture.id}-${name}.png`), Buffer.from(crop.data, 'base64'));
+      panelCrops++;
+    }
+  }
   captures.push(report);
 }
 
@@ -98,7 +111,20 @@ assert(captures.some(capture => capture.sideLabel === 'opposite side'), 'Missing
 assert(captures.some(capture => capture.sideLabel === null), 'Missing unknown-side capture');
 assert(captures.some(capture => capture.facilityCount === 0), 'Missing empty-facility capture');
 assert(captures.some(capture => capture.facilityCount > 0), 'Missing synthetic-facility capture');
+const hibiyaCaptures = captures.filter(capture => capture.line === 'hibiya');
+for (const state of [...ordinaryStates, 'emergency', 'suspended'])
+  assert(hibiyaCaptures.some(capture => capture.state === state), `Missing Hibiya ${state} state capture`);
+for (const page of ['platform', 'closing', 'nearby', 'broad', 'transfers', 'emergency', 'suspension'])
+  assert(hibiyaCaptures.some(capture => capture.page === page), `Missing Hibiya ${page} page capture`);
+assert(hibiyaCaptures.some(capture => capture.direction === 'to-naka-meguro'), 'Missing Hibiya reverse direction');
+assert(hibiyaCaptures.some(capture => capture.sideLabel === 'this side'), 'Missing Hibiya this-side fixture');
+assert(hibiyaCaptures.some(capture => capture.sideLabel === 'opposite side'), 'Missing Hibiya opposite-side fixture');
+assert(hibiyaCaptures.some(capture => capture.sideLabel === null), 'Missing Hibiya unknown-side fixture');
+assert.equal(panelCrops, hibiyaCaptures.length * 2, 'Every Hibiya composite needs both panel crops');
+const panelLanguages = new Set(hibiyaCaptures.flatMap(capture => capture.panelLanguages ?? []));
+for (const language of ['ja', 'kana', 'en', 'zh', 'ko']) assert(panelLanguages.has(language), `Missing Hibiya ${language} language capture`);
 
+await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
 await evaluate('window.__subwayHarness.startStaticProbe()');
 await pause(2_100);
 await evaluate('window.__subwayHarness.updateWidgetOnly(50)');
@@ -113,11 +139,12 @@ const report = {
   viewport: { width: 1280, height: 720, devicePixelRatio: 1 },
   nativeVisibility: 'simulated by the isolated browser harness',
   captures,
+  hibiyaPanelCrops: panelCrops,
   metrics,
   consoleErrors,
 };
 await writeFile(path.join(output, 'manifest.json'), `${JSON.stringify({ fixtures: manifest, captures }, null, 2)}\n`, 'utf8');
 await writeFile(path.join(output, 'metrics.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-console.log(JSON.stringify({ output, captures: captures.length, metrics }, null, 2));
+console.log(JSON.stringify({ output, captures: captures.length, hibiyaPanelCrops: panelCrops, metrics }, null, 2));
 await evaluate('window.__subwayHarness.stopStaticProbe()');
 socket.close();
