@@ -26,12 +26,15 @@
   <Dialog.Content class="sm:max-w-2xl">
     <Dialog.Header><Dialog.Title>Icon</Dialog.Title></Dialog.Header>
     <Input placeholder="Search icons" aria-label="Search icons" bind:value={query} />
-    <div class="grid max-h-[50vh] grid-cols-10 gap-1 overflow-y-auto pr-1">
+    <!-- Fixed height keeps the dialog steady while results narrow; padding keeps the selected ring unclipped. -->
+    <div class="grid h-[min(50vh,420px)] auto-rows-[3rem] grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] content-start gap-1 overflow-y-auto p-1 [scrollbar-gutter:stable]">
       {#each matches as name (name)}
         <button type="button" aria-label={name} onclick={() => { onchange(name); open = false; }}
-          class="flex aspect-square items-center justify-center rounded-lg transition hover:bg-white/10 {name === value ? 'bg-white/15 ring-1 ring-white/40' : ''}">
+          class="flex items-center justify-center rounded-lg transition hover:bg-white/10 {name === value ? 'bg-white/15 ring-1 ring-white/40' : ''}">
           <span class="sr-only">{name}</span><Icon {name} size={20} />
         </button>
+      {:else}
+        <p class="col-span-full py-6 text-center text-sm text-muted-foreground">No icons</p>
       {/each}
     </div>
   </Dialog.Content>
