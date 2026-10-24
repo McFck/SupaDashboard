@@ -4,7 +4,7 @@
   import { listen } from '@tauri-apps/api/event';
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import DeckSkin from './skins/deck/DeckSkin.svelte';
+  import SkinHost from './skins/SkinHost.svelte';
   import { applyDisplay, complementRectangles, getAppliedFullscreen, initDisplay, type LocalRect } from './core/display';
   import { SPRING_SAMPLES, springDuration } from './core/controls';
   import { skins } from './core/registry';
@@ -22,7 +22,7 @@
     mode: 'pending' | 'horizontal' | 'vertical'; side: number; neighborId?: string;
     hold?: ReturnType<typeof setTimeout>; frame: number | null; generation: number;
   };
-  const Skin = $derived((skins.get(settings.skin) ?? skins.get('deck')!).component);
+  const skin = $derived(skins.get(settings.skin) ?? skins.get('deck')!);
   const page = $derived(pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!);
   const bg = $derived(settings.display.background);
   let shell: HTMLDivElement;
@@ -613,11 +613,7 @@
           <div class="dashboard-page-frame" class:dashboard-page-inactive={!frame.active}
             data-visible-page={frame.active ? 'true' : undefined} aria-hidden={!frame.active} inert={!frame.active}
             style:transform={pageOffset(frame.offset)} use:registerPage={frame.id}>
-            {#if Skin === DeckSkin}
-              <DeckSkin page={framePage} pageRenderVisible={true} />
-            {:else}
-              <Skin page={framePage} />
-            {/if}
+            <SkinHost {skin} page={framePage} visible={frame.active} pageRenderVisible={true} />
           </div>
         {/if}
       {/each}

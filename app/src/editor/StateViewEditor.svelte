@@ -72,7 +72,8 @@
             aria-label={`Preview ${role.label} state`} onclick={() => { selectedId = role.id; previewId = role.id; }}>
             <span class="text-xs font-medium text-muted-foreground">{role.label}</span>
             <div class="tile relative w-full overflow-hidden" style:aspect-ratio={aspectRatio} style:--accent={appearance.color ?? '#8ea8f0'}>
-              <ButtonFace view={appearance} iconSize={30} />
+              <ButtonFace appearance={appearance} presentation={{ key: 'state-editor', view: appearance }} stateId="preview" stateIndex={0}
+                busy={false} pull={null} compact={false} pixelWidth={88} pixelHeight={88} />
             </div>
           </button>
         {/if}
@@ -92,7 +93,8 @@
     </div>
     <div class="tile relative mx-auto w-full max-w-60 overflow-hidden border" style:aspect-ratio={aspectRatio} style:--accent={previewView.color ?? '#8ea8f0'}>
       <StateView presentation={{ key: `scenario-preview:${previewKey}`, view: previewView }}>
-        {#snippet children(view)}<ButtonFace {view} iconSize={34} />{/snippet}
+        {#snippet children(view)}<ButtonFace appearance={view} presentation={{ key: 'state-editor', view }} stateId="preview" stateIndex={0}
+          busy={false} pull={null} compact={false} pixelWidth={100} pixelHeight={100} />{/snippet}
       </StateView>
     </div>
   </section>

@@ -77,12 +77,15 @@ export function buildDirectionDetails(
   evidence: readonly SideEvidence[] = [],
 ): StationDirectionDetails {
   if (!Number.isInteger(carCount) || carCount < 1 || carCount > 20) throw new Error(`Invalid formation car count: ${carCount}`);
-  if (new Set(directions).size !== directions.length || directions.some(direction => !direction)) {
+  if (!directions.length || new Set(directions).size !== directions.length || directions.some(direction => !direction)) {
     throw new Error('Directions must be non-empty and unique');
   }
   const evidenceByDirection = new Map<string, SideEvidence[]>();
   for (const item of evidence) {
     if (!directions.includes(item.direction)) throw new Error(`Unknown door-side direction: ${item.direction}`);
+    if (!['left', 'right', 'both'].includes(item.side) || !item.source.trim()) {
+      throw new Error(`Invalid door-side evidence for ${item.direction}`);
+    }
     const list = evidenceByDirection.get(item.direction) ?? [];
     list.push(item);
     evidenceByDirection.set(item.direction, list);
@@ -118,6 +121,7 @@ export function buildDirectionDetails(
 }
 
 export function validatePlatformFacilities(facilities: readonly PlatformFacility[], carCount: number): void {
+  if (!Number.isInteger(carCount) || carCount < 1 || carCount > 20) throw new Error(`Invalid formation car count: ${carCount}`);
   for (const facility of facilities) {
     if (!['stairs', 'escalator', 'lift', 'toilet', 'gate', 'exit', 'transfer'].includes(facility.kind)) {
       throw new Error(`Unknown platform facility kind: ${facility.kind}`);
@@ -127,6 +131,9 @@ export function validatePlatformFacilities(facilities: readonly PlatformFacility
     }
     if (facility.relativePosition !== null && (!Number.isFinite(facility.relativePosition) || facility.relativePosition < 0 || facility.relativePosition > 1)) {
       throw new Error(`Invalid platform facility position: ${facility.relativePosition}`);
+    }
+    if (!facility.label.trim() || !facility.source.trim() || !facility.revision.trim()) {
+      throw new Error('Platform facilities require a label, source, and revision');
     }
   }
 }

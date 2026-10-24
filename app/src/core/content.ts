@@ -7,9 +7,36 @@ export type MediaOptions = {
   muted: boolean;
 };
 
+export type WebOptions = { url: string; zoom: number; refresh: number; interactive: boolean };
+
 export const DEFAULT_MEDIA_OPTIONS: MediaOptions = {
   sources: [], fit: 'cover', interval: 5, loop: true, muted: true,
 };
+
+export const DEFAULT_WEB_OPTIONS: WebOptions = { url: '', zoom: 100, refresh: 0, interactive: false };
+
+export function webUrl(value: string, currentOrigin = typeof location === 'undefined' ? undefined : location.origin): string | undefined {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password || (url.protocol !== 'https:' && !(url.protocol === 'http:' && url.hostname === 'localhost')) ||
+      ['tauri:', 'asset:'].includes(url.protocol) || ['tauri.localhost', 'asset.localhost'].includes(url.hostname) ||
+      url.origin === currentOrigin) return;
+    return url.href;
+  } catch {
+    return;
+  }
+}
+
+export function readWebOptions(value: unknown): WebOptions {
+  const options = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const zoom = typeof options.zoom === 'number' && Number.isFinite(options.zoom) ? Math.max(50, Math.min(200, options.zoom)) : 100;
+  const refresh = options.refresh === 0 ? 0 : typeof options.refresh === 'number' && Number.isFinite(options.refresh) &&
+    options.refresh >= 1 && options.refresh <= 86400 ? options.refresh : 0;
+  return {
+    url: typeof options.url === 'string' ? options.url : '', zoom, refresh,
+    interactive: typeof options.interactive === 'boolean' ? options.interactive : false,
+  };
+}
 
 export function readMediaOptions(value: unknown): MediaOptions {
   const options = value && typeof value === 'object' ? value as Record<string, unknown> : {};

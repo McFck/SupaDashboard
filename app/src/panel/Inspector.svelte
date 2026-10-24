@@ -31,6 +31,7 @@
   import GestureEditor from './GestureEditor.svelte';
   import MixerEditor from './MixerEditor.svelte';
   import MediaEditor from './MediaEditor.svelte';
+  import WebEditor from './WebEditor.svelte';
   import { buildExistingControlRows, searchExistingControls } from './ui/existing-controls';
   import PluginMark, { pluginTitle } from '../editor/PluginMark.svelte';
   import Row from './ui/Row.svelte';
@@ -207,6 +208,13 @@
         <section class="grid gap-3"><h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Channels</h3><MixerEditor controlId={control.id} /></section>
       {:else if control.type === 'media'}
         <MediaEditor {control} />
+        <Separator />
+        <section class="grid gap-3">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scenario</h3>
+          <GestureEditor {control} onedit={trigger => oneditScenario(control.id, item.id, trigger)} />
+        </section>
+      {:else if control.type === 'web'}
+        <WebEditor {control} />
         <Separator />
         <section class="grid gap-3">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scenario</h3>

@@ -3351,6 +3351,8 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-persisted-scope",
  "tauri-plugin-store",
+ "url",
+ "webview2-com",
  "windows",
 ]
 

@@ -1,22 +1,30 @@
 <script lang="ts">
+  import type { Component } from 'svelte';
   import { onDestroy, tick } from 'svelte';
   import { projectMoveOrigin, resizeCornerGeometry, resizePreview, resizeFromCornerHysteretic, SPRING_SAMPLES, springDuration,
-    type ResizeCorner, type TilePresentation } from '../core/controls';
+    type ControlFaceProps, type ResizeCorner, type TilePresentation } from '../core/controls';
   import { commit } from '../core/history.svelte';
-import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, type FittedDeck, type Item, type Selection } from '../core/layout';
+  import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, type FittedDeck, type Item, type Selection } from '../core/layout';
   import { controlTypes } from '../core/registry';
-import { controlById, settings, type Page } from '../core/settings.svelte';
+  import { controlById, settings, type Page } from '../core/settings.svelte';
+  import type { EffectiveSize, LayoutTarget } from '../core/skin-layouts';
   import { runtimeView } from '../core/runtime.svelte';
   import { animateRemoval, registerRemovalNode } from './removal';
   import { DropPreviewWorker } from './drop-worker';
   import ResizeFrame from './ResizeFrame.svelte';
 
-  let { page, editing = false, selected = null, availableWidth, availableHeight, pageRenderVisible = false, resolvePresentation, onselect, oncontext }:
-    { page: Page; editing?: boolean; selected?: Selection; availableWidth?: number; availableHeight?: number; pageRenderVisible?: boolean; onselect?: (s: Selection) => void;
+  type GridLayout = Pick<Page, 'rows' | 'cols' | 'size' | 'sizing' | 'gap'> & { items: Item[] };
+  let { page, layout, target, onitemschange, faceMap, compact = false, resolveSize,
+    editing = false, selected = null, availableWidth, availableHeight, pageRenderVisible = false, resolvePresentation, onselect, oncontext }:
+    { page: Page; layout?: GridLayout; target?: LayoutTarget; onitemschange?: (items: Item[]) => boolean | void;
+      faceMap?: Record<string, Component<ControlFaceProps>>; compact?: boolean; resolveSize?: (typeId: string) => Pick<EffectiveSize, 'min' | 'max'> | undefined;
+      editing?: boolean; selected?: Selection; availableWidth?: number; availableHeight?: number; pageRenderVisible?: boolean; onselect?: (s: Selection, target?: LayoutTarget) => void;
       resolvePresentation?: (control: import('../core/controls').ControlConfig, variantIndex: number) => TilePresentation;
-      oncontext?: (target: { item: string } | { cell: { x: number; y: number } }, x: number, y: number) => void } = $props();
+      oncontext?: (target: { item: string } | { cell: { x: number; y: number } }, x: number, y: number, layoutTarget?: LayoutTarget) => void } = $props();
 
-  const deck = $derived(page);
+  const deck = $derived(layout ?? page);
+  const targetKey = $derived(target ? `${target.skinId}/${target.pageId}/${target.slotId}` : `deck/${page.id}/main`);
+  function currentLayoutSignature() { return JSON.stringify({ target: targetKey, items: deck.items }); }
   const intrinsic: FittedDeck = $derived({ cell: deck.size, gap: deck.gap,
     width: deck.cols * deck.size + (deck.cols + 1) * deck.gap,
     height: deck.rows * deck.size + (deck.rows + 1) * deck.gap });
@@ -35,6 +43,13 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
     const def = control && controlTypes.get(control.type);
     return control && def ? [{ item, control, def }] : [];
   }));
+  function select(selection: Selection) { onselect?.(selection, target); }
+  function writeItems(next: Item[], label: string) {
+    commit(label);
+    if (onitemschange) return onitemschange(next) !== false;
+    page.items = next;
+    return true;
+  }
   let grid = $state<HTMLElement>();
   const nodes = new Map<string, HTMLElement>();
   const motionNodes = new Map<string, HTMLElement>();
@@ -80,13 +95,13 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
       destroy() { removeChromeNode(id, node); },
     };
   };
-  function context(e: MouseEvent, target: Exclude<Selection, null>) {
-    if (!editing || ('item' in target && removing[target.item])) return;
+  function context(e: MouseEvent, selection: Exclude<Selection, null>) {
+    if (!editing || ('item' in selection && removing[selection.item])) return;
     e.preventDefault();
     e.stopPropagation();
     cancelDrag();
-    onselect?.(target);
-    oncontext?.(target, e.clientX, e.clientY);
+    select(selection);
+    oncontext?.(selection, e.clientX, e.clientY, target);
   }
   const register = (node: HTMLElement, id: string) => {
     nodes.set(id, node);
@@ -237,7 +252,7 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
   $effect.pre(() => {
     const dimensions = `${deck.rows}/${deck.cols}/${deck.size}/${deck.gap}/${deck.sizing}`;
     const pixels = `${metrics.cell}/${metrics.gap}/${metrics.width}/${metrics.height}/${availableWidth}/${availableHeight}`;
-    const layout = `${deck.id}|${deck.items.map(i => `${i.id}:${i.x},${i.y},${i.w},${i.h}`).join(';')}`;
+    const layout = `${targetKey}|${deck.items.map(i => `${i.id}:${i.x},${i.y},${i.w},${i.h}`).join(';')}`;
     const selectedId = selected && 'item' in selected ? selected.item : '';
     const lostResizeSelection = drag?.mode === 'resize' && selectedId !== drag.id;
     if (layout === previousLayout && dimensions === previousGrid && pixels === previousMetrics &&
@@ -296,16 +311,19 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
     motion.style.translate = `${pose.x}px ${pose.y}px`;
     const capture = e.currentTarget as HTMLElement;
     capture.setPointerCapture(e.pointerId);
-    const def = controlTypes.get(controlById(item.control)?.type ?? '');
+    const typeId = controlById(item.control)?.type ?? '';
+    const def = controlTypes.get(typeId);
     const baseItem = { ...item };
     const origin = boxForItem(baseItem, pitch, metrics.gap);
-    const min = def?.minSize ?? { w: 1, h: 1 }, registeredMax = def?.maxSize ?? { w: 99, h: 99 };
+    const size = resolveSize?.(typeId);
+    const min = size?.min ?? def?.minSize ?? { w: 1, h: 1 };
+    const registeredMax = size?.max ?? def?.maxSize ?? { w: 99, h: 99 };
     const max = { w: Math.min(registeredMax.w, corner.includes('w') ? item.x + item.w : deck.cols - item.x),
       h: Math.min(registeredMax.h, corner.includes('n') ? item.y + item.h : deck.rows - item.y) };
     const frameRadius = interruptedRadius ?? Math.min(22, (Math.min(min.w, item.w) * pitch - metrics.gap) / 2,
       (Math.min(min.h, item.h) * pitch - metrics.gap) / 2);
     const localX = (e.clientX - gridRect.left) / scale, localY = (e.clientY - gridRect.top) / scale;
-    const layoutSignature = JSON.stringify({ page: deck.id, items: deck.items });
+    const layoutSignature = currentLayoutSignature();
     const cellObstacles = deck.items.filter(other => other.id !== item.id).map(({ x, y, w, h }) => ({ x, y, w, h }));
     const pixelObstacles = deck.items.filter(other => other.id !== item.id).map(other => {
       // Grown by one gap, so the live outline stops where the widget could actually end, not at the neighbour's edge.
@@ -384,7 +402,7 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
       if (!current || current !== d || current.requestToken !== requestToken || current.generation !== d.generation ||
         current.layoutSignature !== d.layoutSignature || current.requestedX !== target.x || current.requestedY !== target.y ||
         current.target.x !== target.x || current.target.y !== target.y ||
-        current.layoutSignature !== JSON.stringify({ page: deck.id, items: deck.items })) return;
+        current.layoutSignature !== currentLayoutSignature()) return;
       if (!reply) {
         current.pending = false;
         current.placement = null;
@@ -484,12 +502,12 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
     flushPointer(e, item);
     const d = drag;
     if (!d || d.id !== item.id || d.pointerId !== e.pointerId) return;
-    if (!d.moved) { cancelDrag(true, e.pointerId); return onselect?.({ item: item.id }); }
+    if (!d.moved) { cancelDrag(true, e.pointerId); return select({ item: item.id }); }
     if (!d.ok) { cancelDrag(true, e.pointerId); return; }
     if (d.mode === 'move') {
       const result = d.placement;
       if (!d.pointerInside || !inside(d.target, deck) || d.pending || !d.readyForRelease || !result ||
-        d.layoutSignature !== JSON.stringify({ page: deck.id, items: deck.items }) || result.kind === 'invalid' ||
+        d.layoutSignature !== currentLayoutSignature() || result.kind === 'invalid' ||
         result.items.find(i => i.id === item.id)?.x !== d.target.x || result.items.find(i => i.id === item.id)?.y !== d.target.y ||
         !result.items.some(i => {
           const original = deck.items.find(old => old.id === i.id)!;
@@ -497,9 +515,8 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
         })) { cancelDrag(true, e.pointerId); return; }
       clearDrag();
       offsets[item.id] = { x: 0, y: 0 };
-      commit(result.displaced.length ? 'Swap widgets' : 'Move widget');
-      page.items = result.items;
-      onselect?.({ item: item.id });
+      writeItems(result.items, result.displaced.length ? 'Swap widgets' : 'Move widget');
+      select({ item: item.id });
       return;
     }
     if (d.target.x === item.x && d.target.y === item.y && d.target.w === item.w && d.target.h === item.h) {
@@ -510,9 +527,8 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
     const destination = boxForItem(d.target, d.pitch, d.gap);
     settleResize(d.id, d.ghost, destination, d.screenDistance, d.frameRadius);
     clearDrag();
-    commit('Resize widget');
-    page.items = next;
-    onselect?.({ item: item.id });
+    writeItems(next, 'Resize widget');
+    select({ item: item.id });
   }
   function resizeKeydown(e: KeyboardEvent, item: Item, corner: ResizeCorner) {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
@@ -523,8 +539,11 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
       if (dx !== 0) dy = dx;
       else dx = dy;
     }
-    const def = controlTypes.get(controlById(item.control)?.type ?? '');
-    const min = def?.minSize ?? { w: 1, h: 1 }, registeredMax = def?.maxSize ?? { w: 99, h: 99 };
+    const typeId = controlById(item.control)?.type ?? '';
+    const def = controlTypes.get(typeId);
+    const size = resolveSize?.(typeId);
+    const min = size?.min ?? def?.minSize ?? { w: 1, h: 1 };
+    const registeredMax = size?.max ?? def?.maxSize ?? { w: 99, h: 99 };
     const max = { w: Math.min(registeredMax.w, corner.includes('w') ? item.x + item.w : deck.cols - item.x),
       h: Math.min(registeredMax.h, corner.includes('n') ? item.y + item.h : deck.rows - item.y) };
     const candidate = resizeFromCornerHysteretic(item, corner, dx, dy, pitch, item, min, max, 4);
@@ -534,9 +553,8 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
     const nextItem = { ...item, ...bounded };
     if ((nextItem.w === item.w && nextItem.h === item.h) || !fits(deck.items, nextItem, deck, [item.id])) return;
     const next = deck.items.map(i => i.id === item.id ? { ...i, ...nextItem } : i);
-    commit('Resize widget');
-    page.items = next;
-    onselect?.({ item: item.id });
+    writeItems(next, 'Resize widget');
+    select({ item: item.id });
   }
   const isSelected = (s: Selection, id: string) => !!s && 'item' in s && s.item === id;
   const isCell = (s: Selection, x: number, y: number) => !!s && 'cell' in s && s.cell.x === x && s.cell.y === y;
@@ -548,7 +566,7 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
   {#if editing}
     {#each { length: deck.rows * deck.cols }, i (i)}
       {@const x = i % deck.cols}{@const y = Math.floor(i / deck.cols)}
-      <button data-empty-cell data-selected={isCell(selected, x, y)} aria-label="Empty spot {x + 1},{y + 1}" onclick={() => onselect?.({ cell: { x, y } })}
+      <button data-empty-cell data-selected={isCell(selected, x, y)} aria-label="Empty spot {x + 1},{y + 1}" onclick={() => select({ cell: { x, y } })}
         oncontextmenu={e => context(e, { cell: { x, y } })}
         style:grid-area="{y + 1} / {x + 1}"
         class="rounded-[22px] border transition-colors
@@ -574,7 +592,8 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
         <div data-dashboard-tile class="h-full w-full" inert={editing}>
           <def.component {control} {page} pageId={page.id} {pageVisible} {pageRendered} w={renderItem.w} h={renderItem.h}
             pixelWidth={renderItem.w * pitch - metrics.gap} pixelHeight={renderItem.h * pitch - metrics.gap}
-            {presentation} itemId={item.id} pressFeedbackDisabled={editing} />
+            {presentation} itemId={item.id} pressFeedbackDisabled={editing}
+            {...((faceMap?.[control.type] ?? def.face) ? { face: faceMap?.[control.type] ?? def.face, compact } : {})} />
         </div>
         {#if editing}
           {#if isSelected(selected, item.id)}
@@ -584,7 +603,7 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
             class="absolute inset-0 cursor-grab touch-none rounded-[22px] hover:bg-white/[.04]"
             onpointerdown={e => begin(e, item, 'move')} onpointermove={e => track(e, item)}
             onpointerup={e => end(item, e)} onpointercancel={cancelPointer} onlostpointercapture={cancelPointer}
-            onkeydown={e => { if (e.key === 'Enter') onselect?.({ item: item.id }); }}></div>
+            onkeydown={e => { if (e.key === 'Enter') select({ item: item.id }); }}></div>
         {/if}
       </div>
     </div>

@@ -1,6 +1,6 @@
 // Extension points. Built-in features register through exactly the same API as plugins.
 import type { Component } from 'svelte';
-import type { ControlConfig } from './controls';
+import type { ControlConfig, ControlFaceProps } from './controls';
 import { settings } from './settings.svelte';
 import type { ActionStep, Trigger } from './scenario';
 import { VariableStore, type VariableDefinition, type VariableRecord, type VariableValue } from './variables';
@@ -79,6 +79,8 @@ export type ControlTypeDef = {
   title: string;
   icon: string;
   component: Component<any>;
+  /** Presentation-only renderer; behavior and interaction remain in the control component. */
+  face?: Component<ControlFaceProps>;
   size: { w: number; h: number };
   minSize?: { w: number; h: number };
   maxSize?: { w: number; h: number };

@@ -8,7 +8,6 @@ const REPO_ROOT = path.resolve(APP_ROOT, '..');
 const ASSET_ROOT = path.join(REPO_ROOT, 'assets');
 const LINE_IDS = ['yamanote', 'hibiya', 'sakaisuji'];
 const STATIC_ASSETS = [
-  'assets/sources.json',
   'assets/motion/runtime-cues.json',
   'assets/motion/data.js',
   'assets/motion/engine.js',

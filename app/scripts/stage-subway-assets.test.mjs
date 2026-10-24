@@ -19,8 +19,8 @@ afterAll(async () => { await rm(root, { recursive: true, force: true }); });
 
 describe('Subway asset staging', () => {
   it('rejects paths outside the fixed asset and output roots', () => {
-    expect(() => resolveWithin(root, '../outside.opus')).toThrow(/leaves its allowed directory/);
-    expect(() => cueAssetFiles({ version: 1, cues: [{ file: '../outside.opus' }] })).toThrow(/leaves its allowed directory/);
+    expect(() => resolveWithin(root, '../outside.opus')).toThrow(/Unsafe path/);
+    expect(() => cueAssetFiles({ version: 1, inputs: {}, cues: [{ file: '../outside.opus' }] })).toThrow(/Unsafe path/);
   });
 
   it('fails when a referenced clip is missing', async () => {
@@ -51,8 +51,9 @@ describe('Subway asset staging', () => {
     };
     await put('assets/motion/runtime-cues.json', Buffer.from(JSON.stringify(catalogue)));
     const result = await stageSubwayAssets({ repoRoot, assetRoot, appRoot });
-    expect(result.files).toBe(12);
+    expect(result.files).toBe(11);
     expect(result.urls).toContain('/subway/lines/yamanote/clips/door.opus');
+    expect(result.urls).not.toContain('/subway/sources.json');
     for (const url of result.urls) {
       const staged = path.join(result.outputRoot, decodeURIComponent(url.slice('/subway/'.length)));
       await expect(readFile(staged)).resolves.toBeDefined();

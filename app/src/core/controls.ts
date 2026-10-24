@@ -14,6 +14,10 @@ export type Variant = { id?: string; label: string; icon?: string | null; color?
 /** A resolved, presentation-only view supplied by ACTIONS; these fields are never persisted here. */
 export type TileAppearance = Pick<Variant, 'label' | 'icon' | 'color' | 'background'>;
 export type TilePresentation = { key: string; view: TileAppearance };
+export type SliderFaceState = { level: number | null; muted: boolean; orientation: 'vertical' | 'horizontal';
+  active: boolean; fillReady: boolean; animateFill: boolean; sourceKey: string; accent: string };
+export type ControlFaceProps = { appearance: TileAppearance; presentation: TilePresentation; stateId: string; stateIndex: number;
+  busy: boolean; pull: PullSnapshot | null; compact: boolean; pixelWidth: number; pixelHeight: number; slider?: SliderFaceState };
 
 /** A gesture either runs an action or switches the control to another variant. */
 export type GestureBinding = ActionRef | { variant: 'next' | 'prev' | number };

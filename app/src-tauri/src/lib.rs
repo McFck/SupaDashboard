@@ -1,3 +1,4 @@
+mod content;
 #[cfg(windows)]
 mod media;
 mod monitors;
@@ -40,6 +41,7 @@ pub fn run() {
             if let Some(main) = app.get_webview_window("main") {
                 window::install_dashboard_policy(&main).map_err(std::io::Error::other)?;
             }
+            app.manage(content::ContentObserverState::default());
             app.manage(panel::PanelState::default());
             #[cfg(windows)]
             app.manage(
@@ -118,8 +120,18 @@ pub fn run() {
             if window.label() == "panel" && matches!(event, WindowEvent::Destroyed) {
                 window.app_handle().state::<panel::PanelState>().destroyed();
             }
+            if matches!(window.label(), "main" | "panel") && matches!(event, WindowEvent::Destroyed)
+            {
+                let state = window.app_handle().state::<content::ContentObserverState>();
+                content::forget_window(
+                    window.label().to_owned(),
+                    window.app_handle().clone(),
+                    &state,
+                );
+            }
         })
         .invoke_handler(tauri::generate_handler![
+            content::content_frames_ready,
             panel::open_panel,
             panel::panel_bootstrap,
             panel::panel_ready,

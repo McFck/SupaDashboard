@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { buttonIconSize, pullBindingsFor, type ControlConfig, type Gesture, type PullSnapshot,
+  import type { Component } from 'svelte';
+  import { pullBindingsFor, type ControlConfig, type ControlFaceProps, type Gesture, type PullSnapshot,
     type TilePresentation, type Variant } from '../core/controls';
   import { gestures } from '../core/gestures';
   import { effectiveVariant, stateIdAt } from '../core/button-state';
@@ -11,10 +12,10 @@
   import PressFeedback from './PressFeedback.svelte';
   import StateView from './StateView.svelte';
 
-  let { control, page, compact = false, w = 1, h = 1, pixelWidth, pixelHeight, presentation,
+  let { control, page, compact = false, w = 1, h = 1, pixelWidth, pixelHeight, presentation, face = ButtonFace,
     pressFeedbackDisabled = false, itemId }: {
     control: ControlConfig; page?: Page; compact?: boolean; w?: number; h?: number; pixelWidth?: number; pixelHeight?: number;
-    presentation?: TilePresentation; pressFeedbackDisabled?: boolean; itemId?: string;
+    presentation?: TilePresentation; face?: Component<ControlFaceProps>; pressFeedbackDisabled?: boolean; itemId?: string;
   } = $props();
   let pull = $state<PullSnapshot | null>(null);
   let width = $state(0), height = $state(0);
@@ -28,7 +29,7 @@
   const busy = $derived(($runtimeView.busy[control.id] ?? 0) > 0);
   const fallbackWidth = $derived(w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14));
   const fallbackHeight = $derived(h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14));
-  const iconSize = $derived(buttonIconSize(pixelWidth ?? (width || fallbackWidth), pixelHeight ?? (height || fallbackHeight), compact));
+  const Face = $derived(face ?? ButtonFace);
   function presentationFor(view: Variant): TilePresentation {
     const index = control.variants.indexOf(view);
     // Same key for the same state wherever it renders, so a committed pull never crossfades a face into itself.
@@ -59,7 +60,11 @@
         {#snippet children(v, _outgoing, immediate)}
           <StateView presentation={presentationFor(v)} {immediate} class="h-full w-full">
             {#snippet children(view)}
-              <ButtonFace {view} {iconSize} {compact} {busy} />
+              {@const index = Math.max(0, control.variants.indexOf(v))}
+              <div class="pointer-events-none h-full w-full">
+                <Face appearance={view} presentation={presentationFor(v)} stateId={stateIdAt(control, index)} stateIndex={index}
+                  {busy} {pull} {compact} pixelWidth={(pixelWidth ?? width) || fallbackWidth} pixelHeight={(pixelHeight ?? height) || fallbackHeight} />
+              </div>
             {/snippet}
           </StateView>
         {/snippet}

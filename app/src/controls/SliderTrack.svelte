@@ -1,11 +1,12 @@
 <script lang="ts">
   // A pill-shaped level control. Its long axis controls the value; only eligible cross-axis pulls change content.
+  import type { Component } from 'svelte';
   import { beginPull, classify, shouldAnimateSliderFill, type Gesture, type PullAxis, type PullBindings, type PullSnapshot,
-    type PullState, type TileAppearance, type TilePresentation, updatePull } from '../core/controls';
+    type ControlFaceProps, type PullState, type TilePresentation, updatePull } from '../core/controls';
   import { tapSequence } from '../core/gestures';
   import { TRIGGERS, type Trigger } from '../core/scenario';
   import { onDestroy, onMount, tick } from 'svelte';
-  import Icon from './Icon.svelte';
+  import SliderFace from './SliderFace.svelte';
   import StateView from './StateView.svelte';
 
   type TrackRect = { left: number; right: number; top: number; bottom: number; width: number; height: number };
@@ -13,10 +14,13 @@
     snapshot: PullSnapshot | null; lastValue: number | null; captures: Partial<Record<Trigger, unknown>>;
     longStarted: boolean; holdTimer?: ReturnType<typeof setTimeout> };
   let { level, muted = false, vertical = true, pullBindings = {}, sourceKey = '', accent = '#e4e4e7', icon, label,
-    presentation, presentationImmediate = false, doubleTap = false,
+    presentation, presentationImmediate = false, doubleTap = false, face = SliderFace, stateId = 'state-1', stateIndex = 0,
+    busy = false, pull = null, compact = false, pixelWidth = 0, pixelHeight = 0,
     onchange, onmute, onpull, onpullstart, onpullend, oncancel, ongesture, capturetrigger, ontrigger }: {
     level: number | null; muted?: boolean; vertical?: boolean; pullBindings?: PullBindings; sourceKey?: string; accent?: string; icon?: string; label?: string;
     presentation?: TilePresentation; presentationImmediate?: boolean;
+    face?: Component<ControlFaceProps>; stateId?: string; stateIndex?: number; busy?: boolean; pull?: PullSnapshot | null;
+    compact?: boolean; pixelWidth?: number; pixelHeight?: number;
     doubleTap?: boolean; onchange: (v: number) => void; onmute?: () => void;
     onpull?: (p: PullSnapshot | null) => void; onpullstart?: () => void;
     onpullend?: (p: PullSnapshot | null, armed: boolean) => void;
@@ -26,14 +30,6 @@
   } = $props();
 
   let el = $state<HTMLElement>();
-  // Content grows with the slider's thickness so a big tile does not show tiny text.
-  let trackWidth = $state(0), trackHeight = $state(0);
-  // Limited by both thickness and the room along the track, so small tiles shrink instead of overflowing.
-  const faceScale = $derived.by(() => {
-    const thick = vertical ? trackWidth : trackHeight, long = vertical ? trackHeight : trackWidth;
-    if (!thick || !long) return 1;
-    return Math.max(.7, Math.min(2.4, thick / 64, (long - 40) / (vertical ? 70 : 140)));
-  });
   let drag: ActiveDrag | null = null;
   let active = $state(false);
   let lastTapRect: TrackRect | null = null;
@@ -211,41 +207,22 @@
   }
   const pct = $derived(level == null ? null : Math.round(level * 100));
   const appearance = $derived(presentation ?? { key: `source:${sourceKey}`, view: { label: label ?? '', icon, color: accent } });
-  function viewBackground(view: TileAppearance) {
-    return view.background === undefined ? `color-mix(in oklab, ${view.color ?? accent} 10%, rgb(0 0 0 / .35))` : view.background ?? 'transparent';
-  }
+  const Face = $derived(face ?? SliderFace);
+  const animateFill = $derived(shouldAnimateSliderFill({ level, previousLevel, sourceKey, previousSourceKey: previousSourceKey ?? '',
+    vertical, previousVertical: previousVertical ?? vertical, ready: fillReady, dragging: active, reducedMotion }));
 </script>
 
-<div bind:this={el} bind:clientWidth={trackWidth} bind:clientHeight={trackHeight} data-dashboard-tile role="slider" tabindex="0" aria-label={label} aria-valuenow={pct ?? undefined}
+<div bind:this={el} data-dashboard-tile role="slider" tabindex="0" aria-label={label} aria-valuenow={pct ?? undefined}
   aria-orientation={vertical ? 'vertical' : 'horizontal'}
   onpointerdown={down} onpointermove={move} onpointerup={up} onkeydown={key}
   onpointercancel={e => cancel(e.pointerId)} onlostpointercapture={e => cancel(e.pointerId)}
-  style:background="color-mix(in oklab, {accent} 12%, #171b22)"
   class="relative h-full w-full touch-none select-none overflow-hidden rounded-[18px] outline-none
     ring-white/30 transition-[box-shadow] focus-visible:ring-2 {active ? 'ring-2 ring-white/20' : ''} {level == null ? 'opacity-40' : ''}">
-  <div aria-hidden="true" data-slider-fill={sourceKey} class="pointer-events-none absolute inset-0"
-    style:transform-origin={vertical ? 'bottom' : 'left'}
-    style:transform={vertical ? `scaleY(${level ?? 0})` : `scaleX(${level ?? 0})`}
-    style:transition={shouldAnimateSliderFill({ level, previousLevel, sourceKey, previousSourceKey: previousSourceKey ?? '',
-      vertical, previousVertical: previousVertical ?? vertical, ready: fillReady, dragging: active, reducedMotion })
-      ? 'transform 190ms ease-out' : 'none'}
-    style:background={muted ? '#a1a1aa' : accent}></div>
-  <!-- value + icon, readable on both the fill and the track -->
   <div class="pointer-events-none absolute inset-0">
     <StateView presentation={appearance} immediate={presentationImmediate} class="h-full w-full">
       {#snippet children(view)}
-        <div class="flex h-full w-full min-w-0 items-center justify-between gap-2 text-white {vertical ? 'flex-col px-2 py-3' : 'px-3 py-1.5'}"
-          style:background={viewBackground(view)}>
-          {#if vertical}
-            <span class="font-semibold tabular-nums" style:font-size="{14 * faceScale}px">{pct == null ? '—' : `${pct}%`}</span>
-            {#if view.label}<span class="w-full min-w-0 truncate text-center font-semibold" style:font-size="{11 * faceScale}px" style:color={view.color ?? undefined}>{view.label}</span>{/if}
-            <span class="shrink-0" class:opacity-60={muted} style:color={view.color ?? undefined}><Icon name={view.icon ?? undefined} size={20 * faceScale} fallback={view.label?.[0]?.toUpperCase() ?? ''} /></span>
-          {:else}
-            <span class="shrink-0" class:opacity-60={muted} style:color={view.color ?? undefined}><Icon name={view.icon ?? undefined} size={18 * faceScale} fallback={view.label?.[0]?.toUpperCase() ?? ''} /></span>
-            {#if view.label}<span class="min-w-0 flex-1 truncate font-semibold" style:font-size="{12 * faceScale}px" style:color={view.color ?? undefined}>{view.label}</span>{/if}
-            <span class="shrink-0 font-semibold tabular-nums" style:font-size="{14 * faceScale}px">{pct == null ? '—' : `${pct}%`}</span>
-          {/if}
-        </div>
+        <Face appearance={view} presentation={appearance} {stateId} {stateIndex} {busy} {pull} {compact} {pixelWidth} {pixelHeight}
+          slider={{ level, muted, orientation: vertical ? 'vertical' : 'horizontal', active, fillReady, animateFill, sourceKey, accent }} />
       {/snippet}
     </StateView>
   </div>

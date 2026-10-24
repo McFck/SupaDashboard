@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MEDIA_OPTIONS, appendPickedSources, hasMediaExtension, isVideoSource, mediaUrl, readMediaOptions, stepSlide } from './content';
+import { DEFAULT_MEDIA_OPTIONS, DEFAULT_WEB_OPTIONS, appendPickedSources, hasMediaExtension, isVideoSource, mediaUrl,
+  readMediaOptions, readWebOptions, stepSlide, webUrl } from './content';
 
 describe('media content options', () => {
   it('returns safe defaults without modifying malformed input', () => {
@@ -54,5 +55,28 @@ describe('media content options', () => {
       ...original, { kind: 'file', value: 'C:/image.png' }, { kind: 'file', value: 'C:/video.mp4' },
     ]);
     expect(original).toEqual([{ kind: 'url', value: 'https://example.test/a.png' }]);
+  });
+});
+
+describe('web content options', () => {
+  it('normalizes zoom and refresh without rewriting unrelated options', () => {
+    const saved = { url: 'https://example.test', zoom: 250, refresh: 0, interactive: true, future: 'kept' };
+    expect(readWebOptions(saved)).toEqual({ url: saved.url, zoom: 200, refresh: 0, interactive: true });
+    expect(saved.future).toBe('kept');
+    expect(readWebOptions({ zoom: Number.NaN, refresh: Infinity })).toEqual(DEFAULT_WEB_OPTIONS);
+    expect(readWebOptions({ zoom: 50, refresh: 1 })).toEqual({ ...DEFAULT_WEB_OPTIONS, zoom: 50, refresh: 1 });
+    expect(readWebOptions({ zoom: 150, refresh: 86400 }).refresh).toBe(86400);
+    expect(readWebOptions({ zoom: 100, refresh: 86401 }).refresh).toBe(0);
+  });
+
+  it('accepts HTTPS and exact localhost HTTP while rejecting internal, credentialed, and app origins', () => {
+    expect(webUrl('https://example.test/embed', 'http://localhost:5181')).toBe('https://example.test/embed');
+    expect(webUrl('http://localhost:5186/embed', 'http://localhost:5181')).toBe('http://localhost:5186/embed');
+    for (const value of [
+      'http://127.0.0.1/embed', 'http://localhost.evil.test/', 'ftp://example.test/', 'file:///secret',
+      'https://user:pass@example.test/', 'http://tauri.localhost/', 'http://asset.localhost/',
+      'https://tauri.localhost/', 'https://example.test/',
+    ]) expect(webUrl(value, 'https://example.test')).toBeUndefined();
+    expect(webUrl('http://localhost:5181/embed', 'http://localhost:5181')).toBeUndefined();
   });
 });

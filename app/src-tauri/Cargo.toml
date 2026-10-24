@@ -23,8 +23,10 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-persisted-scope = { version = "2", features = ["protocol-asset"] }
+url = "2"
 
 [target.'cfg(windows)'.dependencies]
+webview2-com = "0.39.1"
 windows = { version = "0.62", features = [
   "Foundation",
   "Media_Control",

@@ -46,6 +46,18 @@ duplicate, reorder, move widgets between pages, and undo page edits from the pag
 through empty-gap swipes, the bottom dots, `page.next`/`page.prev`/`page.goto` actions, or optional auto-rotation.
 Navigation is owned by the dashboard runtime and resets to the first page on a fresh launch.
 
+### Media and Web widgets
+Media widgets show URL or picked image, GIF, and video sources. Fit, mute, loop, and auto-advance interval are
+per-widget settings; interval `0` disables auto-advance. The `media.next`, `media.prev`, and `media.goto` actions
+can target this widget or another placed Media widget across pages. Picked files keep their selected paths and
+individual asset grants; deleting or moving a file can make that slide unavailable.
+
+Web widgets accept HTTPS URLs and HTTP URLs whose host is exactly `localhost`. They block credentials, application
+and asset origins, and other HTTP hosts. Zoom ranges from 50% to 200%; refresh `0` disables refresh. Interactive is
+off by default, so tile gestures remain available; turn it on to use the embedded page. The iframe keeps its
+scripts, forms, and popups sandboxed and does not allow top-level navigation. `web.reload` can target this or another
+placed Web widget. Failed or blocked frames show `Unavailable`; page-hidden refresh timers pause.
+
 ### Gestures
 Buttons have separate ordered scenarios for Press, Release, Long press, Long press release, Double tap, Pull up,
 Pull down, Pull left, Pull right, and filtered Events. A short tap runs Press followed by Release. A held pointer

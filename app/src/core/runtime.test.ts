@@ -56,11 +56,13 @@ describe('automation runtime', () => {
       { kind: 'url', value: 'https://example.test/one.png' },
       { kind: 'url', value: 'https://example.test/two.png' },
     ], loop: false } };
+    const web = { ...control(), id: 'web-runtime', type: 'web', options: { url: 'https://example.test', zoom: 100 } };
     const pageA = page('page-1'), pageB = page('page-2');
     settings.deck.pages = [pageA, pageB];
     settings.deck.activePage = pageA.id;
+    pageB.items.push({ id: 'web-runtime-item', control: web.id, x: 0, y: 0, w: 3, h: 2 });
     settings.skinLayouts = { subway: { [pageB.id]: { main: [{ id: 'media-item', control: config.id, x: 0, y: 0, w: 2, h: 2 }] } } };
-    settings.controls = [config];
+    settings.controls = [config, web];
     runtime = new AutomationRuntime();
     runtime.reconcile(settings.controls);
     const saved = serializeSettings();
@@ -77,6 +79,10 @@ describe('automation runtime', () => {
     expect(runtime.contentCommand(config.id, 'goto', 1)).toBe(true);
     expect(runtime.contentCommand(config.id, 'goto', 1)).toBe(false);
     expect(() => runtime!.contentCommand(config.id, 'goto', 2)).toThrow('Media slide is unavailable');
+    expect(runtime.contentCommand(web.id, 'reload')).toBe(true);
+    expect(get(runtime.snapshots).content[web.id]).toEqual({ slide: 0, reload: 1 });
+    expect(runtime.contentCommand(web.id, 'reload')).toBe(true);
+    expect(get(runtime.snapshots).content[web.id]?.reload).toBe(2);
     expect(serializeSettings()).toBe(saved);
 
     config.options.loop = true;

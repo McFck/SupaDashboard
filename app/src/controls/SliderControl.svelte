@@ -1,9 +1,10 @@
 <script lang="ts">
+  import type { Component } from 'svelte';
   // One level slider widget. Its long side is the value axis; swipes across it use the gesture map.
   import { toast } from 'svelte-sonner';
-  import { pullBindingsFor, sliderOrientation, type ControlConfig, type Gesture, type PullSnapshot,
+  import { pullBindingsFor, sliderOrientation, type ControlConfig, type ControlFaceProps, type Gesture, type PullSnapshot,
     type TilePresentation, type Variant } from '../core/controls';
-  import { effectiveVariant } from '../core/button-state';
+  import { effectiveVariant, stateIdAt } from '../core/button-state';
   import { captureRuntimeTrigger, dispatchRuntimePacket, runtimeView } from '../core/runtime.svelte';
   import type { Trigger } from '../core/scenario';
   import type { TriggerPacket } from '../core/scenario-runner';
@@ -15,13 +16,14 @@
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
 
-  let { control, page, compact = false, w = 1, h = 3, pixelWidth, pixelHeight, presentation,
+  let { control, page, compact = false, w = 1, h = 3, pixelWidth, pixelHeight, presentation, face,
     pressFeedbackDisabled = false, itemId }: {
     control: ControlConfig; page?: Page; compact?: boolean; w?: number; h?: number; pixelWidth?: number; pixelHeight?: number;
-    presentation?: TilePresentation; pressFeedbackDisabled?: boolean; itemId?: string;
+    presentation?: TilePresentation; face?: Component<ControlFaceProps>; pressFeedbackDisabled?: boolean; itemId?: string;
   } = $props();
   const manualIndex = $derived(settings.variants[control.id] ?? 0);
-  const current = $derived(effectiveVariant(control, $runtimeView.variables, manualIndex).index);
+  const effective = $derived(effectiveVariant(control, $runtimeView.variables, manualIndex));
+  const current = $derived(effective.index);
   const variant = $derived(control.variants[current] ?? control.variants[0]);
   const volumeTarget = $derived(variant.value?.id === 'volume' ? String(variant.value.args?.target ?? 'system') : null);
   const volumeChannel = $derived(volumeTarget ? findVolumeChannel($volumeChannels, volumeTarget) : null);
@@ -107,10 +109,14 @@
         {#snippet children(v, outgoing, immediate)}
           {@const shown = outgoing ? variant : v}
           {@const resolved = presentationFor(shown)}
+          {@const stateIndex = Math.max(0, control.variants.indexOf(shown))}
           <div data-dashboard-tile class="h-full w-full {compact ? 'px-2 py-2' : 'p-2.5'}">
             {#if outgoing}
               <SliderTrack level={level} {muted} {vertical} {pullBindings} sourceKey={sourceKey}
                 accent={variant.color ?? '#8ea8f0'} icon={variant.icon ?? undefined} label={variant.label}
+                {face} {compact} stateId={stateIdAt(control, stateIndex)} {stateIndex} busy={($runtimeView.busy[control.id] ?? 0) > 0}
+                {pull} pixelWidth={(pixelWidth ?? width) || w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)}
+                pixelHeight={(pixelHeight ?? height) || h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)}
                 presentation={resolved} presentationImmediate={immediate}
                 doubleTap={!!control.scenario?.triggers.doubleTap} onchange={write}
                 onpullstart={() => content?.beginPull()} onpull={p => { pull = p; }}
@@ -121,6 +127,9 @@
             {:else}
               <SliderTrack level={previewLevel(v)} muted={false} {vertical} sourceKey={`preview:${v.id ?? ''}`}
                 accent={v.color ?? '#8ea8f0'} icon={v.icon ?? undefined} label={v.label}
+                {face} {compact} stateId={stateIdAt(control, stateIndex)} {stateIndex} busy={false} pull={null}
+                pixelWidth={(pixelWidth ?? width) || w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)}
+                pixelHeight={(pixelHeight ?? height) || h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)}
                 presentation={resolved} presentationImmediate onchange={() => {}} />
             {/if}
           </div>

@@ -1,7 +1,7 @@
 import type { Component } from 'svelte';
 import type { Readable } from 'svelte/store';
 import type { ActionRef, EventDef, Param } from './registry';
-import type { ControlConfig } from './controls';
+import type { ControlConfig, ControlFaceProps } from './controls';
 import type { Page } from './settings.svelte';
 import type { VariableType, VariableValue } from './variables';
 
@@ -33,7 +33,7 @@ export type SkinRuntimeContext = {
   emitEvent(id: string, parameter?: string, payload?: unknown, ancestry?: { depth: number; listeners: string[] }): Promise<void>;
 };
 export type SkinControlFace = {
-  component: Component<any>;
+  component: Component<ControlFaceProps>;
   sizes?: Record<string, { min: { w: number; h: number }; default: { w: number; h: number }; max?: { w: number; h: number } }>;
 };
 
@@ -53,6 +53,11 @@ export type SkinDef = {
   events?: Omit<EventDef, 'plugin'>[];
   runtime?: (context: SkinRuntimeContext) => void | (() => void);
 };
+
+export function skinFaceFor(skin: SkinDef, typeId: string, defaultFace?: Component<ControlFaceProps>) {
+  if (!defaultFace) return undefined;
+  return skin.controlSkins?.[typeId]?.component ?? defaultFace;
+}
 
 export function validSkinStateValue(type: VariableType, value: unknown) {
   return type === 'boolean' ? typeof value === 'boolean'
