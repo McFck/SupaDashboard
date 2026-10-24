@@ -255,7 +255,8 @@ async fn create_panel(app: AppHandle) -> Result<(), String> {
         .build();
 
     match built {
-        Ok(_) => {
+        Ok(window) => {
+            disable_window_transitions(&window);
             state.creation_succeeded();
             Ok(())
         }
@@ -264,6 +265,33 @@ async fn create_panel(app: AppHandle) -> Result<(), String> {
             Err(format!("could not create control panel: {error}"))
         }
     }
+}
+
+/// Windows fades decorated windows on show/hide; the tray toggle should be instant.
+fn disable_window_transitions(window: &tauri::WebviewWindow) {
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::Graphics::Dwm::{
+            DWMWA_TRANSITIONS_FORCEDISABLED, DwmSetWindowAttribute,
+        };
+        use windows::core::BOOL;
+        let disabled = BOOL(1);
+        // SAFETY: the HWND belongs to the live panel window and the attribute value outlives the call.
+        let result = unsafe {
+            DwmSetWindowAttribute(
+                HWND(hwnd.0 as _),
+                DWMWA_TRANSITIONS_FORCEDISABLED,
+                (&disabled as *const BOOL).cast(),
+                std::mem::size_of::<BOOL>() as u32,
+            )
+        };
+        if let Err(error) = result {
+            log::warn!("could not disable panel transitions: {error}");
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = window;
 }
 
 pub async fn preload_panel(app: AppHandle) -> Result<(), String> {

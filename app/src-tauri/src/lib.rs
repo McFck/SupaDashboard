@@ -74,7 +74,9 @@ pub fn run() {
                         let app = tray.app_handle().clone();
                         // Left click toggles the control panel: a visible panel hides like its close button.
                         if let Some(window) = app.get_webview_window("panel") {
-                            if window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false) {
+                            if window.is_visible().unwrap_or(false)
+                                && !window.is_minimized().unwrap_or(false)
+                            {
                                 app.state::<panel::PanelState>().close_requested();
                                 let _ = window.hide();
                                 return;
