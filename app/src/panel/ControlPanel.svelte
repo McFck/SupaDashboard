@@ -96,7 +96,7 @@
       class="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize touch-none bg-transparent outline-none hover:bg-primary/35 focus-visible:bg-primary/35"></button>
   </nav>
   <main class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-    <div class="absolute inset-2 min-h-0 min-w-0 overflow-hidden rounded-xl border border-[#262626] bg-[#171717]">
+    <div class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl border-l border-t border-[#262626] bg-[#171717]">
       <div class="absolute inset-0 min-h-0 min-w-0" style:display={page === 'layout' ? undefined : 'none'} class:pointer-events-none={page !== 'layout'}
         inert={page !== 'layout'} aria-hidden={page !== 'layout'}>
         <LayoutPage active={page === 'layout'} />

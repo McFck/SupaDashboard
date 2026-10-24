@@ -357,20 +357,18 @@
           <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">{settings.display.background.radius}px</span>
         </div></Row>
       </Section>
-      <Section>
+      <Section title="Grid">
         <Row label="Auto fit" for="auto-fit"><Switch id="auto-fit" checked={page.sizing === 'auto'} onCheckedChange={setSizing} /></Row>
+        {#each [{ k: 'rows', label: 'Rows', min: 1, max: 8 }, { k: 'cols', label: 'Columns', min: 1, max: 14 },
+          ...(page.sizing === 'manual' ? [{ k: 'size', label: 'Cell size', min: 60, max: 240, unit: 'px' }] : []),
+          { k: 'gap', label: 'Gap', min: 0, max: 40, unit: 'px' }] as s (s.k)}
+          {@const key = s.k as 'rows' | 'cols' | 'size' | 'gap'}
+          <Row label={s.label}><div class="flex w-44 items-center gap-3">
+            <Slider type="single" class="min-w-0 flex-1" value={page[key]} min={s.min} max={s.max} step={1} onValueChange={v => setGrid(key, v)} onValueCommit={() => commitGrid(key)} />
+            <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">{page[key]}{s.unit ?? ''}</span>
+          </div></Row>
+        {/each}
       </Section>
-      <div class="grid gap-6">
-      {#each [{ k: 'rows', label: 'Rows', min: 1, max: 8 }, { k: 'cols', label: 'Columns', min: 1, max: 14 },
-        ...(page.sizing === 'manual' ? [{ k: 'size', label: 'Cell size', min: 60, max: 240, unit: 'px' }] : []),
-        { k: 'gap', label: 'Gap', min: 0, max: 40, unit: 'px' }] as s (s.k)}
-        {@const key = s.k as 'rows' | 'cols' | 'size' | 'gap'}
-        <div class="grid gap-3">
-          <div class="flex justify-between text-sm"><Label>{s.label}</Label><span class="tabular-nums text-muted-foreground">{page[key]}{s.unit ?? ''}</span></div>
-          <Slider type="single" value={page[key]} min={s.min} max={s.max} step={1} onValueChange={v => setGrid(key, v)} onValueCommit={() => commitGrid(key)} />
-        </div>
-      {/each}
-      </div>
     </div>
   {:else}
     <header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4"><p class="flex-1 font-semibold">{targetSlot?.id ?? 'Slot'}</p><Button size="icon-sm" variant="ghost" aria-label="Close inspector" onclick={onclose}><X /></Button></header>
