@@ -18,7 +18,7 @@
 </script>
 
 {#if title}
-  <span class="sr-only">Plugin: {title}</span>
+  <span class="sr-only">Plugin · {title}</span>
   <Tooltip.Root>
     <Tooltip.Trigger>
       {#snippet child({ props })}
@@ -27,6 +27,6 @@
         </span>
       {/snippet}
     </Tooltip.Trigger>
-    <Tooltip.Content>{title}</Tooltip.Content>
+    <Tooltip.Content class="bg-popover text-popover-foreground ring-1 ring-border" arrowClasses="bg-popover fill-popover">Plugin · {title}</Tooltip.Content>
   </Tooltip.Root>
 {/if}
