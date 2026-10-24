@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { flip } from 'svelte/animate';
+  import { onDestroy, tick } from 'svelte';
   import { prefersReducedMotion } from 'svelte/motion';
+  import { sortable } from '$lib/sortable';
   import ArrowDown from '@lucide/svelte/icons/arrow-down';
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
   import GripVertical from '@lucide/svelte/icons/grip-vertical';
@@ -11,7 +12,7 @@
   import { Label } from '$lib/components/ui/label';
   import { actions } from '../core/registry';
   import { runtimeView } from '../core/runtime.svelte';
-  import { newScenarioId, type ActionStep, type Predicate, type Scalar } from '../core/scenario';
+  import { newScenarioId, type ActionStep, type Predicate } from '../core/scenario';
   import ConditionEditor from './ConditionEditor.svelte';
   import ScenarioSteps from './ScenarioSteps.svelte';
   import ActionPicker from './ActionPicker.svelte';
@@ -27,42 +28,101 @@
   const steps = $derived(scenarioStepsAt(draft.scenario, path));
   const listKey = $derived(scenarioPathKey(path));
   const totalNodes = $derived(scenarioNodeCount(draft.scenario));
-  const atLimit = $derived(depth >= 16 || totalNodes >= 1000);
-  const addKey = $derived(`${listKey}:add`);
-  let adding = $state(false);
-  let addingAction = $state(false);
+  const atLimit = $derived(depth > 16 || totalNodes >= 1000);
   let listNode = $state<HTMLElement>();
-  let drag = $state<{ id: string; pointerId: number; startY: number; destination: number; node: HTMLElement;
-    midpoints: number[] } | null>(null);
+  let pickerOpener: HTMLElement | null = null;
+  let pickerRowId = '';
+  let pickerAbove = $state(false);
+  let pickerHeight = $state(360);
+  let highlightedId = $state('');
+  let highlightTimer: ReturnType<typeof setTimeout>;
+  const layoutAnimations = new Map<HTMLElement, Animation>();
+  const rows = () => [...listNode?.querySelectorAll<HTMLElement>(':scope > [data-step-row]') ?? []];
+  const addKey = (index: number) => `${listKey}:add:${index}`;
+  const replaceKey = (id: string) => `${listKey}:replace:${id}`;
 
-  function updateScenario(scenario: ScenarioDraft['scenario']) { onchange({ ...draft, scenario }); }
-  function addAction(id: string) {
+  async function changeLayout(change: () => void) {
+    const cards = [...listNode?.closest('[role="tabpanel"]')?.querySelectorAll<HTMLElement>('[data-step-row]') ?? []];
+    const scroll = listNode ? scrollParent(listNode) : undefined;
+    const before = cards.map(node => ({ node, y: node.getBoundingClientRect().top + (scroll?.scrollTop ?? 0) }));
+    for (const node of cards) layoutAnimations.get(node)?.cancel();
+    change();
+    await tick();
+    if (prefersReducedMotion.current) return;
+    const deltas = new Map(before.filter(({ node }) => node.isConnected).map(({ node, y }) =>
+      [node, y - node.getBoundingClientRect().top - (scroll?.scrollTop ?? 0)]));
+    for (const [node, delta] of deltas) {
+      // A nested list inherits its parent card's translation; animate only its own displacement.
+      const parent = node.parentElement?.closest<HTMLElement>('[data-step-row]');
+      const y = delta - (parent ? deltas.get(parent) ?? 0 : 0);
+      if (!y) continue;
+      const animation = node.animate([{ transform: `translateY(${y}px)` }, { transform: 'translateY(0px)' }],
+        { duration: 180, easing: 'ease-out' });
+      layoutAnimations.set(node, animation);
+      const finished = () => { if (layoutAnimations.get(node) === animation) layoutAnimations.delete(node); };
+      void animation.finished.then(finished, finished);
+    }
+  }
+  function updateScenario(scenario: ScenarioDraft['scenario']) { void changeLayout(() => onchange({ ...draft, scenario })); }
+  function actionStep(id: string): ActionStep {
     const definition = actions.get(id);
     const args = Object.fromEntries((definition?.params ?? []).filter(param => param.default !== undefined)
       .map(param => [param.key, structuredClone(param.default)]));
-    updateScenario(insertScenarioStep(draft.scenario, path, { id: newScenarioId(), kind: 'action', action: { id, args } }));
-    adding = false;
-    addingAction = false;
-    onpickerchange(null);
+    return { id: newScenarioId(), kind: 'action', action: { id, args } };
   }
-  function replaceAction(stepId: string, id: string) {
-    const definition = actions.get(id);
-    const args = Object.fromEntries((definition?.params ?? []).filter(param => param.default !== undefined)
-      .map(param => [param.key, structuredClone(param.default)]));
-    updateScenario(replaceScenarioStep(draft.scenario, path, stepId,
-      { id: stepId, kind: 'action', action: { id, args } }));
-    onpickerchange(null);
+  async function chooseStep(step: ActionStep, index: number, current?: ActionStep) {
+    // Picking the current action must preserve its arguments and nested branches.
+    if (current && (current.kind === step.kind && (current.kind !== 'action' ||
+      step.kind === 'action' && current.action.id === step.action.id))) { closePicker(); return; }
+    highlightedId = current?.id ?? step.id;
+    await changeLayout(() => {
+      onchange({ ...draft, scenario: current ? replaceScenarioStep(draft.scenario, path, current.id, step)
+        : insertScenarioStep(draft.scenario, path, step, index) });
+      if (current) onpickerchange(null);
+    });
+    const node = rows().find(row => row.dataset.stepId === highlightedId);
+    if (!current) node?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    node?.focus({ preventScroll: true });
+    if (!current) onpickerchange(null);
+    clearTimeout(highlightTimer);
+    highlightTimer = setTimeout(() => highlightedId = '', 1000);
   }
-  function addWait() {
-    updateScenario(insertScenarioStep(draft.scenario, path, { id: newScenarioId(), kind: 'delay', ms: 200 }));
-    adding = false;
-    onpickerchange(null);
-  }
-  function addCondition() {
+  function waitStep(): ActionStep { return { id: newScenarioId(), kind: 'delay', ms: 200 }; }
+  function conditionStep(): ActionStep {
     const condition: Predicate = { kind: 'compare', left: { kind: 'literal', value: '' }, op: 'eq', right: { kind: 'literal', value: true } };
-    updateScenario(insertScenarioStep(draft.scenario, path, { id: newScenarioId(), kind: 'if', condition, then: [], else: [] }));
-    adding = false;
-    onpickerchange(null);
+    return { id: newScenarioId(), kind: 'if', condition, then: [], else: [] };
+  }
+  async function closePicker() {
+    await changeLayout(() => onpickerchange(null));
+    const target = pickerRowId ? rows().find(row => row.dataset.stepId === pickerRowId)?.querySelector<HTMLElement>('[data-step-change]') : pickerOpener;
+    if (target?.isConnected) target.focus({ preventScroll: true });
+  }
+  async function openPicker(event: MouseEvent, key: string) {
+    pickerOpener = event.currentTarget as HTMLElement;
+    pickerRowId = key.includes(':replace:') ? pickerOpener.closest<HTMLElement>('[data-step-row]')?.dataset.stepId ?? '' : '';
+    pickerOpener.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    const rect = pickerOpener.getBoundingClientRect();
+    const viewport = scrollParent(pickerOpener).getBoundingClientRect();
+    const above = rect.top - viewport.top - 8, below = viewport.bottom - rect.bottom - 8;
+    pickerAbove = below < 300 && above > below;
+    pickerHeight = Math.max(140, Math.min(360, pickerAbove ? above : below));
+    await changeLayout(() => onpickerchange(key));
+    listNode?.parentElement?.querySelector<HTMLInputElement>('[data-step-picker] input')?.focus({ preventScroll: true });
+  }
+  function scrollParent(node: HTMLElement) {
+    let parent = node.parentElement;
+    while (parent && !/(auto|scroll)/.test(getComputedStyle(parent).overflowY)) parent = parent.parentElement;
+    return parent ?? document.documentElement;
+  }
+  function stepEnter(_node: Element, { id }: { id: string }) {
+    return { duration: prefersReducedMotion.current || highlightedId !== id ? 0 : 180,
+      css: (t: number) => `opacity: ${t}; transform: translateY(${6 * (1 - t)}px)` };
+  }
+  function bodyFade(node: HTMLElement, { out = false }: { out?: boolean } = {}) {
+    // Remove the old body from flow before FLIP measures the new layout, not on the next animation frame.
+    if (out) { node.style.position = 'absolute'; node.style.inset = '0'; node.style.pointerEvents = 'none'; }
+    return { duration: prefersReducedMotion.current ? 0 : 120,
+      css: (t: number) => `opacity: ${t}` };
   }
   function updateAction(stepId: string, ref: { id: string; args?: Record<string, unknown> }) {
     const step = steps.find(value => value.id === stepId);
@@ -94,49 +154,61 @@
     const destination = Math.max(0, Math.min(steps.length - 1, index + amount));
     if (index >= 0 && index !== destination) updateScenario(moveScenarioStep(draft.scenario, path, stepId, destination));
   }
-  function beginDrag(event: PointerEvent, stepId: string) {
-    if (event.button !== 0 || !listNode) return;
-    event.preventDefault();
-    const handle = event.currentTarget as HTMLElement;
-    handle.setPointerCapture(event.pointerId);
-    const rows = [...listNode.querySelectorAll<HTMLElement>(':scope > [data-step-row]')];
-    const node = rows.find(row => row.dataset.stepId === stepId);
-    if (!node) return;
-    drag = { id: stepId, pointerId: event.pointerId, startY: event.clientY, destination: steps.findIndex(step => step.id === stepId),
-      node, midpoints: rows.map(row => { const rect = row.getBoundingClientRect(); return rect.top + rect.height / 2; }) };
+  function reorder(from: number, to: number) {
+    const step = steps[from];
+    if (step) onchange({ ...draft, scenario: moveScenarioStep(draft.scenario, path, step.id, to) });
   }
-  function moveDrag(event: PointerEvent) {
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    drag.destination = drag.midpoints.findIndex(midpoint => event.clientY < midpoint);
-    if (drag.destination < 0) drag.destination = drag.midpoints.length - 1;
-    drag.node.style.transform = `translateY(${event.clientY - drag.startY}px)`;
-  }
-  function finishDrag(event: PointerEvent) {
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const current = drag;
-    current.node.style.transform = '';
-    drag = null;
-    if (current.destination !== steps.findIndex(step => step.id === current.id))
-      updateScenario(moveScenarioStep(draft.scenario, path, current.id, current.destination));
-  }
-  function cancelDrag(event?: PointerEvent) {
-    if (!drag || event && drag.pointerId !== event.pointerId) return;
-    drag.node.style.transform = '';
-    drag = null;
+  onDestroy(() => {
+    clearTimeout(highlightTimer);
+    for (const animation of layoutAnimations.values()) animation.cancel();
+  });
+  function pickerKeyboard(event: KeyboardEvent) {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closePicker(); }
   }
 </script>
 
-<div role="list" class="grid min-w-0 gap-2" onpointermove={moveDrag} onpointerup={finishDrag} onpointercancel={cancelDrag}>
-  <div bind:this={listNode} class="grid min-w-0 gap-2">
+{#snippet stepPicker(index: number, current?: ActionStep)}
+  <div data-step-picker role="dialog" tabindex="-1" aria-label={current ? 'Change step' : 'Add step'} onkeydown={pickerKeyboard}
+    class="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-3 shadow-lg [scrollbar-gutter:stable]"
+    style:height={`${pickerHeight}px`}>
+    <div class="flex shrink-0 flex-wrap items-center gap-1">
+      <span class="mr-auto text-xs font-semibold">{current ? 'Change step' : 'Add step'}</span>
+      <Button size="sm" variant={current?.kind === 'action' || !current ? 'secondary' : 'ghost'}
+        onclick={event => event.currentTarget.closest('[data-step-picker]')?.querySelector('input')?.focus()}>Action</Button>
+      <Button size="sm" variant={current?.kind === 'delay' ? 'secondary' : 'ghost'} onclick={() => chooseStep(waitStep(), index, current)}>Wait</Button>
+      <Button size="sm" variant={current?.kind === 'if' ? 'secondary' : 'ghost'} disabled={depth >= 16}
+        onclick={() => chooseStep(conditionStep(), index, current)}>Condition</Button>
+      <Button size="sm" variant="ghost" aria-label="Close step picker" onclick={closePicker}>Close</Button>
+    </div>
+    <ActionPicker inline value={current?.kind === 'action' ? current.action.id : ''} onpick={id => chooseStep(actionStep(id), index, current)} />
+  </div>
+{/snippet}
+
+{#snippet insertion(index: number, end = false)}
+  <div data-step-insert class={end ? 'relative' : 'absolute inset-x-0 -top-8 h-7'}>
+    <Button variant={end ? 'outline' : 'ghost'} size="sm" class={end ? 'w-full border-dashed' : 'h-6 w-full text-xs text-muted-foreground'}
+      disabled={atLimit} aria-label={end ? 'Add step' : `Insert step before step ${index + 1}`}
+      aria-expanded={pickerKey === addKey(index)} onclick={event => openPicker(event, addKey(index))}>
+      <Plus />{end ? 'Add step' : 'Insert here'}
+    </Button>
+    {#if pickerKey === addKey(index)}
+      <div class="absolute inset-x-0 z-30 {pickerAbove ? 'bottom-full mb-1' : 'top-full mt-1'}">{@render stepPicker(index)}</div>
+    {/if}
+  </div>
+{/snippet}
+
+<div class="grid min-w-0 gap-3">
+  <div bind:this={listNode} use:sortable={{ axis: 'y', items: rows, handle: '[data-step-handle]', enabled: !pickerKey, onmove: reorder }}
+    role="list" aria-label="Scenario steps" class="grid min-w-0 gap-9 {steps.length ? 'pt-8' : ''}">
     {#each steps as step, index (step.id)}
       {@const suggestedVariableId = bindingSuggestion(step)}
       {@const suggestedVariable = suggestedVariableId ? $runtimeView.variables.records[suggestedVariableId] : undefined}
-      <div data-step-row data-step-id={step.id} animate:flip={{ duration: prefersReducedMotion.current ? 0 : 180 }}
-        class="grid min-w-0 gap-3 rounded-xl border bg-card p-3">
+      <div data-step-row data-step-id={step.id} role="listitem" tabindex="-1" in:stepEnter={{ id: step.id }}
+        class="relative grid min-w-0 gap-3 rounded-xl border bg-card p-3 outline-none data-sortable-active:shadow-lg data-sortable-active:ring-1 data-sortable-active:ring-ring/40 {highlightedId === step.id ? 'ring-2 ring-ring/60' : ''}">
+        {@render insertion(index)}
         <div class="flex min-w-0 items-center gap-2">
-          <button type="button" aria-label="Reorder step" disabled={steps.length < 2}
+          <button data-step-handle type="button" aria-label="Reorder step" disabled={steps.length < 2 || !!pickerKey}
             class="grid size-8 shrink-0 touch-none place-items-center rounded text-muted-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-40"
-            onpointerdown={event => beginDrag(event, step.id)}
             onkeydown={event => { if (event.key === 'ArrowUp') { event.preventDefault(); move(step.id, -1); }
               if (event.key === 'ArrowDown') { event.preventDefault(); move(step.id, 1); } }}><GripVertical class="size-4" /></button>
           <span class="min-w-0 flex-1 truncate text-sm font-medium">
@@ -150,9 +222,12 @@
           <Button size="icon-sm" variant="ghost" aria-label="Remove step" onclick={() => updateScenario(removeScenarioStep(draft.scenario, path, step.id))}><Trash /></Button>
         </div>
 
-        {#if pickerKey === `${listKey}:replace:${step.id}` && step.kind === 'action'}
-          <ActionPicker inline value={step.action.id} onpick={id => replaceAction(step.id, id)} />
-        {:else if pickerKey !== `${listKey}:add`}
+        <div class="relative min-w-0">
+        {#key pickerKey === replaceKey(step.id) ? 'picker' : step.kind === 'action' ? step.action.id : step.kind}
+        <div class="grid min-w-0 gap-3" in:bodyFade out:bodyFade={{ out: true }}>
+        {#if pickerKey === replaceKey(step.id)}
+          {@render stepPicker(index, step)}
+        {:else}
           {#if step.kind === 'action'}
             {#if actions.has(step.action.id)}
               <div class="grid gap-3 border-l-2 border-white/10 pl-3">
@@ -181,8 +256,8 @@
                 path={{ ...path, branches: [...(path.branches ?? []), { stepId: step.id, arm: 'else' }] }} />
             </div>
           {/if}
+          <Button data-step-change variant="outline" size="sm" class="w-fit" onclick={event => openPicker(event, replaceKey(step.id))}>{step.kind === 'action' ? 'Replace action' : 'Change step'}</Button>
           {#if step.kind === 'action'}
-            <Button variant="outline" size="sm" class="w-fit" onclick={() => onpickerchange(`${listKey}:replace:${step.id}`)}>Replace action</Button>
             {#if suggestedVariable}
               <Button variant="outline" size="sm" class="w-fit" onclick={() => bindVariable(suggestedVariableId!)}>
                 Bind {suggestedVariable.definition.name} to state <PluginMark plugin={suggestedVariable.definition.owner} />
@@ -190,23 +265,16 @@
             {/if}
           {/if}
         {/if}
+        </div>
+        {/key}
+        </div>
       </div>
     {/each}
   </div>
 
-  {#if pickerKey === addKey}
-    <div class="grid min-w-0 gap-3 p-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <Button variant={addingAction ? 'secondary' : 'outline'} size="default" onclick={() => addingAction = true}><Plus /> Action</Button>
-        <Button variant="outline" size="default" onclick={addWait}>Wait</Button>
-        <Button variant="outline" size="default" onclick={addCondition}>Condition</Button>
-        <Button variant="ghost" size="default" class="ml-auto" aria-label="Close step picker" onclick={() => { adding = false; onpickerchange(null); }}>Close</Button>
-      </div>
-      {#if addingAction}<ActionPicker inline value="" onpick={addAction} />{/if}
-    </div>
-  {:else}
-    <Button variant="outline" size="sm" class="w-fit" disabled={atLimit} onclick={() => { adding = true; addingAction = false; onpickerchange(addKey); }}>
-      <Plus /> Add step
-    </Button>
-  {/if}
+  {@render insertion(steps.length, true)}
 </div>
+
+<style>
+  :global([data-sorting]) [data-step-insert] { visibility: hidden; }
+</style>

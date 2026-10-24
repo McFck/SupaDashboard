@@ -19,7 +19,7 @@
   import { splitAlpha, withAlpha } from '../core/palette';
   import { registeredEvents } from '../core/registry';
   import { controlById, settings } from '../core/settings.svelte';
-  import { addPage as buildPage, deletePage as buildDeletePage, duplicatePage as buildDuplicatePage,
+  import { addPage as buildPage, deletePage as buildDeletePage, duplicatePage as buildDuplicatePage, MAX_PAGES,
     movePlacement, pageAfterRemoval, pageById, pageItems, removePlacement, renamePage as buildRenamePage, reorderPage as buildReorderPage } from '../core/pages';
   import ColorField from '../editor/ColorField.svelte';
   import ScenarioEditor from '../editor/ScenarioEditor.svelte';
@@ -157,6 +157,7 @@
   }
   function closeMoveDialog() { moveDialogOpen = false; moveRequest = null; }
   function addPage() {
+    if (settings.deck.pages.length >= MAX_PAGES) return;
     const result = buildPage(settings.deck.pages, settings.controls, page.id);
     if (!result) return;
     commit('Add page');
@@ -172,6 +173,7 @@
     return true;
   }
   function duplicatePage(pageId: string) {
+    if (settings.deck.pages.length >= MAX_PAGES) return;
     const result = buildDuplicatePage(settings.deck.pages, pageId, settings.controls, settings.variants);
     if (!result) { toast.error('Unable to duplicate page'); return; }
     commit('Duplicate page');
@@ -239,6 +241,33 @@
       delete settings.variants[result.orphanControl];
     }
     if (selection && 'item' in selection && selection.item === id) selection = null;
+  }
+  async function removeItemFromPage(id: string, pageId: string) {
+    const source = settings.deck.pages.find(candidate => candidate.id === pageId);
+    const item = source?.items.find(candidate => candidate.id === id);
+    if (!item) return;
+    const name = controlById(item.control)?.name ?? 'widget';
+    await animateRemoval(id);
+    if (!settings.deck.pages.find(candidate => candidate.id === pageId)?.items.some(entry => entry.id === id)) return;
+    commit(`Delete ${name}`);
+    remove(id, pageId);
+  }
+  function deleteKeydown(event: KeyboardEvent) {
+    if (!active || event.key !== 'Delete' || event.defaultPrevented || event.repeat || event.altKey || event.ctrlKey || event.metaKey ||
+      menuOpen || moveDialogOpen || scenarioOpen) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select, [role="textbox"], [role="dialog"], [role="alertdialog"]'))) return;
+    const itemId = selection && 'item' in selection ? selection.item : undefined;
+    if (itemId) {
+      event.preventDefault();
+      void removeItemFromPage(itemId, page.id);
+      return;
+    }
+    const focusedTab = document.activeElement instanceof HTMLElement && document.activeElement.matches('[data-page-tab][aria-selected="true"]');
+    if (focusedTab && settings.deck.pages.length > 1) {
+      event.preventDefault();
+      void deletePage(selectedPageId);
+    }
   }
   function insert(copy: WidgetCopy, target: NonNullable<Selection>, pageId: string, replace = false) {
     const targetPage = settings.deck.pages.find(candidate => candidate.id === pageId);
@@ -324,17 +353,13 @@
         commit(`Duplicate ${control.name}`); result.control.name += ' copy'; settings.controls.push(result.control); sourcePage.items.push(result.item); select({ item: result.item.id });
       } },
       { label: 'Delete', danger: true, run: async () => {
-        const id = item.id, name = control.name;
-        await animateRemoval(id);
-        if (page.id !== pageId || !settings.deck.pages.find(candidate => candidate.id === pageId)?.items.some(entry => entry.id === id)) return;
-        commit(`Delete ${name}`);
-        remove(id, pageId);
+        await removeItemFromPage(item.id, pageId);
       } },
     ];
   }
 </script>
 
-<svelte:window onpointermove={moveResize} onpointerup={stopResize} onpointercancel={stopResize} onblur={stopResize} />
+<svelte:window onkeydown={deleteKeydown} onpointermove={moveResize} onpointerup={stopResize} onpointercancel={stopResize} onblur={stopResize} />
 <div class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
   <header class="flex h-16 shrink-0 items-center justify-between gap-3 border-b px-5">
     <h1 class="text-xl font-semibold tracking-tight">Layout</h1>

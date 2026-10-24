@@ -17,6 +17,13 @@ const root: StepListPath = { kind: 'trigger', trigger: 'press' };
 const thenPath: StepListPath = { ...root, branches: [{ stepId: 'if-1', arm: 'then' }] };
 
 describe('scenario draft tree edits', () => {
+  it('inserts at the requested position inside a branch without touching siblings', () => {
+    const next = insertScenarioStep(control.scenario!, thenPath, { id: 'inserted', kind: 'delay', ms: 20 }, 0);
+    const parent = next.triggers.press!.steps[0];
+    expect(parent.kind === 'if' && parent.then.map(step => step.id)).toEqual(['inserted', 'then-1']);
+    expect(parent.kind === 'if' && parent.else).toEqual([{ id: 'else-1', kind: 'delay', ms: 200 }]);
+    expect(() => insertScenarioStep(control.scenario!, root, { id: 'bad', kind: 'delay', ms: 0 }, 3)).toThrow(/position/);
+  });
   it('reorders siblings without changing ids or step contents', () => {
     const next = moveScenarioStep(control.scenario!, root, 'tail', 0);
     expect(next.triggers.press?.steps.map(step => step.id)).toEqual(['tail', 'if-1']);

@@ -3,6 +3,7 @@ import { firstFree, fits } from './layout';
 import type { ControlConfig } from './controls';
 import type { Page, Settings } from './settings.svelte';
 
+export const MAX_PAGES = 10;
 export type PageChange = { pages: Page[] };
 export type PageDeckChange = PageChange & { controls: ControlConfig[]; variants: Settings['variants'] };
 const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -25,6 +26,7 @@ function allIds(pages: readonly Page[], controls: readonly ControlConfig[]) {
 }
 
 export function addPage(pages: readonly Page[], controls: readonly ControlConfig[], sourcePageId?: string) {
+  if (pages.length >= MAX_PAGES) return undefined;
   const source = pageById(pages, sourcePageId);
   if (!source) return undefined;
   const id = newGlobalId('page', allIds(pages, controls));
@@ -41,6 +43,7 @@ export function renamePage(pages: readonly Page[], pageId: string, name: string)
 }
 
 export function duplicatePage(pages: readonly Page[], pageId: string, controls: readonly ControlConfig[], variants: Settings['variants']) {
+  if (pages.length >= MAX_PAGES) return undefined;
   const source = pages.find(page => page.id === pageId);
   if (!source) return undefined;
   const sourceControls = new Map(controls.map(control => [control.id, control]));

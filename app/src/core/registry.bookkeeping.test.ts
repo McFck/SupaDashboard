@@ -101,6 +101,7 @@ describe('plugin bookkeeping', () => {
   it('passes media-source and variable owners through core parameter suggestions', async () => {
     const registry = await import('./registry');
     const { corePlugin } = await import('../plugins/core');
+    const { settings, DEFAULTS } = await import('./settings.svelte');
     registry.install(corePlugin);
     registry.install({ id: 'fixture-provider', title: 'Fixture Provider', setup: api => {
       api.registerMediaSource({ id: 'fixture-provider.media', title: 'Fixture media', command: async () => {} });
@@ -114,5 +115,21 @@ describe('plugin bookkeeping', () => {
       .toBe('fixture-provider');
     expect(registry.suggestionsOf(variableParam!)?.find(option => option.value === 'fixture-provider.count')?.plugin)
       .toBe('fixture-provider');
+
+    settings.deck.pages = [{ ...structuredClone(DEFAULTS.deck.pages[0]), id: 'page-alpha', name: 'Alpha' },
+      { ...structuredClone(DEFAULTS.deck.pages[0]), id: 'page-beta', name: 'Beta' }];
+    const gotoParam = registry.actions.get('page.goto')?.params?.[0];
+    expect(registry.suggestionsOf(gotoParam!)).toEqual([
+      { value: 'page-alpha', label: 'Alpha' }, { value: 'page-beta', label: 'Beta' },
+    ]);
+    const pageEvent = registry.registeredEvents().find(event => event.id === 'page.changed');
+    expect(pageEvent?.title).toBe('Page changed');
+    expect((pageEvent?.parameterSuggestions as () => { value: string; label: string }[])()).toEqual([
+      { value: 'page-alpha', label: 'Alpha' }, { value: 'page-beta', label: 'Beta' },
+    ]);
+    settings.deck.pages[0].name = 'Renamed alpha';
+    expect((gotoParam?.suggestions as () => { value: string; label: string }[])()).toEqual([
+      { value: 'page-alpha', label: 'Renamed alpha' }, { value: 'page-beta', label: 'Beta' },
+    ]);
   });
 });

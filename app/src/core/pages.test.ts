@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ControlConfig } from './controls';
 import { DEFAULTS } from './settings.svelte';
-import { addPage, deletePage, duplicatePage, hasPlacement, movePlacement, pageAfterRemoval, pageById, pageItems,
+import { addPage, deletePage, duplicatePage, hasPlacement, MAX_PAGES, movePlacement, pageAfterRemoval, pageById, pageItems,
   placementById, removePlacement, renamePage, reorderPage } from './pages';
 
 const control = (id: string, target = 'self'): ControlConfig => ({
@@ -37,6 +37,14 @@ describe('page helpers', () => {
     expect(added.page).toMatchObject({ name: 'Page 3', rows: 9, cols: 7, gap: 20, items: [] });
     expect(added.page.id).toMatch(/^page-/);
     expect(added.pages.map(p => p.id)).toEqual([custom.id, existing.id, added.page.id]);
+  });
+
+  it('limits add and duplicate to ten pages', () => {
+    const pages = Array.from({ length: MAX_PAGES }, (_, index) => page(`limit-${index}`));
+    expect(addPage(pages.slice(0, -1), [], pages[0].id)?.pages).toHaveLength(MAX_PAGES);
+    expect(duplicatePage(pages.slice(0, -1), pages[0].id, [], {})?.pages).toHaveLength(MAX_PAGES);
+    expect(addPage(pages, [], pages[0].id)).toBeUndefined();
+    expect(duplicatePage(pages, pages[0].id, [], {})).toBeUndefined();
   });
 
   it('trims rename values, allows duplicate names, and reorders without changing stable IDs', () => {

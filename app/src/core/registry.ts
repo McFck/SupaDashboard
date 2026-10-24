@@ -1,7 +1,7 @@
 // Extension points. Built-in features register through exactly the same API as plugins.
 import type { Component } from 'svelte';
 import type { ControlConfig } from './controls';
-import type { Page } from './settings.svelte';
+import { settings, type Page } from './settings.svelte';
 import type { ActionStep, Trigger } from './scenario';
 import { VariableStore, type VariableDefinition, type VariableRecord, type VariableValue } from './variables';
 import { get, writable } from 'svelte/store';
@@ -151,7 +151,10 @@ export function registeredEvents(variables: readonly VariableRecord[] = variable
     label: `${record.definition.available === false ? 'Unavailable · ' : ''}${record.definition.name}`,
     plugin: record.definition.owner,
   })) };
-  return [core, ...[...eventDefinitions.values()].filter(event => event.id !== core.id)].map(event => ({ ...event,
+  const pageChanged: EventDef = { id: 'page.changed', title: 'Page changed', parameterSuggestions: () => settings.deck.pages.map(page => ({
+    value: page.id, label: page.name,
+  })) };
+  return [core, pageChanged, ...[...eventDefinitions.values()].filter(event => event.id !== core.id && event.id !== pageChanged.id)].map(event => ({ ...event,
     ...(Array.isArray(event.parameterSuggestions) ? { parameterSuggestions: structuredClone(event.parameterSuggestions) } : {}) }));
 }
 export type RegistryRuntime = {

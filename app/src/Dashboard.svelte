@@ -8,7 +8,7 @@
   import { skins } from './core/registry';
   import { settings } from './core/settings.svelte';
   import { pageById } from './core/pages';
-  import { runtimeView } from './core/runtime.svelte';
+import { runtimeView, setRuntimeInteraction } from './core/runtime.svelte';
 
   type DisplayRequest = { monitor: string | null; fullscreen: boolean; alwaysOnTop: boolean };
   type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
@@ -131,6 +131,20 @@
 
   onMount(() => {
     disposed = false;
+    const activePointers = new Set<number>();
+    const pointerDown = (event: PointerEvent) => {
+      if (!event.isPrimary || event.button !== 0 || !shell.contains(event.target as Node)) return;
+      activePointers.add(event.pointerId);
+      setRuntimeInteraction(true);
+    };
+    const pointerEnd = (event: PointerEvent) => {
+      if (activePointers.delete(event.pointerId) && !activePointers.size) setRuntimeInteraction(false);
+    };
+    const clearInteractions = () => { activePointers.clear(); setRuntimeInteraction(false); };
+    window.addEventListener('pointerdown', pointerDown, true);
+    window.addEventListener('pointerup', pointerEnd, true);
+    window.addEventListener('pointercancel', pointerEnd, true);
+    window.addEventListener('blur', clearInteractions);
     gapResizeObserver = new ResizeObserver(scheduleDragGapMeasure);
     gapResizeObserver.observe(shell);
     observeGapNodes();
@@ -201,6 +215,11 @@
       cleanupDisplay?.();
       cleanupHover?.();
       cleanupResized?.();
+      window.removeEventListener('pointerdown', pointerDown, true);
+      window.removeEventListener('pointerup', pointerEnd, true);
+      window.removeEventListener('pointercancel', pointerEnd, true);
+      window.removeEventListener('blur', clearInteractions);
+      clearInteractions();
       clearTimeout(resizeQuiet);
       cleanup?.();
     };

@@ -1,6 +1,5 @@
 <script lang="ts">
   // Right-hand panel of the layout editor. Everything edits the live settings, so the dashboard updates as you type.
-  import { onDestroy } from 'svelte';
   import { prefersReducedMotion as reducedMotion } from 'svelte/motion';
   import Copy from '@lucide/svelte/icons/copy';
   import GripVertical from '@lucide/svelte/icons/grip-vertical';
@@ -8,6 +7,7 @@
   import Plus from '@lucide/svelte/icons/plus';
   import Trash from '@lucide/svelte/icons/trash-2';
   import { Button } from '$lib/components/ui/button';
+  import { sortable } from '$lib/sortable';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { Separator } from '$lib/components/ui/separator';
@@ -136,153 +136,21 @@
   }
   const addVariant = () => control!.variants.length < MAX_VARIANTS && control!.variants.push({ ...structuredClone($state.snapshot(control!.variants.at(-1)!)),
     id: newScenarioId(), label: '' } as Variant);
-  type VariantDrag = {
-    controlId: string;
-    variantId: string;
-    pointerId: number;
-    originalOrder: string[];
-    sourceIndex: number;
-    startClientY: number;
-    latestClientY: number;
-    startScrollTop: number;
-    sourceCenter: number;
-    listTop: number;
-    rowCenters: number[];
-    rowBounds: { top: number; bottom: number }[];
-    cards: HTMLElement[];
-    sourceNode: HTMLElement;
-    handle: HTMLButtonElement;
-    destination: number;
-    moved: boolean;
-    raf: number | null;
-  };
-  let draggingVariant = $state<string | null>(null);
   let variantList = $state<HTMLElement>();
-  let inspectorScroll = $state<HTMLElement>();
   let skipVariantFlip = false;
-  const VARIANT_GAP = 12;
-  let variantDrag = $state<VariantDrag | null>(null);
   function variantId(variant: Variant, index: number) { return variant.id ?? `state-${index + 1}`; }
   function reorderVariant(from: number, to: number, label?: string) {
     if (!control) return;
     if (label) commit(label);
     settings.variants[control.id] = moveVariant(control, settings.variants[control.id] ?? 0, from, to);
   }
-  function variantOrderMatches(drag: VariantDrag) {
-    const current = control;
-    return !!current && current.id === drag.controlId && current.variants.length === drag.originalOrder.length &&
-      current.variants.every((variant, index) => variantId(variant, index) === drag.originalOrder[index]);
-  }
-  function cancelVariantDrag() {
-    const current = variantDrag;
-    if (!current) return;
-    if (current.raf !== null) cancelAnimationFrame(current.raf);
-    for (const card of current.cards) { card.style.transition = 'none'; card.style.removeProperty('transform'); }
-    requestAnimationFrame(() => { for (const card of current.cards) card.style.removeProperty('transition'); });
-    variantDrag = null;
-    draggingVariant = null;
-    if (current.handle.hasPointerCapture(current.pointerId)) current.handle.releasePointerCapture(current.pointerId);
-  }
-  function cancelVariantPointer(event: PointerEvent) {
-    if (variantDrag?.pointerId === event.pointerId) cancelVariantDrag();
-  }
-  function paintVariantDrag(current: VariantDrag) {
-    if (!variantOrderMatches(current)) { cancelVariantDrag(); return; }
-    const scrollTop = inspectorScroll?.scrollTop ?? current.startScrollTop;
-    const scrollDelta = scrollTop - current.startScrollTop;
-    const pointerDelta = current.latestClientY - current.startClientY;
-    current.moved ||= Math.abs(pointerDelta) >= 4 || Math.abs(scrollDelta) >= 4;
-    if (!current.moved) return;
-    const bounds = current.rowBounds, source = bounds[current.sourceIndex];
-    // Keep the card inside the list, and slide its neighbours out of the way as soon as it passes their middle.
-    const translation = Math.max(bounds[0].top - source.top, Math.min(bounds.at(-1)!.bottom - source.bottom, pointerDelta + scrollDelta));
-    // Swap as soon as the card's leading edge passes a neighbour's middle.
-    const i = current.sourceIndex;
-    current.destination = translation > 0
-      ? i + current.rowCenters.filter((center, k) => k > i && center < source.bottom + translation).length
-      : i - current.rowCenters.filter((center, k) => k < i && center > source.top + translation).length;
-    current.sourceNode.style.transition = 'none';
-    current.sourceNode.style.transform = `translateY(${translation}px)`;
-    const step = source.bottom - source.top + VARIANT_GAP;
-    current.cards.forEach((card, k) => {
-      if (k === current.sourceIndex) return;
-      const shift = k > current.sourceIndex && k <= current.destination ? -step : k < current.sourceIndex && k >= current.destination ? step : 0;
-      card.style.transform = shift ? `translateY(${shift}px)` : '';
-    });
-    draggingVariant = current.variantId;
-  }
-  function moveVariantDrag(event: PointerEvent) {
-    const current = variantDrag;
-    if (!current || current.pointerId !== event.pointerId) return;
-    current.latestClientY = event.clientY;
-    if (current.raf !== null) return;
-    current.raf = requestAnimationFrame(() => {
-      current.raf = null;
-      if (variantDrag === current) paintVariantDrag(current);
-    });
-  }
-  function beginVariantDrag(event: PointerEvent, variant: Variant, index: number) {
-    if (event.button !== 0 || !control || !variantList || !inspectorScroll) return;
-    const handle = event.currentTarget as HTMLButtonElement;
-    const scroll = inspectorScroll;
-    const cards = [...variantList.querySelectorAll<HTMLElement>('[data-variant-card]')];
-    const rowBounds = cards.map(card => {
-      const rect = card.getBoundingClientRect();
-      return { top: rect.top + scroll.scrollTop, bottom: rect.bottom + scroll.scrollTop };
-    });
-    const sourceId = variantId(variant, index);
-    const sourceNode = cards.find(card => card.dataset.variantId === sourceId);
-    const sourceRect = sourceNode?.getBoundingClientRect();
-    if (!sourceNode || !sourceRect || cards.length !== control.variants.length) return;
-    event.preventDefault();
-    handle.setPointerCapture(event.pointerId);
-    const scrollTop = scroll.scrollTop;
-    variantDrag = {
-      controlId: control.id,
-      variantId: sourceId,
-      pointerId: event.pointerId,
-      originalOrder: control.variants.map(variantId),
-      sourceIndex: index,
-      startClientY: event.clientY,
-      latestClientY: event.clientY,
-      startScrollTop: scrollTop,
-      sourceCenter: sourceRect.top + scrollTop + sourceRect.height / 2,
-      listTop: rowBounds[0].top,
-      rowCenters: rowBounds.map(row => (row.top + row.bottom) / 2),
-      rowBounds,
-      cards,
-      sourceNode,
-      handle,
-      destination: index,
-      moved: false,
-      raf: null,
-    };
-  }
-  function finishVariantDrag(event: PointerEvent) {
-    const current = variantDrag;
-    if (!current || current.pointerId !== event.pointerId) return;
-    if (current.raf !== null) cancelAnimationFrame(current.raf);
-    current.raf = null;
-    current.latestClientY = event.clientY;
-    paintVariantDrag(current);
-    const shouldReorder = variantOrderMatches(current) && current.moved && current.destination !== current.sourceIndex;
-    const from = current.sourceIndex, to = current.destination;
-    // Neighbours already sit in their final slots, so this commit must not FLIP them again.
-    skipVariantFlip = shouldReorder;
-    cancelVariantDrag();
-    if (shouldReorder) reorderVariant(from, to, 'Reorder variants');
+  function variantItems() { return [...(variantList?.querySelectorAll<HTMLElement>('[data-variant-card]') ?? [])]; }
+  function moveVariantAt(from: number, to: number) {
+    if (!control) return;
+    skipVariantFlip = true;
+    reorderVariant(from, to, 'Reorder variants');
     setTimeout(() => { skipVariantFlip = false; }, 50);
   }
-  function handleWindowKeydown(event: KeyboardEvent) {
-    if (event.key !== 'Escape' || !variantDrag) return;
-    event.preventDefault();
-    cancelVariantDrag();
-  }
-  $effect(() => {
-    const current = variantDrag;
-    if (current && !variantOrderMatches(current)) cancelVariantDrag();
-  });
-  onDestroy(cancelVariantDrag);
   function springProgressAt(time: number) {
     const position = Math.max(0, Math.min(1, time)) * (SPRING_SAMPLES.length - 1);
     const index = Math.min(SPRING_SAMPLES.length - 2, Math.floor(position));
@@ -301,7 +169,6 @@
   }
 </script>
 
-<svelte:window onkeydown={handleWindowKeydown} onblur={cancelVariantDrag} />
 <aside class="flex h-full w-full min-w-0 flex-col bg-sidebar">
   {#if control && item && def}
     <header class="flex h-16 shrink-0 items-center gap-3 border-b px-4">
@@ -310,7 +177,7 @@
       <Button size="icon" variant="ghost" aria-label="Duplicate" onclick={duplicate}><Copy /></Button>
       <Button size="icon" variant="ghost" aria-label="Remove" onclick={removeItem}><Trash /></Button>
     </header>
-    <div bind:this={inspectorScroll} class="grid min-h-0 min-w-0 flex-1 content-start gap-5 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
+    <div class="grid min-h-0 min-w-0 flex-1 content-start gap-5 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
       <div class="grid gap-1.5"><Label class="text-xs font-semibold uppercase tracking-wide text-muted-foreground" for="wname">Name</Label><Input id="wname" bind:value={control.name} /></div>
       <div class="grid gap-1.5">
         <Label class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size</Label>
@@ -342,15 +209,13 @@
             <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Variants</h3>
             <Button variant="ghost" size="sm" disabled={control.variants.length >= MAX_VARIANTS} onclick={addVariant}><Plus /> Add</Button>
           </div>
-          <div bind:this={variantList} class="relative grid gap-3">
+          <div bind:this={variantList} use:sortable={{ axis: 'y', items: variantItems, handle: '[data-sort-handle]', onmove: moveVariantAt }} class="relative grid gap-3">
           {#each control.variants as variant, i (variantId(variant, i))}
             <div data-variant-card data-variant-id={variantId(variant, i)} animate:variantFlip
-              class="relative grid min-w-0 gap-3 rounded-xl border bg-card p-3 transition-[transform,box-shadow] duration-200 ease-out {draggingVariant === variantId(variant, i) ? 'z-10 shadow-lg ring-1 ring-white/15' : ''}">
+              class="relative grid min-w-0 gap-3 rounded-xl border bg-card p-3 transition-[transform,box-shadow] duration-200 ease-out">
               <div class="flex items-end gap-2">
                 {#if control.variants.length > 1}
-                  <button type="button" aria-label="Reorder variant" class="mb-2 grid h-6 w-4 shrink-0 cursor-grab touch-none place-items-center rounded text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 active:cursor-grabbing"
-                    onpointerdown={e => beginVariantDrag(e, variant, i)} onpointermove={moveVariantDrag} onpointerup={finishVariantDrag}
-                    onpointercancel={cancelVariantPointer} onlostpointercapture={cancelVariantPointer}
+                  <button type="button" data-sort-handle aria-label="Reorder variant" class="mb-2 grid h-6 w-4 shrink-0 cursor-grab touch-none place-items-center rounded text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 active:cursor-grabbing"
                     onkeydown={e => { const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1; if (to < 0 || to >= control.variants.length) return; e.preventDefault(); reorderVariant(i, to, 'Reorder variants'); }}><GripVertical class="size-4" /></button>
                 {/if}
                 <IconPicker value={variant.icon ?? undefined} onchange={n => (variant.icon = n)} />

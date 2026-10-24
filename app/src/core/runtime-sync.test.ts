@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RuntimeSync, type SyncAdapter, type SyncMessage } from './runtime-sync';
+import { RuntimeSync, validPageChangePayload, type SyncAdapter, type SyncMessage } from './runtime-sync';
 
 function pair() {
   const receivers = new Map<string, (message: SyncMessage) => void>();
@@ -37,6 +37,26 @@ describe('runtime sync protocol', () => {
     panel.close();
   });
 
+  it('accepts only bounded, unambiguous page navigation requests', async () => {
+    const bus = pair(), handler = vi.fn(async request => request.payload);
+    const owner = bus.endpoint('owner', { owner: true, onRequest: handler });
+    const panel = bus.endpoint('panel');
+    await expect(panel.request({ type: 'changePage', payload: { direction: 'next', reason: 'dot' } }))
+      .resolves.toEqual({ direction: 'next', reason: 'dot' });
+    await expect(panel.request({ type: 'changePage', payload: { page: 'page-2', reason: 'swipe' } }))
+      .resolves.toEqual({ page: 'page-2', reason: 'swipe' });
+    for (const payload of [
+      { page: 'page-2', direction: 'next', reason: 'dot' }, { page: 'x'.repeat(129), reason: 'dot' },
+      { page: 'page-2', reason: 'auto' }, { direction: 'sideways', reason: 'swipe' },
+      { direction: 'next', reason: 'dot', extra: true },
+    ]) expect(validPageChangePayload(payload)).toBe(false);
+    await expect(panel.request({ type: 'changePage', payload: { page: 'page-2', direction: 'next', reason: 'dot' } as never }))
+      .rejects.toThrow('Invalid runtime request');
+    expect(handler).toHaveBeenCalledTimes(2);
+    owner.close();
+    panel.close();
+  });
+
   it('deduplicates repeated request IDs and bounds the cache', async () => {
     const bus = pair(), handler = vi.fn(async () => 'ok');
     const owner = bus.endpoint('owner', { owner: true, onRequest: handler });
@@ -44,7 +64,7 @@ describe('runtime sync protocol', () => {
     const senderAdapter: SyncAdapter = { send: message => replies.push(message), close: () => {} };
     const sender = new RuntimeSync('sender', senderAdapter);
     const request: SyncMessage = { kind: 'request', sourceId: 'sender', requestId: 'same', revision: 0,
-      request: { type: 'simulate', payload: { controlId: 'a' } } };
+      request: { type: 'changePage', payload: { page: 'page-two', reason: 'dot' } } };
     owner.receiveMessage(request);
     owner.receiveMessage(request);
     await Promise.resolve();

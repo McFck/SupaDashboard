@@ -11,7 +11,7 @@ import { initVolumeSync } from './core/volume';
 import { followRemovals } from './controls/removal';
 import { attachRuntimeConnection, bootRuntime, receiveRuntimeSnapshot, runtimeView, setRuntimeSync,
   type AutomationRuntime } from './core/runtime.svelte';
-import { browserRuntimeLease, openRuntimeSync, type RuntimeRequest, type RuntimeSync } from './core/runtime-sync';
+import { browserRuntimeLease, openRuntimeSync, validPageChangePayload, type RuntimeRequest, type RuntimeSync } from './core/runtime-sync';
 import { TRIGGERS, type Trigger } from './core/scenario';
 import type { VariableType, VariableValue } from './core/variables';
 import { corePlugin } from './plugins/core';
@@ -49,6 +49,16 @@ function validRecord(value: unknown): value is Record<string, unknown> {
 async function handleRuntimeRequest(runtime: AutomationRuntime, request: RuntimeRequest) {
   const payload = validRecord(request.payload) ? request.payload : {};
   if (request.type === 'snapshot') return get(runtime.snapshots);
+  if (request.type === 'changePage') {
+    const change = request.payload;
+    if (!validPageChangePayload(change)) throw new Error('Invalid page change request');
+    if ('page' in change) {
+      const pageId = change.page;
+      if (!settings.deck.pages.some(page => page.id === pageId)) throw new Error('Page is unavailable');
+      runtime.changePage(pageId, change.reason);
+    } else runtime.changePageInDirection(change.direction, change.reason);
+    return get(runtime.snapshots);
+  }
   if (request.type === 'simulate') {
     const controlId = payload.controlId, trigger = payload.trigger ?? 'press', itemId = payload.itemId ?? '';
     if (typeof controlId !== 'string' || typeof itemId !== 'string' || itemId.length > 128 || !TRIGGERS.includes(trigger as Trigger))

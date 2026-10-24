@@ -8,27 +8,11 @@
   import * as Dialog from '$lib/components/ui/dialog';
   import { Input } from '$lib/components/ui/input';
   import { Hint } from '$lib/components/ui/tooltip';
-  import * as Tabs from '$lib/components/ui/tabs';
-  import { SPRING_SAMPLES, springDuration } from '../core/controls';
+  import { MAX_PAGES } from '../core/pages';
+  import { sortable } from '../lib/sortable';
   import type { Page } from '../core/settings.svelte';
 
-  type PageDrag = {
-    pageId: string;
-    pointerId: number;
-    from: number;
-    destination: number;
-    startX: number;
-    latestX: number;
-    startScroll: number;
-    ids: string[];
-    centers: number[];
-    lefts: number[];
-    widths: number[];
-    buttons: HTMLButtonElement[];
-    source: HTMLButtonElement;
-    moved: boolean;
-    raf: number | null;
-  };
+  type StripPan = { pointerId: number; startX: number; startScroll: number; moved: boolean };
 
   let { pages, selectedPageId = $bindable(), onadd, onreorder, onrename, onduplicate, ondelete, active = true }: {
     pages: Page[]; selectedPageId: string; onadd: () => void; onreorder: (pageId: string, index: number) => void;
@@ -36,129 +20,81 @@
     ondelete: (pageId: string) => void; active?: boolean;
   } = $props();
   let list = $state<HTMLElement | null>(null);
-  let drag = $state<PageDrag | null>(null);
-  let skipClickUntil = 0;
+  let stripPan = $state<StripPan | null>(null);
+  let canScrollLeft = $state(false);
+  let canScrollRight = $state(false);
   let renameOpen = $state(false);
   let renamePageId = $state('');
   let renameDraft = $state('');
   const selected = $derived(pages.find(page => page.id === selectedPageId));
 
-  function orderMatches(current: PageDrag) {
-    return pages.length === current.ids.length && pages.every((page, index) => page.id === current.ids[index]);
+  function updateScrollFade() {
+    if (!list) { canScrollLeft = false; canScrollRight = false; return; }
+    const maximum = Math.max(0, list.scrollWidth - list.clientWidth);
+    canScrollLeft = list.scrollLeft > 1;
+    canScrollRight = list.scrollLeft < maximum - 1;
   }
 
-  function resetStyles(current: PageDrag) {
-    for (const button of current.buttons) {
-      button.style.transition = 'none';
-      button.style.removeProperty('transform');
-    }
-    requestAnimationFrame(() => {
-      for (const button of current.buttons) button.style.removeProperty('transition');
-    });
+  function scrollTabIntoView(pageId: string, pageList = list) {
+    if (!pageList) return;
+    const tab = [...pageList.querySelectorAll<HTMLButtonElement>('[data-page-tab]')]
+      .find(button => button.dataset.pageTab === pageId);
+    if (!tab) return;
+    const listRect = pageList.getBoundingClientRect();
+    const tabRect = tab.getBoundingClientRect();
+    const tabLeft = tabRect.left - listRect.left + pageList.scrollLeft;
+    const tabRight = tabLeft + tabRect.width;
+    const visibleLeft = pageList.scrollLeft;
+    const visibleRight = visibleLeft + pageList.clientWidth;
+    if (tabLeft < visibleLeft) pageList.scrollLeft = Math.max(0, tabLeft);
+    else if (tabRight > visibleRight) pageList.scrollLeft = Math.min(pageList.scrollWidth - pageList.clientWidth, tabRight - pageList.clientWidth);
+    updateScrollFade();
   }
 
-  function cancelDrag() {
-    const current = drag;
+  function cancelStripPan() {
+    const current = stripPan;
     if (!current) return;
-    drag = null;
-    if (current.raf !== null) cancelAnimationFrame(current.raf);
-    resetStyles(current);
-    if (current.source.hasPointerCapture(current.pointerId)) current.source.releasePointerCapture(current.pointerId);
+    stripPan = null;
+    if (list?.hasPointerCapture(current.pointerId)) list.releasePointerCapture(current.pointerId);
+  }
+
+  function beginStripPan(event: PointerEvent) {
+    if (event.target !== list || !list || list.hasAttribute('data-sorting') || event.pointerType === 'touch' || event.button !== 0 || list.scrollWidth <= list.clientWidth) return;
+    event.preventDefault();
+    stripPan = { pointerId: event.pointerId, startX: event.clientX, startScroll: list.scrollLeft, moved: false };
+    list.setPointerCapture(event.pointerId);
+  }
+
+  function moveStripPan(event: PointerEvent) {
+    const current = stripPan;
+    if (!current || current.pointerId !== event.pointerId || !list) return;
+    const delta = event.clientX - current.startX;
+    current.moved ||= Math.abs(delta) >= 4;
+    list.scrollLeft = current.startScroll - delta;
+    updateScrollFade();
+  }
+
+  function finishStripPan(event: PointerEvent) {
+    if (stripPan?.pointerId !== event.pointerId) return;
+    cancelStripPan();
+  }
+
+  function wheelTabs(event: WheelEvent) {
+    if (!list || list.scrollWidth <= list.clientWidth) return;
+    if (list.hasAttribute('data-sorting')) { if (event.cancelable) event.preventDefault(); return; }
+    const delta = event.deltaY || event.deltaX;
+    if (!delta) return;
+    list.scrollLeft += delta;
+    updateScrollFade();
+    if (event.cancelable) event.preventDefault();
   }
 
   function cancelPointer(event: PointerEvent) {
-    if (drag?.pointerId === event.pointerId) cancelDrag();
+    if (stripPan?.pointerId === event.pointerId) cancelStripPan();
   }
 
-  function paintDrag(current: PageDrag) {
-    if (!orderMatches(current) || !active) { cancelDrag(); return; }
-    const scrollDelta = (list?.scrollLeft ?? current.startScroll) - current.startScroll;
-    const dx = current.latestX - current.startX + scrollDelta;
-    current.moved ||= Math.abs(dx) >= 6;
-    if (!current.moved) return;
-    const sourceCenter = current.centers[current.from] + dx;
-    current.destination = current.from + current.centers.filter((center, index) => index > current.from && sourceCenter > center + scrollDelta).length -
-      current.centers.filter((center, index) => index < current.from && sourceCenter < center + scrollDelta).length;
-    current.destination = Math.max(0, Math.min(current.ids.length - 1, current.destination));
-    const virtual = [...current.ids], [movedId] = virtual.splice(current.from, 1);
-    virtual.splice(current.destination, 0, movedId);
-    const leftById = new Map<string, number>();
-    let cursor = current.lefts[0] - scrollDelta;
-    const widthById = new Map(current.buttons.map((button, index) => [button.dataset.pageTab!, current.widths[index]]));
-    for (const id of virtual) {
-      leftById.set(id, cursor);
-      cursor += (widthById.get(id) ?? 0) + 6;
-    }
-    for (let index = 0; index < current.ids.length; index++) {
-      const button = current.buttons[index];
-      const id = current.ids[index];
-      button.style.transition = 'none';
-      if (id === current.pageId) button.style.transform = `translateX(${dx}px)`;
-      else button.style.transform = `translateX(${(leftById.get(id) ?? current.centers[index]) - (current.lefts[index] - scrollDelta)}px)`;
-    }
-  }
-
-  function moveDrag(event: PointerEvent) {
-    const current = drag;
-    if (!current || current.pointerId !== event.pointerId) return;
-    current.latestX = event.clientX;
-    const scrollDelta = (list?.scrollLeft ?? current.startScroll) - current.startScroll;
-    if (!current.moved && Math.abs(event.clientX - current.startX + scrollDelta) >= 6) {
-      current.moved = true;
-      current.source.setPointerCapture(current.pointerId);
-    }
-    if (current.raf !== null) return;
-    current.raf = requestAnimationFrame(() => {
-      current.raf = null;
-      if (drag === current) paintDrag(current);
-    });
-  }
-
-  function beginDrag(event: PointerEvent, page: Page, index: number) {
-    if (event.button !== 0 || !active || !list) return;
-    const buttons = [...list.querySelectorAll<HTMLButtonElement>('[data-page-tab]')];
-    const source = buttons.find(button => button.dataset.pageTab === page.id);
-    if (!source || buttons.length !== pages.length) return;
-    drag = { pageId: page.id, pointerId: event.pointerId, from: index, destination: index,
-      startX: event.clientX, latestX: event.clientX, startScroll: list.scrollLeft,
-      ids: pages.map(entry => entry.id), centers: buttons.map(button => {
-        const rect = button.getBoundingClientRect(); return rect.left + rect.width / 2;
-      }), lefts: buttons.map(button => button.getBoundingClientRect().left), widths: buttons.map(button => button.getBoundingClientRect().width),
-      buttons, source, moved: false, raf: null };
-  }
-
-  async function finishDrag(event: PointerEvent) {
-    const current = drag;
-    if (!current || current.pointerId !== event.pointerId) return;
-    if (current.raf !== null) cancelAnimationFrame(current.raf);
-    current.raf = null;
-    current.latestX = event.clientX;
-    paintDrag(current);
-    const shouldReorder = orderMatches(current) && current.moved && current.destination !== current.from;
-    const target = current.destination;
-    if (!shouldReorder) { cancelDrag(); return; }
-    skipClickUntil = performance.now() + 400;
-    const visualLeft = new Map(current.buttons.map(button => [button.dataset.pageTab!, button.getBoundingClientRect().left]));
-    drag = null;
-    if (current.source.hasPointerCapture(current.pointerId)) current.source.releasePointerCapture(current.pointerId);
-    for (const button of current.buttons) { button.style.transition = 'none'; button.style.removeProperty('transform'); }
-    onreorder(current.pageId, target);
-    await tick();
-    const prefersReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const buttons = [...(list?.querySelectorAll<HTMLButtonElement>('[data-page-tab]') ?? [])];
-    for (const button of buttons) {
-      const before = visualLeft.get(button.dataset.pageTab!);
-      const offset = before === undefined ? 0 : before - button.getBoundingClientRect().left;
-      if (prefersReduced || Math.abs(offset) < 0.5) { button.style.removeProperty('transform'); button.style.removeProperty('transition'); continue; }
-      button.style.transform = `translateX(${offset}px)`;
-      const animation = button.animate(SPRING_SAMPLES.map(({ progress }) => ({ transform: `translateX(${offset * (1 - progress)}px)` })),
-        { duration: springDuration(Math.abs(offset)), fill: 'both' });
-      void animation.finished.then(() => {
-        button.style.removeProperty('transform');
-        button.style.removeProperty('transition');
-      }).catch(() => {});
-    }
-  }
+  function tabItems() { return [...(list?.querySelectorAll<HTMLElement>('[data-page-tab]') ?? [])]; }
+  function moveTab(from: number, to: number) { const page = pages[from]; if (page) onreorder(page.id, to); }
 
   function openRename() {
     if (!selected) return;
@@ -172,49 +108,89 @@
   }
 
   function keydown(event: KeyboardEvent, page: Page, index: number) {
-    if (!event.altKey || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-    const next = index + (event.key === 'ArrowLeft' ? -1 : 1);
-    if (next < 0 || next >= pages.length) return;
+    if (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+      const next = index + (event.key === 'ArrowLeft' ? -1 : 1);
+      if (next < 0 || next >= pages.length) return;
+      event.preventDefault();
+      onreorder(page.id, next);
+      return;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const next = event.key === 'ArrowLeft' ? (index + pages.length - 1) % pages.length
+      : event.key === 'ArrowRight' ? (index + 1) % pages.length
+      : event.key === 'Home' ? 0 : event.key === 'End' ? pages.length - 1 : index;
+    if (next === index) return;
     event.preventDefault();
-    onreorder(page.id, next);
+    selectedPageId = pages[next].id;
+    list?.querySelectorAll<HTMLButtonElement>('[data-page-tab]')[next]?.focus();
   }
 
-  function clickTab(event: MouseEvent) {
-    if (performance.now() < skipClickUntil) { event.preventDefault(); event.stopPropagation(); }
-  }
-
-  function pointerUp(event: PointerEvent) { void finishDrag(event); }
-  function keyWindow(event: KeyboardEvent) {
-    if (event.key === 'Escape' && drag) { event.preventDefault(); cancelDrag(); }
-  }
-
-  $effect(() => {
-    const current = drag;
-    if (!current) return;
-    if (!active || !orderMatches(current)) cancelDrag();
-  });
   $effect(() => {
     if (selectedPageId !== renamePageId && renameOpen) renameOpen = false;
   });
-  onDestroy(cancelDrag);
+
+  $effect(() => {
+    const pageList = list;
+    if (!pageList) return;
+    const resizeObserver = new ResizeObserver(() => {
+      updateScrollFade();
+      if (selectedPageId) scrollTabIntoView(selectedPageId, pageList);
+    });
+    const mutationObserver = new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node instanceof HTMLButtonElement && node.matches('[data-page-tab]')) resizeObserver.observe(node);
+        }
+      }
+      updateScrollFade();
+    });
+    resizeObserver.observe(pageList);
+    pageList.querySelectorAll<HTMLButtonElement>('[data-page-tab]').forEach(button => resizeObserver.observe(button));
+    mutationObserver.observe(pageList, { childList: true, characterData: true, subtree: true });
+    const frame = requestAnimationFrame(updateScrollFade);
+    return () => {
+      cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  });
+
+  $effect(() => {
+    const selectedId = selectedPageId;
+    const pageList = list;
+    if (!selectedId || !pageList) return;
+    let cancelled = false;
+    let frame: number | undefined;
+    void tick().then(() => {
+      if (cancelled || selectedId !== selectedPageId || pageList !== list) return;
+      frame = requestAnimationFrame(() => {
+        if (selectedId !== selectedPageId || pageList !== list) return;
+        scrollTabIntoView(selectedId, pageList);
+      });
+    });
+    return () => { cancelled = true; if (frame !== undefined) cancelAnimationFrame(frame); };
+  });
+
+  onDestroy(cancelStripPan);
 </script>
 
-<svelte:window onpointermove={moveDrag} onpointerup={pointerUp} onpointercancel={cancelPointer} onkeydown={keyWindow} onblur={cancelDrag} />
-<div class="flex min-w-0 items-center gap-1.5 border-b px-3 py-2">
-  <Tabs.Root bind:value={selectedPageId} orientation="horizontal" class="min-w-0 flex-1">
-    <Tabs.List bind:ref={list} aria-label="Pages" class="w-full justify-start overflow-x-auto rounded-none bg-transparent p-0 [scrollbar-width:thin]">
-      {#each pages as page, index (page.id)}
-        <Tabs.Trigger value={page.id} data-page-tab={page.id} onpointerdown={event => beginDrag(event, page, index)}
-          onlostpointercapture={cancelPointer} onkeydown={event => keydown(event, page, index)} onclick={clickTab}
-          class="h-9 min-w-20 flex-none select-none px-3 data-active:bg-muted/70">
-          <span class="max-w-40 truncate">{page.name}</span>
-        </Tabs.Trigger>
-      {/each}
-    </Tabs.List>
-  </Tabs.Root>
-  <Hint text="Add page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Add page" onclick={onadd}><Plus /></Button>{/snippet}</Hint>
+<svelte:window onpointermove={moveStripPan} onpointerup={finishStripPan} onpointercancel={cancelPointer} onblur={cancelStripPan} />
+<div class="flex h-12 min-h-12 shrink-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b px-3">
+  <div bind:this={list} use:sortable={{ axis: 'x', enabled: active, items: tabItems, onmove: moveTab }} role="tablist" aria-label="Pages" tabindex="-1" onscroll={updateScrollFade} onwheel={wheelTabs}
+    onpointerdown={beginStripPan} onlostpointercapture={event => { if (stripPan?.pointerId === event.pointerId) cancelStripPan(); }}
+    class:fade-left={canScrollLeft} class:fade-right={canScrollRight}
+    class="page-tab-strip flex h-full min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap touch-pan-x">
+    {#each pages as page, index (page.id)}
+      <button type="button" role="tab" aria-selected={page.id === selectedPageId} tabindex={page.id === selectedPageId ? 0 : -1}
+        data-page-tab={page.id} onkeydown={event => keydown(event, page, index)} onclick={() => selectedPageId = page.id}
+        class="h-9 min-w-20 max-w-40 shrink-0 select-none truncate rounded-md px-3 text-sm text-foreground/70 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring aria-selected:bg-muted/70 aria-selected:text-foreground touch-none">
+        {page.name}
+      </button>
+    {/each}
+  </div>
+  <Hint text="Add page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Add page" disabled={pages.length >= MAX_PAGES} onclick={onadd}><Plus /></Button>{/snippet}</Hint>
   <Hint text="Rename page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Rename page" disabled={!selected} onclick={openRename}><Pencil /></Button>{/snippet}</Hint>
-  <Hint text="Duplicate page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Duplicate page" disabled={!selected} onclick={() => selected && onduplicate(selected.id)}><Copy /></Button>{/snippet}</Hint>
+  <Hint text="Duplicate page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Duplicate page" disabled={!selected || pages.length >= MAX_PAGES} onclick={() => selected && onduplicate(selected.id)}><Copy /></Button>{/snippet}</Hint>
   <Hint text="Delete page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Delete page" disabled={!selected || pages.length <= 1} onclick={() => selected && ondelete(selected.id)}><Trash2 /></Button>{/snippet}</Hint>
 </div>
 
@@ -230,3 +206,19 @@
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>
+
+<style>
+  .page-tab-strip {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    --page-tab-left-mask: #000;
+    --page-tab-right-mask: #000;
+    mask-image: linear-gradient(to right, var(--page-tab-left-mask) 0, #000 16px, #000 calc(100% - 16px), var(--page-tab-right-mask) 100%);
+    mask-repeat: no-repeat;
+    -webkit-mask-image: linear-gradient(to right, var(--page-tab-left-mask) 0, #000 16px, #000 calc(100% - 16px), var(--page-tab-right-mask) 100%);
+    -webkit-mask-repeat: no-repeat;
+  }
+  .page-tab-strip::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  .page-tab-strip.fade-left { --page-tab-left-mask: transparent; }
+  .page-tab-strip.fade-right { --page-tab-right-mask: transparent; }
+</style>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick, type Snippet } from 'svelte';
+  import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
   import { Collapsible } from 'bits-ui';
   import { cn } from '$lib/utils';
   import { animateGroupLayout, cancelGroupLayout, contentFrames, contentPose, MotionLifecycle } from './motion';
@@ -16,9 +16,10 @@
   } = $props();
 
   const motion = new MotionLifecycle();
-  let internalOpen = $state(false);
-  let requestedOpen = false;
-  let renderedOpen = $state(false);
+  const initialOpen = untrack(() => open);
+  let internalOpen = $state(initialOpen);
+  let requestedOpen = initialOpen;
+  let renderedOpen = $state(initialOpen);
   let closing = $state(false);
   let reducedMotion = $state(typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches);
   let triggerNode = $state<HTMLButtonElement | null>(null);

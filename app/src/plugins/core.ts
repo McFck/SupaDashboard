@@ -4,6 +4,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { get } from 'svelte/store';
 import { settings } from '../core/settings.svelte';
 import { pageItems } from '../core/pages';
+import { currentRuntime } from '../core/runtime.svelte';
 import { appOwners, mediaSources, runAction, type ActionRef, type Param, type Plugin } from '../core/registry';
 import { parseVariableText } from '../core/variables';
 import { findVolumeChannel, initVolumeSync, readVolume, setMuted, setVolume, volumeChannels } from '../core/volume';
@@ -62,6 +63,8 @@ const targetParam: Param = { key: 'target', label: 'Volume of', type: 'select', 
   suggestions: () => [{ value: 'system', label: 'System' },
     ...[...new Set([...liveApps, ...usedTargets()])].sort().map(a => ({ value: a, label: title(a), plugin: appOwners.get(a.toLowerCase()) }))],
   refresh: mixer };
+const pageParam: Param = { key: 'page', label: 'Page', type: 'select',
+  suggestions: () => settings.deck.pages.map(page => ({ value: page.id, label: page.name })) };
 
 type Command = 'prev' | 'next' | 'toggle';
 const media = (command: Command) => async (a: Record<string, unknown>) => {
@@ -123,6 +126,26 @@ export const corePlugin: Plugin = {
       if (!roles) throw new Error('This control has no Off / On states');
       const current = context.getVariant(target);
       await context.setVariant(target, current === roles.on ? roles.off : roles.on);
+    } });
+    api.registerAction({ id: 'page.next', title: 'Next page', run: (_args, context) => {
+      if (!context || context.signal.aborted) throw new Error('Page navigation runtime is unavailable');
+      const runtime = currentRuntime();
+      if (!runtime?.isOwner) throw new Error('Page navigation runtime is unavailable');
+      runtime.changePageInDirection('next', 'action', context.eventAncestry);
+    } });
+    api.registerAction({ id: 'page.prev', title: 'Previous page', run: (_args, context) => {
+      if (!context || context.signal.aborted) throw new Error('Page navigation runtime is unavailable');
+      const runtime = currentRuntime();
+      if (!runtime?.isOwner) throw new Error('Page navigation runtime is unavailable');
+      runtime.changePageInDirection('prev', 'action', context.eventAncestry);
+    } });
+    api.registerAction({ id: 'page.goto', title: 'Go to page', params: [pageParam], run: (args, context) => {
+      if (!context || context.signal.aborted) throw new Error('Page navigation runtime is unavailable');
+      const pageId = args.page;
+      if (typeof pageId !== 'string' || !settings.deck.pages.some(page => page.id === pageId)) throw new Error('Page is unavailable');
+      const runtime = currentRuntime();
+      if (!runtime?.isOwner) throw new Error('Page navigation runtime is unavailable');
+      runtime.changePage(pageId, 'action', context.eventAncestry);
     } });
     api.registerAction({ id: 'variable.set', title: 'Set variable', params: [variableParam,
       { key: 'value', label: 'Value', type: 'text', default: '' }],

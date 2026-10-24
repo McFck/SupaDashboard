@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import { Button } from '$lib/components/ui/button';
   import * as Dialog from '$lib/components/ui/dialog';
@@ -14,7 +15,10 @@
   const selectedAction = $derived(actions.get(value));
   let open = $state(false);
   let query = $state('');
-  let manualOpen: string[] = $state([]);
+  let manualOpen: string[] = $state(untrack(() => {
+    const plugin = inline && allGroups.find(group => group.actions.some(action => action.id === value))?.plugin.id;
+    return plugin ? [plugin] : [];
+  }));
   let results = $state<HTMLElement>();
   const groups = $derived.by(() => {
     const q = query.trim().toLowerCase();
@@ -59,7 +63,7 @@
         </span>
       {/if}
     </div>
-    <div bind:this={results} class="picker-results flex min-h-0 min-w-0 flex-col
+    <div bind:this={results} class="picker-results flex min-h-0 min-w-0 shrink-0 flex-col
       {inline ? '' : 'shrink overflow-y-auto [scrollbar-gutter:stable]'}" style={inline ? undefined : 'height: min(55dvh, 420px)'}>
       {#if groups.length === 0}<div class="py-3 text-center text-sm text-muted-foreground">No actions</div>{/if}
       {#each groups as group (group.plugin.id)}
@@ -79,7 +83,7 @@
           {#snippet children()}
             <div class="grid gap-1 pb-3 pl-8 pt-2">
               {#each group.matches as action (action.id)}
-                <Button variant="ghost" class="h-auto min-h-8 w-full min-w-0 justify-start whitespace-normal break-words px-2 text-left font-normal [overflow-wrap:anywhere] {action.id === value ? 'bg-accent' : ''}"
+                <Button variant="ghost" aria-pressed={action.id === value} class="h-auto min-h-8 w-full min-w-0 justify-start whitespace-normal break-words px-2 text-left font-normal [overflow-wrap:anywhere] {action.id === value ? 'bg-accent ring-1 ring-border' : ''}"
                   onclick={() => pick(action.id)}>{action.title}</Button>
               {/each}
             </div>

@@ -26,6 +26,9 @@
   } = $props();
 
   let el = $state<HTMLElement>();
+  // Content grows with the slider's thickness so a big tile does not show tiny text.
+  let trackWidth = $state(0), trackHeight = $state(0);
+  const faceScale = $derived(Math.max(1, Math.min(2.4, (vertical ? trackWidth : trackHeight) / 64)));
   let drag: ActiveDrag | null = null;
   let active = $state(false);
   let lastTapRect: TrackRect | null = null;
@@ -208,7 +211,7 @@
   }
 </script>
 
-<div bind:this={el} data-dashboard-tile role="slider" tabindex="0" aria-label={label} aria-valuenow={pct ?? undefined}
+<div bind:this={el} bind:clientWidth={trackWidth} bind:clientHeight={trackHeight} data-dashboard-tile role="slider" tabindex="0" aria-label={label} aria-valuenow={pct ?? undefined}
   aria-orientation={vertical ? 'vertical' : 'horizontal'}
   onpointerdown={down} onpointermove={move} onpointerup={up} onkeydown={key}
   onpointercancel={e => cancel(e.pointerId)} onlostpointercapture={e => cancel(e.pointerId)}
@@ -229,13 +232,13 @@
         <div class="flex h-full w-full min-w-0 items-center justify-between gap-2 text-white {vertical ? 'flex-col px-2 py-3' : 'px-3 py-1.5'}"
           style:background={viewBackground(view)}>
           {#if vertical}
-            <span class="text-sm font-semibold tabular-nums">{pct == null ? '—' : `${pct}%`}</span>
-            {#if view.label}<span class="w-full min-w-0 truncate text-center text-[11px] font-semibold" style:color={view.color ?? undefined}>{view.label}</span>{/if}
-            <span class="shrink-0" class:opacity-60={muted} style:color={view.color ?? undefined}><Icon name={view.icon ?? undefined} size={20} fallback={view.label?.[0]?.toUpperCase() ?? ''} /></span>
+            <span class="font-semibold tabular-nums" style:font-size="{14 * faceScale}px">{pct == null ? '—' : `${pct}%`}</span>
+            {#if view.label}<span class="w-full min-w-0 truncate text-center font-semibold" style:font-size="{11 * faceScale}px" style:color={view.color ?? undefined}>{view.label}</span>{/if}
+            <span class="shrink-0" class:opacity-60={muted} style:color={view.color ?? undefined}><Icon name={view.icon ?? undefined} size={20 * faceScale} fallback={view.label?.[0]?.toUpperCase() ?? ''} /></span>
           {:else}
-            <span class="shrink-0" class:opacity-60={muted} style:color={view.color ?? undefined}><Icon name={view.icon ?? undefined} size={18} fallback={view.label?.[0]?.toUpperCase() ?? ''} /></span>
-            {#if view.label}<span class="min-w-0 flex-1 truncate text-xs font-semibold" style:color={view.color ?? undefined}>{view.label}</span>{/if}
-            <span class="shrink-0 text-sm font-semibold tabular-nums">{pct == null ? '—' : `${pct}%`}</span>
+            <span class="shrink-0" class:opacity-60={muted} style:color={view.color ?? undefined}><Icon name={view.icon ?? undefined} size={18 * faceScale} fallback={view.label?.[0]?.toUpperCase() ?? ''} /></span>
+            {#if view.label}<span class="min-w-0 flex-1 truncate font-semibold" style:font-size="{12 * faceScale}px" style:color={view.color ?? undefined}>{view.label}</span>{/if}
+            <span class="shrink-0 font-semibold tabular-nums" style:font-size="{14 * faceScale}px">{pct == null ? '—' : `${pct}%`}</span>
           {/if}
         </div>
       {/snippet}

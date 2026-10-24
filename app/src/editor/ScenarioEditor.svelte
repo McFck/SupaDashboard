@@ -40,9 +40,10 @@
   let openedControl = '';
   let selectedKey = $state('trigger:press');
   let selectedState = $state('*');
-  let selectedTab = $state<'scenario' | 'views' | 'binding'>('scenario');
+  const editorId = $props.id();
+  const tabs = ['scenario', 'views', 'binding', 'variables'] as const;
+  let selectedTab = $state<typeof tabs[number]>('scenario');
   let pickerKey = $state<string | null>(null);
-  let variablesOpen = $state(false);
   let manualFallbackStateId = '';
   let opener = $state<HTMLElement | null>(null);
   const control = $derived(controlById(controlId));
@@ -57,9 +58,6 @@
   const selectedEventId = $derived(selectedKey.startsWith('event:') ? selectedKey.slice(6) : '');
   const selectedEvent = $derived(draft?.scenario.events.find(event => event.id === selectedEventId));
   const selectedTrigger = $derived(selectedKey.startsWith('trigger:') ? selectedKey.slice(8) as Trigger : undefined);
-  const sectionTitle = $derived(selectedTab === 'views' ? 'Views' : selectedTab === 'binding' ? 'Binding' : selectedEvent ? eventLabel(selectedEvent) : selectedTrigger ?
-    ({ press: 'Press', release: 'Release', longPress: 'Long press', longPressRelease: 'Long press release', doubleTap: 'Double tap',
-      swipeUp: 'Pull up', swipeDown: 'Pull down', swipeLeft: 'Pull left', swipeRight: 'Pull right' } as Record<Trigger, string>)[selectedTrigger] : 'Scenario');
   const owner = $derived<ScenarioListOwner | undefined>(selectedEvent
     ? { kind: 'event', eventId: selectedEvent.id }
     : selectedTrigger ? { kind: 'trigger', trigger: selectedTrigger } : undefined);
@@ -106,7 +104,6 @@
     selectedState = '*';
     selectedTab = 'scenario';
     pickerKey = null;
-    variablesOpen = false;
     manualFallbackStateId = '';
   });
 
@@ -254,6 +251,16 @@
   function keydown(event: KeyboardEvent) {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') event.stopPropagation();
   }
+  function selectTab(tab: typeof tabs[number]) { selectedTab = tab; pickerKey = null; }
+  function tabKeydown(event: KeyboardEvent) {
+    const index = tabs.indexOf(selectedTab);
+    const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length
+      : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    selectTab(tabs[next]);
+    (event.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(`[data-tab="${tabs[next]}"]`)?.focus();
+  }
   function reloadDraft() {
     const latest = controlById(controlId);
     if (!latest) { open = false; return; }
@@ -284,28 +291,26 @@
 
 <Dialog.Root bind:open>
   <Dialog.Content aria-describedby={undefined} onkeydown={keydown} onCloseAutoFocus={closeAutoFocus}
-    class="flex h-[min(760px,calc(100dvh-48px))] w-[min(1100px,calc(100vw-48px))] max-w-none flex-col gap-0 overflow-hidden rounded-xl p-0">
-    <Dialog.Header class="flex min-h-14 shrink-0 flex-row flex-wrap items-center gap-2 border-b px-5 py-3 pr-14">
-      <Dialog.Title class="min-w-0 flex-1 truncate text-left">Scenario · {control?.name ?? 'Unavailable'}</Dialog.Title>
+    class="flex h-[min(760px,calc(100dvh-48px))] w-[min(1100px,calc(100vw-48px))] max-w-none flex-col gap-0 overflow-hidden rounded-xl p-0 data-closed:scale-100 transition-opacity motion-reduce:transition-none">
+    <Dialog.Header class="grid h-28 shrink-0 grid-rows-[48px_64px] gap-0 border-b px-5">
+      <div class="flex min-w-0 items-center gap-3 pr-9">
+        <Dialog.Title class="shrink-0 text-left">Scenario</Dialog.Title>
+        <span class="min-w-0 truncate border-l pl-3 text-sm text-muted-foreground">{control?.name ?? 'Unavailable'}</span>
+      </div>
       {#if draft && control}
-        <h2 class="max-w-36 shrink-0 truncate text-sm font-semibold">{sectionTitle}</h2>
-        <div role="tablist" aria-label="Scenario editor" class="flex shrink-0 items-center gap-1">
-          <Button size="sm" variant={selectedTab === 'scenario' ? 'secondary' : 'ghost'} aria-pressed={selectedTab === 'scenario'}
-            onclick={() => { selectedTab = 'scenario'; pickerKey = null; }}>Scenario</Button>
-          <Button size="sm" variant={selectedTab === 'views' ? 'secondary' : 'ghost'} aria-pressed={selectedTab === 'views'}
-            onclick={() => { selectedTab = 'views'; pickerKey = null; }}>Views</Button>
-          <Button size="sm" variant={selectedTab === 'binding' ? 'secondary' : 'ghost'} aria-pressed={selectedTab === 'binding'}
-            onclick={() => { selectedTab = 'binding'; pickerKey = null; }}>Binding</Button>
-          <Button size="sm" variant="ghost" onclick={() => variablesOpen = true}>Variables</Button>
+        <div class="grid min-w-0 grid-cols-[minmax(0,1fr)_160px] items-center gap-4">
+          <div role="tablist" tabindex="-1" aria-label="Scenario editor" onkeydown={tabKeydown} class="flex h-9 w-fit max-w-full items-center gap-0.5 overflow-x-auto rounded-lg bg-muted p-1">
+            {#each tabs as tab (tab)}
+              <Button id={`${editorId}-${tab}-tab`} data-tab={tab} role="tab" aria-selected={selectedTab === tab}
+                aria-controls={`${editorId}-${tab}-panel`} tabindex={selectedTab === tab ? 0 : -1} size="sm" variant="ghost"
+                class="scenario-tab h-7 text-muted-foreground transition-colors"
+                onclick={() => selectTab(tab)}>{tab[0].toUpperCase() + tab.slice(1)}</Button>
+            {/each}
+          </div>
+          <fieldset class="w-40 min-w-0 disabled:opacity-50" disabled={selectedTab !== 'scenario' || !owner || draft.variants.length < 2}>
+            <Choice value={selectedState} options={stateOptions} aria-label="State scenario" onchange={value => { selectedState = value; pickerKey = null; }} />
+          </fieldset>
         </div>
-        {#if selectedTab === 'scenario' && owner && draft.variants.length > 1}
-          <div class="w-40 min-w-0"><Choice value={selectedState} options={stateOptions} aria-label="State scenario" onchange={value => { selectedState = value; pickerKey = null; }} /></div>
-          {#if selectedState !== '*' && hasOverride}
-            <Button variant="ghost" size="sm" onclick={removeOverride}>Remove override</Button>
-          {:else if selectedState !== '*'}
-            <Button variant="outline" size="sm" onclick={makeOverride}>Override</Button>
-          {/if}
-        {/if}
       {/if}
     </Dialog.Header>
 
@@ -362,7 +367,9 @@
         </nav>
 
         <main class="flex min-h-0 min-w-0 flex-col overflow-hidden">
-          {#if selectedTab === 'scenario' && selectedEvent}
+          <div id={`${editorId}-scenario-panel`} role="tabpanel" aria-labelledby={`${editorId}-scenario-tab`}
+            class="min-h-0 min-w-0 flex-1 flex-col {selectedTab === 'scenario' ? 'flex' : 'hidden'}">
+          {#if selectedEvent}
             {@const event = eventDefinition(selectedEvent.eventId)}
             {@const parameterOptions = typeof event?.parameterSuggestions === 'function' ? event.parameterSuggestions() : event?.parameterSuggestions ?? []}
             <div class="grid shrink-0 gap-1.5 border-b px-4 py-3">
@@ -374,14 +381,10 @@
                 onchange={changeEventParameter} />
             </div>
           {/if}
-          {#if selectedTab === 'views'}
-            <StateViewEditor variants={draft.variants} roles={draft.stateRoles} aspectRatio={previewAspect}
-              onvariant={replaceVariant} onroles={updateRoles} ontoggleroles={toggleRoles}
-              onadd={addState} onremove={deleteState} onmove={moveState} />
-          {:else if selectedTab === 'binding'}
-            <StateBindingEditor binding={draft.stateBinding} variants={draft.variants} roles={draft.stateRoles} onchange={updateBinding} />
-          {:else}
-            <div class="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 [scrollbar-gutter:stable]">
+            <div class="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 [overflow-anchor:none] [scrollbar-gutter:stable]">
+              {#if selectedState !== '*' && hasOverride}
+                <div class="mb-3 flex justify-end"><Button variant="ghost" size="sm" onclick={removeOverride}>Remove override</Button></div>
+              {/if}
               {#if !owner}
                 <!-- No trigger is selected. -->
               {:else if selectedState !== '*' && !hasOverride}
@@ -416,7 +419,21 @@
                   onpickerchange={value => pickerKey = value} onchange={value => draft = value} />
               {/if}
             </div>
-          {/if}
+          </div>
+          <div id={`${editorId}-views-panel`} role="tabpanel" aria-labelledby={`${editorId}-views-tab`}
+            class="min-h-0 min-w-0 flex-1 flex-col {selectedTab === 'views' ? 'flex' : 'hidden'}">
+            <StateViewEditor variants={draft.variants} roles={draft.stateRoles} aspectRatio={previewAspect}
+              onvariant={replaceVariant} onroles={updateRoles} ontoggleroles={toggleRoles}
+              onadd={addState} onremove={deleteState} onmove={moveState} />
+          </div>
+          <div id={`${editorId}-binding-panel`} role="tabpanel" aria-labelledby={`${editorId}-binding-tab`}
+            class="min-h-0 min-w-0 flex-1 flex-col {selectedTab === 'binding' ? 'flex' : 'hidden'}">
+            <StateBindingEditor binding={draft.stateBinding} variants={draft.variants} roles={draft.stateRoles} onchange={updateBinding} />
+          </div>
+          <div id={`${editorId}-variables-panel`} role="tabpanel" aria-labelledby={`${editorId}-variables-tab`}
+            class="min-h-0 min-w-0 flex-1 flex-col {selectedTab === 'variables' ? 'flex' : 'hidden'}">
+            <VariablesEditor inline />
+          </div>
         </main>
 
         <aside class="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto border-l p-4 [scrollbar-gutter:stable] max-[900px]:hidden">
@@ -450,5 +467,13 @@
       </div>
     </Dialog.Footer>
   </Dialog.Content>
-  <VariablesEditor bind:open={variablesOpen} />
 </Dialog.Root>
+
+<style>
+  :global(.scenario-tab[aria-selected='true']),
+  :global(.scenario-tab[aria-selected='true']:hover) {
+    background: var(--background);
+    color: var(--foreground);
+    box-shadow: 0 1px 2px #0002;
+  }
+</style>

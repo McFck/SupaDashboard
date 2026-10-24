@@ -10,8 +10,11 @@ import { captureEvent, captureTrigger, ScenarioRunner, type RunResult, type Scen
 import type { EventAncestry } from './registry';
 import { VariableStore, type VariableSnapshot, type VariableValue } from './variables';
 import type { Trigger } from './scenario';
-import type { RuntimeSync, RuntimeRequest } from './runtime-sync';
+import type { PageChangePayload, RuntimeSync, RuntimeRequest } from './runtime-sync';
 import { pageAfterRemoval, pageById } from './pages';
+
+export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'auto' | 'reconcile';
+let dashboardInteractionActive = false;
 
 export type RuntimeSnapshot = {
   online: boolean;
@@ -72,11 +75,14 @@ export class AutomationRuntime {
   private revision = 0;
   private persistTimer: ReturnType<typeof setTimeout> | undefined;
   private clockTimer: ReturnType<typeof setInterval> | undefined;
+  private rotationTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
   private lastValues: Record<string, VariableValue> = {};
   private variableAncestry = new Map<string, EventAncestry>();
   private activePage: string;
   private priorPageOrder: string[];
+  private interactionActive = false;
+  private readonly visibilityChanged = () => this.scheduleRotation();
 
   constructor(options: RuntimeOptions = {}) {
     this.variables = options.variables ?? new VariableStore();
@@ -85,9 +91,11 @@ export class AutomationRuntime {
     this.priorPageOrder = settings.deck.pages.map(page => page.id);
     this.activePage = pageById(settings.deck.pages, settings.deck.activePage)?.id ?? this.priorPageOrder[0] ?? 'page-1';
     if (this.owner) settings.deck.activePage = this.activePage;
+    this.interactionActive = this.owner && dashboardInteractionActive;
     this.onFailure = options.onFailure ?? (() => {});
     this.onQueueFull = options.onQueueFull ?? (() => {});
     this.events.register({ id: 'variables.changed', title: 'Variable changed', plugin: 'core' });
+    this.events.register({ id: 'page.changed', title: 'Page changed', plugin: 'core' });
     this.runner = new ScenarioRunner({
       runAction: (ref, context) => runAction(ref, context),
       getVariable: id => this.variables.getValue(id),
@@ -117,6 +125,7 @@ export class AutomationRuntime {
     this.stopRemoteSettings = onRemoteSettings(next => {
       this.reconcile(next.controls);
       if (this.owner) this.reconcilePages(next.deck.pages);
+      if (this.owner) this.scheduleRotation();
     });
     this.stopSettingsEffect = $effect.root(() => {
       $effect(() => {
@@ -129,10 +138,23 @@ export class AutomationRuntime {
         const pages = settings.deck.pages;
         if (this.owner) this.reconcilePages(pages);
       });
+      $effect(() => {
+        const interval = settings.pageRotation.intervalSeconds;
+        const order = settings.deck.pages.map(page => page.id).join('\u0000');
+        const active = settings.deck.activePage;
+        void interval; void order; void active;
+        if (this.owner) this.scheduleRotation();
+      });
     });
     this.publish(this.variables.snapshot());
-    if (this.owner) this.startClock();
+    if (this.owner) {
+      if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.visibilityChanged);
+      this.startClock();
+      this.scheduleRotation();
+    }
   }
+
+  get isOwner() { return this.owner && !this.disposed; }
 
   dispatch(packet: TriggerPacket, options: { notify?: boolean } = {}): Promise<RunResult> {
     if (this.disposed || !this.owner) return Promise.resolve({ status: 'rejected' });
@@ -181,12 +203,33 @@ export class AutomationRuntime {
     settings.variants[controlId] = resolved;
   }
 
-  changePage(pageId: string) {
+  changePage(pageId: string, reason: PageChangeReason = 'action', ancestry?: EventAncestry) {
     if (this.disposed || !this.owner || !settings.deck.pages.some(page => page.id === pageId) || pageId === this.activePage) return false;
+    const previousPage = this.activePage;
     this.activePage = pageId;
     settings.deck.activePage = pageId;
     this.publish(this.variables.snapshot());
+    this.scheduleRotation();
+    void this.emitEvent('page.changed', pageId, { previousPage, page: pageId, reason }, ancestry ? structuredClone(ancestry) : undefined).catch(() => {
+      try { this.onFailure({ controlId: '', itemId: '', trigger: 'event', stepId: 'page.changed', kind: 'condition' }); }
+      catch { /* a failure sink must not interrupt page navigation */ }
+    });
     return true;
+  }
+
+  changePageInDirection(direction: 'next' | 'prev', reason: PageChangeReason = 'action', ancestry?: EventAncestry) {
+    if (this.disposed || !this.owner) return false;
+    const pages = settings.deck.pages;
+    const index = pages.findIndex(page => page.id === this.activePage);
+    if (index < 0 || pages.length < 2) return false;
+    const next = (index + (direction === 'next' ? 1 : pages.length - 1)) % pages.length;
+    return this.changePage(pages[next].id, reason, ancestry);
+  }
+
+  setInteractionActive(active: boolean) {
+    if (this.disposed || !this.owner || this.interactionActive === active) return;
+    this.interactionActive = active;
+    this.scheduleRotation();
   }
 
   setVariable(id: string, value: VariableValue, ancestry?: EventAncestry) {
@@ -241,6 +284,9 @@ export class AutomationRuntime {
     this.disposed = true;
     if (this.persistTimer) clearTimeout(this.persistTimer);
     if (this.clockTimer) clearInterval(this.clockTimer);
+    if (this.rotationTimer) clearTimeout(this.rotationTimer);
+    this.rotationTimer = undefined;
+    if (this.owner && typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.visibilityChanged);
     this.stopRemoteSettings();
     this.stopSettingsEffect();
     this.unsubscribeVariables();
@@ -304,11 +350,22 @@ export class AutomationRuntime {
     if (!active) return;
     if (active.id !== this.activePage) {
       const next = pageAfterRemoval(pages, this.activePage, this.priorPageOrder) ?? active.id;
-      this.activePage = next;
-      settings.deck.activePage = next;
-      this.publish(this.variables.snapshot());
+      this.changePage(next, 'reconcile');
     }
     this.priorPageOrder = order;
+  }
+
+  private scheduleRotation() {
+    if (this.rotationTimer) clearTimeout(this.rotationTimer);
+    this.rotationTimer = undefined;
+    const interval = settings.pageRotation.intervalSeconds;
+    if (!this.owner || this.disposed || interval < 5 || settings.deck.pages.length < 2 || this.interactionActive ||
+      typeof document !== 'undefined' && document.hidden) return;
+    this.rotationTimer = setTimeout(() => {
+      this.rotationTimer = undefined;
+      if (this.interactionActive || typeof document !== 'undefined' && document.hidden) return;
+      this.changePageInDirection('next', 'auto');
+    }, interval * 1000);
   }
 
   private schedulePersist() {
@@ -377,6 +434,19 @@ export function receiveRuntimeSnapshot(snapshot: unknown, revision: number) { ac
 export async function requestRuntime(request: RuntimeRequest) {
   if (!clientSync) throw new Error('Runtime owner is unavailable');
   return clientSync.request(request);
+}
+
+export async function requestPageChange(change: { direction: 'next' | 'prev' } | { page: string }, reason: 'dot' | 'swipe') {
+  const runtime = currentRuntime();
+  if (runtime?.isOwner) return 'page' in change ? runtime.changePage(change.page, reason) : runtime.changePageInDirection(change.direction, reason);
+  const payload: PageChangePayload = 'page' in change ? { page: change.page, reason } : { direction: change.direction, reason };
+  const snapshot = await requestRuntime({ type: 'changePage', payload }) as RuntimeSnapshot;
+  return !!snapshot && typeof snapshot.activePage === 'string' && (!('page' in change) || snapshot.activePage === change.page);
+}
+
+export function setRuntimeInteraction(active: boolean) {
+  dashboardInteractionActive = active;
+  currentRuntime()?.setInteractionActive(active);
 }
 
 export async function dispatchRuntimeTrigger(controlId: string, itemId: string, trigger: Trigger) {

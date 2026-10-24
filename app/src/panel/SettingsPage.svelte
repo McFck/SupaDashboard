@@ -4,6 +4,7 @@
   import { primaryMonitor, type Monitor } from '@tauri-apps/api/window';
   import Star from '@lucide/svelte/icons/star';
   import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Switch } from '$lib/components/ui/switch';
   import { monitors } from '../core/display';
@@ -19,6 +20,7 @@
   let nativeNames = $state<unknown[]>([]);
   let primaryScreen = $state<Monitor | null>(null);
   let resetting = $state(false);
+  let rotationDraft = $state(String(settings.pageRotation.intervalSeconds || 30));
   let alive = false;
   let refreshGeneration = 0;
 
@@ -45,6 +47,29 @@
     void refreshMonitors();
     return () => { alive = false; refreshGeneration++; };
   });
+
+  $effect(() => {
+    rotationDraft = String(settings.pageRotation.intervalSeconds || 30);
+  });
+
+  function setPageRotation(enabled: boolean) {
+    const interval = enabled ? 30 : 0;
+    if (settings.pageRotation.intervalSeconds === interval) return;
+    commit(enabled ? 'Enable page rotation' : 'Disable page rotation');
+    settings.pageRotation.intervalSeconds = interval;
+    rotationDraft = String(interval || 30);
+  }
+
+  function saveRotationInterval() {
+    const interval = Number(rotationDraft);
+    if (!Number.isInteger(interval) || interval < 5 || interval > 3600) {
+      rotationDraft = String(settings.pageRotation.intervalSeconds || 30);
+      return;
+    }
+    if (settings.pageRotation.intervalSeconds === interval) return;
+    commit('Change page rotation interval');
+    settings.pageRotation.intervalSeconds = interval;
+  }
 
   async function reset() {
     if (resetting) return;
@@ -73,6 +98,16 @@
     </Row>
     <Row label="Fullscreen" for="fs"><Switch id="fs" bind:checked={settings.display.fullscreen} /></Row>
     <Row label="Always on top" for="always-on-top"><Switch id="always-on-top" bind:checked={settings.display.alwaysOnTop} /></Row>
+    <Row label="Auto-rotate pages" for="page-rotation">
+      <Switch id="page-rotation" checked={settings.pageRotation.intervalSeconds > 0} onCheckedChange={setPageRotation} />
+    </Row>
+    <Row label="Interval" for="page-rotation-interval">
+      <div class="flex w-36 items-center gap-2">
+        <Input id="page-rotation-interval" type="number" min="5" max="3600" step="1" class="w-24"
+          bind:value={rotationDraft} disabled={settings.pageRotation.intervalSeconds === 0} onchange={saveRotationInterval} />
+        <span class="text-sm text-muted-foreground">sec</span>
+      </div>
+    </Row>
   </Section>
 
   <Section title="Advanced">

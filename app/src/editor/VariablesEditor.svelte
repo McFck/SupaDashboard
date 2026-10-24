@@ -14,7 +14,7 @@
   import { parseVariableText, type VariableType, type VariableRecord } from '../core/variables';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
 
-  let { open = $bindable(false) }: { open?: boolean } = $props();
+  let { open = $bindable(false), inline = false }: { open?: boolean; inline?: boolean } = $props();
   let query = $state('');
   let creating = $state(false);
   let newName = $state('');
@@ -45,14 +45,14 @@
   function markError(key: string, error: unknown) {
     errors = { ...errors, [key]: error instanceof Error ? error.message : 'Update failed' };
   }
-  async function mutate(key: string, type: string, payload: Record<string, unknown>) {
+  async function mutate(key: string, type: 'setVariable' | 'createVariable' | 'renameVariable' | 'setVariablePersistence' | 'deleteVariable', payload: Record<string, unknown>) {
     if (pending[key]) return false;
     pending = { ...pending, [key]: true };
     const nextErrors = { ...errors };
     delete nextErrors[key];
     errors = nextErrors;
     try {
-      await requestRuntime({ type: type as import('../core/runtime-sync').RuntimeRequest['type'], payload });
+      await requestRuntime({ type, payload });
       return true;
     } catch (error) {
       markError(key, error);
@@ -101,11 +101,7 @@
   }
 </script>
 
-<Dialog.Root bind:open>
-  <Dialog.Content aria-describedby={undefined} class="flex max-h-[min(720px,calc(100dvh-48px))] w-[min(760px,calc(100vw-48px))] max-w-none flex-col gap-0 overflow-hidden p-0">
-    <Dialog.Header class="flex h-14 shrink-0 items-center border-b px-5 pr-14">
-      <Dialog.Title>Variables</Dialog.Title>
-    </Dialog.Header>
+{#snippet editorBody()}
     <div class="grid shrink-0 gap-3 border-b p-4">
       <div class="flex flex-wrap items-center gap-2">
         <div class="relative min-w-48 flex-1">
@@ -186,8 +182,20 @@
         </div>
       {:else}<div class="py-8 text-center text-sm text-muted-foreground">No variables</div>{/if}
     </div>
+{/snippet}
+
+{#if inline}
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col">{@render editorBody()}</div>
+{:else}
+<Dialog.Root bind:open>
+  <Dialog.Content aria-describedby={undefined} class="flex max-h-[min(720px,calc(100dvh-48px))] w-[min(760px,calc(100vw-48px))] max-w-none flex-col gap-0 overflow-hidden p-0">
+    <Dialog.Header class="flex h-14 shrink-0 items-center border-b px-5 pr-14">
+      <Dialog.Title>Variables</Dialog.Title>
+    </Dialog.Header>
+    {@render editorBody()}
     <Dialog.Footer class="mx-0 mb-0 flex min-h-14 shrink-0 items-center justify-end gap-2 border-t px-6 py-3">
       <Dialog.Close class={buttonVariants({ size: 'sm', variant: 'ghost' })}>Done</Dialog.Close>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>
+{/if}
