@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ControlConfig } from './controls';
-import { DEFAULTS } from './settings.svelte';
+import { DEFAULTS, type Settings } from './settings.svelte';
 import { addPage, deletePage, duplicatePage, hasPlacement, MAX_PAGES, movePlacement, pageAfterRemoval, pageById, pageItems,
   placementById, removePlacement, renamePage, reorderPage } from './pages';
 
@@ -22,12 +22,15 @@ const second = page('page-b', 4, [
 describe('page helpers', () => {
   it('resolves IDs and flattens placements across pages without merging page geometry', () => {
     const pages = [first, second];
+    const layouts = { subway: { [second.id]: { strip: [{ id: 'skin-item', control: 'shared', x: 0, y: 0, w: 1, h: 1 }] } },
+      deck: { [second.id]: { main: [{ id: 'duplicate-deck', control: 'shared', x: 0, y: 0, w: 1, h: 1 }] } } };
     expect(pageById(pages, 'page-b')).toBe(second);
     expect(pageById(pages, 'missing')).toBe(first);
-    expect(pageItems(pages).map(item => item.id)).toEqual(['item-a', 'item-b', 'item-c']);
+    expect(pageItems(pages, layouts).map(item => item.id)).toEqual(['item-a', 'item-b', 'item-c', 'skin-item']);
     expect(placementById(pages, 'item-c')).toMatchObject({ page: second, item: { control: 'other' } });
+    expect(placementById(pages, 'skin-item', layouts)).toMatchObject({ page: second, skinId: 'subway', slotId: 'strip' });
     expect(placementById(pages, 'missing')).toBeUndefined();
-    expect(hasPlacement(pages, 'shared')).toBe(true);
+    expect(hasPlacement(pages, 'shared', layouts)).toBe(true);
   });
 
   it('adds blank pages with selected geometry and the next unused display name', () => {
@@ -57,6 +60,18 @@ describe('page helpers', () => {
     expect(reorderPage(reordered.pages, 'missing', 0)).toBeUndefined();
   });
 
+  it('keeps skin layouts attached to stable page IDs across rename and reorder', () => {
+    const layouts = { subway: {
+      [first.id]: { strip: [{ id: 'first-skin-item', control: 'skin-a', x: 0, y: 0, w: 1, h: 1 }] },
+      [second.id]: { strip: [{ id: 'second-skin-item', control: 'skin-b', x: 1, y: 0, w: 1, h: 1 }] },
+    } };
+    const renamed = renamePage([first, second], first.id, 'Kitchen')!;
+    const reordered = reorderPage(renamed.pages, first.id, 1)!;
+    expect(reordered.pages.map(entry => entry.id)).toEqual([second.id, first.id]);
+    expect(layouts.subway[first.id].strip[0].id).toBe('first-skin-item');
+    expect(layouts.subway[second.id].strip[0].id).toBe('second-skin-item');
+  });
+
   it('deep-copies a populated page with globally new IDs while preserving local and explicit references', () => {
     const self = control('button');
     const explicit = control('other', 'external-control');
@@ -80,6 +95,31 @@ describe('page helpers', () => {
     expect(self.variants[0].label).toBe('A');
     expect(copied.controls.some(entry => entry.id === 'external-control')).toBe(false);
     expect(duplicatePage([source], source.id, [], {})).toBeUndefined();
+  });
+
+  it('duplicates and deletes per-skin layouts by stable page ID with independent controls and items', () => {
+    const source = page('page-layout-source', 4, [{ id: 'deck-owned', control: 'deck-control', x: 0, y: 0, w: 1, h: 1 }]);
+    const controls = [control('deck-control'), control('skin-control'), control('retained-control')];
+    const layouts: Settings['skinLayouts'] = {
+      subway: {
+        [source.id]: { strip: [{ id: 'skin-owned', control: 'skin-control', x: 0, y: 0, w: 1, h: 1 }] },
+        'page-other': { hidden: [{ id: 'other-layout', control: 'retained-control', x: 0, y: 0, w: 1, h: 1 }] },
+      },
+      unavailable: { [source.id]: { removed: [] } },
+    };
+    const copied = duplicatePage([source, page('page-other')], source.id, controls, {}, layouts)!;
+    const copiedItems = copied.skinLayouts.subway[copied.page.id].strip;
+    expect(copiedItems).toHaveLength(1);
+    expect(copiedItems[0].id).not.toBe('skin-owned');
+    expect(copiedItems[0].control).not.toBe('skin-control');
+    expect(copied.skinLayouts.unavailable?.[copied.page.id]?.removed).toEqual([]);
+    expect(layouts.subway[source.id].strip[0]).toEqual({ id: 'skin-owned', control: 'skin-control', x: 0, y: 0, w: 1, h: 1 });
+    expect(pageItems(copied.pages, copied.skinLayouts).map(item => item.id)).toContain(copiedItems[0].id);
+
+    const deleted = deletePage(copied.pages, source.id, copied.controls, copied.variants, copied.skinLayouts)!;
+    expect(deleted.skinLayouts.subway).not.toHaveProperty(source.id);
+    expect(deleted.skinLayouts.subway).toHaveProperty('page-other');
+    expect(deleted.controls.some(entry => entry.id === 'retained-control')).toBe(true);
   });
 
   it('deletes only unused controls and their variants, preserves controls referenced by other pages', () => {

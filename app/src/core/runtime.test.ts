@@ -4,6 +4,7 @@ import { get } from 'svelte/store';
 import { actions, install, type ActionContext } from './registry';
 import { settings, serializeSettings, type Page } from './settings.svelte';
 import { captureTrigger } from './scenario-runner';
+import { mediaSourceKey } from './content';
 import { acceptRuntimeSnapshot, AutomationRuntime, bootRuntime, runtimeView, stopRuntime } from './runtime.svelte';
 import type { ControlConfig } from './controls';
 import type { Trigger } from './scenario';
@@ -56,26 +57,38 @@ describe('automation runtime', () => {
       { kind: 'url', value: 'https://example.test/two.png' },
     ], loop: false } };
     const pageA = page('page-1'), pageB = page('page-2');
-    pageB.items.push({ id: 'media-item', control: config.id, x: 0, y: 0, w: 2, h: 2 });
     settings.deck.pages = [pageA, pageB];
     settings.deck.activePage = pageA.id;
+    settings.skinLayouts = { subway: { [pageB.id]: { main: [{ id: 'media-item', control: config.id, x: 0, y: 0, w: 2, h: 2 }] } } };
     settings.controls = [config];
     runtime = new AutomationRuntime();
     runtime.reconcile(settings.controls);
     const saved = serializeSettings();
+    const firstSource = mediaSourceKey({ kind: 'url', value: 'https://example.test/one.png' });
+    runtime.rememberVideoPosition(config.id, firstSource, 12.5);
+    expect(runtime.videoPosition(config.id, firstSource)).toBe(12.5);
+    expect(get(runtime.snapshots).content[config.id]).toBeUndefined();
 
     expect(runtime.contentCommand(config.id, 'next')).toBe(true);
+    expect(runtime.videoPosition(config.id, firstSource)).toBeUndefined();
     expect(get(runtime.snapshots).content[config.id]).toEqual({ slide: 1, reload: 0 });
     expect(runtime.contentCommand(config.id, 'next')).toBe(false);
+    expect(runtime.contentCommand(config.id, 'prev')).toBe(true);
+    expect(runtime.contentCommand(config.id, 'goto', 1)).toBe(true);
+    expect(runtime.contentCommand(config.id, 'goto', 1)).toBe(false);
+    expect(() => runtime!.contentCommand(config.id, 'goto', 2)).toThrow('Media slide is unavailable');
     expect(serializeSettings()).toBe(saved);
 
+    config.options.loop = true;
+    expect(runtime.contentCommand(config.id, 'next')).toBe(true);
+    expect(get(runtime.snapshots).content[config.id]?.slide).toBe(0);
     config.options.sources = [{ kind: 'url', value: 'https://example.test/replaced.png' }];
     runtime.reconcile(settings.controls);
     expect(get(runtime.snapshots).content[config.id]).toEqual({ slide: 0, reload: 0 });
 
     await runtime.dispose();
     runtime = new AutomationRuntime({ owner: false });
-    expect(() => runtime!.contentCommand(config.id, 'next')).toThrow('Content runtime is unavailable');
+    expect(() => runtime!.contentCommand(config.id, 'goto', 0)).toThrow('Content runtime is unavailable');
   });
 
   it('dispatches one configured pull action and keeps an unbound pull quiet', async () => {
@@ -229,10 +242,21 @@ describe('automation runtime', () => {
 
   it('runs next, previous and goto only through a live owner and rejects invalid requests', async () => {
     const { corePlugin } = await import('../plugins/core');
+    const { suggestionsOf } = await import('./registry');
     const { VariableStore } = await import('./variables');
     install(corePlugin);
     settings.deck.pages = [page('page-1'), page('page-2'), page('page-3')];
     settings.deck.activePage = 'page-1';
+    const sources = [
+      { kind: 'url' as const, value: 'https://example.test/a.png' },
+      { kind: 'url' as const, value: 'https://example.test/b.png' },
+      { kind: 'url' as const, value: 'https://example.test/c.png' },
+    ];
+    const self = { ...control(), id: 'media-self', name: 'Self media', type: 'media', options: { sources, loop: false } };
+    const other = { ...control(), id: 'media-other', name: 'Other media', type: 'media', options: { sources, loop: true } };
+    settings.deck.pages[0].items.push({ id: 'self-item', control: self.id, x: 0, y: 0, w: 2, h: 2 });
+    settings.skinLayouts = { subway: { 'page-2': { main: [{ id: 'other-item', control: other.id, x: 0, y: 0, w: 2, h: 2 }] } } };
+    settings.controls = [self, other];
     const owner = await bootRuntime({ variables: new VariableStore() });
     runtime = owner.runtime;
     const context = { signal: new AbortController().signal, eventAncestry: { depth: 0, listeners: [] } } as unknown as ActionContext;
@@ -246,6 +270,21 @@ describe('automation runtime', () => {
     expect(settings.deck.activePage).toBe('page-2');
     await expect(Promise.resolve().then(() => goTo.run({ page: 'missing' }, context))).rejects.toThrow('Page is unavailable');
     expect(settings.deck.activePage).toBe('page-2');
+
+    const mediaNext = actions.get('media.next')!, mediaPrev = actions.get('media.prev')!, mediaGoto = actions.get('media.goto')!;
+    const mediaContext = { ...context, controlId: self.id };
+    const mediaTarget = mediaNext.params!.find(param => param.key === 'target')!;
+    expect((suggestionsOf(mediaTarget) ?? []).map(option => option.value)).toEqual(['self', 'media-self', 'media-other']);
+    await mediaNext.run({ target: 'self', source: 'system' }, mediaContext);
+    expect(get(runtime.snapshots).content[self.id]?.slide).toBe(1);
+    await mediaNext.run({ target: other.id, source: 'system' }, mediaContext);
+    expect(get(runtime.snapshots).content[other.id]?.slide).toBe(1);
+    await mediaPrev.run({ target: other.id, source: 'system' }, mediaContext);
+    expect(get(runtime.snapshots).content[other.id]?.slide).toBe(0);
+    await mediaGoto.run({ target: other.id, index: 2 }, mediaContext);
+    expect(get(runtime.snapshots).content[other.id]?.slide).toBe(2);
+    await mediaNext.run({ target: other.id, source: 'system' }, mediaContext);
+    expect(get(runtime.snapshots).content[other.id]?.slide).toBe(0);
     const aborted = new AbortController();
     aborted.abort();
     await expect(Promise.resolve().then(() => next.run({}, { ...context, signal: aborted.signal }))).rejects.toThrow('runtime is unavailable');
@@ -255,6 +294,7 @@ describe('automation runtime', () => {
     const follower = await bootRuntime({ variables: new VariableStore(), owner: false });
     runtime = follower.runtime;
     await expect(Promise.resolve().then(() => next.run({}, context))).rejects.toThrow('runtime is unavailable');
+    await expect(Promise.resolve().then(() => mediaNext.run({ target: self.id }, mediaContext))).rejects.toThrow('Content runtime is unavailable');
   });
 
   it('rotates on one owner timer, pauses through interaction and visibility, then clears on disable', async () => {

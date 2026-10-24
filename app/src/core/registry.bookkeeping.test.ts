@@ -12,13 +12,17 @@ describe('plugin bookkeeping', () => {
   it('skips removed plugins, preserves first-seen dates, protects defaults and records attribution', async () => {
     const registry = await import('./registry');
     const setup = vi.fn();
+    let ownerApi!: import('./registry').PluginApi;
     store.get.mockResolvedValue({ uninstalled: ['subway', 'spotify'], installed: { spotify: '2025-01-01T00:00:00.000Z' }, catalogUrl: '' });
     const spotify = { id: 'spotify', title: 'Spotify', default: true, setup: (api: import('./registry').PluginApi) => {
+      ownerApi = api;
       api.registerAction({ id: 'test.play', title: 'Play', run: () => {} });
       api.registerValue({ id: 'test.volume', title: 'Volume', get: async () => 1, set: async () => {} });
       api.registerControl({ type: 'test.control', title: 'Test', icon: 'Puzzle', component: {} as import('svelte').Component,
         size: { w: 1, h: 1 }, create: () => ({ name: 'Test', variants: [{ label: '' }] }) });
-      api.registerSkin({ id: 'test.skin', title: 'Test skin', component: {} as import('svelte').Component });
+      api.registerSkin({ id: 'test.skin', title: 'Test skin', component: {} as import('svelte').Component,
+        slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
+        views: [{ id: 'default', title: 'Default', slots: ['main'] }], defaultView: 'default' });
       api.registerIcon('TestIcon', 'M2 2');
       api.registerMediaSource({ id: 'test.source', title: 'Source', command: async () => {} });
     } };
@@ -28,6 +32,18 @@ describe('plugin bookkeeping', () => {
     expect(registry.values.get('test.volume')?.plugin).toBe('spotify');
     expect(registry.controlTypes.get('test.control')?.plugin).toBe('spotify');
     expect(registry.skins.get('test.skin')?.plugin).toBe('spotify');
+    const registeredSkin = registry.skins.get('test.skin')!;
+    expect(() => ownerApi.registerSkin({ ...registeredSkin, views: [{ id: 'broken', title: 'Broken', slots: ['missing'] }] })).toThrow('slot references');
+    expect(registry.skins.get('test.skin')).toBe(registeredSkin);
+    registry.install({ id: 'intruder', title: 'Intruder', setup: api => {
+      api.registerVariable({ id: 'test.skin.view', name: 'Reserved view', type: 'string', initialValue: 'external', persistent: false, readOnly: true });
+      api.registerEvent({ id: 'test.skin.changed', title: 'External event' });
+      api.registerEvent({ id: 'test.other.changed', title: 'Other external event' });
+    } });
+    expect(() => ownerApi.registerSkin(registeredSkin)).toThrow('test.skin.view');
+    expect(() => ownerApi.registerSkin({ ...registeredSkin, id: 'test.other', events: [{ id: 'test.other.changed', title: 'Changed' }] }))
+      .toThrow('test.other.changed');
+    expect(registry.skins.get('test.skin')).toBe(registeredSkin);
     expect(registry.customIcons.get('TestIcon')).toBe('M2 2');
     expect(registry.customIconOwners.get('TestIcon')).toBe('spotify');
     expect(registry.mediaSources.get('test.source')?.plugin).toBe('spotify');

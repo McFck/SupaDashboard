@@ -41,14 +41,15 @@ describe('existing controls', () => {
     expect(buildExistingControlRows(controls, [], types).find(row => row.id === 'z')?.uses).toBe(0);
   });
 
-  it('counts uses from a flattened page list while keeping page-local items separate', () => {
+  it('counts uses from page and skin placements while keeping page-local items separate', () => {
     const pages = [
       { id: 'one', name: 'One', rows: 2, cols: 2, size: 100, gap: 8, sizing: 'auto' as const,
         items: [{ id: 'one-item', control: 'b', x: 0, y: 0, w: 1, h: 1 }] },
       { id: 'two', name: 'Two', rows: 3, cols: 4, size: 80, gap: 4, sizing: 'manual' as const,
         items: [{ id: 'two-item', control: 'b', x: 2, y: 0, w: 1, h: 1 }] },
     ];
-    expect(buildExistingControlRows([{ id: 'b', name: 'Beta', type: 'button' }], pageItems(pages), types)[0].uses).toBe(2);
+    const layouts = { subway: { one: { strip: [{ id: 'skin-item', control: 'b', x: 0, y: 0, w: 1, h: 1 }] } } };
+    expect(buildExistingControlRows([{ id: 'b', name: 'Beta', type: 'button' }], pageItems(pages, layouts), types)[0].uses).toBe(3);
     expect(pages.map(page => [page.cols, page.items.length])).toEqual([[2, 1], [4, 1]]);
   });
 });

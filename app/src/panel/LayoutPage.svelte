@@ -56,7 +56,7 @@
   let moveRequest = $state<{ sourcePageId: string; itemId: string; destinationPageId: string } | null>(null);
   const bg = $derived(settings.display.background);
   const page = $derived(pageById(settings.deck.pages, selectedPageId)!);
-  const allItems = $derived(pageItems(settings.deck.pages));
+  const allItems = $derived(pageItems(settings.deck.pages, settings.skinLayouts));
   const movePlan = $derived(moveRequest
     ? movePlacement(settings.deck.pages, moveRequest.sourcePageId, moveRequest.destinationPageId, moveRequest.itemId)
     : undefined);
@@ -158,7 +158,7 @@
   function closeMoveDialog() { moveDialogOpen = false; moveRequest = null; }
   function addPage() {
     if (settings.deck.pages.length >= MAX_PAGES) return;
-    const result = buildPage(settings.deck.pages, settings.controls, page.id);
+    const result = buildPage(settings.deck.pages, settings.controls, page.id, settings.skinLayouts);
     if (!result) return;
     commit('Add page');
     settings.deck.pages = result.pages;
@@ -174,12 +174,13 @@
   }
   function duplicatePage(pageId: string) {
     if (settings.deck.pages.length >= MAX_PAGES) return;
-    const result = buildDuplicatePage(settings.deck.pages, pageId, settings.controls, settings.variants);
+    const result = buildDuplicatePage(settings.deck.pages, pageId, settings.controls, settings.variants, settings.skinLayouts);
     if (!result) { toast.error('Unable to duplicate page'); return; }
     commit('Duplicate page');
     settings.deck.pages = result.pages;
     settings.controls = result.controls;
     settings.variants = result.variants;
+    settings.skinLayouts = result.skinLayouts;
     selectedPageId = result.page.id;
     selection = null;
   }
@@ -194,13 +195,14 @@
     const generation = pageGeneration;
     if (!await confirm({ title: 'Delete page?', action: 'Delete', destructive: true })) return;
     if (pageGeneration !== generation || settings.deck.pages.length <= 1 || !settings.deck.pages.some(entry => entry.id === pageId)) return;
-    const result = buildDeletePage(settings.deck.pages, pageId, settings.controls, settings.variants);
+    const result = buildDeletePage(settings.deck.pages, pageId, settings.controls, settings.variants, settings.skinLayouts);
     if (!result) return;
     const nextSelected = pageAfterRemoval(result.pages, pageId, order) ?? result.pages[0].id;
     commit('Delete page');
     settings.deck.pages = result.pages;
     settings.controls = result.controls;
     settings.variants = result.variants;
+    settings.skinLayouts = result.skinLayouts;
     selectedPageId = nextSelected;
     selection = null;
   }
@@ -233,9 +235,10 @@
   }
   function stopResize() { if (active && resizing) { resizing = null; saveFrame(); } }
   function remove(id: string, pageId: string) {
-    const result = removePlacement(settings.deck.pages, pageId, id);
+    const result = removePlacement(settings.deck.pages, pageId, id, settings.skinLayouts);
     if (!result.item) return;
     settings.deck.pages = result.pages;
+    settings.skinLayouts = result.skinLayouts;
     if (result.orphanControl) {
       settings.controls = settings.controls.filter(c => c.id !== result.orphanControl);
       delete settings.variants[result.orphanControl];

@@ -33,6 +33,8 @@ export type Settings = {
   controls: ControlConfig[];
   deck: Deck;
   pageRotation: { intervalSeconds: number };
+  skinSettings: Record<string, Record<string, unknown>>;
+  skinLayouts: Record<string, Record<string, Record<string, Item[]>>>;
   /** control id -> active variant (gesture swaps are sticky across restarts) */
   variants: Record<string, number>;
 };
@@ -73,6 +75,8 @@ export const DEFAULTS: Settings = {
   ],
   deck: { pages: [structuredClone(DEFAULT_PAGE)], activePage: DEFAULT_PAGE.id },
   pageRotation: { intervalSeconds: 0 },
+  skinSettings: {},
+  skinLayouts: {},
   variants: {},
 };
 
@@ -99,12 +103,36 @@ function normalizePage(raw: any, index: number, pageIds: Set<string>, itemIds: S
   const size = Number.isFinite(source.size) && source.size > 0 ? source.size : fallback.size;
   const gap = Number.isFinite(source.gap) && source.gap >= 0 ? source.gap : fallback.gap;
   const items = Array.isArray(source.items) ? source.items.flatMap((item: any) => {
-    if (!item || typeof item !== 'object' || typeof item.control !== 'string' ||
-      ![item.x, item.y, item.w, item.h].every(Number.isFinite) || item.w <= 0 || item.h <= 0) return [];
+    if (!item || typeof item !== 'object' || typeof item.control !== 'string' || !item.control ||
+      ![item.x, item.y, item.w, item.h].every(Number.isSafeInteger) || item.x < 0 || item.y < 0 || item.w <= 0 || item.h <= 0) return [];
     return [{ ...item, id: uniqueId(item.id, itemIds, 'item') } as Item];
   }) : [];
   const name = typeof source.name === 'string' && source.name.trim() ? source.name.trim() : `Page ${index + 1}`;
   return { id, name, rows, cols, size, gap, sizing: source.sizing === 'manual' ? 'manual' : 'auto', items };
+}
+
+function normalizeSkinLayouts(raw: unknown, itemIds: Set<string>) {
+  const layouts: Settings['skinLayouts'] = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return layouts;
+  for (const [skinId, rawPages] of Object.entries(raw)) {
+    if (!skinId || skinId === 'deck' || !rawPages || typeof rawPages !== 'object' || Array.isArray(rawPages)) continue;
+    const pages: Record<string, Record<string, Item[]>> = {};
+    for (const [pageId, rawSlots] of Object.entries(rawPages)) {
+      if (!pageId || !rawSlots || typeof rawSlots !== 'object' || Array.isArray(rawSlots)) continue;
+      const slots: Record<string, Item[]> = {};
+      for (const [slotId, rawItems] of Object.entries(rawSlots)) {
+        if (!slotId || !Array.isArray(rawItems)) continue;
+        slots[slotId] = rawItems.flatMap((item: any) => {
+          if (!item || typeof item !== 'object' || typeof item.control !== 'string' || !item.control ||
+            ![item.x, item.y, item.w, item.h].every(Number.isSafeInteger) || item.x < 0 || item.y < 0 || item.w <= 0 || item.h <= 0) return [];
+          return [{ ...item, id: uniqueId(item.id, itemIds, 'item') } as Item];
+        });
+      }
+      pages[pageId] = slots;
+    }
+    layouts[skinId] = pages;
+  }
+  return layouts;
 }
 
 /** Bring any saved settings up to the current version without losing the user's controls. */
@@ -159,26 +187,43 @@ export function migrate(input: any): Settings {
   for (const [index, raw] of rawPages.entries()) pages.push(normalizePage(raw, index, pageIds, itemIds));
   if (!pages.length) pages.push(structuredClone(DEFAULT_PAGE));
 
+  // Item IDs share one namespace with page IDs and every skin placement.
+  itemIds.clear();
+  for (const id of pageIds) itemIds.add(id);
+  for (const page of pages) for (const item of page.items) item.id = uniqueId(item.id, itemIds, 'item');
+  const skinLayouts = normalizeSkinLayouts(saved.skinLayouts, itemIds);
+  const skinSettings = saved.skinSettings && typeof saved.skinSettings === 'object' && !Array.isArray(saved.skinSettings)
+    ? Object.fromEntries(Object.entries(saved.skinSettings).filter(([id, value]) => id && !!value && typeof value === 'object' && !Array.isArray(value))
+      .map(([id, value]) => [id, structuredClone(value)]))
+    : {};
+
   // Placements used to share one control (and its state); give every extra placement its own copy.
   const seen = new Set<string>(), globalIds = new Set([...pageIds, ...itemIds, ...saved.controls.map((c: ControlConfig) => c.id)]);
-  for (const page of pages) page.items = page.items.map(item => {
-    if (!seen.has(item.control)) { seen.add(item.control); return item; }
+  const placementLists = [
+    ...pages.map(page => page.items),
+    ...Object.values(skinLayouts).flatMap(skin => Object.values(skin).flatMap(page => Object.values(page))),
+  ];
+  for (const items of placementLists) for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    if (!seen.has(item.control)) { seen.add(item.control); continue; }
     const source = saved.controls.find((c: ControlConfig) => c.id === item.control);
-    if (!source) return item;
+    if (!source) continue;
     let id = `${source.id}-2`, suffix = 3;
     while (globalIds.has(id)) id = `${source.id}-${suffix++}`;
     globalIds.add(id);
     saved.controls.push({ ...structuredClone(source), id });
-    if (Object.hasOwn(saved.variants ?? {}, source.id)) saved.variants[id] = saved.variants[source.id];
-    return { ...item, control: id };
-  });
+    saved.variants ??= {};
+    if (Object.hasOwn(saved.variants, source.id)) saved.variants[id] = saved.variants[source.id];
+    items[index] = { ...item, control: id };
+  }
 
   const activePage = pages.some(page => page.id === saved.deck?.activePage) ? saved.deck.activePage : pages[0].id;
   const intervalSeconds = validInterval(saved.pageRotation?.intervalSeconds) ? saved.pageRotation.intervalSeconds : 0;
   return { ...out, ...saved, version: 5, display: { ...out.display, ...saved.display,
     alwaysOnTop: typeof saved.display?.alwaysOnTop === 'boolean' ? saved.display.alwaysOnTop : false,
     background: { ...out.display.background, ...saved.display?.background } },
-    deck: { pages, activePage }, pageRotation: { intervalSeconds } };
+    deck: { pages, activePage }, pageRotation: { intervalSeconds }, skinSettings, skinLayouts,
+    variants: { ...out.variants, ...(saved.variants && typeof saved.variants === 'object' ? saved.variants : {}) } };
 }
 
 /** Serialize the live settings with a stable launch placeholder, never the runtime page selection. */

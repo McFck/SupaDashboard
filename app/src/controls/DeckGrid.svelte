@@ -11,8 +11,8 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
   import { DropPreviewWorker } from './drop-worker';
   import ResizeFrame from './ResizeFrame.svelte';
 
-  let { page, editing = false, selected = null, availableWidth, availableHeight, resolvePresentation, onselect, oncontext }:
-    { page: Page; editing?: boolean; selected?: Selection; availableWidth?: number; availableHeight?: number; onselect?: (s: Selection) => void;
+  let { page, editing = false, selected = null, availableWidth, availableHeight, pageRenderVisible = false, resolvePresentation, onselect, oncontext }:
+    { page: Page; editing?: boolean; selected?: Selection; availableWidth?: number; availableHeight?: number; pageRenderVisible?: boolean; onselect?: (s: Selection) => void;
       resolvePresentation?: (control: import('../core/controls').ControlConfig, variantIndex: number) => TilePresentation;
       oncontext?: (target: { item: string } | { cell: { x: number; y: number } }, x: number, y: number) => void } = $props();
 
@@ -561,6 +561,7 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
     {@const renderItem = resizing ? resizing.validResize : item}
     {@const variantIndex = settings.variants[control.id] ?? 0}
     {@const pageVisible = editing || page.id === $runtimeView.activePage}
+    {@const pageRendered = editing || pageRenderVisible}
     {@const presentation = resolvePresentation?.(control, variantIndex)}
     {@const lifted = drag?.id === item.id && drag.moved && drag.mode === 'move'}
     {@const displaced = drag?.mode === 'move' && drag.placement?.kind === 'swap' && drag.placement.displaced.includes(item.id)
@@ -571,7 +572,7 @@ import { controlById, settings, type Page } from '../core/settings.svelte';
         style:translate={lifted && drag ? `${drag.moveX}px ${drag.moveY}px`
           : displaced ? `${(displaced.x - item.x) * pitch}px ${(displaced.y - item.y) * pitch}px` : null}>
         <div data-dashboard-tile class="h-full w-full" inert={editing}>
-          <def.component {control} {page} pageId={page.id} {pageVisible} w={renderItem.w} h={renderItem.h}
+          <def.component {control} {page} pageId={page.id} {pageVisible} {pageRendered} w={renderItem.w} h={renderItem.h}
             pixelWidth={renderItem.w * pitch - metrics.gap} pixelHeight={renderItem.h * pitch - metrics.gap}
             {presentation} itemId={item.id} pressFeedbackDisabled={editing} />
         </div>

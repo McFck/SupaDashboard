@@ -4,6 +4,7 @@
   import { listen } from '@tauri-apps/api/event';
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow } from '@tauri-apps/api/window';
+  import DeckSkin from './skins/deck/DeckSkin.svelte';
   import { applyDisplay, complementRectangles, getAppliedFullscreen, initDisplay, type LocalRect } from './core/display';
   import { SPRING_SAMPLES, springDuration } from './core/controls';
   import { skins } from './core/registry';
@@ -133,7 +134,13 @@
   }
 
   function activeFrames(pageId = page.id): PagerFrame[] {
-    return [{ id: pageId, offset: 0, active: true }];
+    const pages = settings.deck.pages, index = pages.findIndex(candidate => candidate.id === pageId);
+    const width = shell?.getBoundingClientRect().width ?? 0;
+    const frames: PagerFrame[] = [{ id: pageId, offset: 0, active: true }];
+    if (index > 0) frames.unshift({ id: pages[index - 1].id, offset: -width, active: false });
+    if (index >= 0 && index + 1 < pages.length)
+      frames.push({ id: pages[index + 1].id, offset: width, active: false });
+    return frames;
   }
 
   function cancelPagerAnimations() {
@@ -411,6 +418,7 @@
 
   function onPagerResize() {
     if (pagerSession || pagerBusy) cancelPagerToCurrent();
+    else pagerFrames = activeFrames();
     scheduleDragGapMeasure();
   }
 
@@ -605,7 +613,11 @@
           <div class="dashboard-page-frame" class:dashboard-page-inactive={!frame.active}
             data-visible-page={frame.active ? 'true' : undefined} aria-hidden={!frame.active} inert={!frame.active}
             style:transform={pageOffset(frame.offset)} use:registerPage={frame.id}>
-            <Skin page={framePage} />
+            {#if Skin === DeckSkin}
+              <DeckSkin page={framePage} pageRenderVisible={true} />
+            {:else}
+              <Skin page={framePage} />
+            {/if}
           </div>
         {/if}
       {/each}
@@ -734,7 +746,12 @@
     scrollbar-width: none;
     -ms-overflow-style: none;
     touch-action: pan-x;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease-out;
   }
+
+  :global(.dashboard-shell[data-hovered='true'] .dashboard-page-dots) { opacity: 1; pointer-events: auto; }
 
   :global(.dashboard-shell .dashboard-page-dots::-webkit-scrollbar) { display: none; }
 
@@ -783,5 +800,6 @@
 
   @media (pointer: coarse) {
     :global(.dashboard-shell .resize-cues) { --resize-ink: rgba(255, 255, 255, .08); opacity: 1; }
+    :global(.dashboard-shell .dashboard-page-dots) { opacity: 1; pointer-events: auto; }
   }
 </style>

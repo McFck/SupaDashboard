@@ -36,6 +36,61 @@ describe('settings migration', () => {
     expect(() => migrate({ version: 99 })).toThrow('newer than this app supports');
   });
 
+  it('adds empty skin maps and round-trips Unicode configs and layouts without a second Deck source', () => {
+    const old = structuredClone(DEFAULTS) as any;
+    delete old.skinSettings;
+    delete old.skinLayouts;
+    expect(migrate(old)).toMatchObject({ skinSettings: {}, skinLayouts: {} });
+
+    const saved = structuredClone(DEFAULTS) as any;
+    saved.skinSettings.ghost = { label: '路線', future: { keep: true } };
+    saved.skinLayouts.ghost = { [saved.deck.pages[0].id]: { hidden: [
+      { id: 'ghost-item', control: 'ghost-control', x: 8, y: 0, w: 1, h: 1, extra: 'keep' },
+    ] } };
+    saved.skinLayouts.deck = { [saved.deck.pages[0].id]: { main: [{ id: 'duplicate-deck', control: 'prev', x: 0, y: 0, w: 1, h: 1 }] } };
+    const roundTrip = migrate(saved);
+    expect(roundTrip.skinSettings.ghost).toEqual({ label: '路線', future: { keep: true } });
+    expect(roundTrip.skinLayouts.ghost[saved.deck.pages[0].id].hidden[0]).toMatchObject({ id: 'ghost-item', x: 8, extra: 'keep' });
+    expect(roundTrip.skinLayouts).not.toHaveProperty('deck');
+    expect(roundTrip.deck.pages[0].items.map(item => item.id)).toEqual(saved.deck.pages[0].items.map((item: any) => item.id));
+  });
+
+  it('keeps structurally valid out-of-grid legacy placements and drops malformed coordinates', () => {
+    const saved = structuredClone(DEFAULTS) as any;
+    saved.deck.pages[0].items = [
+      { id: 'outside', control: 'unavailable', x: 99, y: 0, w: 1, h: 1 },
+      { id: 'negative', control: 'bad', x: -1, y: 0, w: 1, h: 1 },
+      { id: 'fractional', control: 'bad', x: 0.5, y: 0, w: 1, h: 1 },
+    ];
+    saved.skinLayouts.unknown = { 'page-1': { removed: [
+      { id: 'retained', control: 'missing', x: 20, y: 0, w: 1, h: 1 },
+      { id: 'invalid', control: 'missing', x: 0, y: 0, w: 0, h: 1 },
+    ] } };
+    const migrated = migrate(saved);
+    expect(migrated.deck.pages[0].items.map((item: any) => item.id)).toEqual(['outside']);
+    expect(migrated.skinLayouts.unknown['page-1'].removed.map((item: any) => item.id)).toEqual(['retained']);
+  });
+
+  it('gives cross-skin copies independent item and control IDs during normalization', () => {
+    const saved = structuredClone(DEFAULTS) as any;
+    saved.controls[0].options = { locale: '日本語' };
+    saved.controls[0].scenario = { triggers: { press: { steps: [
+      { id: 'kept-step', kind: 'action', action: { id: 'media.toggle', args: { source: 'system' } } },
+    ] } }, events: [] };
+    saved.skinLayouts.subway = { [saved.deck.pages[0].id]: { strip: [
+      { id: 'skin-item', control: 'prev', x: 0, y: 0, w: 1, h: 1 },
+    ] } };
+    const original = structuredClone(saved);
+    const migrated = migrate(saved);
+    const item = migrated.skinLayouts.subway['page-1'].strip[0];
+    expect(item.id).toBe('skin-item');
+    expect(item.control).not.toBe('prev');
+    expect(migrated.controls.find(control => control.id === item.control)).toMatchObject({
+      options: { locale: '日本語' }, scenario: { triggers: { press: { steps: [{ id: 'kept-step' }] } } },
+    });
+    expect(saved).toEqual(original);
+  });
+
   it('defaults old or malformed always-on-top values and preserves version-4 grid settings', () => {
     const defaults = structuredClone(DEFAULTS);
     const old: any = { ...defaults, version: 4, deck: { ...defaults.deck.pages[0] } };

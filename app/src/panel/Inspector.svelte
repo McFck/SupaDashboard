@@ -39,7 +39,7 @@
   let { selection, onselect, oneditScenario, page }: { selection: Selection; onselect: (s: Selection) => void;
     oneditScenario: (controlId: string, itemId: string, trigger?: Trigger) => void; page: Page } = $props();
 
-  const allItems = $derived(pageItems(settings.deck.pages));
+  const allItems = $derived(pageItems(settings.deck.pages, settings.skinLayouts));
   const item = $derived(selection && 'item' in selection ? page.items.find(i => i.id === selection.item) : undefined);
   const control = $derived(item ? controlById(item.control) : undefined);
   const def = $derived(control ? controlTypes.get(control.type) : undefined);
@@ -107,9 +107,10 @@
     const currentPage = settings.deck.pages.find(candidate => candidate.id === pageId);
     if (!currentPage?.items.some(i => i.id === removing.id)) return;
     commit(`Delete ${name}`);
-    const result = removePlacement(settings.deck.pages, pageId, removing.id);
+    const result = removePlacement(settings.deck.pages, pageId, removing.id, settings.skinLayouts);
     if (!result.item) return;
     settings.deck.pages = result.pages;
+    settings.skinLayouts = result.skinLayouts;
     if (result.orphanControl) {
       settings.controls = settings.controls.filter(c => c.id !== removing.control);
       delete settings.variants[removing.control];

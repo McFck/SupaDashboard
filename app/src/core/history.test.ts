@@ -156,12 +156,16 @@ describe('settings history', () => {
     const before = structuredClone(settings);
     try {
       const control: ControlConfig = { id: 'history-control', name: 'Button', type: 'button', variants: [{ id: 'state-one', label: 'One' }] };
+      const skinControl: ControlConfig = { id: 'skin-history-control', name: 'Skin Button', type: 'button', variants: [{ id: 'skin-state', label: 'Skin' }] };
       const firstPage = { ...structuredClone(DEFAULTS.deck.pages[0]), id: 'history-page-one', name: 'First',
         items: [{ id: 'history-item', control: control.id, x: 0, y: 0, w: 1, h: 1 }] };
       const secondPage = { ...structuredClone(DEFAULTS.deck.pages[0]), id: 'history-page-two', name: 'Second', items: [] };
       settings.deck.pages = [firstPage, secondPage];
       settings.deck.activePage = secondPage.id;
-      settings.controls = [control];
+      settings.controls = [control, skinControl];
+      settings.skinLayouts = { subway: { [firstPage.id]: { strip: [
+        { id: 'skin-history-item', control: skinControl.id, x: 0, y: 0, w: 1, h: 1 },
+      ] } }, unavailable: { [firstPage.id]: { removed: [] } } };
       settings.variants = { [control.id]: 0 };
       const states = [editableSnapshot(settings)];
       const stack = new SnapshotHistory(states[0], applyEditableSettings, () => {});
@@ -172,25 +176,31 @@ describe('settings history', () => {
         states.push(editableSnapshot(settings));
       };
 
-      const added = addPage(settings.deck.pages, settings.controls, firstPage.id)!;
+      const added = addPage(settings.deck.pages, settings.controls, firstPage.id, settings.skinLayouts)!;
       settings.deck.pages = added.pages;
       record('Add page');
       const renamed = renamePage(settings.deck.pages, added.page.id, '工作')!;
       settings.deck.pages = renamed.pages;
       record('Rename page');
-      const duplicated = duplicatePage(settings.deck.pages, firstPage.id, settings.controls, settings.variants)!;
+      const duplicated = duplicatePage(settings.deck.pages, firstPage.id, settings.controls, settings.variants, settings.skinLayouts)!;
       settings.deck.pages = duplicated.pages;
       settings.controls = duplicated.controls;
       settings.variants = duplicated.variants;
+      settings.skinLayouts = duplicated.skinLayouts;
+      const copiedSkinItem = settings.skinLayouts.subway[duplicated.page.id].strip[0];
+      expect(copiedSkinItem.id).not.toBe('skin-history-item');
+      expect(copiedSkinItem.control).not.toBe(skinControl.id);
+      expect(settings.skinLayouts.unavailable[duplicated.page.id].removed).toEqual([]);
       record('Duplicate page');
       settings.deck.pages = reorderPage(settings.deck.pages, secondPage.id, 0)!.pages;
       record('Reorder pages');
       settings.deck.pages = movePlacement(settings.deck.pages, firstPage.id, secondPage.id, 'history-item')!.pages;
       record('Move widget');
-      const deleted = deletePage(settings.deck.pages, duplicated.page.id, settings.controls, settings.variants)!;
+      const deleted = deletePage(settings.deck.pages, duplicated.page.id, settings.controls, settings.variants, settings.skinLayouts)!;
       settings.deck.pages = deleted.pages;
       settings.controls = deleted.controls;
       settings.variants = deleted.variants;
+      settings.skinLayouts = deleted.skinLayouts;
       record('Delete page');
 
       for (let index = states.length - 2; index >= 0; index--) {
@@ -205,6 +215,8 @@ describe('settings history', () => {
       }
       expect(settings.deck.pages.flatMap(page => page.items).map(item => item.id)).toContain('history-item');
       expect(settings.controls.map(entry => entry.id)).toContain('history-control');
+      expect(settings.skinLayouts.subway[firstPage.id].strip[0].id).toBe('skin-history-item');
+      expect(settings.skinLayouts.subway).not.toHaveProperty(duplicated.page.id);
     } finally {
       Object.assign(settings, before);
     }

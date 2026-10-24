@@ -22,8 +22,9 @@ describe('layout quick actions', () => {
   });
   it('allocates placement IDs against every page while checking fit only on the current page', () => {
     const otherPageItem = { id: 'i-2', control: 'other', x: 0, y: 0, w: 1, h: 1 };
-    const copied = duplicateWidget({ control, w: 1, h: 1 }, [item], [item, otherPageItem], [control], grid)!;
-    expect(copied.item.id).toBe('i-3');
+    const otherSkinItem = { id: 'i-3', control: 'skin-control', x: 0, y: 0, w: 1, h: 1 };
+    const copied = duplicateWidget({ control, w: 1, h: 1 }, [item], [item, otherPageItem, otherSkinItem], [control], grid)!;
+    expect(copied.item.id).toBe('i-4');
     expect(copied.item.x).toBe(1);
   });
   it('pastes only where it fits, allowing confirmed replacement but protecting neighbors', () => {

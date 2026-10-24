@@ -12,7 +12,8 @@ import { VariableStore, type VariableSnapshot, type VariableValue } from './vari
 import type { Trigger } from './scenario';
 import type { PageChangePayload, RuntimeSync, RuntimeRequest } from './runtime-sync';
 import { pageAfterRemoval, pageById } from './pages';
-import { readMediaOptions, stepSlide } from './content';
+import { allPlacements, hasPlacement } from './skin-layouts';
+import { mediaSourceKey, readMediaOptions, stepSlide } from './content';
 
 export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'auto' | 'reconcile';
 let dashboardInteractionActive = false;
@@ -68,6 +69,7 @@ export class AutomationRuntime {
   private readonly queueFullReported = new Set<string>();
   private readonly contentState = new Map<string, { slide: number; reload: number }>();
   private readonly contentSources = new Map<string, string>();
+  private readonly contentPositions = new Map<string, { source: string; time: number }>();
   private readonly unsubscribeVariables: () => void;
   private readonly detachRegistry: () => void;
   private readonly stopRemoteSettings: () => void;
@@ -207,25 +209,46 @@ export class AutomationRuntime {
     settings.variants[controlId] = resolved;
   }
 
-  contentCommand(controlId: string, command: 'next' | 'prev' | 'reload') {
+  contentCommand(controlId: string, command: 'next' | 'prev' | 'goto' | 'reload', index?: number) {
     if (this.disposed || !this.owner) throw new Error('Content runtime is unavailable');
     const control = controlById(controlId);
-    if (!control || !settings.deck.pages.some(page => page.items.some(item => item.control === controlId)))
+    if (!control || !hasPlacement(settings, controlId))
       throw new Error('Content target is unavailable');
     const current = this.contentState.get(controlId) ?? { slide: 0, reload: 0 };
     let next: { slide: number; reload: number };
-    if (control.type === 'media' && command !== 'reload') {
+    if (control.type === 'media' && (command === 'next' || command === 'prev' || command === 'goto')) {
       const options = readMediaOptions(control.options);
-      next = { ...current, slide: stepSlide(current.slide, options.sources.length, command === 'next' ? 1 : -1, options.loop) };
+      if (command === 'goto') {
+        if (!Number.isSafeInteger(index) || index! < 0 || index! >= options.sources.length)
+          throw new Error('Media slide is unavailable');
+        next = { ...current, slide: index! };
+      } else {
+        next = { ...current, slide: stepSlide(current.slide, options.sources.length, command === 'next' ? 1 : -1, options.loop) };
+      }
     } else if (control.type === 'web' && command === 'reload') {
       next = { ...current, reload: current.reload + 1 };
     } else {
       throw new Error('Content command is not supported by this target');
     }
     if (next.slide === current.slide && next.reload === current.reload) return false;
+    this.contentPositions.delete(controlId);
     this.contentState.set(controlId, next);
     this.publish(this.variables.snapshot());
     return true;
+  }
+
+  rememberVideoPosition(controlId: string, source: string, time: number) {
+    if (this.disposed || !this.owner || !Number.isFinite(time) || time < 0) return;
+    const control = controlById(controlId);
+    if (!control || control.type !== 'media' ||
+      !readMediaOptions(control.options).sources.some(entry => mediaSourceKey(entry) === source)) return;
+    this.contentPositions.set(controlId, { source, time });
+  }
+
+  videoPosition(controlId: string, source: string) {
+    if (this.disposed || !this.owner) return undefined;
+    const saved = this.contentPositions.get(controlId);
+    return saved?.source === source ? saved.time : undefined;
   }
 
   changePage(pageId: string, reason: PageChangeReason = 'action', ancestry?: EventAncestry) {
@@ -302,13 +325,15 @@ export class AutomationRuntime {
         lane.queue = keep;
       }
     }
-    const placed = new Set(settings.deck.pages.flatMap(page => page.items.map(item => item.control)));
+    const placed = new Set(allPlacements(settings).map(placement => placement.item.control));
     for (const id of this.contentState.keys()) if (!current.has(id) || !placed.has(id)) this.contentState.delete(id);
     for (const id of this.contentSources.keys()) if (!current.has(id) || !placed.has(id)) this.contentSources.delete(id);
+    for (const id of this.contentPositions.keys()) if (!current.has(id) || !placed.has(id)) this.contentPositions.delete(id);
     for (const control of controls) if (control.type === 'media' && placed.has(control.id)) {
       const sourceKey = JSON.stringify(readMediaOptions(control.options).sources);
       const previous = this.contentSources.get(control.id);
       if (previous !== undefined && previous !== sourceKey) {
+        this.contentPositions.delete(control.id);
         const state = this.contentState.get(control.id);
         if (state) this.contentState.set(control.id, { ...state, slide: 0 });
       }
@@ -336,6 +361,7 @@ export class AutomationRuntime {
     await this.flushPersistence();
     this.contentState.clear();
     this.contentSources.clear();
+    this.contentPositions.clear();
     this.publish(this.variables.snapshot(), true);
   }
 

@@ -8,6 +8,7 @@ import DeckSkin from '../skins/deck/DeckSkin.svelte';
 import { emptyScenario } from '../core/scenario';
 import { settings } from '../core/settings.svelte';
 import { currentRuntime } from '../core/runtime.svelte';
+import { hasPlacement } from '../core/skin-layouts';
 
 export const uiPlugin: Plugin = {
   id: 'ui',
@@ -41,8 +42,7 @@ export const uiPlugin: Plugin = {
     });
     const mediaTargets = () => [
       { value: 'self', label: 'This widget' },
-      ...settings.controls.filter(control => control.type === 'media' &&
-        settings.deck.pages.some(page => page.items.some(item => item.control === control.id)))
+      ...settings.controls.filter(control => control.type === 'media' && hasPlacement(settings, control.id))
         .map(control => ({ value: control.id, label: control.name })),
     ];
     for (const [id, title, command] of [['media.nextSlide', 'Next slide', 'next'], ['media.prevSlide', 'Previous slide', 'prev']] as const)
@@ -52,6 +52,8 @@ export const uiPlugin: Plugin = {
           return currentRuntime()?.contentCommand(typeof args.target === 'string' && args.target !== 'self' ? args.target : context.controlId, command);
         },
       });
-    api.registerSkin({ id: 'deck', title: 'Deck', component: DeckSkin });
+    api.registerSkin({ id: 'deck', title: 'Deck', component: DeckSkin,
+      slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
+      views: [{ id: 'default', title: 'Deck', slots: ['main'] }], defaultView: 'default' });
   },
 };

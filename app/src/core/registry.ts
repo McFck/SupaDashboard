@@ -1,12 +1,14 @@
 // Extension points. Built-in features register through exactly the same API as plugins.
 import type { Component } from 'svelte';
 import type { ControlConfig } from './controls';
-import { settings, type Page } from './settings.svelte';
+import { settings } from './settings.svelte';
 import type { ActionStep, Trigger } from './scenario';
 import { VariableStore, type VariableDefinition, type VariableRecord, type VariableValue } from './variables';
 import { get, writable } from 'svelte/store';
 import { load } from '@tauri-apps/plugin-store';
 import { normalizePluginState, type PluginState } from './plugin-store';
+import { validateSkinDefinition, type SkinDef as SkinDefinition } from './skins';
+export type { SkinDef } from './skins';
 
 /** A reference to an action plus its arguments, as stored in settings. */
 export type ActionRef = { id: string; args?: Record<string, unknown> };
@@ -41,7 +43,7 @@ export type Param = {
   key: string;
   label: string;
   /** 'select' = dropdown of `suggestions` only; 'text' = free text with suggestions. */
-  type: 'text' | 'number' | 'select' | 'actions';
+  type: 'text' | 'number' | 'select' | 'actions' | 'boolean';
   /** Offered values. A function is re-read each time the editor opens. */
   suggestions?: Option[] | ((args?: Record<string, unknown>) => Option[]);
   /** Reloads whatever `suggestions` reads; called when the dropdown opens. */
@@ -92,13 +94,11 @@ export type MediaSource = {
   command(command: 'prev' | 'next' | 'toggle' | 'play' | 'pause'): Promise<unknown>;
 };
 
-export type SkinDef = { plugin?: string; id: string; title: string; component: Component<{ page: Page }> };
-
 export type PluginApi = {
   registerAction(def: ActionDef): void;
   registerValue(def: ValueDef): void;
   registerControl(def: ControlTypeDef): void;
-  registerSkin(def: SkinDef): void;
+  registerSkin(def: SkinDefinition): void;
   registerMediaSource(def: MediaSource): void;
   registerVariable(def: PluginVariableDef): void;
   getVariable(id: string): VariableValue | undefined;
@@ -133,7 +133,7 @@ export type Plugin = {
 export const actions = new Map<string, ActionDef>();
 export const values = new Map<string, ValueDef>();
 export const controlTypes = new Map<string, ControlTypeDef>();
-export const skins = new Map<string, SkinDef>();
+export const skins = new Map<string, SkinDefinition>();
 export const mediaSources = new Map<string, MediaSource>();
 export const customIcons = new Map<string, string>();
 export const customIconOwners = new Map<string, string>();
@@ -174,7 +174,20 @@ function createApi(owner: string): PluginApi {
     registerAction: d => void actions.set(d.id, { ...d, plugin: owner }),
     registerValue: d => void values.set(d.id, { ...d, plugin: owner }),
     registerControl: d => void controlTypes.set(d.type, { ...d, plugin: owner }),
-    registerSkin: d => void skins.set(d.id, { ...d, plugin: owner }),
+    registerSkin: d => {
+      validateSkinDefinition(d);
+      for (const id of [`${d.id}.view`, ...(d.state ?? []).map(field => `${d.id}.${field.key}`)]) {
+        const current = variableDefinitions.get(id);
+        if (current && current.owner !== owner) throw new Error(`Skin variable "${id}" belongs to another plugin`);
+      }
+      for (const event of d.events ?? []) {
+        const current = eventDefinitions.get(event.id);
+        if (current && current.plugin !== owner) throw new Error(`Skin event "${event.id}" belongs to another plugin`);
+      }
+      const existing = skins.get(d.id);
+      if (existing && existing.plugin !== owner) throw new Error(`Skin "${d.id}" belongs to another plugin`);
+      skins.set(d.id, { ...d, plugin: owner });
+    },
     registerMediaSource: d => void mediaSources.set(d.id, { ...d, plugin: owner }),
     registerVariable: definition => {
       const entry = { owner, definition: structuredClone(definition) };

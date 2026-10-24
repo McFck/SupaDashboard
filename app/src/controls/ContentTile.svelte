@@ -5,13 +5,15 @@
   import { gestures } from '../core/gestures';
   import { captureRuntimeTrigger, dispatchRuntimePacket, runtimeView } from '../core/runtime.svelte';
   import type { TriggerPacket } from '../core/scenario-runner';
+  import type { Trigger } from '../core/scenario';
   import { settings, type Page } from '../core/settings.svelte';
   import PressFeedback from './PressFeedback.svelte';
 
   let { control, page, pageId, pageVisible = true, w = 1, h = 1, itemId, pressFeedbackDisabled = false,
-    passThrough = false, children }: {
+    passThrough = false, onCommitted, children }: {
     control: ControlConfig; page?: Page; pageId?: string; pageVisible?: boolean; w?: number; h?: number;
-    itemId?: string; pressFeedbackDisabled?: boolean; passThrough?: boolean; children: import('svelte').Snippet;
+    itemId?: string; pressFeedbackDisabled?: boolean; passThrough?: boolean; onCommitted?: (trigger: Trigger) => void;
+    children: import('svelte').Snippet;
   } = $props();
   let pull = $state<PullSnapshot | null>(null);
   let settling = $state(false);
@@ -40,7 +42,8 @@
       settling = false;
     }).catch(() => {});
   }
-  function trigger(_trigger: import('../core/scenario').Trigger, captured?: unknown) {
+  function trigger(_trigger: Trigger, captured?: unknown) {
+    onCommitted?.(_trigger);
     void dispatchRuntimePacket(captured as TriggerPacket | undefined);
   }
   onDestroy(() => { animation?.cancel(); animation = undefined; });

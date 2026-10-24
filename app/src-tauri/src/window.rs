@@ -79,9 +79,13 @@ fn resize_hit(rect: Geometry, point: (i32, i32), dpi: u32, fullscreen: bool) -> 
     }
 }
 
+fn dashboard_visible(is_visible: bool, minimized: bool) -> bool {
+    is_visible && !minimized
+}
+
 #[cfg(windows)]
 mod win32 {
-    use super::{Geometry, ResizeHit, SUBCLASS_ID, resize_hit};
+    use super::{Geometry, ResizeHit, SUBCLASS_ID, dashboard_visible, resize_hit};
     use serde::Serialize;
     use std::mem::size_of;
     use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
@@ -97,12 +101,12 @@ mod win32 {
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         GWL_EXSTYLE, GWL_STYLE, GetWindowLongPtrW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT,
-        HTBOTTOMRIGHT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, MA_NOACTIVATE, PA_NOACTIVATE,
-        SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
-        SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetWindowLongPtrW, SetWindowPos, WM_CANCELMODE,
-        WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
-        WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_STYLECHANGING, WM_SYSCOMMAND, WS_CAPTION,
-        WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
+        HTBOTTOMRIGHT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsIconic, IsWindowVisible,
+        MA_NOACTIVATE, PA_NOACTIVATE, SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetWindowLongPtrW,
+        SetWindowPos, WM_CANCELMODE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE,
+        WM_NCMOUSEMOVE, WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING,
+        WM_SYSCOMMAND, WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
     };
 
     struct PolicyState {
@@ -110,6 +114,7 @@ mod win32 {
         fullscreen: bool,
         hovered: bool,
         tracking_leave: bool,
+        minimized: bool,
         revision: u64,
     }
 
@@ -119,6 +124,11 @@ mod win32 {
         hovered: bool,
         revision: u64,
         clear_client: bool,
+    }
+
+    #[derive(Clone, Serialize)]
+    struct VisibilityEvent {
+        visible: bool,
     }
 
     pub fn install(window: &WebviewWindow) -> Result<(), String> {
@@ -132,6 +142,7 @@ mod win32 {
             fullscreen: false,
             hovered: false,
             tracking_leave: false,
+            minimized: unsafe { IsIconic(hwnd).as_bool() },
             revision: 0,
         }));
         let installed = unsafe {
@@ -212,6 +223,13 @@ mod win32 {
         };
         tauri::async_runtime::spawn(async move {
             let _ = app.emit_to("main", "dashboard-hover", payload);
+        });
+    }
+
+    fn publish_visibility(state: &PolicyState, visible: bool) {
+        let app = state.app.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = app.emit_to("main", "dashboard-visibility", VisibilityEvent { visible });
         });
     }
 
@@ -302,7 +320,20 @@ mod win32 {
             unsafe { drop(Box::from_raw(reference_data as *mut PolicyState)) };
             return result;
         }
-        unsafe { DefSubclassProc(hwnd, message, wparam, lparam) }
+        let result = unsafe { DefSubclassProc(hwnd, message, wparam, lparam) };
+        if message == WM_SHOWWINDOW {
+            let visible = unsafe { IsWindowVisible(hwnd).as_bool() };
+            let minimized = unsafe { IsIconic(hwnd).as_bool() };
+            publish_visibility(policy, dashboard_visible(visible, minimized));
+        } else if message == WM_SIZE {
+            let minimized = unsafe { IsIconic(hwnd).as_bool() };
+            if policy.minimized != minimized {
+                policy.minimized = minimized;
+                let visible = unsafe { IsWindowVisible(hwnd).as_bool() };
+                publish_visibility(policy, dashboard_visible(visible, minimized));
+            }
+        }
+        result
     }
 
     fn hit_code(hit: ResizeHit) -> u32 {
@@ -501,7 +532,15 @@ fn validate_bounds(bounds: Geometry) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Geometry, ResizeHit, resize_hit, validate_bounds};
+    use super::{Geometry, ResizeHit, dashboard_visible, resize_hit, validate_bounds};
+
+    #[test]
+    fn dashboard_visibility_requires_a_shown_non_minimized_window() {
+        assert!(dashboard_visible(true, false));
+        assert!(!dashboard_visible(false, false));
+        assert!(!dashboard_visible(true, true));
+        assert!(!dashboard_visible(false, true));
+    }
 
     #[test]
     fn validates_signed_positions_and_positive_win32_dimensions() {
