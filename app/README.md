@@ -31,13 +31,20 @@ handle to resize, tap an empty spot to add a widget or place an existing control
 |---|---|---|
 | Widgets | `src/controls/` | `button`, `slider` (pill; tall = vertical), `mixer` (several pills: master + apps) |
 | Layout | `src/core/layout.ts` | deck items with x/y/w/h, collision, drop/swap (tested) |
-| Actions | `src/core/registry.ts` | named commands with args; core includes media/volume, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, `open`, `delay`, and `sequence` |
+| Actions | `src/core/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, `open`, `delay`, and `sequence` |
 | Media sources | same | where media commands go: core `system` (current Windows player); plugins add more |
 | Values | same | what a slider controls: `volume {target: "system" \| process name}` |
 | Plugins | `src/plugins/` | `core`, `ui` (built-in widgets + skins), `spotify` (media source, icon, mixer icon, `spotify.open`) |
 | Native | `src-tauri/src/` | `media.rs` (Windows media sessions), `volume.rs` (master + per-app volume, mute, mixer list), tray + windows in `lib.rs` |
 
-Deck settings: `%APPDATA%\dev.supadashboard.app\settings.json` (version 4; older versions migrate on load). Persistent variables are stored separately in `variables.json`.
+Deck settings: `%APPDATA%\dev.supadashboard.app\settings.json` (version 5; older versions migrate on load). Pages share controls and scenario definitions; page selection is runtime state for the current dashboard launch. Persistent variables are stored separately in `variables.json`.
+
+### Pages
+
+The layout editor supports up to ten named pages, each with its own grid density and widget placements. Add, rename,
+duplicate, reorder, move widgets between pages, and undo page edits from the page tabs. The dashboard changes pages
+through empty-gap swipes, the bottom dots, `page.next`/`page.prev`/`page.goto` actions, or optional auto-rotation.
+Navigation is owned by the dashboard runtime and resets to the first page on a fresh launch.
 
 ### Gestures
 Buttons have separate ordered scenarios for Press, Release, Long press, Long press release, Double tap, Pull up,

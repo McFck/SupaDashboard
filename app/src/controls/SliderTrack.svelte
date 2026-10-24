@@ -28,7 +28,12 @@
   let el = $state<HTMLElement>();
   // Content grows with the slider's thickness so a big tile does not show tiny text.
   let trackWidth = $state(0), trackHeight = $state(0);
-  const faceScale = $derived(Math.max(1, Math.min(2.4, (vertical ? trackWidth : trackHeight) / 64)));
+  // Limited by both thickness and the room along the track, so small tiles shrink instead of overflowing.
+  const faceScale = $derived.by(() => {
+    const thick = vertical ? trackWidth : trackHeight, long = vertical ? trackHeight : trackWidth;
+    if (!thick || !long) return 1;
+    return Math.max(.7, Math.min(2.4, thick / 64, (long - 40) / (vertical ? 70 : 140)));
+  });
   let drag: ActiveDrag | null = null;
   let active = $state(false);
   let lastTapRect: TrackRect | null = null;

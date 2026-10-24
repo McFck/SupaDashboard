@@ -304,7 +304,8 @@ async function main() {
       await pointerMove(handle, point.x, point.y);
       await nextFrame();
       const current = await rect(handle);
-      drift.push({ error: Math.hypot(current.x + grab.x - point.x, current.y + grab.y - point.y),
+      const distance = Math.hypot(point.x - from.x, point.y - from.y);
+      drift.push({ active: distance > 6, error: Math.hypot(current.x + grab.x - point.x, current.y + grab.y - point.y),
         point, anchor: { x: current.x + grab.x, y: current.y + grab.y }, rect: current });
     }
     for (const detour of detours) {
@@ -321,7 +322,7 @@ async function main() {
     await delay(500);
     if (screenshotPrefix) await shot(`${screenshotPrefix}-committed`);
     const stats = await workerStats();
-    return { shown, displaced, drift, maxDrift: Math.max(...drift.map(sample => sample.error)), preReleaseStats, settingsWrites: stats.settingsWrites - writesBefore,
+    return { shown, displaced, drift, maxDrift: Math.max(...drift.filter(sample => sample.active).map(sample => sample.error)), preReleaseStats, settingsWrites: stats.settingsWrites - writesBefore,
       stats, settings: await settings(), pointer };
   };
   const resetItem = async (id, expectedX, expectedY) => {
@@ -552,7 +553,8 @@ async function main() {
   await setupPanel(1024, 700);
   const remoteBefore = await rawSettings();
   const remote = structuredClone(remoteBefore);
-  remote.deck.pages[0].gap = 18;
+  // At this viewport fitDeck caps the maximum gap, so use a lower value to force a visible metric change.
+  remote.deck.pages[0].gap = 8;
   const remoteString = JSON.stringify(remote);
   const remoteBox = await actionBox(), remoteGrid = await info();
   const remoteFrom = { x: remoteBox.x + remoteBox.width / 2, y: remoteBox.y + remoteBox.height / 2 };
@@ -567,7 +569,8 @@ async function main() {
   await mouse('mouseReleased', remoteFrom.x + remoteGrid.pitch * 5, remoteFrom.y, 0);
   await delay(220);
   const remoteAfter = await settings(), remoteStats = await workerStats();
-  assert.equal(remoteGap, 18, 'Remote metric change was not applied');
+  assert.equal(remoteGap, 8, 'Remote metric change was not applied');
+  assert.equal(remoteAfter.deck.gap, 8, 'The page setting did not receive the remote metric change');
   assert.equal(remoteAfter.deck.items.find(item => item.id === 'action-item').x, 5, 'Remote metric change allowed the active drag to commit');
   assert.equal(remoteStats.settingsWrites, 0, 'Canceled drag wrote settings after a remote metric change');
   assert.equal(remoteStats.pendingPointerFrames, 0);
@@ -633,25 +636,26 @@ async function main() {
   const moveHandle = '[aria-label="Move or select Action"]';
   const moveBox = await rect(moveHandle), moveGrid = await info();
   const moveFrom = { x: moveBox.x + moveBox.width / 2, y: moveBox.y + moveBox.height / 2 };
+  const moveTo = { x: moveFrom.x + moveGrid.pitch * .9, y: moveFrom.y };
   await mouse('mousePressed', moveFrom.x, moveFrom.y);
-  await pointerMove(moveHandle, moveFrom.x + moveGrid.pitch, moveFrom.y);
+  await pointerMove(moveHandle, moveTo.x, moveTo.y);
   await delay(140);
   const handlesHeld = await evaluate(`(() => { const chrome=document.querySelector('[data-editing-chrome]');const handle=chrome?.querySelector('[data-corner="se"]');return {opacity:Number(getComputedStyle(chrome).opacity),zIndex:getComputedStyle(chrome).zIndex,
-    hidden:handle?.getAttribute('aria-hidden'),pointerEvents:handle&&getComputedStyle(handle).pointerEvents}; })()`);
-  assert.ok(handlesHeld.opacity <= .01, `Resize handles remained visible during drag: ${JSON.stringify(handlesHeld)}`);
+    handleOpacity:handle&&Number(getComputedStyle(handle).opacity),hidden:handle?.getAttribute('aria-hidden'),pointerEvents:handle&&getComputedStyle(handle).pointerEvents}; })()`);
+  assert.ok(handlesHeld.handleOpacity <= .01, `Resize handles remained visible during drag: ${JSON.stringify(handlesHeld)}`);
   assert.equal(handlesHeld.zIndex, '60');
   assert.equal(handlesHeld.hidden, 'true');
   assert.equal(handlesHeld.pointerEvents, 'none');
   await shot('canvas-handles-hidden-drag');
-  await mouse('mouseReleased', moveFrom.x + moveGrid.pitch, moveFrom.y, 0);
+  await mouse('mouseReleased', moveTo.x, moveTo.y, 0);
   await delay(160);
-  const handlesSettling = await evaluate(`Number(getComputedStyle(document.querySelector('[data-editing-chrome]')).opacity)`);
+  const handlesSettling = await evaluate(`Number(getComputedStyle(document.querySelector('[data-editing-chrome] [data-corner="se"]')).opacity)`);
   assert.ok(handlesSettling <= .01, `Resize handles returned before layout settlement: ${handlesSettling}`);
   await delay(500);
-  const handlesRestored = await evaluate(`Number(getComputedStyle(document.querySelector('[data-editing-chrome]')).opacity)`);
+  const handlesRestored = await evaluate(`Number(getComputedStyle(document.querySelector('[data-editing-chrome] [data-corner="se"]')).opacity)`);
   assert.ok(handlesRestored >= .99, `Resize handles did not return after layout settlement: ${handlesRestored}`);
   await shot('canvas-handles-restored');
-  report.regressions.handles = { duringDragOpacity: handlesHeld.opacity, duringSettleOpacity: handlesSettling,
+  report.regressions.handles = { duringDragOpacity: handlesHeld.handleOpacity, duringSettleOpacity: handlesSettling,
     afterSettleOpacity: handlesRestored, editingChromeZIndex: handlesHeld.zIndex };
 
   // Removing a neighbouring tile leaves the selected editing chrome in the top stacking layer.
