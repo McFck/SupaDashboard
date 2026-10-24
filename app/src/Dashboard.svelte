@@ -418,6 +418,7 @@
       }
       return;
     }
+    if (skin.pageNavigation === 'skin') return;
     if (source === 'gap') event.preventDefault();
     if (pagerSession) cancelPagerToCurrent();
     cancelPagerAnimations();
@@ -637,7 +638,7 @@
   onpointerenter={() => { domHovered = true; }} onpointerleave={() => { domHovered = false; }}>
   <div aria-hidden="true" class="dashboard-backdrop" style:background={bg.color}
     style:opacity={Number.isFinite(bg.opacity) ? Math.max(0, Math.min(1, bg.opacity)) : 0}></div>
-  <div class="dashboard-skin" data-has-pages={settings.deck.pages.length > 1} bind:this={pageHost}>
+  <div class="dashboard-skin" data-has-pages={settings.deck.pages.length > 1 && skin.pageNavigation !== 'skin'} bind:this={pageHost}>
     <div class="dashboard-pages">
       {#each pagerFrames as frame (frame.id)}
         {@const framePage = settings.deck.pages.find(candidate => candidate.id === frame.id)}
@@ -651,7 +652,7 @@
       {/each}
     </div>
   </div>
-  {#if settings.deck.pages.length > 1}
+  {#if settings.deck.pages.length > 1 && skin.pageNavigation !== 'skin'}
     <nav class="dashboard-page-dots" aria-label="Pages">
       {#each settings.deck.pages as dotPage (dotPage.id)}
         <button type="button" aria-label="Go to {dotPage.name}" aria-current={page.id === dotPage.id ? 'page' : undefined}

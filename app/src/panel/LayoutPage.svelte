@@ -10,27 +10,29 @@
   import { Hint } from '$lib/components/ui/tooltip';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Slider } from '$lib/components/ui/slider';
-  import DeckGrid from '../controls/DeckGrid.svelte';
+  import SkinLayoutEditor from './SkinLayoutEditor.svelte';
   import { animateRemoval } from '../controls/removal';
   import { history, undo, redo, commit } from '../core/history.svelte';
   import { TRIGGERS, type Trigger } from '../core/scenario';
   import { dispatchRuntimeTrigger, runtimeView, simulateRuntimeEvent, stopRuntimeControl } from '../core/runtime.svelte';
-  import { fits, type Selection } from '../core/layout';
+  import { firstFree, fits, type Selection } from '../core/layout';
   import { splitAlpha, withAlpha } from '../core/palette';
-  import { registeredEvents } from '../core/registry';
+  import { registeredEvents, skins } from '../core/registry';
   import { controlById, settings } from '../core/settings.svelte';
   import { addPage as buildPage, deletePage as buildDeletePage, duplicatePage as buildDuplicatePage, MAX_PAGES,
-    movePlacement, pageAfterRemoval, pageById, pageItems, removePlacement, renamePage as buildRenamePage, reorderPage as buildReorderPage } from '../core/pages';
+    pageAfterRemoval, pageById, pageItems, removePlacement, renamePage as buildRenamePage, reorderPage as buildReorderPage } from '../core/pages';
   import ColorField from '../editor/ColorField.svelte';
   import ScenarioEditor from '../editor/ScenarioEditor.svelte';
   import Inspector from './Inspector.svelte';
   import PageTabs from './PageTabs.svelte';
   import Choice from '../editor/Choice.svelte';
+  import { canSetLayoutItems, effectiveSize, layoutFor, movePlacementToSlot, setLayoutItems, type LayoutTarget } from '../core/skin-layouts';
+  import type { SkinDef } from '../core/skins';
   import ContextMenu, { type MenuAction } from './ContextMenu.svelte';
   import Row from './ui/Row.svelte';
   import Section from './ui/Section.svelte';
-  import { frame, saveFrame } from './ui/preferences.svelte';
-  import { cloneControl, duplicateWidget, pasteWidget, type WidgetCopy } from './ui/layout-actions';
+  import { frame, layoutPreview, saveFrame, saveLayoutPreview } from './ui/preferences.svelte';
+  import { cloneControl, pasteWidget, type WidgetCopy } from './ui/layout-actions';
   import { clipboard } from './ui/widget-clipboard.svelte';
 
   let { active = true }: { active?: boolean } = $props();
@@ -42,29 +44,47 @@
   let layoutWidth = $state(0);
   let area = $state<HTMLElement>();
   let box = $state({ w: 0, h: 0 });
-  let context = $state<{ pageId: string; target: NonNullable<Selection>; x: number; y: number; actions: MenuAction[]; generation: number } | null>(null);
+  let context = $state<{ pageId: string; layoutTarget: LayoutTarget; target: NonNullable<Selection>; x: number; y: number; actions: MenuAction[]; generation: number } | null>(null);
   let menuOpen = $state(false);
   let menuGeneration = 0;
   let resizing = $state<{ x: number; width: number } | null>(null);
   let wasInactive = $state(false);
   const initialSelectedPageId = $runtimeView.activePage || settings.deck.activePage || settings.deck.pages[0].id;
   let selectedPageId = $state(initialSelectedPageId);
+  const initialSkinId = skins.has(layoutPreview.skinId) ? layoutPreview.skinId : settings.skin;
+  const safeInitialSkinId = skins.has(initialSkinId) ? initialSkinId : 'deck';
+  const initialSkin = skins.get(safeInitialSkinId) ?? skins.get('deck')!;
+  const initialView = layoutPreview.views[safeInitialSkinId];
+  const safeInitialViewId = initialSkin.views.some(view => view.id === initialView) ? initialView : initialSkin.defaultView;
+  let selectedSkinId = $state(safeInitialSkinId);
+  let previewViewId = $state(safeInitialViewId);
+  let selectionTarget = $state<LayoutTarget>({ skinId: safeInitialSkinId, pageId: initialSelectedPageId,
+    slotId: initialSkin.views.find(view => view.id === safeInitialViewId)?.slots[0] ?? initialSkin.slots[0]?.id ?? 'main' });
+  let previousSkinId = safeInitialSkinId, previousViewId = safeInitialViewId;
   let previousSelectedPageId = initialSelectedPageId;
   let previousPageOrder = settings.deck.pages.map(entry => entry.id);
   let pageGeneration = 0;
   let moveDialogOpen = $state(false);
-  let moveRequest = $state<{ sourcePageId: string; itemId: string; destinationPageId: string } | null>(null);
+  type MoveRequest = { mode: 'page' | 'slot'; sourceTarget: LayoutTarget; itemId: string; destinationKey: string };
+  type MoveOption = { value: string; label: string; disabled: boolean; target: LayoutTarget };
+  let moveRequest = $state<MoveRequest | null>(null);
   const bg = $derived(settings.display.background);
   const page = $derived(pageById(settings.deck.pages, selectedPageId)!);
+  const editorSkin = $derived(skins.get(selectedSkinId) ?? skins.get('deck')!);
+  const skinOptions = $derived([...skins.values()].map(entry => ({ value: entry.id, label: entry.title, plugin: entry.plugin })));
+  const viewOptions = $derived(editorSkin.views.map(view => ({ value: view.id, label: view.title })));
+  const editorTarget = $derived.by(() => {
+    const view = editorSkin.views.find(entry => entry.id === previewViewId);
+    if (selectionTarget.skinId === editorSkin.id && selectionTarget.pageId === page.id &&
+      editorSkin.slots.some(slot => slot.id === selectionTarget.slotId) && view?.slots.includes(selectionTarget.slotId)) return selectionTarget;
+    return { skinId: editorSkin.id, pageId: page.id, slotId: view?.slots[0] ?? editorSkin.slots[0]?.id ?? 'main' };
+  });
   const allItems = $derived(pageItems(settings.deck.pages, settings.skinLayouts));
-  const movePlan = $derived(moveRequest
-    ? movePlacement(settings.deck.pages, moveRequest.sourcePageId, moveRequest.destinationPageId, moveRequest.itemId)
-    : undefined);
-  const moveOptions = $derived.by(() => {
-    const request = moveRequest;
-    return request ? settings.deck.pages.filter(candidate => candidate.id !== request.sourcePageId)
-      .map(candidate => ({ value: candidate.id, label: candidate.name,
-        disabled: !movePlacement(settings.deck.pages, request.sourcePageId, candidate.id, request.itemId) })) : [];
+  const moveOptions = $derived.by(() => moveRequest
+    ? getMoveOptions(moveRequest.mode, moveRequest.sourceTarget, moveRequest.itemId) : []);
+  const movePlan = $derived.by(() => {
+    const request = moveRequest, target = moveOptions.find(option => option.value === request?.destinationKey && !option.disabled)?.target;
+    return request && target ? movePlacementToSlot(settings, request.itemId, target) : undefined;
   });
   const rightWidth = $derived(Math.max(0, Math.min(frame.inspectorWidth, layoutWidth - 32)));
   $effect(() => { if (!active) wasInactive = true; });
@@ -94,16 +114,31 @@
     pageGeneration++;
     if (!ids.includes(selectedPageId)) selectedPageId = pageAfterRemoval(settings.deck.pages, selectedPageId, prior) ?? ids[0];
     if (context) closeMenu(context.generation);
-    if (moveRequest && (!ids.includes(moveRequest.sourcePageId) || !ids.includes(moveRequest.destinationPageId))) closeMoveDialog();
+    if (moveRequest && (!ids.includes(moveRequest.sourceTarget.pageId) ||
+      !moveOptions.some(option => option.value === moveRequest?.destinationKey))) closeMoveDialog();
   });
   $effect(() => {
     const current = selectedPageId;
     if (current === previousSelectedPageId) return;
     previousSelectedPageId = current;
     selection = null;
+    selectionTarget = defaultTarget(editorSkin, page.id, previewViewId);
     if (context) closeMenu(context.generation);
     scenarioOpen = false;
     closeMoveDialog();
+  });
+  $effect(() => {
+    const skinId = selectedSkinId, viewId = previewViewId;
+    if (skinId === previousSkinId && viewId === previousViewId) return;
+    previousSkinId = skinId; previousViewId = viewId;
+    const skin = skins.get(skinId);
+    if (!skin || !skin.views.some(view => view.id === viewId)) return;
+    layoutPreview.skinId = skinId;
+    layoutPreview.views[skinId] = viewId;
+    if (!skin.views.find(view => view.id === viewId)?.slots.includes(selectionTarget.slotId) || selectionTarget.skinId !== skinId)
+      selectionTarget = defaultTarget(skin, page.id, viewId);
+    clearEditorTransient();
+    saveLayoutPreview();
   });
   $effect(() => {
     if (!active || !layout || !area) return;
@@ -117,7 +152,8 @@
     return () => cancelAnimationFrame(frameId);
   });
   $effect(() => {
-    if (selection && 'item' in selection && !page.items.some(i => i.id === (selection as { item: string }).item)) selection = null;
+    const selectedId = selection && 'item' in selection ? selection.item : undefined;
+    if (selectedId && !layoutFor(settings, editorTarget.skinId, editorTarget.pageId, editorTarget.slotId)?.items.some(i => i.id === selectedId)) selection = null;
   });
   $effect(() => {
     const payload = context;
@@ -128,10 +164,11 @@
       : 'cell' in current && current.cell.x === payload.target.cell.x && current.cell.y === payload.target.cell.y);
     const target = payload.target;
     const targetPage = settings.deck.pages.find(candidate => candidate.id === payload.pageId);
-    const targetExists = !!targetPage && ('item' in target
-      ? targetPage.items.some(item => item.id === target.item)
-      : target.cell.x >= 0 && target.cell.y >= 0 && target.cell.x < targetPage.cols && target.cell.y < targetPage.rows);
-    if (!sameSelection || payload.pageId !== page.id || !targetExists) closeMenu(payload.generation);
+    const targetLayout = layoutFor(settings, payload.layoutTarget.skinId, payload.layoutTarget.pageId, payload.layoutTarget.slotId);
+    const targetExists = !!targetPage && !!targetLayout && ('item' in target
+      ? targetLayout.items.some(item => item.id === target.item)
+      : !!targetLayout.geometry && target.cell.x >= 0 && target.cell.y >= 0 && target.cell.x < targetLayout.geometry.cols && target.cell.y < targetLayout.geometry.rows);
+    if (!sameSelection || payload.pageId !== page.id || payload.layoutTarget.skinId !== editorSkin.id || !targetExists) closeMenu(payload.generation);
   });
   $effect(() => {
     if (active) return;
@@ -141,8 +178,38 @@
     if (resizing) { resizing = null; saveFrame(); }
   });
   onDestroy(() => { if (context) closeMenu(context.generation); closeMoveDialog(); });
-  function select(s: Selection) {
+  function defaultTarget(skin: SkinDef, pageId: string, viewId: string): LayoutTarget {
+    const view = skin.views.find(entry => entry.id === viewId) ?? skin.views.find(entry => entry.id === skin.defaultView);
+    return { skinId: skin.id, pageId, slotId: view?.slots[0] ?? skin.slots[0]?.id ?? 'main' };
+  }
+  function clearEditorTransient() {
+    selection = null;
+    if (context) closeMenu(context.generation);
+    scenarioOpen = false;
+    closeMoveDialog();
+  }
+  function changeSkin(skinId: string) {
+    const next = skins.get(skinId);
+    if (!next || next.id === selectedSkinId) return;
+    selectedSkinId = next.id;
+    layoutPreview.skinId = next.id;
+    const storedView = layoutPreview.views[next.id];
+    previewViewId = next.views.some(view => view.id === storedView) ? storedView : next.defaultView;
+    selectionTarget = defaultTarget(next, page.id, previewViewId);
+    clearEditorTransient();
+    saveLayoutPreview();
+  }
+  function changePreviewView(viewId: string) {
+    if (!editorSkin.views.some(view => view.id === viewId) || viewId === previewViewId) return;
+    previewViewId = viewId;
+    layoutPreview.views[editorSkin.id] = viewId;
+    selectionTarget = defaultTarget(editorSkin, page.id, viewId);
+    clearEditorTransient();
+    saveLayoutPreview();
+  }
+  function select(s: Selection, target?: LayoutTarget) {
     selection = s;
+    if (target) selectionTarget = target;
     rightPage = 'inspector';
     if (s) { frame.inspectorOpen = true; saveFrame(); }
   }
@@ -206,35 +273,65 @@
     selectedPageId = nextSelected;
     selection = null;
   }
-  function openMoveDialog(pageId: string, itemId: string) {
-    const candidates = settings.deck.pages.filter(candidate => candidate.id !== pageId);
-    const firstAvailable = candidates.find(candidate => movePlacement(settings.deck.pages, pageId, candidate.id, itemId));
-    moveRequest = { sourcePageId: pageId, itemId, destinationPageId: firstAvailable?.id ?? candidates[0]?.id ?? '' };
+  function getMoveOptions(mode: MoveRequest['mode'], sourceTarget: LayoutTarget, itemId: string): MoveOption[] {
+    const skin = skins.get(sourceTarget.skinId);
+    const visibleSlots = skin?.views.find(view => view.id === previewViewId)?.slots ?? [];
+    const slots = mode === 'page' ? [sourceTarget.slotId] : visibleSlots;
+    if (!skin || !visibleSlots.includes(sourceTarget.slotId)) return [];
+    return settings.deck.pages.flatMap(candidate => slots.flatMap(slotId => {
+      const target = { skinId: sourceTarget.skinId, pageId: candidate.id, slotId };
+      if (candidate.id === sourceTarget.pageId && slotId === sourceTarget.slotId) return [];
+      if (mode === 'page' && candidate.id === sourceTarget.pageId) return [];
+      const slot = skin.slots.find(entry => entry.id === slotId);
+      return [{ value: `${candidate.id}::${slotId}`, label: mode === 'page' ? candidate.name : `${candidate.name} · ${slot?.id ?? slotId}`,
+        disabled: !movePlacementToSlot(settings, itemId, target), target }];
+    }));
+  }
+  function openMoveDialog(mode: MoveRequest['mode'], sourceTarget: LayoutTarget, itemId: string) {
+    const source = layoutFor(settings, sourceTarget.skinId, sourceTarget.pageId, sourceTarget.slotId);
+    const options = getMoveOptions(mode, sourceTarget, itemId);
+    const firstAvailable = options.find(option => !option.disabled);
+    if (!source?.items.some(item => item.id === itemId) || !firstAvailable) {
+      toast.error('No free space for this widget');
+      return;
+    }
+    moveRequest = { mode, sourceTarget: { ...sourceTarget }, itemId, destinationKey: firstAvailable.value };
     moveDialogOpen = true;
   }
   async function finishMove() {
     const request = moveRequest;
-    if (!request || selectedPageId !== request.sourcePageId) return;
-    const result = movePlacement(settings.deck.pages, request.sourcePageId, request.destinationPageId, request.itemId);
+    const destination = moveOptions.find(option => option.value === request?.destinationKey && !option.disabled)?.target;
+    const source = request && layoutFor(settings, request.sourceTarget.skinId, request.sourceTarget.pageId, request.sourceTarget.slotId);
+    if (!request || !destination || selectedPageId !== request.sourceTarget.pageId || editorSkin.id !== request.sourceTarget.skinId ||
+      !source?.items.some(item => item.id === request.itemId) || !editorSkin.views.find(view => view.id === previewViewId)?.slots.includes(request.sourceTarget.slotId)) {
+      closeMoveDialog();
+      return;
+    }
+    const result = movePlacementToSlot(settings, request.itemId, destination);
     if (!result) { toast.error('No free space for this widget'); return; }
-    const destination = settings.deck.pages.find(candidate => candidate.id === request.destinationPageId);
-    commit(destination ? `Move widget to ${destination.name}` : 'Move widget');
+    const destinationPage = settings.deck.pages.find(candidate => candidate.id === destination.pageId);
+    commit(destinationPage ? `Move widget to ${destinationPage.name}` : 'Move widget');
     settings.deck.pages = result.pages;
-    selectedPageId = request.destinationPageId;
+    settings.skinLayouts = result.skinLayouts;
+    selectedPageId = destination.pageId;
+    selectionTarget = destination;
     closeMoveDialog();
     await tick();
-    select({ item: result.item.id });
+    select({ item: result.item.id }, destination);
   }
-  function openMenu(target: NonNullable<Selection>, x: number, y: number) {
+  function openMenu(target: NonNullable<Selection>, x: number, y: number, layoutTarget: LayoutTarget = editorTarget) {
     const snapshot: NonNullable<Selection> = 'item' in target ? { item: target.item } : { cell: { ...target.cell } };
-    context = { pageId: page.id, target: snapshot, x, y, actions: actionsFor(snapshot, page.id).map(action => ({ ...action })), generation: ++menuGeneration };
+    context = { pageId: page.id, layoutTarget, target: snapshot, x, y,
+      actions: actionsFor(snapshot, page.id, layoutTarget).map(action => ({ ...action })), generation: ++menuGeneration };
     menuOpen = true;
   }
   function moveResize(e: PointerEvent) {
     if (active && resizing) frame.inspectorWidth = Math.round(Math.max(320, Math.min(640, resizing.width + resizing.x - e.clientX)));
   }
   function stopResize() { if (active && resizing) { resizing = null; saveFrame(); } }
-  function remove(id: string, pageId: string) {
+  function remove(id: string, pageId: string, target: LayoutTarget) {
+    const source = layoutFor(settings, target.skinId, target.pageId, target.slotId);
+    if (target.pageId !== pageId || !source?.items.some(item => item.id === id)) return;
     const result = removePlacement(settings.deck.pages, pageId, id, settings.skinLayouts);
     if (!result.item) return;
     settings.deck.pages = result.pages;
@@ -245,15 +342,19 @@
     }
     if (selection && 'item' in selection && selection.item === id) selection = null;
   }
-  async function removeItemFromPage(id: string, pageId: string) {
-    const source = settings.deck.pages.find(candidate => candidate.id === pageId);
+  async function removeItemFromPage(id: string, target: LayoutTarget) {
+    const pageId = target.pageId;
+    const source = layoutFor(settings, target.skinId, target.pageId, target.slotId);
     const item = source?.items.find(candidate => candidate.id === id);
     if (!item) return;
+    const skinId = editorSkin.id, viewId = previewViewId, generation = pageGeneration;
     const name = controlById(item.control)?.name ?? 'widget';
     await animateRemoval(id);
-    if (!settings.deck.pages.find(candidate => candidate.id === pageId)?.items.some(entry => entry.id === id)) return;
+    const current = layoutFor(settings, target.skinId, pageId, target.slotId);
+    if (page.id !== pageId || editorSkin.id !== skinId || previewViewId !== viewId || pageGeneration !== generation ||
+      !editorSkin.views.find(view => view.id === viewId)?.slots.includes(target.slotId) || !current?.items.some(entry => entry.id === id)) return;
     commit(`Delete ${name}`);
-    remove(id, pageId);
+    remove(id, pageId, target);
   }
   function deleteKeydown(event: KeyboardEvent) {
     if (!active || event.key !== 'Delete' || event.defaultPrevented || event.repeat || event.altKey || event.ctrlKey || event.metaKey ||
@@ -263,7 +364,7 @@
     const itemId = selection && 'item' in selection ? selection.item : undefined;
     if (itemId) {
       event.preventDefault();
-      void removeItemFromPage(itemId, page.id);
+      void removeItemFromPage(itemId, selectionTarget);
       return;
     }
     const focusedTab = document.activeElement instanceof HTMLElement && document.activeElement.matches('[data-page-tab][aria-selected="true"]');
@@ -272,41 +373,70 @@
       void deletePage(selectedPageId);
     }
   }
-  function insert(copy: WidgetCopy, target: NonNullable<Selection>, pageId: string, replace = false) {
-    const targetPage = settings.deck.pages.find(candidate => candidate.id === pageId);
-    if (!targetPage || page.id !== pageId) return;
-    const old = 'item' in target ? targetPage.items.find(i => i.id === target.item) : undefined;
+  function insertionPlan(copy: WidgetCopy, target: NonNullable<Selection>, pageId: string, targetLayout: LayoutTarget, replace = false) {
+    const visibleSlots = editorSkin.views.find(view => view.id === previewViewId)?.slots ?? [];
+    const current = layoutFor(settings, targetLayout.skinId, targetLayout.pageId, targetLayout.slotId);
+    if (pageId !== page.id || pageId !== targetLayout.pageId || editorSkin.id !== targetLayout.skinId || !visibleSlots.includes(targetLayout.slotId) ||
+      !current?.slot || !current.geometry) return undefined;
+    const old = 'item' in target ? current.items.find(item => item.id === target.item) : undefined;
+    if ('item' in target && !old || old && !replace) return undefined;
     const at = 'cell' in target ? target.cell : old;
-    if (!at) { toast.error('No free space for this widget'); return; }
-    const result = pasteWidget(copy, targetPage.items, allItems, settings.controls, targetPage, at, replace ? old?.id : undefined);
-    if (!result) { toast.error('No free space for this widget'); return; }
-    commit(replace ? 'Paste over widget' : 'Paste widget');
-    if (replace && old) remove(old.id, pageId);
-    settings.controls.push(result.control);
-    settings.deck.pages.find(candidate => candidate.id === pageId)?.items.push(result.item);
-    select({ item: result.item.id });
+    const bounds = effectiveSize(targetLayout.skinId, current.slot, copy.control.type);
+    const remaining = old ? current.items.filter(item => item.id !== old.id) : current.items;
+    if (!at || !bounds || current.slot.accepts && !current.slot.accepts.includes(copy.control.type) ||
+      copy.w < bounds.min.w || copy.h < bounds.min.h || copy.w > bounds.max.w || copy.h > bounds.max.h ||
+      current.slot.max !== undefined && remaining.length >= current.slot.max ||
+      !fits(remaining, { ...at, w: copy.w, h: copy.h }, current.geometry)) return undefined;
+    return { current, old, at, remaining };
   }
-  async function pasteSnapshot(copy: WidgetCopy, target: NonNullable<Selection>, pageId: string) {
-    const targetPage = settings.deck.pages.find(candidate => candidate.id === pageId);
-    if (!targetPage || page.id !== pageId) return;
-    if ('item' in target) {
-      const id = target.item;
-      const current = targetPage.items.find(i => i.id === id);
-      if (!current) return;
-      if (!fits(targetPage.items, { x: current.x, y: current.y, w: copy.w, h: copy.h }, targetPage, [id])) {
-        toast.error('No free space for this widget');
-        return;
+  function insert(copy: WidgetCopy, target: NonNullable<Selection>, pageId: string, targetLayout: LayoutTarget, replace = false, label = 'Paste widget') {
+    const plan = insertionPlan(copy, target, pageId, targetLayout, replace);
+    if (!plan) { toast.error('No free space for this widget'); return; }
+    const result = pasteWidget(copy, plan.remaining, allItems, settings.controls, plan.current.geometry!, plan.at);
+    if (!result) { toast.error('No free space for this widget'); return; }
+
+    const draftPages = settings.deck.pages.map(entry => ({ ...entry, items: [...entry.items] }));
+    let draftLayouts = structuredClone($state.snapshot(settings.skinLayouts));
+    let draftControls = [...settings.controls];
+    let draftVariants = { ...settings.variants };
+    if (plan.old) {
+      const removed = removePlacement(draftPages, pageId, plan.old.id, draftLayouts);
+      if (!removed.item) { toast.error('No free space for this widget'); return; }
+      draftPages.splice(0, draftPages.length, ...removed.pages.map(entry => ({ ...entry, items: [...entry.items] })));
+      draftLayouts = removed.skinLayouts;
+      if (removed.orphanControl) {
+        draftControls = draftControls.filter(control => control.id !== removed.orphanControl);
+        delete draftVariants[removed.orphanControl];
       }
-      if (!await confirm({ title: 'Replace widget?', action: 'Replace', destructive: true })) return;
-      if (page.id !== pageId || !settings.deck.pages.find(candidate => candidate.id === pageId)?.items.some(item => item.id === id)) return;
-      insert(copy, { item: id }, pageId, true);
-      return;
     }
-    if (!fits(targetPage.items, { ...target.cell, w: copy.w, h: copy.h }, targetPage)) {
+    const draft = { ...settings, deck: { ...settings.deck, pages: draftPages }, skinLayouts: draftLayouts, controls: [...draftControls, result.control] };
+    const destination = layoutFor(draft, targetLayout.skinId, targetLayout.pageId, targetLayout.slotId);
+    if (!destination || !setLayoutItems(draft, targetLayout, [...destination.items, result.item])) {
       toast.error('No free space for this widget');
       return;
     }
-    insert(copy, target, pageId);
+    commit(label);
+    settings.deck.pages = draft.deck.pages;
+    settings.skinLayouts = draft.skinLayouts;
+    settings.controls = draft.controls;
+    settings.variants = draftVariants;
+    select({ item: result.item.id }, targetLayout);
+  }
+  async function pasteSnapshot(copy: WidgetCopy, target: NonNullable<Selection>, pageId: string, targetLayout: LayoutTarget) {
+    const replacing = 'item' in target;
+    if (!insertionPlan(copy, target, pageId, targetLayout, replacing)) {
+      toast.error('No free space for this widget');
+      return;
+    }
+    if (replacing) {
+      const id = target.item;
+      if (!await confirm({ title: 'Replace widget?', action: 'Replace', destructive: true })) return;
+      const current = layoutFor(settings, targetLayout.skinId, targetLayout.pageId, targetLayout.slotId);
+      if (page.id !== pageId || !current?.items.some(item => item.id === id)) return;
+      insert(copy, target, pageId, targetLayout, true, 'Paste over widget');
+      return;
+    }
+    insert(copy, target, pageId, targetLayout);
   }
   async function simulate(controlId: string, itemId: string, trigger: Trigger) {
     const result = await dispatchRuntimeTrigger(controlId, itemId, trigger);
@@ -315,10 +445,10 @@
   async function simulateEvent(eventId: string, parameter?: string) {
     if (!await simulateRuntimeEvent(eventId, parameter)) toast.error('Runtime owner is unavailable');
   }
-  function actionsFor(target: NonNullable<Selection>, pageId: string): MenuAction[] {
-    const sourcePage = settings.deck.pages.find(candidate => candidate.id === pageId);
-    if (!sourcePage) return [];
-    const item = 'item' in target ? sourcePage.items.find(i => i.id === target.item) : undefined;
+  function actionsFor(target: NonNullable<Selection>, pageId: string, targetLayout: LayoutTarget = editorTarget): MenuAction[] {
+    const sourceLayout = layoutFor(settings, targetLayout.skinId, targetLayout.pageId, targetLayout.slotId);
+    if (!sourceLayout || pageId !== targetLayout.pageId) return [];
+    const item = 'item' in target ? sourceLayout.items.find(i => i.id === target.item) : undefined;
     const control = item ? controlById(item.control) : undefined;
     const copy = clipboard.value;
     const pasteAt = 'cell' in target ? target.cell : item;
@@ -327,11 +457,11 @@
       if (!latest) return;
       const snapshot = structuredClone($state.snapshot(latest));
       const targetSnapshot: NonNullable<Selection> = 'item' in target ? { item: target.item } : { cell: { ...target.cell } };
-      void pasteSnapshot(snapshot, targetSnapshot, pageId);
+      void pasteSnapshot(snapshot, targetSnapshot, pageId, targetLayout);
     } };
     if (!item || !control) {
       if (!('cell' in target)) return [];
-      return [{ label: 'Edit', run: () => select(target) }, paste];
+      return [{ label: 'Edit', run: () => select(target, targetLayout) }, paste];
     }
     const configured = TRIGGERS.filter(trigger => control.scenario?.triggers[trigger] !== undefined);
     const labels: Record<Trigger, string> = { press: 'Press', release: 'Release', longPress: 'Long press', longPressRelease: 'Long press release',
@@ -339,7 +469,7 @@
     const eventTitles = new Map(registeredEvents().map(event => [event.id, event.title]));
     const running = ($runtimeView.busy[control.id] ?? 0) > 0;
     return [
-      { label: 'Edit', run: () => select(target) },
+      { label: 'Edit', run: () => select(target, targetLayout) },
       { label: 'Edit scenario', run: () => openScenario(control.id, item.id, 'press') },
       ...configured.map(trigger => ({ label: 'Simulate ' + labels[trigger], run: () => { void simulate(control.id, item.id, trigger); } })),
       ...control.scenario?.events.map(event => ({ label: `Simulate event · ${eventTitles.get(event.eventId) ?? event.eventId}`,
@@ -349,14 +479,15 @@
         clipboard.value = { control: cloneControl(control), w: item.w, h: item.h };
         void navigator.clipboard?.writeText(JSON.stringify(clipboard.value)).catch(() => {});
       } }, paste,
-      { label: 'Move to page…', disabled: settings.deck.pages.length <= 1, run: () => openMoveDialog(pageId, item.id) },
+      { label: 'Move to page…', disabled: settings.deck.pages.length <= 1, run: () => openMoveDialog('page', targetLayout, item.id) },
+      { label: 'Move to slot…', run: () => openMoveDialog('slot', targetLayout, item.id) },
       { label: 'Duplicate', run: () => {
-        const result = duplicateWidget({ control, w: item.w, h: item.h }, sourcePage.items, allItems, settings.controls, sourcePage);
-        if (!result) { toast.error('No free space for this widget'); return; }
-        commit(`Duplicate ${control.name}`); result.control.name += ' copy'; settings.controls.push(result.control); sourcePage.items.push(result.item); select({ item: result.item.id });
+        const at = firstFree(sourceLayout.items, item.w, item.h, sourceLayout.geometry!);
+        if (!at) { toast.error('No free space for this widget'); return; }
+        insert({ control: { ...cloneControl(control), name: `${control.name} copy` }, w: item.w, h: item.h }, { cell: at }, pageId, targetLayout, false, `Duplicate ${control.name}`);
       } },
       { label: 'Delete', danger: true, run: async () => {
-        await removeItemFromPage(item.id, pageId);
+        await removeItemFromPage(item.id, targetLayout);
       } },
     ];
   }
@@ -379,13 +510,18 @@
     <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--canvas-surface)]">
       <PageTabs pages={settings.deck.pages} bind:selectedPageId active={active} onadd={addPage} onreorder={reorderPages}
         onrename={renamePage} onduplicate={duplicatePage} ondelete={deletePage} />
+      <div class="flex h-12 shrink-0 items-center gap-2 border-b px-3">
+        <Choice value={selectedSkinId} options={skinOptions} aria-label="Skin" onchange={changeSkin} class="min-w-0 flex-1" />
+        {#if editorSkin.views.length > 1}
+          <Choice value={previewViewId} options={viewOptions} aria-label="Preview view" onchange={changePreviewView} class="min-w-0 flex-1" />
+        {/if}
+      </div>
       <div bind:this={area} role="presentation" onclick={e => { if (e.target === e.currentTarget || e.target === e.currentTarget.lastElementChild) openDeck(); }}
         class="relative grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden">
         <div aria-hidden="true" class="canvas-grid"></div>
-        <div class="grid min-h-0 min-w-0 place-items-center" class:canvas-enter={active && wasInactive}>
-          {#key page.id}
-            <DeckGrid {page} editing selected={selection} onselect={select} oncontext={openMenu}
-              availableWidth={Math.max(0, box.w - 48)} availableHeight={Math.max(0, box.h - 48)} />
+        <div class="relative grid h-full min-h-0 w-full min-w-0 place-items-center" class:canvas-enter={active && wasInactive}>
+          {#key `${page.id}:${editorSkin.id}`}
+            <SkinLayoutEditor skin={editorSkin} {page} bind:previewViewId selected={selection} onselect={select} oncontext={openMenu} />
           {/key}
         </div>
       </div>
@@ -413,7 +549,7 @@
         {:else}
           <div class="inspector-content min-h-0 flex-1 overflow-hidden">
             {#key `${page.id}:${selection && 'item' in selection ? selection.item : 'collection'}`}
-              <Inspector {page} {selection} onselect={select} oneditScenario={openScenario} />
+              <Inspector {page} {selection} layoutTarget={editorTarget} onselect={select} oneditScenario={openScenario} />
             {/key}
           </div>
         {/if}
@@ -427,9 +563,10 @@
 {/if}
 <Dialog.Root open={moveDialogOpen} onOpenChange={open => { if (!open) closeMoveDialog(); }}>
   <Dialog.Content class="sm:max-w-sm">
-    <Dialog.Header><Dialog.Title>Move to page</Dialog.Title></Dialog.Header>
-    <Choice value={moveRequest?.destinationPageId ?? ''} options={moveOptions}
-      aria-label="Destination page" onchange={value => { if (moveRequest) moveRequest.destinationPageId = value; }} />
+    <Dialog.Header><Dialog.Title>{moveRequest?.mode === 'slot' ? 'Move to slot' : 'Move to page'}</Dialog.Title></Dialog.Header>
+    <Choice value={moveRequest?.destinationKey ?? ''} options={moveOptions}
+      aria-label={moveRequest?.mode === 'slot' ? 'Destination slot' : 'Destination page'}
+      onchange={value => { if (moveRequest) moveRequest.destinationKey = value; }} />
     <Dialog.Footer class="flex justify-end gap-2">
       <Button variant="ghost" size="sm" onclick={closeMoveDialog}>Cancel</Button>
       <Button size="sm" disabled={!moveRequest || !movePlan} onclick={() => void finishMove()}>Move</Button>

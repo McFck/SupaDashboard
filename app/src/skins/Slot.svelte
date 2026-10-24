@@ -45,20 +45,34 @@
   function writeItems(items: import('../core/layout').Item[]) {
     return target ? setLayoutItems(settings, target, items) : false;
   }
+  const selectedValue = $derived(selected === undefined ? host?.selected ?? null : selected);
+  function selectSlot(selection: import('../core/layout').Selection) {
+    if (onselect) onselect(selection, target);
+    else host?.onselect?.(selection, target);
+  }
+  function contextSlot(selection: Exclude<import('../core/layout').Selection, null>, x: number, y: number) {
+    if (oncontext) oncontext(selection, x, y, target);
+    else host?.oncontext?.(selection, x, y, target);
+  }
 </script>
 
 {#if host && slot && layout && geometry}
   <div bind:clientWidth={width} bind:clientHeight={height} data-skin-slot={id}
-    data-skin-input={host.skin.design && activeInView ? 'slot' : undefined} aria-hidden={!activeInView} inert={!activeInView}
+    data-skin-input={host.mode === 'runtime' && host.skin.design && activeInView ? 'slot' : undefined} aria-hidden={!activeInView} inert={!activeInView}
     class="relative grid h-full w-full place-items-center transition-opacity duration-150 motion-reduce:transition-none"
-    class:opacity-0={!activeInView} class:pointer-events-none={!activeInView}>
+    class:opacity-0={!activeInView} class:pointer-events-none={!activeInView}
+    class:skin-editor-slot={host.mode === 'editor' && host.skin.id !== 'deck'}>
     {#if activeInView}
       <div class="absolute inset-0 grid place-items-center" transition:fade={{ duration: reducedMotion ? 0 : 150 }}>
         <DeckGrid page={host.page} layout={geometry} {target} {faceMap} compact={slot.kind === 'strip'}
           availableWidth={width} availableHeight={height} pageRenderVisible={host.pageRenderVisible && activeInView}
-          resolvePresentation={host.resolvePresentation} editing={isEditing} {selected} {onselect} {oncontext}
+          resolvePresentation={host.resolvePresentation} editorPreview={host.mode === 'editor'} editing={isEditing} selected={selectedValue}
+          onselect={selectSlot} oncontext={contextSlot}
           {resolveSize} onitemschange={writeItems} />
       </div>
+      {#if host.mode === 'editor' && host.skin.id !== 'deck'}
+        <span aria-hidden="true" class="pointer-events-none absolute left-1 top-1 z-[70] rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-foreground">{slot.id}</span>
+      {/if}
     {/if}
   </div>
 {:else if host && slot && activeInView}
@@ -66,3 +80,7 @@
     Unavailable
   </div>
 {/if}
+
+<style>
+  .skin-editor-slot { outline: 1px solid color-mix(in srgb, var(--foreground) 28%, transparent); outline-offset: -1px; }
+</style>

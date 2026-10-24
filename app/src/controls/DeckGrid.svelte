@@ -14,10 +14,11 @@
   import ResizeFrame from './ResizeFrame.svelte';
 
   type GridLayout = Pick<Page, 'rows' | 'cols' | 'size' | 'sizing' | 'gap'> & { items: Item[] };
-  let { page, layout, target, onitemschange, faceMap, compact = false, resolveSize,
+  let { page, layout, target, onitemschange, faceMap, compact = false, resolveSize, editorPreview = false,
     editing = false, selected = null, availableWidth, availableHeight, pageRenderVisible = false, resolvePresentation, onselect, oncontext }:
     { page: Page; layout?: GridLayout; target?: LayoutTarget; onitemschange?: (items: Item[]) => boolean | void;
       faceMap?: Record<string, Component<ControlFaceProps>>; compact?: boolean; resolveSize?: (typeId: string) => Pick<EffectiveSize, 'min' | 'max'> | undefined;
+      editorPreview?: boolean;
       editing?: boolean; selected?: Selection; availableWidth?: number; availableHeight?: number; pageRenderVisible?: boolean; onselect?: (s: Selection, target?: LayoutTarget) => void;
       resolvePresentation?: (control: import('../core/controls').ControlConfig, variantIndex: number) => TilePresentation;
       oncontext?: (target: { item: string } | { cell: { x: number; y: number } }, x: number, y: number, layoutTarget?: LayoutTarget) => void } = $props();
@@ -578,8 +579,8 @@
     {@const resizing = drag?.id === item.id && drag.mode === 'resize' ? drag : null}
     {@const renderItem = resizing ? resizing.validResize : item}
     {@const variantIndex = settings.variants[control.id] ?? 0}
-    {@const pageVisible = editing || page.id === $runtimeView.activePage}
-    {@const pageRendered = editing || pageRenderVisible}
+    {@const pageVisible = !editorPreview && (editing || page.id === $runtimeView.activePage)}
+    {@const pageRendered = !editorPreview && (editing || pageRenderVisible)}
     {@const presentation = resolvePresentation?.(control, variantIndex)}
     {@const lifted = drag?.id === item.id && drag.moved && drag.mode === 'move'}
     {@const displaced = drag?.mode === 'move' && drag.placement?.kind === 'swap' && drag.placement.displaced.includes(item.id)

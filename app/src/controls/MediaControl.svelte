@@ -41,6 +41,8 @@
   let mediaTarget = $state<MediaLayer | null>(null);
   let mediaPrevious = $state<MediaLayer | null>(null);
   let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+  let preloadIdentity = '';
+  let releasePreload = () => {};
   const displayEligible = $derived(pageRendered || pressFeedbackDisabled);
   const resourceVisible = $derived(displayEligible && (pressFeedbackDisabled ||
     ((!pageId || $mediaContentPages.has(pageId)) && documentVisible && dashboardVisible)));
@@ -81,15 +83,18 @@
   });
 
   $effect(() => {
-    const element = source;
-    const visible = resourceVisible;
-    if (!visible || !documentVisible || !dashboardVisible || !element || options.sources.length < 2) return;
-    const nextIndex = stepSlide(slide, options.sources.length, 1, options.loop);
-    if (nextIndex === slide) return;
-    const next = options.sources[nextIndex];
-    const nextUrl = next.kind === 'url' ? mediaUrl(next.value) : tauriAvailable ? safeFileUrl(next.value) : undefined;
-    if (!nextUrl) return;
-    return preloadNextMedia(control.id, nextUrl, isVideoSource(next));
+    const visible = resourceVisible && documentVisible && dashboardVisible;
+    const canAdvance = options.sources.length > 1 && (options.loop || slide < options.sources.length - 1);
+    const nextIndex = canAdvance ? stepSlide(slide, options.sources.length, 1, options.loop) : -1;
+    const next = nextIndex >= 0 ? options.sources[nextIndex] : undefined;
+    const nextUrl = next?.kind === 'url' ? mediaUrl(next.value)
+      : next?.kind === 'file' && tauriAvailable ? safeFileUrl(next.value) : undefined;
+    const nextKey = visible && nextUrl && next ? JSON.stringify([control.id, mediaSourceKey(next), nextUrl, isVideoSource(next)]) : '';
+    if (nextKey === preloadIdentity) return;
+    preloadIdentity = nextKey;
+    releasePreload();
+    releasePreload = () => {};
+    if (nextKey) releasePreload = preloadNextMedia(control.id, nextUrl!, isVideoSource(next!));
   });
 
   $effect(() => {
@@ -159,6 +164,7 @@
   onDestroy(() => {
     generation++;
     clearTimeout(fadeTimer);
+    releasePreload();
   });
 </script>
 

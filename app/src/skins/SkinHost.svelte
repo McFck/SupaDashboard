@@ -10,10 +10,13 @@
   import { SKIN_HOST_CONTEXT, type SkinHostContext } from './context';
   import type { VariableValue } from '../core/variables';
 
-  let { skin, page, mode = 'runtime', visible = true, pageRenderVisible = false, resolvePresentation }:
+  let { skin, page, mode = 'runtime', visible = true, pageRenderVisible = false, resolvePresentation,
+    previewViewId = $bindable(''), selected = null, onselect, oncontext }:
     { skin: SkinDef; page: Page; mode?: 'runtime' | 'editor'; visible?: boolean; pageRenderVisible?: boolean;
-      resolvePresentation?: (control: ControlConfig, variantIndex: number) => TilePresentation } = $props();
-  let previewViewId = $state('');
+      resolvePresentation?: (control: ControlConfig, variantIndex: number) => TilePresentation; previewViewId?: string;
+      selected?: import('../core/layout').Selection;
+      onselect?: (selection: import('../core/layout').Selection, target?: import('../core/skin-layouts').LayoutTarget) => void;
+      oncontext?: (selection: Exclude<import('../core/layout').Selection, null>, x: number, y: number, target?: import('../core/skin-layouts').LayoutTarget) => void } = $props();
   let quickActionsOpen = $state(false);
   let runtimeOwner = $state(false);
   let skinState = $state<Record<string, VariableValue>>({});
@@ -79,6 +82,9 @@
     get visible() { return visible; },
     get pageRenderVisible() { return pageRenderVisible; },
     get resolvePresentation() { return resolvePresentation; },
+    get selected() { return selected; },
+    get onselect() { return onselect; },
+    get oncontext() { return oncontext; },
     setView, routeSceneInput, resetSceneInput,
     get quickActionsOpen() { return quickActionsOpen; }, setQuickActionsOpen,
   };

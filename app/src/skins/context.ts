@@ -4,6 +4,8 @@ import type { SkinConfig, SkinDef } from '../core/skins';
 import type { Page } from '../core/settings.svelte';
 import type { VariableValue } from '../core/variables';
 import type { SceneInput, SceneRect } from '../core/skin-scene';
+import type { Selection } from '../core/layout';
+import type { LayoutTarget } from '../core/skin-layouts';
 
 export const SKIN_HOST_CONTEXT = Symbol('skin-host');
 
@@ -21,6 +23,9 @@ export type SkinHostContext = {
   visible: boolean;
   pageRenderVisible: boolean;
   resolvePresentation?: (control: ControlConfig, variantIndex: number) => TilePresentation;
+  selected: Selection;
+  onselect?(selection: Selection, target?: LayoutTarget): void;
+  oncontext?(selection: Exclude<Selection, null>, x: number, y: number, target?: LayoutTarget): void;
   setView(viewId: string): Promise<boolean>;
   routeSceneInput(input: SceneInput, rect: SceneRect, deliver: (input: SceneInput) => void): boolean;
   resetSceneInput(): void;

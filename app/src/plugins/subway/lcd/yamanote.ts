@@ -16,6 +16,16 @@ export function yamanoteLayout() {
   });
 }
 
+export function yamanoteNearbyLabelLayout(pointX: number, next: boolean): { centerX: number; width: number } {
+  const width = next ? 360 : 220;
+  const margin = 24;
+  return { centerX: Math.max(margin + width / 2, Math.min(YAMANOTE_LCD_WIDTH - margin - width / 2, pointX)), width };
+}
+
+export function isTransferBadge(value: string): boolean {
+  return /^[A-Z]{1,2}\d{1,2}$/.test(value);
+}
+
 function label(model: ScreenSchedule, values: Record<string, string>): string {
   return values[model.language] ?? values.en ?? values.ja ?? '';
 }
@@ -138,12 +148,11 @@ function drawNearby(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void 
     ctx.fillStyle = next ? E235_COLORS.route : E235_COLORS.white;
     ctx.strokeStyle = E235_COLORS.route; ctx.lineWidth = next ? 9 : 6;
     ctx.beginPath(); ctx.arc(point.x, point.y, point.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    const name = station.names[model.language] ?? station.names.ja ?? station.names.en ?? station.code;
-    drawStationName(ctx, station, model.language, point.x - (next ? 180 : 120), point.y + point.r + 32,
-      next ? 360 : 240, next ? 34 : 25, 18, E235_COLORS.ink);
+    const name = yamanoteNearbyLabelLayout(point.x, next);
+    drawStationName(ctx, station, model.language, name.centerX, point.y + point.r + 32,
+      name.width, next ? 34 : 25, 18, E235_COLORS.ink, 'center');
     drawFittedText(ctx, station.code, point.x, point.y, point.r * 1.55, next ? 27 : 18, 13,
       next ? E235_COLORS.white : E235_COLORS.route, 700, 'Arial, sans-serif', 'center');
-    void name;
   });
 }
 
@@ -183,11 +192,19 @@ function drawTransfers(ctx: CanvasRenderingContext2D, model: ScreenSchedule): vo
   drawFittedText(ctx, label(model, { ja: '乗り換え', en: 'Transfers' }), 64, 276, 600, 42, 30, E235_COLORS.ink, 700,
     model.language === 'ja' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif');
   if (!model.transfers.length) return;
-  const gap = Math.min(230, 1100 / model.transfers.length);
+  const columns = Math.min(4, model.transfers.length);
+  const cardWidth = 1100 / columns;
   model.transfers.forEach((transfer, index) => {
-    const x = 80 + index * gap;
-    drawBadge(ctx, transfer, x, 362, 76, transfer.startsWith('JY') ? '#4aa235' : '#8c6b9a');
-    drawFittedText(ctx, transfer, x - 30, 474, 142, 23, 16, E235_COLORS.ink, 700, 'Arial, sans-serif', 'center');
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const centerX = 90 + (column + 0.5) * cardWidth;
+    const top = 350 + row * 144;
+    if (isTransferBadge(transfer)) {
+      drawBadge(ctx, transfer, centerX - 38, top, 76, transfer.startsWith('JY') ? '#4aa235' : '#8c6b9a');
+      return;
+    }
+    const family = model.language === 'ja' || model.language === 'zh' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif';
+    drawFittedText(ctx, transfer, centerX, top + 48, cardWidth - 24, 34, 18, E235_COLORS.ink, 700, family, 'center');
   });
 }
 

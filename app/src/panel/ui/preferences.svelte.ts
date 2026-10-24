@@ -12,3 +12,16 @@ export const frame = $state({
 export function saveFrame() {
   try { localStorage.setItem('panel-frame', JSON.stringify(frame)); } catch { /* Storage can be unavailable in previews. */ }
 }
+
+function readLayoutPreview() {
+  try { return JSON.parse(localStorage.getItem('layout-preview') ?? '{}'); } catch { return {}; }
+}
+const savedPreview = readLayoutPreview();
+export const layoutPreview = $state({
+  skinId: typeof savedPreview?.skinId === 'string' ? savedPreview.skinId : '',
+  views: savedPreview?.views && typeof savedPreview.views === 'object' && !Array.isArray(savedPreview.views)
+    ? { ...savedPreview.views } as Record<string, string> : {} as Record<string, string>,
+});
+export function saveLayoutPreview() {
+  try { localStorage.setItem('layout-preview', JSON.stringify(layoutPreview)); } catch { /* Storage can be unavailable in previews. */ }
+}

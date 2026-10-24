@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fittedFont } from './shared';
-import { yamanoteBroadNodePositions, yamanoteLayout } from './yamanote';
+import { isTransferBadge, yamanoteBroadNodePositions, yamanoteLayout, yamanoteNearbyLabelLayout } from './yamanote';
 
 describe('E235-0 Yamanote LCD geometry', () => {
   it('keeps the 30 percent header, route separator, body and blue door-panel anchors', () => {
@@ -26,6 +26,21 @@ describe('E235-0 Yamanote LCD geometry', () => {
       expect(outer[index].x).toBeCloseTo(1280 - inner[index].x, 8);
       expect(outer[index].y).toBeCloseTo(inner[index].y, 8);
     }
+  });
+
+  it('keeps nearby labels centered and inside the LCD edges', () => {
+    for (const pointX of [110, 366, 640, 914, 1170]) {
+      const layout = yamanoteNearbyLabelLayout(pointX, pointX === 640);
+      expect(layout.centerX - layout.width / 2).toBeGreaterThanOrEqual(24);
+      expect(layout.centerX + layout.width / 2).toBeLessThanOrEqual(1256);
+    }
+    expect(yamanoteNearbyLabelLayout(640, true)).toEqual({ centerX: 640, width: 360 });
+  });
+
+  it('renders only station codes as badges and leaves transfer prose as text', () => {
+    expect(isTransferBadge('G07')).toBe(true);
+    expect(isTransferBadge('JY30')).toBe(true);
+    expect(isTransferBadge('Keihin-Tohoku, Chuo and Sobu Lines')).toBe(false);
   });
 
   it('fits long station labels down to the documented minimum before canvas width compression', () => {

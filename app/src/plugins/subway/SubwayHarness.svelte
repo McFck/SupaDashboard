@@ -4,7 +4,8 @@
   import { normalizeSubwayLines, type LineDefinition, type RawLineBundle } from './lines';
   import { scheduleScreen, type ScreenConfig, type ScreenSchedule } from './screens';
   import { createYamanoteRenderer } from './lcd/yamanote';
-  import { createRunState, reduceRun, snapshotRun, type RunPhase, type RunSnapshot, type SubwayRunState } from './run';
+  import { createRunState, reduceRun, segmentPlanKey, snapshotRun,
+    type RunPhase, type RunSnapshot, type SubwayCuePlans, type SubwayRunState } from './run';
   import type { PlatformDirectionDetail } from './station-details';
 
   type Fixture = { id: string; line: LineDefinition; snapshot: RunSnapshot; elapsed: number; config: ScreenConfig };
@@ -36,6 +37,14 @@
   const lines = normalizeSubwayLines(lineBundles);
   const yamanote = lines.find(line => line.id === 'yamanote')!;
   const languages = ['ja', 'en'];
+  const fixturePlans: SubwayCuePlans = {
+    [segmentPlanKey('yamanote', 'JY01', 'JY02', 'inner')]: {
+      close: { events: [], end: 0 },
+      open: { events: [], end: 2, open_end: 2 },
+      departure: [],
+      arrival: [],
+    },
+  };
   let canvas: HTMLCanvasElement;
   let renderer = createYamanoteRenderer();
   let drawCount = 0;
@@ -50,22 +59,22 @@
   function stateFor(target: RunPhase, direction = 'inner'): SubwayRunState {
     let state = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY01', direction, dwellSeconds: 0, immersion: false, now: 0 });
     if (target === 'stopped') return state;
-    state = reduceRun(state, { type: 'start' }, 0, lines).state;
+    state = reduceRun(state, { type: 'start' }, 0, lines, fixturePlans).state;
     const phaseTarget: RunPhase = target === 'emergency' || target === 'suspended' ? 'cruising' : target;
     let guard = 0;
     while (state.phase !== phaseTarget && guard++ < 120) {
       const deadline = state.phase === 'stopped' ? state.stopDeadline : state.phaseDeadline;
       if (deadline === null) throw new Error(`No deadline while building ${target} fixture (${state.phase})`);
       let at = state.lastTickAt;
-      if (deadline <= at) state = reduceRun(state, { type: 'tick' }, deadline, lines).state;
+      if (deadline <= at) state = reduceRun(state, { type: 'tick' }, deadline, lines, fixturePlans).state;
       while (at < deadline) {
         at = Math.min(deadline, at + 1_000);
-        state = reduceRun(state, { type: 'tick' }, at, lines).state;
+        state = reduceRun(state, { type: 'tick' }, at, lines, fixturePlans).state;
       }
     }
     if (state.phase !== phaseTarget) throw new Error(`Could not build ${target} fixture`);
     if (target === 'emergency' || target === 'suspended') {
-      state = reduceRun(state, { type: target === 'emergency' ? 'emergency' : 'suspend' }, state.lastTickAt + 1_000, lines).state;
+      state = reduceRun(state, { type: target === 'emergency' ? 'emergency' : 'suspend' }, state.lastTickAt + 1_000, lines, fixturePlans).state;
     }
     return state;
   }

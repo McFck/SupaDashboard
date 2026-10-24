@@ -16,10 +16,11 @@
   import Icon from '../controls/Icon.svelte';
   import { MAX_VARIANTS, moveVariant, removeVariant as removeStateVariant, SPRING_SAMPLES, springDuration, type ControlConfig, type Variant } from '../core/controls';
   import type { Trigger } from '../core/scenario';
-  import { clampToGrid, firstFree, fits, placementForType, type Selection } from '../core/layout';
+  import { clampToGrid, firstFree, fits, type Selection } from '../core/layout';
   import { controlTypes } from '../core/registry';
   import { controlById, newId, settings, type Page } from '../core/settings.svelte';
   import { pageItems, removePlacement } from '../core/pages';
+  import { allPlacements, canSetLayoutItems, effectiveSize, layoutFor, setLayoutItems, type LayoutTarget } from '../core/skin-layouts';
   import { newScenarioId, normalizeControl } from '../core/scenario';
   import { commit } from '../core/history.svelte';
   import { toast } from 'svelte-sonner';
@@ -37,32 +38,56 @@
   import Row from './ui/Row.svelte';
   import Section from './ui/Section.svelte';
 
-  let { selection, onselect, oneditScenario, page }: { selection: Selection; onselect: (s: Selection) => void;
-    oneditScenario: (controlId: string, itemId: string, trigger?: Trigger) => void; page: Page } = $props();
+  let { selection, onselect, oneditScenario, page, layoutTarget }: { selection: Selection; onselect: (s: Selection, target?: LayoutTarget) => void;
+    oneditScenario: (controlId: string, itemId: string, trigger?: Trigger) => void; page: Page; layoutTarget: LayoutTarget } = $props();
 
   const allItems = $derived(pageItems(settings.deck.pages, settings.skinLayouts));
-  const item = $derived(selection && 'item' in selection ? page.items.find(i => i.id === selection.item) : undefined);
+  const targetLayout = $derived(layoutFor(settings, layoutTarget.skinId, layoutTarget.pageId, layoutTarget.slotId));
+  const targetItems = $derived(targetLayout?.items ?? []);
+  const targetGeometry = $derived(targetLayout?.geometry ?? page);
+  const targetSlot = $derived(targetLayout?.slot);
+  const item = $derived(selection && 'item' in selection ? targetItems.find(i => i.id === selection.item) : undefined);
   const control = $derived(item ? controlById(item.control) : undefined);
   const def = $derived(control ? controlTypes.get(control.type) : undefined);
   const cell = $derived(selection && 'cell' in selection ? selection.cell : undefined);
   let existingOpen = $state(true);
   let existingQuery = $state('');
-  const existingRows = $derived(buildExistingControlRows(settings.controls, allItems, controlTypes).filter(row => row.uses > 0));
+  const existingRows = $derived(buildExistingControlRows(settings.controls, allItems, controlTypes).filter(row => row.uses > 0 && !!findPlacement(row.typeId)));
   const filteredExistingRows = $derived(searchExistingControls(existingRows, existingQuery));
 
-  function placement(w: number, h: number) {
-    const at = cell && fits(page.items, { ...cell, w, h }, page) ? cell : firstFree(page.items, w, h, page);
-    if (!at) {
-      toast.error('No free space for this widget');
-      return null;
-    }
+  function findPlacement(typeId: string, requested?: { w: number; h: number }, ignoredItemId?: string) {
+    const current = layoutFor(settings, layoutTarget.skinId, layoutTarget.pageId, layoutTarget.slotId);
+    const slot = current?.slot, geometry = current?.geometry;
+    if (!current || !slot || !geometry || slot.accepts && !slot.accepts.includes(typeId) ||
+      slot.max !== undefined && current.items.length - (ignoredItemId ? 1 : 0) >= slot.max) return null;
+    const bounds = effectiveSize(layoutTarget.skinId, slot, typeId);
+    if (!bounds) return null;
+    const w = requested?.w ?? bounds.default.w, h = requested?.h ?? bounds.default.h;
+    if (w < bounds.min.w || h < bounds.min.h || w > bounds.max.w || h > bounds.max.h) return null;
+    const occupied = ignoredItemId ? current.items.filter(entry => entry.id !== ignoredItemId) : current.items;
+    const at = cell && fits(occupied, { ...cell, w, h }, geometry) ? cell : firstFree(occupied, w, h, geometry);
+    return at ? { ...at, w, h } : null;
+  }
+  function writeItems(items: import('../core/layout').Item[], label: string, addedControl?: ControlConfig) {
+    const draft = { ...settings, controls: addedControl ? [...settings.controls, addedControl] : settings.controls } as typeof settings;
+    if (!canSetLayoutItems(draft, layoutTarget, items)) return false;
+    commit(label);
+    if (addedControl) settings.controls.push(addedControl);
+    if (setLayoutItems(settings, layoutTarget, items)) return true;
+    if (addedControl) settings.controls = settings.controls.filter(entry => entry.id !== addedControl.id);
+    return false;
+  }
+  function placement(typeId: string, w: number, h: number) {
+    const at = findPlacement(typeId, { w, h });
+    if (!at) toast.error('No free space for this widget');
     return at;
   }
   function placeExisting(controlId: string) {
     const existing = settings.controls.find(c => c.id === controlId);
     const type = existing && controlTypes.get(existing.type);
     if (!existing || !type) return;
-    const at = placementForType(page.items, page, type, cell);
+    const bounds = targetSlot && effectiveSize(layoutTarget.skinId, targetSlot, type.type);
+    const at = bounds && placement(type.type, bounds.default.w, bounds.default.h);
     if (!at) {
       toast.error('No free space for this widget');
       return;
@@ -70,43 +95,41 @@
     // An independent copy: each placed widget keeps its own state.
     const copy = { ...cloneControl($state.snapshot(existing) as ControlConfig), id: newId(existing.id, settings.controls.map(c => c.id)) };
     const id = newId('i', allItems.map(i => i.id));
-    commit('Add widget');
-    settings.controls.push(copy);
-    page.items.push({ id, control: copy.id, ...at });
-    onselect({ item: id });
+    const item = { id, control: copy.id, ...at };
+    if (!writeItems([...targetItems, item], 'Add widget', copy)) { toast.error('No free space for this widget'); return; }
+    onselect({ item: id }, layoutTarget);
   }
   function addNew(type: string) {
     const t = controlTypes.get(type);
     if (!t) return;
-    const at = placementForType(page.items, page, t, cell);
+    const bounds = targetSlot && effectiveSize(layoutTarget.skinId, targetSlot, t.type);
+    const at = bounds && placement(t.type, bounds.default.w, bounds.default.h);
     if (!at) {
       toast.error('No free space for this widget');
       return;
     }
     const c = normalizeControl({ id: newId(t.title, settings.controls.map(x => x.id)), type, ...structuredClone(t.create()) });
     const id = newId('i', allItems.map(i => i.id));
-    commit(`Add ${t.title}`);
-    settings.controls.push(c);
-    page.items.push({ id, control: c.id, ...at });
-    onselect({ item: id });
+    const item = { id, control: c.id, ...at };
+    if (!writeItems([...targetItems, item], `Add ${t.title}`, c)) { toast.error('No free space for this widget'); return; }
+    onselect({ item: id }, layoutTarget);
   }
   function duplicate() {
     if (!control || !item) return;
-    const at = placement(item.w, item.h);
+    const at = placement(control.type, item.w, item.h);
     if (!at) return;
     const copy = { ...structuredClone($state.snapshot(control)), id: newId(control.name, settings.controls.map(x => x.id)), name: `${control.name} copy` };
     const id = newId('i', allItems.map(i => i.id));
-    commit(`Duplicate ${control.name}`);
-    settings.controls.push(copy as ControlConfig);
-    page.items.push({ id, control: copy.id, ...at, w: item.w, h: item.h });
-    onselect({ item: id });
+    const duplicated = { id, control: copy.id, ...at };
+    if (!writeItems([...targetItems, duplicated], `Duplicate ${control.name}`, copy as ControlConfig)) { toast.error('No free space for this widget'); return; }
+    onselect({ item: id }, layoutTarget);
   }
   async function removeItem() {
     if (!item) return;
-    const removing = { ...item }, pageId = page.id, name = control?.name ?? 'widget';
+    const removing = { ...item }, target = { ...layoutTarget }, pageId = page.id, name = control?.name ?? 'widget';
     await animateRemoval(removing.id);
-    const currentPage = settings.deck.pages.find(candidate => candidate.id === pageId);
-    if (!currentPage?.items.some(i => i.id === removing.id)) return;
+    if (layoutTarget.skinId !== target.skinId || layoutTarget.pageId !== target.pageId || layoutTarget.slotId !== target.slotId ||
+      !layoutFor(settings, target.skinId, target.pageId, target.slotId)?.items.some(i => i.id === removing.id)) return;
     commit(`Delete ${name}`);
     const result = removePlacement(settings.deck.pages, pageId, removing.id, settings.skinLayouts);
     if (!result.item) return;
@@ -116,13 +139,14 @@
       settings.controls = settings.controls.filter(c => c.id !== removing.control);
       delete settings.variants[removing.control];
     }
-    if (selection && 'item' in selection && selection.item === removing.id) onselect(null);
+    if (selection && 'item' in selection && selection.item === removing.id) onselect(null, layoutTarget);
   }
   function resize(w: number, h: number) {
-    if (w < (def?.minSize?.w ?? 1) || h < (def?.minSize?.h ?? 1) ||
-      w > (def?.maxSize?.w ?? 99) || h > (def?.maxSize?.h ?? 99)) return;
-    if (!item || !fits(page.items, { x: item.x, y: item.y, w, h }, page, [item.id])) return;
-    page.items = page.items.map(current => current.id === item.id ? { ...current, w, h } : current);
+    const bounds = def && targetSlot && effectiveSize(layoutTarget.skinId, targetSlot, def.type);
+    if (!item || !bounds || w < bounds.min.w || h < bounds.min.h || w > bounds.max.w || h > bounds.max.h ||
+      !fits(targetItems, { x: item.x, y: item.y, w, h }, targetGeometry, [item.id])) return;
+    const next = targetItems.map(current => current.id === item.id ? { ...current, w, h } : current);
+    writeItems(next, 'Resize widget');
   }
   function setGrid(key: 'rows' | 'cols' | 'size' | 'gap', v: number) {
     page[key] = v;
@@ -174,6 +198,7 @@
 
 <aside class="flex h-full w-full min-w-0 flex-col bg-sidebar">
   {#if control && item && def}
+    {@const sizeBounds = targetSlot && effectiveSize(layoutTarget.skinId, targetSlot, control.type)}
     <header class="flex h-16 shrink-0 items-center gap-3 border-b px-4">
       <span class="grid size-10 place-items-center rounded-xl bg-white/5" style:color={control.variants[settings.variants[control.id] ?? 0]?.color}><Icon name={def.icon} size={20} /></span>
       <p class="flex-1 font-semibold">{def.title}</p>
@@ -190,10 +215,10 @@
               <span class="text-xs text-muted-foreground">{label}</span>
               <div class="flex items-center gap-2">
                 <Button size="icon-sm" variant="outline" aria-label="Decrease {label.toLowerCase()}" onclick={() => resize(k === 'w' ? item.w - 1 : item.w, k === 'h' ? item.h - 1 : item.h)}
-                  disabled={(k === 'w' ? item.w : item.h) <= ((k === 'w' ? def.minSize?.w : def.minSize?.h) ?? 1)}>−</Button>
+                  disabled={!sizeBounds || (k === 'w' ? item.w : item.h) <= (k === 'w' ? sizeBounds.min.w : sizeBounds.min.h)}>−</Button>
                 <span class="w-4 text-center tabular-nums">{k === 'w' ? item.w : item.h}</span>
                 <Button size="icon-sm" variant="outline" aria-label="Increase {label.toLowerCase()}" onclick={() => resize(k === 'w' ? item.w + 1 : item.w, k === 'h' ? item.h + 1 : item.h)}
-                  disabled={(k === 'w' ? item.w : item.h) >= ((k === 'w' ? def.maxSize?.w : def.maxSize?.h) ?? 99)}>+</Button>
+                  disabled={!sizeBounds || (k === 'w' ? item.w : item.h) >= (k === 'w' ? sizeBounds.max.w : sizeBounds.max.h)}>+</Button>
               </div>
             </div>
           {/each}
@@ -266,7 +291,9 @@
     <header class="flex h-16 shrink-0 items-center border-b px-4"><p class="font-semibold">Add widget</p></header>
     <div class="grid min-h-0 min-w-0 flex-1 content-start gap-2 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
       {#each [...controlTypes.values()] as t (t.type)}
-        {@const fit = placementForType(page.items, page, t, cell)}
+        {@const bounds = targetSlot && effectiveSize(layoutTarget.skinId, targetSlot, t.type)}
+        {@const fit = bounds ? findPlacement(t.type) : null}
+        {#if bounds && (!targetSlot?.accepts || targetSlot.accepts.includes(t.type))}
         <button type="button" aria-disabled={!fit} onclick={() => addNew(t.type)}
           class:opacity-45={!fit}
           class="flex items-center gap-3 rounded-xl border border-white/[.07] bg-white/[.02] p-3 text-left transition hover:border-white/20 hover:bg-white/[.05]">
@@ -274,6 +301,7 @@
           <span class="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium"><span class="min-w-0 truncate">{t.title}</span><PluginMark plugin={t.plugin} /></span>
           <span class="text-xs tabular-nums text-muted-foreground">{fit?.w ?? t.size.w}×{fit?.h ?? t.size.h}</span>
         </button>
+        {/if}
       {/each}
       {#if existingRows.length}
       <details bind:open={existingOpen} class="mt-3 min-w-0">
@@ -289,7 +317,7 @@
               {#each filteredExistingRows as row (row.id)}
                 {@const type = controlTypes.get(row.typeId)}
                 {@const providerTitle = pluginTitle(type?.plugin)}
-                {@const fit = type ? placementForType(page.items, page, type, cell) : null}
+                {@const fit = type ? findPlacement(row.typeId) : null}
                 <button type="button" disabled={!row.available} aria-disabled={!fit || !row.available}
                   aria-label="{row.name}, {row.typeTitle}{providerTitle ? `, Plugin: ${providerTitle}` : ''}, {row.uses} {row.uses === 1 ? 'use' : 'uses'}{row.available ? '' : ', unavailable'}{fit ? '' : ', no free space'}"
                   onclick={() => placeExisting(row.id)}
@@ -300,7 +328,7 @@
                     <span class="block truncate text-sm font-medium">{row.name}</span>
                     <span class="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"><span class="min-w-0 truncate">{row.typeTitle}</span><PluginMark plugin={type?.plugin} /></span>
                   </span>
-                  <span class="shrink-0 text-xs tabular-nums text-muted-foreground" aria-label="Used in {row.uses} deck items">{row.uses} {row.uses === 1 ? 'use' : 'uses'}</span>
+                  <span class="shrink-0 text-xs tabular-nums text-muted-foreground" aria-label="Used in {row.uses} placements">{row.uses} {row.uses === 1 ? 'use' : 'uses'}</span>
                 </button>
               {/each}
             {:else}
@@ -312,7 +340,7 @@
       {/if}
     </div>
 
-  {:else}
+  {:else if layoutTarget.skinId === 'deck'}
     <header class="flex h-16 shrink-0 items-center border-b px-4"><p class="font-semibold">Deck</p></header>
     <div class="grid min-h-0 min-w-0 flex-1 content-start gap-6 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
       <Section>
@@ -330,5 +358,7 @@
       {/each}
       </div>
     </div>
+  {:else}
+    <header class="flex h-16 shrink-0 items-center border-b px-4"><p class="font-semibold">{targetSlot?.id ?? 'Slot'}</p></header>
   {/if}
 </aside>

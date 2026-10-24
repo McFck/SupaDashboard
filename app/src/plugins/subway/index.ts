@@ -13,7 +13,7 @@ export const subwayPlugin: Plugin = {
   source: 'bundled',
   size: 1618,
   setup(api) {
-    api.registerSkin({ id: 'subway', title: 'Subway', component: SubwaySkin, runtime,
+    api.registerSkin({ id: 'subway', title: 'Subway', component: SubwaySkin, runtime, pageNavigation: 'skin',
       design: { width: 1920, height: 600 },
       slots: [
         { id: 'strip', style: 'region', kind: 'strip', rect: { x: 0, y: 480, w: 1920, h: 120 },

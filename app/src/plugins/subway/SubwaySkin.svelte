@@ -10,6 +10,7 @@
   import SkinQuickActions from '../../skins/SkinQuickActions.svelte';
   import { createSubwayScene, type SubwaySceneData } from './scene';
   import { registerSubwaySurface, subwaySceneState, type SubwaySurfaceRegistration } from './runtime';
+  import { loadSubwayEditorPreview, type SubwayEditorPreview } from './preview';
   import { VisibleScreenClock, type ScreenConfig } from './screens';
 
   let { page: _page }: { page: Page } = $props();
@@ -18,6 +19,7 @@
   let runtimeOwner = $state(false), intersecting = $state(false), documentVisible = $state(false), dashboardVisible = $state(false);
   let screenPulse = $state(0);
   let sceneData = $state<SubwaySceneData>();
+  let editorPreview = $state<SubwayEditorPreview>();
   let surfaceRegistration: SubwaySurfaceRegistration | undefined;
   const screenClock = new VisibleScreenClock();
   const sideActive = $derived(host?.viewId === 'cab');
@@ -59,6 +61,28 @@
   });
 
   $effect(() => {
+    const mode = host?.mode;
+    const config = host?.config ?? {};
+    const configKey = JSON.stringify(config);
+    void configKey;
+    if (mode !== 'editor') { editorPreview = undefined; return; }
+    const controller = new AbortController();
+    let current = true;
+    void loadSubwayEditorPreview(config, controller.signal).then(preview => {
+      if (current) editorPreview = preview;
+    }).catch(() => {
+      if (current) editorPreview = undefined;
+    });
+    return () => { current = false; controller.abort(); };
+  });
+
+  $effect(() => {
+    const mode = host?.mode;
+    if (mode === 'editor') {
+      const preview = editorPreview;
+      sceneData = preview ? { ...preview, visibleElapsed: 0 } : undefined;
+      return;
+    }
     const source = $subwaySceneState;
     const pulse = screenPulse;
     void pulse;
@@ -66,7 +90,8 @@
     const rawLanguages = source.config.displayLanguages ?? source.config.languages;
     const languages = Array.isArray(rawLanguages) ? rawLanguages.filter((item): item is string => typeof item === 'string') : ['ja', 'en'];
     const config: ScreenConfig = { line: source.line, languages };
-    const active = host?.mode === 'runtime' && host.visible && host.pageRenderVisible && runtimeOwner;
+    const active = host?.mode === 'runtime' && host.visible && host.pageRenderVisible && runtimeOwner &&
+      intersecting && documentVisible && dashboardVisible;
     const schedule = screenClock.update(source.snapshot, config, performance.now(), active);
     sceneData = { ...source, visibleElapsed: schedule.visibleElapsed };
     if (!active || schedule.nextDeadline === null) return;
@@ -91,5 +116,11 @@
     <Button size="sm" variant={host?.viewId === 'cab' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'cab'}
       tabindex={host?.mode === 'runtime' ? -1 : 0} onclick={() => void host?.setView('cab')}>Cab</Button>
   </nav>
+  {#if host?.mode === 'runtime'}
+    <nav data-skin-input="ui" aria-label="Dashboard pages" class="absolute left-[1680px] top-[516px] z-30 flex gap-2">
+      <Button size="sm" variant="outline" aria-label="Previous page" tabindex={-1} onclick={() => void host?.page.prev()}>‹</Button>
+      <Button size="sm" variant="outline" aria-label="Next page" tabindex={-1} onclick={() => void host?.page.next()}>›</Button>
+    </nav>
+  {/if}
   <SkinQuickActions />
 </div>

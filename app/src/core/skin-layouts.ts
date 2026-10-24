@@ -40,15 +40,21 @@ function sameTarget(target: LayoutTarget, current: LayoutTarget) {
   return target.skinId === current.skinId && target.pageId === current.pageId && target.slotId === current.slotId;
 }
 
-/** The only layout writer; it resolves stable IDs again before replacing the addressed array. */
-export function setLayoutItems(source: Settings, target: LayoutTarget, items: Item[]) {
+/** Validates a prospective write without allocating IDs or changing settings. */
+export function canSetLayoutItems(source: Settings, target: LayoutTarget, items: Item[]) {
   const current = layoutFor(source, target.skinId, target.pageId, target.slotId);
   if (!current || !sameTarget(target, current)) return false;
   const elsewhere = allPlacements(source).filter(placement => !sameTarget(target, placement));
   const otherItemIds = new Set(elsewhere.map(placement => placement.item.id));
   const otherControlIds = new Set(elsewhere.map(placement => placement.item.control));
   if (items.some(item => otherItemIds.has(item.id) || otherControlIds.has(item.control))) return false;
-  if (!current.slot || !current.geometry || !validSlotItems(source, target.skinId, current.slot, current.geometry, items)) return false;
+  return !!current.slot && !!current.geometry && validSlotItems(source, target.skinId, current.slot, current.geometry, items);
+}
+
+/** The only layout writer; it resolves stable IDs again before replacing the addressed array. */
+export function setLayoutItems(source: Settings, target: LayoutTarget, items: Item[]) {
+  const current = layoutFor(source, target.skinId, target.pageId, target.slotId);
+  if (!current || !canSetLayoutItems(source, target, items)) return false;
   if (source.skinLayouts) delete source.skinLayouts.deck;
   if (target.skinId === 'deck') {
     current.page.items = items;
