@@ -33,6 +33,7 @@ export interface PackCueRecord {
 
 export interface ResolvedCue extends RuntimeCue {
   gain: number;
+  role?: CueRole;
   url: string;
 }
 
@@ -81,7 +82,10 @@ type SubwayGlobals = typeof globalThis & {
 };
 
 export interface TrainMotionApi {
-  MotionAudio: new (context: AudioContext, profile: unknown, decoded: Map<string, AudioBuffer>) => MotionAudioInstance;
+  MotionAudio: {
+    new (context: AudioContext, profile: unknown, decoded: Map<string, AudioBuffer>): MotionAudioInstance;
+    load(context: AudioContext, profile: unknown): Promise<MotionAudioInstance>;
+  };
   playCue(context: AudioContext, destination: AudioNode, buffer: AudioBuffer, cue: ResolvedCue, when: number): AudioBufferSourceNode;
 }
 
@@ -157,7 +161,7 @@ export function resolveCue(record: PackCueRecord, role: CueRole, manifest: Runti
     gain = entry?.gainByRole[role];
   }
   if (!entry || gain === undefined) throw new Error(`Missing ${role} catalogue entry: ${file}`);
-  return { ...entry, gain, url: resolveAssetUrl(file, base) };
+  return { ...entry, gain, role, url: resolveAssetUrl(file, base) };
 }
 
 export function selectDirectionalEntries(entries: readonly PackCueRecord[] | undefined, direction: string): PackCueRecord[] {

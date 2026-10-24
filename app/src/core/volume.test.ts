@@ -278,4 +278,52 @@ describe('shared volume stream', () => {
     expect(transport.listen).not.toHaveBeenCalled();
     expect(transport.invoke).not.toHaveBeenCalled();
   });
+
+  it('registers an exact-ID local channel and routes its writes without native initialization', async () => {
+    const volume = await loadVolume();
+    let current = { volume: 0.7, muted: false };
+    const setLocalVolume = vi.fn((value: number) => { current = { ...current, volume: value }; });
+    const setLocalMuted = vi.fn((muted: boolean) => { current = { ...current, muted }; });
+    const stop = volume.registerLocalVolumeChannel('subway:immersion', {
+      label: 'Subway', icon: 'TrainFront', read: () => current,
+      setVolume: setLocalVolume, setMuted: setLocalMuted,
+    });
+    expect(get(volume.volumeChannels)).toContainEqual({
+      target: 'subway:immersion', volume: 0.7, muted: false, label: 'Subway', icon: 'TrainFront',
+    });
+    expect(volume.findVolumeChannel(get(volume.volumeChannels), 'subway:immersion')?.label).toBe('Subway');
+    await volume.setVolume('subway:immersion', 1.4);
+    await volume.setMuted('subway:immersion', true);
+    expect(setLocalVolume).toHaveBeenCalledWith(1);
+    expect(setLocalMuted).toHaveBeenCalledWith(true);
+    expect(transport.listen).not.toHaveBeenCalled();
+    expect(transport.invoke).not.toHaveBeenCalled();
+    expect(get(volume.volumeChannels)).toContainEqual(expect.objectContaining({ volume: 1, muted: true }));
+    stop();
+    expect(get(volume.volumeChannels)).toEqual([]);
+  });
+
+  it('keeps a local channel through empty native snapshots and gives exact targets priority', async () => {
+    const volume = await loadVolume();
+    await volume.initVolumeSync();
+    let current = { volume: 0.4, muted: false };
+    volume.registerLocalVolumeChannel('subway:immersion', {
+      read: () => current, setVolume: value => { current = { ...current, volume: value }; },
+      setMuted: muted => { current = { ...current, muted }; },
+    });
+    transport.handler?.({ payload: makeSnapshot(2, null, []) });
+    expect(get(volume.volumeChannels)).toContainEqual(expect.objectContaining({ target: 'subway:immersion', volume: 0.4 }));
+    expect(volume.findVolumeChannel([
+      { target: 'subway', volume: 0.2, muted: false },
+      { target: 'subway:immersion', volume: 0.8, muted: true },
+    ], 'subway:immersion')?.volume).toBe(0.8);
+  });
+
+  it('rejects a local target that collides with an existing native channel', async () => {
+    const volume = await loadVolume();
+    await volume.initVolumeSync();
+    expect(() => volume.registerLocalVolumeChannel('discord', {
+      read: () => ({ volume: 1, muted: false }), setVolume: () => {}, setMuted: () => {},
+    })).toThrow(/already provided by the system/i);
+  });
 });

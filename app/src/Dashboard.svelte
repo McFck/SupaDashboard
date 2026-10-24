@@ -97,9 +97,10 @@
     const surface = shell.getBoundingClientRect();
     const excluded: LocalRect[] = [];
     const add = (node: Element) => {
+      const skinSurface = node.matches('[data-skin-input="scene"], [data-skin-input="slot"]');
       for (let current: Element | null = node; current && current !== skinRoot.parentElement; current = current.parentElement) {
         const style = getComputedStyle(current);
-        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return;
+        if (style.display === 'none' || style.visibility === 'hidden' || (!skinSurface && Number(style.opacity) === 0)) return;
       }
       const bounds = node.getBoundingClientRect();
       if (bounds.width <= 0 || bounds.height <= 0) return;
