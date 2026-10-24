@@ -67,6 +67,9 @@ export type PullSnapshot = {
   effect: PullEffect;
 };
 
+/** Most states a control can have. */
+export const MAX_VARIANTS = 4;
+
 export const PULL_SLOP = 8;
 
 /** Resolve only canonical directional scenarios for pull preview. */

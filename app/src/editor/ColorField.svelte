@@ -14,7 +14,7 @@
   let hsv = $state({ h: 0, s: 0, v: 0 });
   let hexText = $state('');
   $effect(() => { if (open) { hsv = hexToHsv(parts.hex); hexText = parts.hex; } });
-  const RAINBOW = 'conic-gradient(from 180deg, #f87171, #fbbf24, #a3e635, #34d399, #22d3ee, #818cf8, #e879f9, #f87171)';
+  const RAINBOW = 'conic-gradient(#ff5f6d, #ffc371, #f9f871, #6ee7b7, #38bdf8, #a78bfa, #f472b6, #ff5f6d)';
 
   function apply(next: { h: number; s: number; v: number }) {
     hsv = next;
@@ -52,8 +52,8 @@
     {/each}
     <Popover.Root bind:open>
       <Popover.Trigger aria-label="Custom colour" style="background: {RAINBOW}"
-        class="relative grid size-7 place-items-center rounded-full text-white transition {custom ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-950' : 'opacity-85 hover:opacity-100'}">
-        <span class="grid size-4 place-items-center rounded-full bg-black/45"><Pipette size={10} /></span>
+        class="grid size-7 place-items-center rounded-full border border-white/15 text-white shadow-sm transition {custom ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-950' : 'opacity-85 hover:opacity-100'}">
+        <Pipette size={14} class="drop-shadow-[0_1px_1px_rgb(0_0_0/.6)]" />
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content sideOffset={8} align="end"

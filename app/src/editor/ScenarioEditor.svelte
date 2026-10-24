@@ -7,7 +7,7 @@
   import * as Dialog from '$lib/components/ui/dialog';
   import type { EventList, Trigger } from '../core/scenario';
   import { newScenarioId, TRIGGERS, validateScenario } from '../core/scenario';
-  import { availableGestures, moveVariant, removeVariant, type ControlConfig, type Variant } from '../core/controls';
+  import { availableGestures, MAX_VARIANTS, moveVariant, removeVariant, type ControlConfig, type Variant } from '../core/controls';
   import { stateIdAt, validateStateConfiguration } from '../core/button-state';
   import { runtimeView } from '../core/runtime.svelte';
   import { registeredEvents } from '../core/registry';
@@ -191,7 +191,7 @@
     return variant;
   }
   function addState() {
-    if (!draft || !draft.variants.length) return;
+    if (!draft || !draft.variants.length || draft.variants.length >= MAX_VARIANTS) return;
     draft = { ...draft, variants: [...draft.variants, cloneState(draft.variants.at(-1)!)] };
   }
   function syncBooleanRoles(roles: { off: string; on: string } | undefined, next: ScenarioDraft) {

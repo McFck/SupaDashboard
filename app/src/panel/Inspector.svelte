@@ -14,7 +14,7 @@
   import { Slider } from '$lib/components/ui/slider';
   import { Switch } from '$lib/components/ui/switch';
   import Icon from '../controls/Icon.svelte';
-  import { moveVariant, removeVariant as removeStateVariant, SPRING_SAMPLES, springDuration, type ControlConfig, type Variant } from '../core/controls';
+  import { MAX_VARIANTS, moveVariant, removeVariant as removeStateVariant, SPRING_SAMPLES, springDuration, type ControlConfig, type Variant } from '../core/controls';
   import type { Trigger } from '../core/scenario';
   import { clampToGrid, firstFree, fits, placementForType, type Selection } from '../core/layout';
   import { controlTypes } from '../core/registry';
@@ -134,7 +134,7 @@
     commit('Deck sizing');
     page.sizing = sizing;
   }
-  const addVariant = () => control!.variants.push({ ...structuredClone($state.snapshot(control!.variants.at(-1)!)),
+  const addVariant = () => control!.variants.length < MAX_VARIANTS && control!.variants.push({ ...structuredClone($state.snapshot(control!.variants.at(-1)!)),
     id: newScenarioId(), label: '' } as Variant);
   type VariantDrag = {
     controlId: string;
@@ -340,7 +340,7 @@
         <section class="grid gap-3">
           <div class="flex items-center justify-between">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Variants</h3>
-            <Button variant="ghost" size="sm" onclick={addVariant}><Plus /> Add</Button>
+            <Button variant="ghost" size="sm" disabled={control.variants.length >= MAX_VARIANTS} onclick={addVariant}><Plus /> Add</Button>
           </div>
           <div bind:this={variantList} class="relative grid gap-3">
           {#each control.variants as variant, i (variantId(variant, i))}

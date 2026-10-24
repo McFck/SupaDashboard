@@ -6,7 +6,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
-  import type { TileAppearance, Variant } from '../core/controls';
+  import { MAX_VARIANTS, type TileAppearance, type Variant } from '../core/controls';
   import { renderTemplate } from '../core/templates';
   import { runtimeView } from '../core/runtime.svelte';
   import ButtonFace from '../controls/ButtonFace.svelte';
@@ -100,7 +100,7 @@
   <div class="grid gap-3 rounded-xl border p-3">
     <div class="flex flex-wrap items-center gap-2">
       <h3 class="min-w-0 flex-1 text-sm font-semibold">States</h3>
-      <Button size="sm" variant="outline" onclick={onadd}><Plus /> Add state</Button>
+      <Button size="sm" variant="outline" disabled={variants.length >= MAX_VARIANTS} onclick={onadd}><Plus /> Add state</Button>
       {#if !roles}
         <Button size="sm" variant="outline" disabled={variants.length < 1} onclick={ontoggleroles}>Enable Off/On</Button>
       {:else}
