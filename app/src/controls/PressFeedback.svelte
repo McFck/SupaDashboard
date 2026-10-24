@@ -100,7 +100,7 @@
 </script>
 
 <div bind:this={root} data-dashboard-tile onpointerdowncapture={down} style="-webkit-app-region: no-drag" class="relative h-full w-full">
-  <div bind:this={surface} data-dashboard-tile style="-webkit-app-region: no-drag" class="relative h-full w-full origin-center overflow-hidden {surfaceClass || 'rounded-[inherit]'}">
+  <div bind:this={surface} data-dashboard-tile style="-webkit-app-region: no-drag" class="relative h-full w-full origin-center {surfaceClass || 'rounded-[inherit]'}" class:overflow-hidden={surfaceClass !== 'tile-content'}>
     {@render children()}
     {#if ripple}
       <span bind:this={rippleNode} aria-hidden="true" class="pointer-events-none absolute rounded-full bg-white"

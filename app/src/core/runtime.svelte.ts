@@ -13,7 +13,7 @@ import type { Trigger } from './scenario';
 import type { PageChangePayload, RuntimeSync, RuntimeRequest } from './runtime-sync';
 import { pageAfterRemoval, pageById } from './pages';
 import { allPlacements, hasPlacement } from './skin-layouts';
-import { mediaSourceKey, readMediaOptions, stepSlide } from './content';
+import { mediaSourceKey, readMediaOptions, sameMediaSource, stepSlide, type MediaSource } from './content';
 
 export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'auto' | 'reconcile';
 let dashboardInteractionActive = false;
@@ -68,7 +68,7 @@ export class AutomationRuntime {
   private readonly busyCounts = new Map<string, number>();
   private readonly queueFullReported = new Set<string>();
   private readonly contentState = new Map<string, { slide: number; reload: number }>();
-  private readonly contentSources = new Map<string, string>();
+  private readonly contentSources = new Map<string, MediaSource[]>();
   private readonly contentPositions = new Map<string, { source: string; time: number }>();
   private readonly unsubscribeVariables: () => void;
   private readonly detachRegistry: () => void;
@@ -330,14 +330,19 @@ export class AutomationRuntime {
     for (const id of this.contentSources.keys()) if (!current.has(id) || !placed.has(id)) this.contentSources.delete(id);
     for (const id of this.contentPositions.keys()) if (!current.has(id) || !placed.has(id)) this.contentPositions.delete(id);
     for (const control of controls) if (control.type === 'media' && placed.has(control.id)) {
-      const sourceKey = JSON.stringify(readMediaOptions(control.options).sources);
+      const sources = readMediaOptions(control.options).sources;
       const previous = this.contentSources.get(control.id);
-      if (previous !== undefined && previous !== sourceKey) {
-        this.contentPositions.delete(control.id);
+      if (previous !== undefined && JSON.stringify(previous) !== JSON.stringify(sources)) {
         const state = this.contentState.get(control.id);
-        if (state) this.contentState.set(control.id, { ...state, slide: 0 });
+        const priorIndex = state?.slide ?? 0;
+        const priorSource = previous[priorIndex];
+        let nextIndex = priorSource
+          ? sources.findIndex(source => sameMediaSource(source, priorSource)) : -1;
+        if (nextIndex < 0) nextIndex = Math.min(priorIndex, Math.max(0, sources.length - 1));
+        if (mediaSourceKey(priorSource) !== mediaSourceKey(sources[nextIndex])) this.contentPositions.delete(control.id);
+        if (state && state.slide !== nextIndex) this.contentState.set(control.id, { ...state, slide: nextIndex });
       }
-      this.contentSources.set(control.id, sourceKey);
+      this.contentSources.set(control.id, sources);
     }
     this.publish(this.variables.snapshot());
   }

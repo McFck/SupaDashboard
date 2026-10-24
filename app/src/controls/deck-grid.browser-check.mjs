@@ -82,7 +82,7 @@ const setup = `(() => {
     if (type === 'beforeunload' && (new Error().stack || '').includes('volume.ts')) window.__volumeDispose = listener;
     return add.call(this, type, listener, ...rest);
   };
-  window.__workerStats = { created: 0, active: 0, requests: 0, replies: 0, terminated: 0 };
+  window.__workerStats = { created: 0, active: 0, requests: 0, replies: 0, terminated: 0, errors: [], jobs: [] };
   window.__delayNextWorkerPost = false;
   window.__injectBeforeWorkerReply = false;
   const NativeWorker = window.Worker;
@@ -93,6 +93,10 @@ const setup = `(() => {
     stats.created++; stats.active++;
     const addListener = worker.addEventListener.bind(worker);
     worker.addEventListener = (type, listener, ...rest) => {
+      if (type === 'error') return addListener(type, event => {
+        stats.errors.push({ message: event.message, filename: event.filename, line: event.lineno });
+        return typeof listener === 'function' ? listener.call(worker, event) : listener.handleEvent(event);
+      }, ...rest);
       if (type !== 'message') return addListener(type, listener, ...rest);
       const wrapped = event => {
         stats.replies++;
@@ -112,6 +116,7 @@ const setup = `(() => {
     const post = worker.postMessage.bind(worker);
     worker.postMessage = (message, ...rest) => {
       stats.requests++;
+      stats.jobs.push(message);
       if (!window.__delayNextWorkerPost) return post(message, ...rest);
       window.__delayNextWorkerPost = false;
       const timer = setTimeout(() => { timers.delete(timer); try { post(message, ...rest); } catch {} }, 450);
@@ -385,7 +390,7 @@ async function main() {
 
   await setupPanel(1440, 900);
   const equalSwap = await dragItem({ dx: 4 });
-  assert.equal(equalSwap.displaced.length, 1, `Equal-size target did not show a swap: ${JSON.stringify({ shown: equalSwap.shown, settings: equalSwap.settings.deck.items, requests: equalSwap.stats.requests, replies: equalSwap.stats.replies })}`);
+  assert.equal(equalSwap.displaced.length, 1, `Equal-size target did not show a swap: ${JSON.stringify({ shown: equalSwap.shown, settings: equalSwap.settings.deck.items, stats: equalSwap.stats })}`);
   assert.equal(equalSwap.settings.deck.items.find(item => item.id === 'action-item').x, 9);
   assert.equal(equalSwap.settings.deck.items.find(item => item.id === 'one-item').x, 5);
   assert.equal(equalSwap.settingsWrites, 1);

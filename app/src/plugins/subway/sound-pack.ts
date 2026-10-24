@@ -36,6 +36,12 @@ export interface ResolvedCue extends RuntimeCue {
   url: string;
 }
 
+export interface TimedCue {
+  part: string;
+  at: number;
+  cue: ResolvedCue;
+}
+
 export interface DoorSequencePlan {
   events: Array<{ part: string; at: number; cue: ResolvedCue }>;
   end: number;
@@ -46,6 +52,15 @@ export interface DoorSequencePlan {
 
 export interface DoorSequenceApi {
   plan(line: { sequence: unknown; cues: Record<string, ResolvedCue> }, action: 'open' | 'close'): DoorSequencePlan;
+}
+
+export interface SegmentCuePlan {
+  close: DoorSequencePlan;
+  open: DoorSequencePlan;
+  preClose?: readonly TimedCue[];
+  departure: readonly TimedCue[];
+  arrival: readonly TimedCue[];
+  emergency?: readonly TimedCue[];
 }
 
 export interface LoadedSubwayLine {
@@ -80,9 +95,10 @@ export interface MotionAudioInstance {
 const bundlePromises = new Map<string, Promise<LoadedSubwayAssets>>();
 const scriptPromises = new Map<string, Promise<void>>();
 const lineIds = ['yamanote', 'hibiya', 'sakaisuji'] as const;
+const warnedVariantFallbacks = new Set<string>();
 const doorRoles: Readonly<Record<string, CueRole>> = {
   chime_open: 'chime', chime_close: 'chime', signal: 'signal', open: 'mechanics', close: 'mechanics',
-  platform_open: 'signal', platform_close: 'signal', bell: 'bell',
+  platform_open: 'signal', platform_close: 'signal', bell: 'bell', departure_melody: 'melody',
 };
 
 function globals(): SubwayGlobals { return globalThis as SubwayGlobals; }
@@ -125,11 +141,23 @@ function cueIndex(manifest: RuntimeCueManifest): Map<string, RuntimeCue> {
   return result;
 }
 
-export function resolveCue(record: Pick<PackCueRecord, 'file'>, role: CueRole, manifest: RuntimeCueManifest, base: string): ResolvedCue {
-  const entry = cueIndex(manifest).get(record.file);
-  const gain = entry?.gainByRole[role];
-  if (!entry || gain === undefined) throw new Error(`Missing ${role} catalogue entry: ${record.file}`);
-  return { ...entry, gain, url: resolveAssetUrl(record.file, base) };
+export function resolveCue(record: PackCueRecord, role: CueRole, manifest: RuntimeCueManifest, base: string, stationCode?: string): ResolvedCue {
+  const variants = Array.isArray(record.variants) ? record.variants as { stations?: unknown; file?: unknown }[] : [];
+  const variant = stationCode ? variants.find(item => Array.isArray(item.stations) && item.stations.includes(stationCode) && typeof item.file === 'string') : undefined;
+  let file = variant?.file as string | undefined ?? record.file;
+  let entry = cueIndex(manifest).get(file);
+  let gain = entry?.gainByRole[role];
+  if (variant && (!entry || gain === undefined)) {
+    if (!warnedVariantFallbacks.has(file)) {
+      warnedVariantFallbacks.add(file);
+      console.warn(`Subway station cue unavailable; using line default: ${file} → ${record.file}`);
+    }
+    file = record.file;
+    entry = cueIndex(manifest).get(file);
+    gain = entry?.gainByRole[role];
+  }
+  if (!entry || gain === undefined) throw new Error(`Missing ${role} catalogue entry: ${file}`);
+  return { ...entry, gain, url: resolveAssetUrl(file, base) };
 }
 
 export function selectDirectionalEntries(entries: readonly PackCueRecord[] | undefined, direction: string): PackCueRecord[] {
@@ -143,6 +171,147 @@ export function selectDirectionalEntries(entries: readonly PackCueRecord[] | und
     if (seen.has(entry.file)) return false;
     seen.add(entry.file);
     return true;
+  });
+}
+
+export function selectStationEntries(
+  entries: readonly PackCueRecord[] | undefined,
+  stationCode: string,
+  kind: string,
+  direction: string,
+): PackCueRecord[] {
+  return selectDirectionalEntries(entries?.filter(entry => entry.station === stationCode && entry.kind === kind), direction);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function packStations(line: LoadedSubwayLine): Record<string, unknown>[] {
+  const stations = line.pack.stations;
+  const values = Array.isArray(stations) ? stations : stations && typeof stations === 'object' ? Object.values(stations as Record<string, unknown>) : [];
+  return values.map(asRecord).filter((item): item is Record<string, unknown> => !!item);
+}
+
+function packStation(line: LoadedSubwayLine, code: string): Record<string, unknown> | undefined {
+  return packStations(line).find(station => station.code === code);
+}
+
+function cueEntries(value: unknown, language: string): PackCueRecord[] {
+  const localized = asRecord(value)?.[language];
+  return Array.isArray(localized) ? localized.filter((entry): entry is PackCueRecord => !!asRecord(entry) && typeof (entry as PackCueRecord).file === 'string') : [];
+}
+
+function queueStationCues(
+  station: Record<string, unknown>,
+  group: 'next' | 'arriving' | 'transfer',
+  stationCode: string,
+  direction: string,
+  languages: readonly string[],
+  catalogue: RuntimeCueManifest,
+  base: string,
+): TimedCue[] {
+  const result: TimedCue[] = [];
+  let at = 0;
+  for (const language of languages) {
+    const selected = selectStationEntries(cueEntries(station[group], language), stationCode, group === 'next' ? 'next' : group, direction)[0];
+    if (!selected) continue;
+    const cue = resolveCue(selected, 'voice', catalogue, base);
+    result.push({ part: `${group}:${language}`, at, cue });
+    at += cue.duration + 0.3;
+  }
+  return result;
+}
+
+function departureMelody(
+  station: Record<string, unknown>, direction: string, catalogue: RuntimeCueManifest, base: string,
+): ResolvedCue | undefined {
+  const byDirection = asRecord(station.departure_melody);
+  const melody = asRecord(byDirection?.[direction]) as PackCueRecord | undefined;
+  return melody && typeof melody.file === 'string' ? resolveCue(melody, 'melody', catalogue, base) : undefined;
+}
+
+function planContainsDepartureMelody(sequence: unknown): boolean {
+  const close = asRecord(sequence)?.close;
+  return Array.isArray(close) && close.some(step => asRecord(step)?.part === 'departure_melody');
+}
+
+export function resolveDoorPlanLine(
+  line: LoadedSubwayLine,
+  catalogue: RuntimeCueManifest,
+  base: string,
+  stationCode?: string,
+  melody?: ResolvedCue,
+): { sequence: unknown; cues: Record<string, ResolvedCue> } {
+  const doors = line.pack.doors as { sequence?: unknown; [key: string]: unknown } | undefined;
+  if (!doors?.sequence) throw new Error(`Door sequence missing for ${String(line.pack.id)}`);
+  const sequenceRecord = asRecord(doors.sequence);
+  const closeSteps = sequenceRecord?.close;
+  const filteredSequence = Array.isArray(closeSteps) && !melody
+    ? { ...sequenceRecord, close: closeSteps.filter(step => asRecord(step)?.part !== 'departure_melody') }
+    : doors.sequence;
+  const cues: Record<string, ResolvedCue> = {};
+  if (melody) cues.departure_melody = melody;
+  for (const [part, value] of Object.entries(doors)) {
+    if (part === 'sequence' || !asRecord(value) || typeof (value as PackCueRecord).file !== 'string') continue;
+    const role = doorRoles[part];
+    if (!role) throw new Error(`Unknown Subway door cue role: ${part}`);
+    cues[part] = resolveCue(value as PackCueRecord, role, catalogue, base, stationCode);
+  }
+  return { sequence: filteredSequence, cues };
+}
+
+function freezePlan(plan: DoorSequencePlan): DoorSequencePlan {
+  const events = plan.events.map(event => Object.freeze({ ...event, cue: Object.freeze({ ...event.cue }) }));
+  return Object.freeze({ ...plan, events: Object.freeze(events) as unknown as DoorSequencePlan['events'] });
+}
+
+export function buildSegmentCuePlan(
+  line: LoadedSubwayLine,
+  from: string,
+  to: string,
+  direction: string,
+  languages: readonly string[],
+  hasTransfers: boolean,
+  catalogue: RuntimeCueManifest,
+  base: string,
+  planner: DoorSequenceApi,
+): SegmentCuePlan {
+  const source = packStation(line, from);
+  const target = packStation(line, to);
+  if (!source || !target) throw new Error(`Missing Subway pack station for ${from} → ${to}`);
+  const languageOrder = [...new Set(languages)].filter(language => ['ja', 'en', 'zh', 'ko'].includes(language));
+  const melody = departureMelody(source, direction, catalogue, base);
+  const doors = asRecord(line.pack.doors);
+  const sequence = doors?.sequence;
+  const includesMelody = planContainsDepartureMelody(sequence);
+  const closeInput = resolveDoorPlanLine(line, catalogue, base, from, includesMelody ? melody : undefined);
+  const openInput = resolveDoorPlanLine(line, catalogue, base, to);
+  const close = freezePlan(planner.plan(closeInput, 'close'));
+  const open = freezePlan(planner.plan(openInput, 'open'));
+  const departure = queueStationCues(target, 'next', to, direction, languageOrder, catalogue, base);
+  const arrival = [
+    ...queueStationCues(target, 'arriving', to, direction, languageOrder, catalogue, base),
+    ...(hasTransfers ? queueStationCues(target, 'transfer', to, direction, languageOrder, catalogue, base) : []),
+  ];
+  const emergency: TimedCue[] = [];
+  const emergencyRecords = (Array.isArray(line.pack.emergency) ? line.pack.emergency : [])
+    .filter((entry): entry is PackCueRecord => !!asRecord(entry) && (entry as PackCueRecord).kind === 'emergency' && (entry as PackCueRecord).scenario === 'emergency stop');
+  let at = 0;
+  for (const language of languageOrder) {
+    const selected = selectDirectionalEntries(emergencyRecords.filter(entry => entry.lang === language), direction)[0];
+    if (!selected) continue;
+    const cue = resolveCue(selected, 'voice', catalogue, base);
+    emergency.push({ part: `emergency:${language}`, at, cue });
+    at += cue.duration + 0.3;
+  }
+  const preClose = melody && !includesMelody ? [{ part: 'departure_melody', at: 0, cue: melody }] : [];
+  return Object.freeze({
+    close, open,
+    ...(preClose.length ? { preClose: Object.freeze(preClose.map(item => Object.freeze(item))) } : {}),
+    departure: Object.freeze(departure.map(item => Object.freeze(item))),
+    arrival: Object.freeze(arrival.map(item => Object.freeze(item))),
+    emergency: Object.freeze(emergency.map(item => Object.freeze(item))),
   });
 }
 
@@ -221,15 +390,3 @@ export async function loadSubwayMotionEngine(base?: string): Promise<{ api: Trai
   return { api, profiles: motionPack.profiles };
 }
 
-export function resolveDoorPlanLine(line: LoadedSubwayLine, catalogue: RuntimeCueManifest, base: string): { sequence: unknown; cues: Record<string, ResolvedCue> } {
-  const doors = line.pack.doors as { sequence?: unknown; [key: string]: unknown } | undefined;
-  if (!doors?.sequence) throw new Error(`Door sequence missing for ${String(line.pack.id)}`);
-  const cues: Record<string, ResolvedCue> = {};
-  for (const [part, value] of Object.entries(doors)) {
-    if (part === 'sequence' || !value || typeof value !== 'object' || !('file' in value)) continue;
-    const role = doorRoles[part];
-    if (!role) throw new Error(`Unknown Subway door cue role: ${part}`);
-    cues[part] = resolveCue(value as PackCueRecord, role, catalogue, base);
-  }
-  return { sequence: doors.sequence, cues };
-}

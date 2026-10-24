@@ -12,14 +12,15 @@
   import { pageById } from './core/pages';
   import { requestPageChange, runtimeView, setRuntimeInteraction } from './core/runtime.svelte';
   import { pageSwipeIntent, pageSwipeOffset, pageSwipeTarget } from './core/page-swipe';
+  import { setMediaContentPages } from './core/content-visibility';
 
   type DisplayRequest = { monitor: string | null; fullscreen: boolean; alwaysOnTop: boolean };
   type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
-  type PagerFrame = { id: string; offset: number; active: boolean };
+  type PagerFrame = { id: string; offset: number; active: boolean; mediaVisible: boolean };
   type PagerSession = {
     pointerId: number; startX: number; startY: number; latestX: number; latestY: number;
     sourceId: string; sourceIndex: number; order: string[]; orderKey: string; width: number;
-    mode: 'pending' | 'horizontal' | 'vertical'; side: number; neighborId?: string;
+    source: 'gap' | 'skin-input'; mode: 'pending' | 'horizontal' | 'vertical'; side: number; neighborId?: string;
     hold?: ReturnType<typeof setTimeout>; frame: number | null; generation: number;
   };
   const skin = $derived(skins.get(settings.skin) ?? skins.get('deck')!);
@@ -56,6 +57,7 @@
   let cleanupHover: (() => void) | undefined;
   let cleanupResized: (() => void) | undefined;
   const hovered = $derived(domHovered || nativeHovered);
+  $effect(() => setMediaContentPages(pagerFrames.filter(frame => frame.mediaVisible).map(frame => frame.id)));
   // Native resize loops swallow pointer hover, so keep the edge cues up until resize events go quiet.
   let windowResizing = $state(false);
   let resizeQuiet: ReturnType<typeof setTimeout> | undefined;
@@ -103,7 +105,7 @@
       excluded.push(rect);
     };
     skinRoot.querySelectorAll('[data-dashboard-tile]').forEach(add);
-    skinRoot.querySelectorAll('.tile, button, input, select, textarea, a, [contenteditable], [role="slider"]').forEach(add);
+    skinRoot.querySelectorAll('[data-skin-input], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]').forEach(add);
     shell.querySelectorAll('.dashboard-page-dots, .dashboard-page-dots button').forEach(add);
     shell.querySelectorAll('[data-resize-handle]').forEach(add);
     dragGaps = complementRectangles(surface.width, surface.height, excluded, window.devicePixelRatio || 1);
@@ -121,7 +123,7 @@
     if (!gapResizeObserver || !pageHost) return;
     const skinRoot = visibleSkinRoot();
     const next = new Set<Element>([...(skinRoot ? [skinRoot] : []), ...shell.querySelectorAll('.dashboard-page-dots, .dashboard-page-dots button, [data-resize-handle]')]);
-    skinRoot?.querySelectorAll('[data-dashboard-tile], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]')
+    skinRoot?.querySelectorAll('[data-skin-input], [data-dashboard-tile], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]')
       .forEach(node => next.add(node));
     for (const node of observedGapNodes) if (!next.has(node)) gapResizeObserver.unobserve(node);
     for (const node of next) if (!observedGapNodes.has(node)) gapResizeObserver.observe(node);
@@ -136,10 +138,10 @@
   function activeFrames(pageId = page.id): PagerFrame[] {
     const pages = settings.deck.pages, index = pages.findIndex(candidate => candidate.id === pageId);
     const width = shell?.getBoundingClientRect().width ?? 0;
-    const frames: PagerFrame[] = [{ id: pageId, offset: 0, active: true }];
-    if (index > 0) frames.unshift({ id: pages[index - 1].id, offset: -width, active: false });
+    const frames: PagerFrame[] = [{ id: pageId, offset: 0, active: true, mediaVisible: true }];
+    if (index > 0) frames.unshift({ id: pages[index - 1].id, offset: -width, active: false, mediaVisible: false });
     if (index >= 0 && index + 1 < pages.length)
-      frames.push({ id: pages[index + 1].id, offset: width, active: false });
+      frames.push({ id: pages[index + 1].id, offset: width, active: false, mediaVisible: false });
     return frames;
   }
 
@@ -190,10 +192,10 @@
     const offset = pageSwipeOffset(dx, session.width, session.sourceIndex, session.order.length);
     pagerFrames = session.neighborId
       ? [
-          { id: session.sourceId, offset, active: true },
-          { id: session.neighborId, offset: (session.side * session.width) + dx, active: false },
+          { id: session.sourceId, offset, active: true, mediaVisible: true },
+          { id: session.neighborId, offset: (session.side * session.width) + dx, active: false, mediaVisible: true },
         ]
-      : [{ id: session.sourceId, offset, active: true }];
+      : [{ id: session.sourceId, offset, active: true, mediaVisible: true }];
   }
 
   function schedulePagerPaint(session: PagerSession) {
@@ -220,8 +222,9 @@
       return;
     }
     const side = targetIndex > sourceIndex ? 1 : targetIndex < sourceIndex ? -1 : session.side;
-    const frames = pagerFrames.map(frame => ({ ...frame, active: frame.id === targetId }));
-    if (!frames.some(frame => frame.id === targetId)) frames.push({ id: targetId, offset: side * session.width, active: false });
+    const frames = pagerFrames.map(frame => ({ ...frame, active: frame.id === targetId,
+      mediaVisible: frame.id === targetId || frame.id === session.sourceId }));
+    if (!frames.some(frame => frame.id === targetId)) frames.push({ id: targetId, offset: side * session.width, active: false, mediaVisible: true });
     pagerFrames = frames;
     await tick();
     if (pagerGeneration !== session.generation) return;
@@ -288,9 +291,21 @@
     session.hold = undefined;
     session.mode = mode;
     if (mode === 'vertical') {
+      if (session.source === 'skin-input') {
+        if (clearPagerSession(session, false)) {
+          pagerBusy = false;
+          pagerFrames = activeFrames(session.sourceId);
+          scheduleDragGapMeasure();
+        }
+        return;
+      }
       if (!appliedFullscreen && isTauri()) startNativeGapDrag(session);
       else cancelPagerToCurrent(session.sourceId);
       return;
+    }
+    if (session.source === 'skin-input') {
+      try { shell.setPointerCapture(session.pointerId); }
+      catch { /* Window capture listeners still track the horizontal swipe. */ }
     }
     const dx = session.latestX - session.startX;
     session.side = dx < 0 ? 1 : -1;
@@ -322,6 +337,13 @@
 
   async function finishPager(session: PagerSession, cancelled: boolean) {
     if (pagerSession !== session) return;
+    if (session.source === 'skin-input' && session.mode === 'pending') {
+      if (clearPagerSession(session, false)) {
+        pagerBusy = false;
+        scheduleDragGapMeasure();
+      }
+      return;
+    }
     if (session.frame !== null) cancelAnimationFrame(session.frame);
     session.frame = null;
     if (!cancelled && session.mode === 'horizontal') paintPager(session);
@@ -368,6 +390,7 @@
   }
 
   function onPagerLostCapture(event: PointerEvent) {
+    if (event.target !== shell) return;
     const session = pagerSession;
     if (session?.pointerId === event.pointerId) void finishPager(session, true);
   }
@@ -379,18 +402,23 @@
 
   function onPagerPointerDown(event: PointerEvent) {
     const target = event.target;
-    if (!(target instanceof Element) || !target.closest('.dashboard-drag-gap') || !event.isPrimary || event.button !== 0) return;
+    if (!(target instanceof Element) || !event.isPrimary || event.button !== 0) return;
+    const gap = target.closest('.dashboard-drag-gap');
+    const skinInput = target.closest<HTMLElement>('[data-skin-input="scene"], [data-skin-input="slot"]');
+    const interactive = target.closest('[data-dashboard-tile], button, input, select, textarea, a, [contenteditable], [role="slider"]');
+    if (!gap && (!skinInput || interactive)) return;
+    const source = gap ? 'gap' : 'skin-input';
     const pages = settings.deck.pages;
     const sourceIndex = pages.findIndex(candidate => candidate.id === page.id);
     if (sourceIndex < 0) return;
     if (pages.length <= 1) {
-      if (isTauri() && !appliedFullscreen) {
+      if (source === 'gap' && isTauri() && !appliedFullscreen) {
         event.preventDefault();
         getCurrentWindow().startDragging().catch(error => console.warn('drag', error));
       }
       return;
     }
-    event.preventDefault();
+    if (source === 'gap') event.preventDefault();
     if (pagerSession) cancelPagerToCurrent();
     cancelPagerAnimations();
     const rect = shell.getBoundingClientRect();
@@ -399,11 +427,12 @@
       pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
       latestX: event.clientX, latestY: event.clientY, sourceId: page.id, sourceIndex,
       order, orderKey: order.join('\u0000'), width: rect.width, mode: 'pending', side: 0,
+      source,
       frame: null, generation: ++pagerGeneration,
     };
     pagerSession = session;
     pagerBusy = true;
-    session.hold = isTauri() && !appliedFullscreen
+    session.hold = source === 'gap' && isTauri() && !appliedFullscreen
       ? setTimeout(() => startNativeGapDrag(session), 250)
       : undefined;
     window.addEventListener('pointermove', onPagerMove, true);
@@ -412,8 +441,10 @@
     window.addEventListener('pointerdown', onPagerNewPointerDown, true);
     window.addEventListener('blur', onPagerBlur);
     shell.addEventListener('lostpointercapture', onPagerLostCapture);
-    try { shell.setPointerCapture(event.pointerId); }
-    catch { /* The window capture listeners also complete the pointer session. */ }
+    if (source === 'gap') {
+      try { shell.setPointerCapture(event.pointerId); }
+      catch { /* The window capture listeners also complete the pointer session. */ }
+    }
   }
 
   function onPagerResize() {
@@ -542,6 +573,7 @@
       disposed = true;
       cancelPagerToCurrent();
       cancelPagerAnimations();
+      setMediaContentPages([]);
       if (gapFrame) cancelAnimationFrame(gapFrame);
       gapResizeObserver?.disconnect();
       gapMutationObserver?.disconnect();
@@ -601,7 +633,7 @@
 <div role="region" aria-label="Dashboard" class="dashboard-shell relative h-full w-full overflow-hidden" data-fullscreen={appliedFullscreen}
   data-hovered={hovered || windowResizing}
   style:border-radius="{appliedFullscreen ? 0 : bg.radius}px"
-  bind:this={shell} onpointerdown={onPagerPointerDown}
+  bind:this={shell} onpointerdowncapture={onPagerPointerDown}
   onpointerenter={() => { domHovered = true; }} onpointerleave={() => { domHovered = false; }}>
   <div aria-hidden="true" class="dashboard-backdrop" style:background={bg.color}
     style:opacity={Number.isFinite(bg.opacity) ? Math.max(0, Math.min(1, bg.opacity)) : 0}></div>

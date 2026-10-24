@@ -1125,6 +1125,41 @@
       ]
     },
     {
+      "file": "lines/hibiya/clips/platform-door/platform-door_tokyo-metro-platform-door-ch_09.opus",
+      "offset": 0,
+      "duration": 2.68,
+      "audible_end": 2.68,
+      "gainByRole": {
+        "signal": 0.67
+      },
+      "sha256": "55c76f30ed54f27916d99ee5ed92ea660c429ab9194e7b88a7f42f9360f9015c",
+      "status": "needs ear check",
+      "source": [
+        {
+          "line": "hibiya",
+          "path": "doors/platform_close/variants/0",
+          "kind": null,
+          "station": null,
+          "direction": null,
+          "lang": null,
+          "revision": null,
+          "source": "SZ60zRLWMvc",
+          "status": "needs ear check"
+        },
+        {
+          "line": "hibiya",
+          "path": "doors/platform_open/variants/0",
+          "kind": null,
+          "station": null,
+          "direction": null,
+          "lang": null,
+          "revision": null,
+          "source": "SZ60zRLWMvc",
+          "status": "needs ear check"
+        }
+      ]
+    },
+    {
       "file": "lines/hibiya/clips/voice/H01-naka-meguro_arriving_en_to-naka-meguro_01.opus",
       "offset": 0.03,
       "duration": 4.35,

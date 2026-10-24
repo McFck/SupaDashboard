@@ -11,6 +11,8 @@ export type SkinHostContext = {
   skin: SkinDef;
   page: Page;
   viewId: string;
+  designScale: number;
+  designOffset: { x: number; y: number };
   config: SkinConfig;
   state: Readonly<Record<string, VariableValue>>;
   visible: boolean;

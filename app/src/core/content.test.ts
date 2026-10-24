@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MEDIA_OPTIONS, DEFAULT_WEB_OPTIONS, appendPickedSources, hasMediaExtension, isVideoSource, mediaUrl,
+import { DEFAULT_MEDIA_OPTIONS, DEFAULT_WEB_OPTIONS, hasMediaExtension, isVideoSource, mediaUrl,
   readMediaOptions, readWebOptions, stepSlide, webUrl } from './content';
 
 describe('media content options', () => {
@@ -14,11 +14,25 @@ describe('media content options', () => {
       { kind: 'url', value: 'https://example.test/a.png' }, { kind: 'file', value: 'C:/a.gif' },
       { kind: 'url', value: 3 }, { kind: 'other', value: 'x' }, { kind: 'file', value: '' }, null,
     ], fit: 'contain', interval: 86400, loop: false, muted: false })).toEqual({
-      sources: [{ kind: 'url', value: 'https://example.test/a.png' }, { kind: 'file', value: 'C:/a.gif' }],
-      fit: 'contain', interval: 86400, loop: false, muted: false,
+      sources: [
+        { kind: 'url', value: 'https://example.test/a.png', fit: 'contain', loop: true, muted: true },
+        { kind: 'file', value: 'C:/a.gif', fit: 'contain', loop: true, muted: true },
+      ],
+      interval: 86400, loop: false, muted: false,
     });
     expect(readMediaOptions({ interval: 0 }).interval).toBe(0);
+    expect(DEFAULT_MEDIA_OPTIONS.interval).toBe(0);
     expect(readMediaOptions({ interval: 86401 }).interval).toBe(DEFAULT_MEDIA_OPTIONS.interval);
+  });
+
+  it('keeps fit and video loop/mute preferences on each source', () => {
+    expect(readMediaOptions({ sources: [
+      { id: 'image', kind: 'file', value: 'C:/a.png', fit: 'contain' },
+      { id: 'video', kind: 'url', value: 'https://example.test/a.mp4?x=1', loop: false, muted: false },
+    ] }).sources).toEqual([
+      { id: 'image', kind: 'file', value: 'C:/a.png', fit: 'contain', loop: true, muted: true },
+      { id: 'video', kind: 'url', value: 'https://example.test/a.mp4?x=1', fit: 'cover', loop: false, muted: false },
+    ]);
   });
 
   it('accepts absolute HTTP(S) URLs without credentials and rejects other schemes', () => {
@@ -46,16 +60,6 @@ describe('media content options', () => {
     expect(stepSlide(0, 0, 1, true)).toBe(0);
   });
 
-  it('keeps picker cancellation and stale source-list results from overwriting edits', () => {
-    const original = [{ kind: 'url' as const, value: 'https://example.test/a.png' }];
-    expect(appendPickedSources(original, { sources: original }, null)).toBeUndefined();
-    expect(appendPickedSources(original, { sources: [{ kind: 'url', value: 'https://example.test/new.png' }] },
-      ['C:/image.png'])).toBeUndefined();
-    expect(appendPickedSources(original, { sources: original }, ['C:/image.png', 'C:/video.mp4'])).toEqual([
-      ...original, { kind: 'file', value: 'C:/image.png' }, { kind: 'file', value: 'C:/video.mp4' },
-    ]);
-    expect(original).toEqual([{ kind: 'url', value: 'https://example.test/a.png' }]);
-  });
 });
 
 describe('web content options', () => {

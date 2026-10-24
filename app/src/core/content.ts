@@ -1,7 +1,13 @@
-export type MediaSource = { kind: 'file' | 'url'; value: string };
+export type MediaSource = {
+  id?: string;
+  kind: 'file' | 'url';
+  value: string;
+  fit?: 'cover' | 'contain';
+  loop?: boolean;
+  muted?: boolean;
+};
 export type MediaOptions = {
   sources: MediaSource[];
-  fit: 'cover' | 'contain';
   interval: number;
   loop: boolean;
   muted: boolean;
@@ -10,7 +16,7 @@ export type MediaOptions = {
 export type WebOptions = { url: string; zoom: number; refresh: number; interactive: boolean };
 
 export const DEFAULT_MEDIA_OPTIONS: MediaOptions = {
-  sources: [], fit: 'cover', interval: 5, loop: true, muted: true,
+  sources: [], interval: 0, loop: true, muted: true,
 };
 
 export const DEFAULT_WEB_OPTIONS: WebOptions = { url: '', zoom: 100, refresh: 0, interactive: false };
@@ -40,16 +46,21 @@ export function readWebOptions(value: unknown): WebOptions {
 
 export function readMediaOptions(value: unknown): MediaOptions {
   const options = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const legacyFit = options.fit === 'contain' ? 'contain' : 'cover';
   const sources = Array.isArray(options.sources) ? options.sources.flatMap((source): MediaSource[] => {
     if (!source || typeof source !== 'object') return [];
     const item = source as Record<string, unknown>;
     return (item.kind === 'file' || item.kind === 'url') && typeof item.value === 'string' &&
       (item.kind !== 'file' || item.value.trim().length > 0)
-      ? [{ kind: item.kind, value: item.value }] : [];
+      ? [{ ...(typeof item.id === 'string' && item.id ? { id: item.id } : {}),
+        kind: item.kind, value: item.value,
+        fit: item.fit === 'contain' ? 'contain' : item.fit === 'cover' ? 'cover' : legacyFit,
+        loop: typeof item.loop === 'boolean' ? item.loop : true,
+        muted: typeof item.muted === 'boolean' ? item.muted : true,
+      }] : [];
   }) : [];
   return {
     sources,
-    fit: options.fit === 'contain' ? 'contain' : 'cover',
     interval: typeof options.interval === 'number' && Number.isFinite(options.interval) &&
       options.interval >= 0 && options.interval <= 86400 ? options.interval : DEFAULT_MEDIA_OPTIONS.interval,
     loop: typeof options.loop === 'boolean' ? options.loop : DEFAULT_MEDIA_OPTIONS.loop,
@@ -88,11 +99,13 @@ export function mediaSourceKey(source: MediaSource | undefined) {
   return source ? JSON.stringify([source.kind, source.value]) : '';
 }
 
-export function appendPickedSources(original: readonly MediaSource[], options: unknown, selection: string | string[] | null) {
-  const paths = (Array.isArray(selection) ? selection : selection ? [selection] : []).filter(value => value.trim().length > 0);
-  const current = readMediaOptions(options).sources;
-  if (!paths.length || JSON.stringify(current) !== JSON.stringify(original)) return;
-  return [...current, ...paths.map(value => ({ kind: 'file' as const, value }))];
+export function sameMediaSource(left: MediaSource | undefined, right: MediaSource | undefined) {
+  if (!left || !right) return false;
+  return left.id && right.id ? left.id === right.id : mediaSourceKey(left) === mediaSourceKey(right);
+}
+
+export function mediaSourceType(source: MediaSource): 'image-file' | 'video-file' | 'url' {
+  return source.kind === 'url' ? 'url' : isVideoSource(source) ? 'video-file' : 'image-file';
 }
 
 export function stepSlide(index: number, count: number, direction: -1 | 1, loop: boolean): number {

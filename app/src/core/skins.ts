@@ -6,6 +6,23 @@ import type { Page } from './settings.svelte';
 import type { VariableType, VariableValue } from './variables';
 
 export type SkinRect = { x: number; y: number; w: number; h: number };
+export type SkinDesignFit = { scale: number; offsetX: number; offsetY: number };
+
+export function fitSkinDesign(width: number, height: number, designWidth: number, designHeight: number): SkinDesignFit | null {
+  if (![width, height, designWidth, designHeight].every(Number.isFinite) || width <= 0 || height <= 0 || designWidth <= 0 || designHeight <= 0)
+    return null;
+  const scale = Math.min(width / designWidth, height / designHeight);
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+  return { scale, offsetX: (width - designWidth * scale) / 2, offsetY: (height - designHeight * scale) / 2 };
+}
+
+export function mapSkinPoint(clientX: number, clientY: number, hostLeft: number, hostTop: number,
+  fit: SkinDesignFit, designWidth: number, designHeight: number) {
+  const x = (clientX - hostLeft - fit.offsetX) / fit.scale;
+  const y = (clientY - hostTop - fit.offsetY) / fit.scale;
+  return x < 0 || y < 0 || x > designWidth || y > designHeight ? null : { x, y };
+}
+
 export type SkinGrid = 'page' | { rows: number; cols: number; size: number; gap: number; sizing: 'auto' | 'manual' };
 export type SkinSlot = {
   id: string;

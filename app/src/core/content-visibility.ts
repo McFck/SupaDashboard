@@ -1,5 +1,12 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { writable } from 'svelte/store';
+
+export const mediaContentPages = writable<ReadonlySet<string>>(new Set());
+
+export function setMediaContentPages(pageIds: Iterable<string>) {
+  mediaContentPages.set(new Set(pageIds));
+}
 
 export type ContentVisibility = {
   runtimeOwner: boolean;

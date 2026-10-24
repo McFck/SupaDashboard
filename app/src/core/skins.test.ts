@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { validSkinParam, validSkinStateValue, validateSkinDefinition, type SkinDef } from './skins';
+import { fitSkinDesign, mapSkinPoint, validSkinParam, validSkinStateValue, validateSkinDefinition, type SkinDef } from './skins';
 
 const base = (): SkinDef => ({ id: 'sample', title: 'Sample', component: {} as any,
   slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
   views: [{ id: 'default', title: 'Default', slots: ['main'] }], defaultView: 'default' });
 
 describe('skin declarations', () => {
+  it('fits a fixed design without distortion and maps only points inside its letterboxed bounds', () => {
+    const fit = fitSkinDesign(1280, 720, 1920, 600)!;
+    expect(fit).toEqual({ scale: 2 / 3, offsetX: 0, offsetY: 160 });
+    expect(mapSkinPoint(640, 160, 0, 0, fit, 1920, 600)).toEqual({ x: 960, y: 0 });
+    expect(mapSkinPoint(640, 159, 0, 0, fit, 1920, 600)).toBeNull();
+    expect(fitSkinDesign(0, 720, 1920, 600)).toBeNull();
+    expect(fitSkinDesign(Number.NaN, 720, 1920, 600)).toBeNull();
+  });
+
   it('accepts a complete declaration and rejects duplicate or dangling IDs before registration', () => {
     expect(() => validateSkinDefinition(base())).not.toThrow();
     expect(() => validateSkinDefinition(undefined as any)).toThrow('ID and title');

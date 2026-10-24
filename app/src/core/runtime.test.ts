@@ -97,6 +97,35 @@ describe('automation runtime', () => {
     expect(() => runtime!.contentCommand(config.id, 'goto', 0)).toThrow('Content runtime is unavailable');
   });
 
+  it('keeps the selected media source when an unrelated source changes or the list reorders', () => {
+    const sources = [
+      { id: 'a', kind: 'url' as const, value: 'https://example.test/a.png' },
+      { id: 'b', kind: 'url' as const, value: 'https://example.test/b.mp4' },
+      { id: 'c', kind: 'url' as const, value: 'https://example.test/c.gif' },
+    ];
+    const config = { ...control(), type: 'media', options: { sources } };
+    const active = page('media-active');
+    active.items.push({ id: 'media-item', control: config.id, x: 0, y: 0, w: 2, h: 2 });
+    settings.deck.pages = [active];
+    settings.deck.activePage = active.id;
+    settings.controls = [config];
+    runtime = new AutomationRuntime();
+    runtime.reconcile(settings.controls);
+    runtime.contentCommand(config.id, 'goto', 1);
+    const currentKey = mediaSourceKey({ kind: 'url', value: sources[1].value });
+    runtime.rememberVideoPosition(config.id, currentKey, 7.5);
+
+    config.options.sources[0].value = 'https://example.test/changed.png';
+    runtime.reconcile(settings.controls);
+    expect(get(runtime.snapshots).content[config.id]?.slide).toBe(1);
+    expect(runtime.videoPosition(config.id, currentKey)).toBe(7.5);
+
+    config.options.sources = [sources[2], sources[0], sources[1]];
+    runtime.reconcile(settings.controls);
+    expect(get(runtime.snapshots).content[config.id]?.slide).toBe(2);
+    expect(runtime.videoPosition(config.id, currentKey)).toBe(7.5);
+  });
+
   it('dispatches one configured pull action and keeps an unbound pull quiet', async () => {
     const config = control();
     config.scenario!.triggers.swipeRight = { steps: [{ id: 'pull', kind: 'action', action: { id: 'test.pull' } }] };
