@@ -82,10 +82,11 @@
   .skin-layout-editor.multi-view.designed :global([data-skin-design]),
   .skin-layout-editor.multi-view:not(.designed) :global([data-skin-host]) {
     box-sizing: border-box;
-    overflow: hidden;
+    overflow: visible; /* selection handles must not be clipped */
     border: 1px solid #2c3a3d;
     border-radius: 6px;
     background: #10171b;
   }
+  .skin-layout-editor.multi-view :global([data-skin-design] canvas) { border-radius: 5px; }
   .skin-layout-editor.multi-view :global(nav[aria-label="Skin view"]) { display: none; }
 </style>
