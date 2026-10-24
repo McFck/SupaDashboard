@@ -1,7 +1,8 @@
 import { emit, emitTo, listen } from '@tauri-apps/api/event';
 import { isTauri } from '@tauri-apps/api/core';
 
-export type PageChangePayload = { direction: 'next' | 'prev'; reason: 'dot' | 'swipe' } | { page: string; reason: 'dot' | 'swipe' };
+export type PageChangeReason = 'dot' | 'swipe' | 'skin';
+export type PageChangePayload = { direction: 'next' | 'prev'; reason: PageChangeReason } | { page: string; reason: PageChangeReason };
 export type RuntimeRequest = { type: 'changePage'; payload: PageChangePayload } |
   { type: 'snapshot' | 'simulate' | 'emitEvent' | 'setVariable' | 'createVariable' | 'renameVariable'
     | 'setVariablePersistence' | 'deleteVariable' | 'stop'; payload?: unknown };
@@ -22,7 +23,7 @@ const newId = () => globalThis.crypto?.randomUUID?.() ?? `sync-${Date.now()}-${M
 export function validPageChangePayload(value: unknown): value is PageChangePayload {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const payload = value as Record<string, unknown>;
-  if (payload.reason !== 'dot' && payload.reason !== 'swipe') return false;
+  if (payload.reason !== 'dot' && payload.reason !== 'swipe' && payload.reason !== 'skin') return false;
   if (typeof payload.page === 'string') return Object.keys(payload).sort().join(',') === 'page,reason' &&
     payload.page.length > 0 && payload.page.length <= 128;
   return Object.keys(payload).sort().join(',') === 'direction,reason' &&

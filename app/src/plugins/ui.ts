@@ -41,7 +41,7 @@ export const uiPlugin: Plugin = {
       type: 'media', title: 'Media', icon: 'Image', component: MediaControl,
       size: { w: 2, h: 2 }, minSize: { w: 1, h: 1 },
       create: () => ({ name: 'Media', scenario: emptyScenario(), variants: [{ id: 'state-1', label: '' }],
-        options: { sources: [], fit: 'cover', interval: 5, loop: true, muted: true } }),
+        options: { sources: [], interval: 0, loop: true, muted: true } }),
     });
     api.registerControl({
       type: 'web', title: 'Web', icon: 'Globe', component: WebControl,

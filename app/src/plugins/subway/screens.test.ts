@@ -1,0 +1,115 @@
+import { describe, expect, it } from 'vitest';
+import { normalizeSubwayLines, stepStation } from './lines';
+import { VisibleScreenClock, scheduleScreen } from './screens';
+import type { RunSnapshot } from './run';
+
+const lineFiles = import.meta.glob('../../../../assets/lines/*/line.json', { eager: true, import: 'default' }) as Record<string, unknown>;
+const packFiles = import.meta.glob('../../../../assets/lines/*/pack.json', { eager: true, import: 'default' }) as Record<string, unknown>;
+const ids = ['yamanote', 'hibiya', 'sakaisuji'] as const;
+const lines = normalizeSubwayLines(ids.map(id => {
+  const line = Object.entries(lineFiles).find(([path]) => path.endsWith(`/lines/${id}/line.json`))?.[1];
+  const pack = Object.entries(packFiles).find(([path]) => path.endsWith(`/lines/${id}/pack.json`))?.[1];
+  if (!line || !pack) throw new Error(`Missing screen fixtures for ${id}`);
+  return { line, pack };
+}));
+
+function snapshot(overrides: Partial<RunSnapshot> = {}): RunSnapshot {
+  return {
+    station: 'JY01', next: 'JY02', state: 'cruising', line: 'yamanote', direction: 'inner', doorSide: 'unknown',
+    doors: 'closed', speed: 48, power: 0.35, brake: 0, progress: 0.4, paused: false, immersion: false,
+    generation: 1, multiplier: 1, remainingMinutes: 38, ...overrides,
+  };
+}
+
+const yamanote = lines[0];
+const config = { line: yamanote, languages: ['ja', 'en'] } as const;
+
+describe('Subway screen scheduler', () => {
+  it('cycles broad, nearby and useful transfer pages with exact visible-time boundaries', () => {
+    const withTransfers = snapshot({ station: 'JY01', next: 'JY02' });
+    expect(scheduleScreen(withTransfers, config, 0).page).toBe('broad');
+    expect(scheduleScreen(withTransfers, config, 7_999).page).toBe('broad');
+    expect(scheduleScreen(withTransfers, config, 8_000).page).toBe('nearby');
+    expect(scheduleScreen(withTransfers, config, 15_999).page).toBe('nearby');
+    expect(scheduleScreen(withTransfers, config, 16_000).page).toBe('transfers');
+    expect(scheduleScreen(withTransfers, config, 21_999).page).toBe('transfers');
+    expect(scheduleScreen(withTransfers, config, 22_000).page).toBe('broad');
+  });
+
+  it('skips a transfer page when the current station has no connections', () => {
+    const station = yamanote.stations.find(item => item.transfers.length === 0)!;
+    const next = stepStation(yamanote, station.code, 'inner')!;
+    const noTransfer = snapshot({ station: station.code, next: next.code });
+    const schedule = scheduleScreen(noTransfer, config, 16_000);
+    expect(schedule.page).toBe('broad');
+    expect(schedule.pageDeadline).toBe(24_000);
+    expect(schedule.nextDeadline).toBe(18_000);
+  });
+
+  it('pins incident and arrival phases above manual map and ordinary cycling', () => {
+    expect(scheduleScreen(snapshot({ state: 'approaching' }), { ...config, manualView: 'map' }, 0).page).toBe('platform');
+    expect(scheduleScreen(snapshot({ state: 'doorsClosing' }), config, 0).page).toBe('closing');
+    expect(scheduleScreen(snapshot({ state: 'emergency' }), { ...config, manualView: 'map' }, 44_000).page).toBe('emergency');
+    expect(scheduleScreen(snapshot({ state: 'suspended' }), config, 44_000).page).toBe('suspension');
+  });
+
+  it('rotates locale at six seconds independently of the eight-second map page', () => {
+    const atZero = scheduleScreen(snapshot(), config, 0);
+    const before = scheduleScreen(snapshot(), config, 5_999);
+    const atSix = scheduleScreen(snapshot(), config, 6_000);
+    expect([atZero.page, before.page, atSix.page]).toEqual(['broad', 'broad', 'broad']);
+    expect(atZero.language).toBe('ja');
+    expect(atSix.language).toBe('en');
+    expect(atSix.languageDeadline).toBe(12_000);
+    expect(atSix.nextDeadline).toBe(8_000);
+    expect(scheduleScreen(snapshot({ state: 'emergency' }), config, 6_000).languages).toEqual(['ja', 'en', 'zh', 'ko']);
+  });
+
+  it('mirrors route ordering, resolves destinations and keeps progress out of the static cache key', () => {
+    const inner = scheduleScreen(snapshot({ station: 'JY01', next: 'JY02' }), config, 0);
+    const outer = scheduleScreen(snapshot({ station: 'JY01', next: 'JY30', direction: 'outer' }), config, 0);
+    expect(inner.route).toHaveLength(30);
+    expect(inner.route.slice(0, 3).map(station => station.code)).toEqual(['JY01', 'JY02', 'JY03']);
+    expect(outer.route.slice(0, 3).map(station => station.code)).toEqual(['JY01', 'JY30', 'JY29']);
+    expect(inner.destination).toBeTruthy();
+    expect(scheduleScreen(snapshot({ progress: 0.5 }), config, 0).invalidationKey)
+      .toBe(scheduleScreen(snapshot({ progress: 0.9 }), config, 0).invalidationKey);
+  });
+
+  it('returns a frozen page model and frozen snapshot/collections', () => {
+    const schedule = scheduleScreen(snapshot(), config, 0);
+    expect(Object.isFrozen(schedule)).toBe(true);
+    expect(Object.isFrozen(schedule.snapshot)).toBe(true);
+    expect(Object.isFrozen(schedule.languages)).toBe(true);
+    expect(Object.isFrozen(schedule.transfers)).toBe(true);
+    expect(Object.isFrozen(schedule.route)).toBe(true);
+    expect(Object.isFrozen(schedule.nearby)).toBe(true);
+  });
+
+  it('holds unknown door side without a claim and derives explicit viewing-side labels', () => {
+    const unknown = lines.flatMap(line => line.stations.flatMap(station => line.directions.map(direction => ({ line, station, direction }))))
+      .find(item => item.station.doorByDirection[item.direction.id]?.side === 'unknown')!;
+    const unknownSnapshot = snapshot({ line: unknown.line.id, station: unknown.station.code, next: '', direction: unknown.direction.id });
+    expect(scheduleScreen(unknownSnapshot, { line: unknown.line }, 0).sideLabel).toBeNull();
+
+    const known = lines.flatMap(line => line.stations.flatMap(station => line.directions.map(direction => ({ line, station, direction }))))
+      .find(item => item.station.doorByDirection[item.direction.id]?.side === 'right')!;
+    const knownSnapshot = snapshot({ line: known.line.id, station: known.station.code, next: '', direction: known.direction.id });
+    expect(scheduleScreen(knownSnapshot, { line: known.line, viewingSide: 'right' }, 0).sideLabel).toBe('this side');
+    expect(scheduleScreen(knownSnapshot, { line: known.line, viewingSide: 'left' }, 0).sideLabel).toBe('opposite side');
+  });
+
+  it('freezes visible page time while inactive and resets it for a new run phase', () => {
+    const clock = new VisibleScreenClock();
+    const start = clock.update(snapshot(), config, 1_000, true);
+    const hidden = clock.update(snapshot(), config, 9_000, false);
+    const resumed = clock.update(snapshot(), config, 109_000, true);
+    expect(start.visibleElapsed).toBe(0);
+    expect(hidden.visibleElapsed).toBe(8_000);
+    expect(resumed.visibleElapsed).toBe(8_000);
+    expect(resumed.page).toBe('nearby');
+    const nextPhase = clock.update(snapshot({ state: 'approaching' }), config, 109_500, true);
+    expect(nextPhase.visibleElapsed).toBe(0);
+    expect(nextPhase.page).toBe('platform');
+  });
+});

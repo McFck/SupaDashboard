@@ -22,7 +22,9 @@ describe('plugin bookkeeping', () => {
         size: { w: 1, h: 1 }, create: () => ({ name: 'Test', variants: [{ label: '' }] }) });
       api.registerSkin({ id: 'test.skin', title: 'Test skin', component: {} as import('svelte').Component,
         slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
-        views: [{ id: 'default', title: 'Default', slots: ['main'] }], defaultView: 'default' });
+        views: [{ id: 'default', title: 'Default', slots: ['main'] }], defaultView: 'default',
+        state: [{ key: 'ready', type: 'boolean', initialValue: false, persistent: true }],
+        events: [{ id: 'test.skin.changed', title: 'Skin changed' }] });
       api.registerIcon('TestIcon', 'M2 2');
       api.registerMediaSource({ id: 'test.source', title: 'Source', command: async () => {} });
     } };
@@ -32,6 +34,14 @@ describe('plugin bookkeeping', () => {
     expect(registry.values.get('test.volume')?.plugin).toBe('spotify');
     expect(registry.controlTypes.get('test.control')?.plugin).toBe('spotify');
     expect(registry.skins.get('test.skin')?.plugin).toBe('spotify');
+    expect(ownerApi.listVariables().filter(record => record.definition.id.startsWith('test.skin.')).map(record => ({
+      id: record.definition.id, owner: record.definition.owner, type: record.definition.type,
+      initialValue: record.definition.initialValue, persistent: record.definition.persistent, readOnly: record.definition.readOnly,
+    }))).toEqual([
+      { id: 'test.skin.view', owner: 'spotify', type: 'string', initialValue: 'default', persistent: false, readOnly: true },
+      { id: 'test.skin.ready', owner: 'spotify', type: 'boolean', initialValue: false, persistent: true, readOnly: true },
+    ]);
+    expect(registry.registeredEvents().some(event => event.id === 'test.skin.changed')).toBe(true);
     const registeredSkin = registry.skins.get('test.skin')!;
     expect(() => ownerApi.registerSkin({ ...registeredSkin, views: [{ id: 'broken', title: 'Broken', slots: ['missing'] }] })).toThrow('slot references');
     expect(registry.skins.get('test.skin')).toBe(registeredSkin);
@@ -41,7 +51,7 @@ describe('plugin bookkeeping', () => {
       api.registerEvent({ id: 'test.other.changed', title: 'Other external event' });
     } });
     expect(() => ownerApi.registerSkin(registeredSkin)).toThrow('test.skin.view');
-    expect(() => ownerApi.registerSkin({ ...registeredSkin, id: 'test.other', events: [{ id: 'test.other.changed', title: 'Changed' }] }))
+    expect(() => ownerApi.registerSkin({ ...registeredSkin, id: 'test.other', title: 'Other skin', events: [{ id: 'test.other.changed', title: 'Changed' }] }))
       .toThrow('test.other.changed');
     expect(registry.skins.get('test.skin')).toBe(registeredSkin);
     expect(registry.customIcons.get('TestIcon')).toBe('M2 2');

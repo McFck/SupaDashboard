@@ -8,10 +8,13 @@
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Switch } from '$lib/components/ui/switch';
   import { monitors } from '../core/display';
-  import { skins } from '../core/registry';
+import { skins, type Param } from '../core/registry';
   import { DEFAULTS, settings } from '../core/settings.svelte';
   import { commit } from '../core/history.svelte';
   import Choice from '../editor/Choice.svelte';
+import ParamField from '../editor/ParamField.svelte';
+import { resolveSkinConfig, validSkinParam } from '../core/skins';
+  import { currentRuntime } from '../core/runtime.svelte';
   import Row from './ui/Row.svelte';
   import Section from './ui/Section.svelte';
   import { buildMonitorOptions, CURRENT_POSITION, monitorSelectOptions } from './ui/monitor-options';
@@ -25,6 +28,8 @@
   let refreshGeneration = 0;
 
   const monitorOptions = $derived(buildMonitorOptions(screens, nativeNames, primaryScreen));
+  const selectedSkin = $derived(skins.get(settings.skin));
+  const resolvedSkinSettings = $derived(selectedSkin ? resolveSkinConfig(selectedSkin, settings.skinSettings[selectedSkin.id] ?? {}) : {});
   const screenOptions = $derived(monitorSelectOptions(monitorOptions, settings.display.monitor).map(option => ({
     ...option,
     icon: option.primary ? Star : undefined,
@@ -71,6 +76,16 @@
     settings.pageRotation.intervalSeconds = interval;
   }
 
+  function setSkinSetting(param: Param, value: unknown) {
+    const skin = selectedSkin;
+    if (!skin || !validSkinParam(param, value)) return;
+    const current = settings.skinSettings[skin.id] ?? {};
+    if (Object.hasOwn(current, param.key) && Object.is(current[param.key], value)) return;
+    commit(`Change ${skin.title} ${param.label}`);
+    settings.skinSettings = { ...settings.skinSettings, [skin.id]: { ...current, [param.key]: value } };
+    currentRuntime()?.updateSkinConfig(skin.id, settings.skinSettings[skin.id]);
+  }
+
   async function reset() {
     if (resetting) return;
     resetting = true;
@@ -78,6 +93,7 @@
       if (!await confirm({ title: 'Reset everything?', action: 'Reset', destructive: true })) return;
       commit('Reset everything');
       Object.assign(settings, structuredClone(DEFAULTS));
+      for (const skin of skins.values()) currentRuntime()?.updateSkinConfig(skin.id, settings.skinSettings[skin.id] ?? {});
     } finally { resetting = false; }
   }
 </script>
@@ -90,6 +106,15 @@
       <Choice id="skin-choice" class="w-56 min-w-0 max-w-full" value={settings.skin} onchange={v => (settings.skin = v)} options={[...skins.values()].map(s => ({ value: s.id, label: s.title, plugin: s.plugin }))} />
     </Row>
   </Section>
+
+  {#if selectedSkin?.settings?.length}
+    <Section title={selectedSkin.title}>
+      {#each selectedSkin.settings as param (param.key)}
+        <ParamField {param} provider={selectedSkin.plugin} value={resolvedSkinSettings[param.key]}
+          onchange={value => setSkinSetting(param, value)} />
+      {/each}
+    </Section>
+  {/if}
 
   <Section title="Dashboard">
     <Row label="Monitor" for="monitor-choice">

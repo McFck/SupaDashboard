@@ -1,5 +1,6 @@
 export type SceneMode = 'live' | 'frozen';
-export type SceneInput = { kind: 'down' | 'move' | 'up' | 'cancel'; x: number; y: number; pointerId: number; pointerType: string; button: number; time: number };
+export type SceneInput = { kind: 'down' | 'move' | 'up' | 'cancel'; x: number; y: number; pointerId: number; pointerType: string;
+  button: number; time: number; screenX?: number; screenY?: number };
 export type SceneRect = { left: number; top: number; width: number; height: number };
 
 export function mapScenePoint(clientX: number, clientY: number, rect: SceneRect, width: number, height: number) {

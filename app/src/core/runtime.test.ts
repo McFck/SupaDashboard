@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import { get } from 'svelte/store';
-import { actions, install, type ActionContext } from './registry';
+import { actions, install, skins, type ActionContext } from './registry';
 import { settings, serializeSettings, type Page } from './settings.svelte';
 import { captureTrigger } from './scenario-runner';
 import { mediaSourceKey } from './content';
@@ -30,6 +30,8 @@ afterEach(async () => {
   actions.delete('page.next');
   actions.delete('page.prev');
   actions.delete('page.goto');
+  const skin = skins.get('runtime-skin');
+  if (skin) skins.set(skin.id, { ...skin, runtime: undefined });
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -330,6 +332,66 @@ describe('automation runtime', () => {
     runtime = follower.runtime;
     await expect(Promise.resolve().then(() => next.run({}, context))).rejects.toThrow('runtime is unavailable');
     await expect(Promise.resolve().then(() => mediaNext.run({ target: self.id }, mediaContext))).rejects.toThrow('Content runtime is unavailable');
+  });
+
+  it('runs skin setup only for an owner, resolves config and keeps view/state outside settings history', async () => {
+    const skinId = 'runtime-skin';
+    const observed: unknown[] = [];
+    const cleanup = vi.fn();
+    let hookContext!: import('./skins').SkinRuntimeContext;
+    install({ id: 'runtime-skin-plugin', title: 'Runtime skin fixture', setup: api => api.registerSkin({
+      id: skinId, title: 'Runtime skin', component: {} as import('svelte').Component,
+      slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
+      views: [{ id: 'display', title: 'Display', slots: ['main'] }, { id: 'cab', title: 'Cab', slots: ['main'] }], defaultView: 'display',
+      settings: [{ key: 'enabled', label: 'Enabled', type: 'boolean', default: false }],
+      state: [{ key: 'configured', type: 'boolean', initialValue: false, persistent: true }],
+      events: [{ id: `${skinId}.changed`, title: 'Changed' }],
+      runtime: context => {
+        hookContext = context;
+        const stop = context.config.subscribe(config => {
+          observed.push(config.enabled);
+          void context.setState('configured', config.enabled === true);
+        });
+        return () => { stop(); cleanup(); };
+      },
+    }) });
+    settings.skinSettings[skinId] = { enabled: true, future: '保持' };
+    const before = serializeSettings();
+    runtime = new AutomationRuntime();
+    await tick();
+    expect(observed).toEqual([true]);
+    expect(runtime.variables.getValue(`${skinId}.configured`)).toBe(true);
+    expect(runtime.variables.getValue(`${skinId}.view`)).toBe('display');
+    expect(serializeSettings()).toBe(before);
+
+    settings.skinSettings = { ...settings.skinSettings, [skinId]: { enabled: false, future: '保持' } };
+    runtime.updateSkinConfig(skinId, settings.skinSettings[skinId]);
+    await tick();
+    expect(observed).toEqual([true, false]);
+    expect(runtime.variables.getValue(`${skinId}.configured`)).toBe(false);
+
+    const ancestry = { depth: 2, listeners: ['button\u0000change'] };
+    const emit = vi.spyOn(runtime, 'emitEvent').mockResolvedValue();
+    await runtime.setSkinView(skinId, 'cab', ancestry);
+    await runtime.setSkinState(skinId, 'configured', true, ancestry);
+    await hookContext.emitEvent(`${skinId}.changed`, 'fixture', { ok: true }, ancestry);
+    expect(runtime.variables.getValue(`${skinId}.view`)).toBe('cab');
+    expect(runtime.variables.serializePersistent().records.find(record => record.definition.id === `${skinId}.configured`)?.value).toBe(true);
+    expect(runtime.variables.serializePersistent().records.some(record => record.definition.id === `${skinId}.view`)).toBe(false);
+    expect(emit.mock.calls).toContainEqual(['variables.changed', `${skinId}.configured`, expect.any(Object), ancestry]);
+    expect(emit).toHaveBeenCalledWith(`${skinId}.changed`, 'fixture', { ok: true }, ancestry);
+
+    await runtime.dispose();
+    expect(cleanup).toHaveBeenCalledOnce();
+    const variables = runtime.variables;
+    skins.set(skinId, { ...skins.get(skinId)!, runtime: undefined });
+    variables.set(`${skinId}.view`, 'missing-view', 'runtime-skin-plugin');
+    runtime = new AutomationRuntime({ variables });
+    expect(runtime.variables.getValue(`${skinId}.view`)).toBe('display');
+    await runtime.dispose();
+    runtime = new AutomationRuntime({ owner: false });
+    expect(observed).toEqual([true, false]);
+    expect(() => runtime!.setSkinState(skinId, 'configured', false)).toThrow('Skin runtime is unavailable');
   });
 
   it('rotates on one owner timer, pauses through interaction and visibility, then clears on disable', async () => {

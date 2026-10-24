@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { SkinSceneFactory, SkinSceneRenderer, SceneInput, SceneMode } from '../core/skin-scene';
+  import type { SkinSceneFactory, SkinSceneRenderer, SceneInput, SceneMode, SceneRect } from '../core/skin-scene';
   import { mapScenePoint, SceneScheduler } from '../core/skin-scene';
   import { runtimeView } from '../core/runtime.svelte';
   import { watchDashboardVisibility, watchIntersection } from '../core/content-visibility';
@@ -62,7 +62,20 @@
     const last = pointer;
     pointer = null;
     try { if (canvas.hasPointerCapture(last.pointerId)) canvas.releasePointerCapture(last.pointerId); } catch {}
-    renderer?.input?.({ ...last, kind: 'cancel', time: performance.now() });
+    const cancel = { ...last, kind: 'cancel' as const, time: performance.now() };
+    dispatchSceneInput(cancel, canvas.getBoundingClientRect());
+    host?.resetSceneInput();
+  }
+
+  function sceneRect(rect: DOMRect): SceneRect {
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+  }
+
+  function dispatchSceneInput(input: SceneInput, rect: DOMRect) {
+    const deliver = (event: SceneInput) => renderer?.input?.(event);
+    const handled = host?.routeSceneInput(input, sceneRect(rect), deliver) ?? false;
+    if (!handled) deliver(input);
+    return handled;
   }
 
   $effect(() => {
@@ -135,16 +148,19 @@
 
   function input(kind: SceneInput['kind'], event: PointerEvent) {
     if (kind === 'down') {
-      if (!renderer?.input || mode !== 'live' || !eligible() || !event.isPrimary || event.button !== 0 || pointer) return;
+      if (pointer) { cancelPointer(); return; }
+      if (mode !== 'live' || !eligible() || !event.isPrimary || event.button !== 0) return;
       const rect = canvas.getBoundingClientRect();
       const point = mapScenePoint(event.clientX, event.clientY, rect, width, height);
       if (!point) return;
       const next: SceneInput = { kind, ...point, pointerId: event.pointerId, pointerType: event.pointerType,
-        button: event.button, time: performance.now() };
-      try { canvas.setPointerCapture(event.pointerId); } catch { return; }
+        button: event.button, time: performance.now(), screenX: event.clientX, screenY: event.clientY };
+      const handled = host?.routeSceneInput(next, sceneRect(rect), input => renderer?.input?.(input)) ?? false;
+      if (!renderer?.input && !handled) return;
+      try { canvas.setPointerCapture(event.pointerId); } catch { host?.resetSceneInput(); if (!handled) renderer?.input?.(next); return; }
       pointer = next;
       event.preventDefault(); event.stopPropagation();
-      renderer.input(next);
+      if (!handled) renderer?.input?.(next);
       return;
     }
     if (!pointer || pointer.pointerId !== event.pointerId) return;
@@ -153,8 +169,8 @@
     const rect = canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left) * width / rect.width, y = (event.clientY - rect.top) * height / rect.height;
     const next: SceneInput = { kind, x, y, pointerId: pointer.pointerId, pointerType: event.pointerType,
-      button: event.button, time: performance.now() };
-    renderer?.input?.(next);
+      button: event.button, time: performance.now(), screenX: event.clientX, screenY: event.clientY };
+    dispatchSceneInput(next, rect);
     if (kind === 'up') pointer = null;
     else pointer = next;
   }

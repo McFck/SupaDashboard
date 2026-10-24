@@ -45,6 +45,8 @@ describe('runtime sync protocol', () => {
       .resolves.toEqual({ direction: 'next', reason: 'dot' });
     await expect(panel.request({ type: 'changePage', payload: { page: 'page-2', reason: 'swipe' } }))
       .resolves.toEqual({ page: 'page-2', reason: 'swipe' });
+    await expect(panel.request({ type: 'changePage', payload: { direction: 'prev', reason: 'skin' } }))
+      .resolves.toEqual({ direction: 'prev', reason: 'skin' });
     for (const payload of [
       { page: 'page-2', direction: 'next', reason: 'dot' }, { page: 'x'.repeat(129), reason: 'dot' },
       { page: 'page-2', reason: 'auto' }, { direction: 'sideways', reason: 'swipe' },
@@ -52,7 +54,7 @@ describe('runtime sync protocol', () => {
     ]) expect(validPageChangePayload(payload)).toBe(false);
     await expect(panel.request({ type: 'changePage', payload: { page: 'page-2', direction: 'next', reason: 'dot' } as never }))
       .rejects.toThrow('Invalid runtime request');
-    expect(handler).toHaveBeenCalledTimes(2);
+    expect(handler).toHaveBeenCalledTimes(3);
     owner.close();
     panel.close();
   });

@@ -33,6 +33,8 @@ describe('media content options', () => {
       { id: 'image', kind: 'file', value: 'C:/a.png', fit: 'contain', loop: true, muted: true },
       { id: 'video', kind: 'url', value: 'https://example.test/a.mp4?x=1', fit: 'cover', loop: false, muted: false },
     ]);
+    expect(readMediaOptions({ sources: [{ kind: 'url', value: 'https://example.test/default.mp4' }] }).sources[0])
+      .toEqual({ kind: 'url', value: 'https://example.test/default.mp4', fit: 'cover', loop: true, muted: true });
   });
 
   it('accepts absolute HTTP(S) URLs without credentials and rejects other schemes', () => {

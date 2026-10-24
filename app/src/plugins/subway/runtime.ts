@@ -1,4 +1,4 @@
-import { get } from 'svelte/store';
+import { get, writable, type Readable } from 'svelte/store';
 import type { SkinRuntimeContext } from '../../core/skins';
 import { normalizeSubwayLines, stepStation, type LineDefinition } from './lines';
 import {
@@ -34,6 +34,12 @@ export interface SubwayRuntimeHandle {
   dispose(): void;
 }
 
+export interface SubwaySceneState {
+  line: LineDefinition;
+  snapshot: RunSnapshot;
+  config: Readonly<Record<string, unknown>>;
+}
+
 const browserClock: SubwayRuntimeClock = {
   now: () => performance.now(),
   setTimeout: (callback, delay) => globalThis.setTimeout(callback, delay),
@@ -42,6 +48,10 @@ const browserClock: SubwayRuntimeClock = {
 
 const surfaces = new Set<{ eligible: boolean }>();
 const surfaceListeners = new Set<(eligible: boolean) => void>();
+const sceneState = writable<SubwaySceneState | undefined>(undefined);
+export const subwaySceneState: Readable<SubwaySceneState | undefined> = {
+  subscribe: (run, invalidate) => sceneState.subscribe(run, invalidate),
+};
 let activeRuntime: SubwayRuntimeHandle | undefined;
 
 function anyEligibleSurface(): boolean { return [...surfaces].some(surface => surface.eligible); }
@@ -154,6 +164,8 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
   let state: SubwayRunState | undefined;
   let lastDiscreteProjection = '';
   let lastNumericProjectionAt = Number.NEGATIVE_INFINITY;
+  let lastSceneProjection = '';
+  let lastSceneProjectionAt = Number.NEGATIVE_INFINITY;
   let projectionChain = Promise.resolve();
   let currentConfig = get(context.config);
   const unsubscribeSurface = subscribeSurfaceEligibility(value => {
@@ -195,7 +207,23 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     }, Math.max(0, wakeAt - now));
   }
 
+  function publishScene(force = false): void {
+    if (!alive || !eligible || !state || !lines.length) return;
+    const now = clock.now();
+    const line = lines.find(item => item.id === state!.lineId);
+    if (!line) return;
+    const snapshot = snapshotRun(state, now, lines, plans);
+    const discrete = [snapshot.station, snapshot.next, snapshot.state, snapshot.line, snapshot.direction,
+      snapshot.doorSide, snapshot.doors, snapshot.paused, snapshot.immersion, snapshot.multiplier, snapshot.generation,
+      currentConfig.displayLanguages, currentConfig.languages, currentConfig.manualView].join('|');
+    if (!force && discrete === lastSceneProjection && now - lastSceneProjectionAt < 250) return;
+    lastSceneProjection = discrete;
+    lastSceneProjectionAt = now;
+    sceneState.set(Object.freeze({ line, snapshot: Object.freeze(snapshot), config: Object.freeze({ ...currentConfig }) }));
+  }
+
   function queueEffects(effects: readonly RunEffect[], nextState: SubwayRunState, runtimeEpoch: number, allowHidden = false): void {
+    publishScene();
     const capturedGeneration = nextState.generation;
     projectionChain = projectionChain.then(async () => {
       if (!alive || runtimeEpoch !== epoch || (!eligible && !allowHidden) || !state || state.generation !== capturedGeneration) return;
@@ -248,7 +276,10 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     clearWake();
     unsubscribeSurface();
     unsubscribeConfig();
-    if (activeRuntime === handle) activeRuntime = undefined;
+    if (activeRuntime === handle) {
+      activeRuntime = undefined;
+      sceneState.set(undefined);
+    }
   }
 
   const handle: SubwayRuntimeHandle = { dispatch, getSnapshot, isReady: () => ready, dispose };
@@ -267,6 +298,7 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
       dispatch({ type: 'set-direction', direction });
     if (typeof config.immersion === 'boolean' && config.immersion !== currentState.immersion)
       dispatch({ type: 'set-immersion', enabled: config.immersion });
+    publishScene(true);
   });
 
   const requestEpoch = epoch;

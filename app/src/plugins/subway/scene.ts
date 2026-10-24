@@ -1,18 +1,27 @@
 import type { SkinSceneFactory, SkinSceneRenderer } from '../../core/skin-scene';
-import type { LineDefinition } from './lines';
+import { createYamanoteRenderer } from './lcd/yamanote';
+import { scheduleScreen } from './screens';
+import type { SubwaySceneState } from './runtime';
 
-export type SubwaySceneData = { line: LineDefinition | null };
+export type SubwaySceneData = SubwaySceneState & { visibleElapsed: number };
 
-export const createSubwayScene: SkinSceneFactory<SubwaySceneData> = (): SkinSceneRenderer<SubwaySceneData> => ({
-  draw({ ctx, width, height }) {
-    ctx.fillStyle = '#10171b';
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#192328';
-    ctx.fillRect(48, 48, width - 96, height - 96);
-    ctx.fillStyle = '#26343a';
-    ctx.fillRect(72, 72, width - 144, 4);
-    ctx.fillRect(72, height - 76, width - 144, 4);
-    return false;
-  },
-  input(_event) {},
-});
+export const createSubwayScene: SkinSceneFactory<SubwaySceneData | undefined> = (): SkinSceneRenderer<SubwaySceneData | undefined> => {
+  const yamanote = createYamanoteRenderer();
+  return {
+    draw({ ctx, width, height, view, data }) {
+      ctx.fillStyle = '#10171b';
+      ctx.fillRect(0, 0, width, height);
+      if (data?.line.id === 'yamanote') {
+        const languages = Array.isArray(data.config.displayLanguages) ? data.config.displayLanguages as string[]
+          : Array.isArray(data.config.languages) ? data.config.languages as string[] : ['ja', 'en'];
+        const model = scheduleScreen(data.snapshot, {
+          line: data.line, languages, manualView: view === 'map' ? 'map' : undefined,
+        }, data.visibleElapsed);
+        yamanote.draw(ctx, width, height, model);
+      }
+      return false;
+    },
+    input(_event) {},
+    dispose() { yamanote.dispose(); },
+  };
+};

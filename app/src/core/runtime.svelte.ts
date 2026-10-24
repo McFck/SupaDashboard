@@ -1,11 +1,11 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { load } from '@tauri-apps/plugin-store';
-import { get, writable, type Readable } from 'svelte/store';
+import { get, writable, type Readable, type Writable } from 'svelte/store';
 import { settings, onRemoteSettings, type Settings } from './settings.svelte';
 import { controlById } from './settings.svelte';
 import { effectiveVariant, stateIdAt } from './button-state';
 import { EventRegistry, listenerKey, type EventTarget } from './events';
-import { runAction, setRegistryRuntime, setVariableMirror } from './registry';
+import { runAction, setRegistryRuntime, setVariableMirror, skins as registeredSkins } from './registry';
 import { captureEvent, captureTrigger, ScenarioRunner, type RunResult, type ScenarioFailure, type TriggerPacket } from './scenario-runner';
 import type { EventAncestry } from './registry';
 import { VariableStore, type VariableSnapshot, type VariableValue } from './variables';
@@ -14,8 +14,9 @@ import type { PageChangePayload, RuntimeSync, RuntimeRequest } from './runtime-s
 import { pageAfterRemoval, pageById } from './pages';
 import { allPlacements, hasPlacement } from './skin-layouts';
 import { mediaSourceKey, readMediaOptions, sameMediaSource, stepSlide, type MediaSource } from './content';
+import { resolveSkinConfig, validSkinStateValue, type SkinConfig, type SkinDef, type SkinRuntimeContext } from './skins';
 
-export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'auto' | 'reconcile';
+export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'skin' | 'auto' | 'reconcile';
 let dashboardInteractionActive = false;
 
 export type RuntimeSnapshot = {
@@ -74,6 +75,9 @@ export class AutomationRuntime {
   private readonly detachRegistry: () => void;
   private readonly stopRemoteSettings: () => void;
   private readonly stopSettingsEffect: () => void;
+  private readonly skinConfigs = new Map<string, Writable<SkinConfig>>();
+  private readonly skinConfigSignatures = new Map<string, string>();
+  private readonly skinRuntimeCleanups: (() => void)[] = [];
   private readonly owner: boolean;
   private readonly persistence?: VariablePersistence;
   private readonly onFailure: (failure: ScenarioFailure) => void;
@@ -128,9 +132,11 @@ export class AutomationRuntime {
       registerEvent: definition => { this.events.register(definition); },
       emitEvent: (id, parameter, payload, ancestry) => this.emitEvent(id, parameter, payload, ancestry),
     });
+    if (this.owner) this.startSkinRuntimes();
     this.stopRemoteSettings = onRemoteSettings(next => {
       this.reconcile(next.controls);
       if (this.owner) this.reconcilePages(next.deck.pages);
+      if (this.owner) for (const skinId of this.skinConfigs.keys()) this.updateSkinConfig(skinId, next.skinSettings[skinId] ?? {});
       if (this.owner) this.scheduleRotation();
     });
     this.stopSettingsEffect = $effect.root(() => {
@@ -280,11 +286,43 @@ export class AutomationRuntime {
     this.scheduleRotation();
   }
 
+  updateSkinConfig(skinId: string, stored: Record<string, unknown> = settings.skinSettings[skinId] ?? {}) {
+    if (this.disposed || !this.owner) return false;
+    const skin = registeredSkins.get(skinId), store = this.skinConfigs.get(skinId);
+    if (!skin || !store) return false;
+    const signature = JSON.stringify(stored);
+    if (this.skinConfigSignatures.get(skinId) === signature) return false;
+    this.skinConfigSignatures.set(skinId, signature);
+    store.set(resolveSkinConfig(skin, stored));
+    return true;
+  }
+
   setVariable(id: string, value: VariableValue, ancestry?: EventAncestry) {
     if (this.disposed || !this.owner) throw new Error('Variable runtime is unavailable');
     if (ancestry) this.variableAncestry.set(id, ancestry);
     try { return Promise.resolve(this.variables.set(id, value, 'user')); }
     finally { this.variableAncestry.delete(id); }
+  }
+
+  setSkinView(skinId: string, viewId: string, ancestry?: EventAncestry) {
+    if (this.disposed || !this.owner) throw new Error('Skin runtime is unavailable');
+    const skin = registeredSkins.get(skinId);
+    if (!skin || !skin.views.some(view => view.id === viewId)) throw new Error('Skin view is unavailable');
+    return this.setSkinVariable(skin, `${skinId}.view`, viewId, ancestry);
+  }
+
+  setSkinState(skinId: string, key: string, value: VariableValue, ancestry?: EventAncestry) {
+    if (this.disposed || !this.owner) throw new Error('Skin runtime is unavailable');
+    const skin = registeredSkins.get(skinId), field = skin?.state?.find(entry => entry.key === key);
+    if (!skin || !field || !validSkinStateValue(field.type, value)) throw new Error('Skin state is unavailable');
+    return this.setSkinVariable(skin, `${skinId}.${key}`, value, ancestry);
+  }
+
+  async emitSkinEvent(skinId: string, eventId: string, parameter?: string, payload?: unknown, ancestry?: EventAncestry) {
+    if (this.disposed || !this.owner) throw new Error('Skin runtime is unavailable');
+    const skin = registeredSkins.get(skinId);
+    if (!skin?.events?.some(event => event.id === eventId)) throw new Error('Skin event is unavailable');
+    return this.emitEvent(eventId, parameter, payload, ancestry);
   }
 
   async emitEvent(id: string, parameter?: string, payload?: unknown, ancestry?: EventAncestry) {
@@ -358,6 +396,11 @@ export class AutomationRuntime {
     this.stopRemoteSettings();
     this.stopSettingsEffect();
     this.unsubscribeVariables();
+    for (const cleanup of this.skinRuntimeCleanups.splice(0).reverse()) {
+      try { cleanup(); } catch { /* one plugin cleanup must not block the others */ }
+    }
+    this.skinConfigs.clear();
+    this.skinConfigSignatures.clear();
     this.detachRegistry();
     for (const lane of this.lanes.values()) {
       lane.current?.controller?.abort();
@@ -407,6 +450,36 @@ export class AutomationRuntime {
     const count = Math.max(0, (this.busyCounts.get(controlId) ?? 0) + delta);
     if (count) this.busyCounts.set(controlId, count); else this.busyCounts.delete(controlId);
     this.publish(this.variables.snapshot());
+  }
+
+  private setSkinVariable(skin: SkinDef, id: string, value: VariableValue, ancestry?: EventAncestry) {
+    const owner = skin.plugin ?? skin.id;
+    const record = this.variables.get(id);
+    if (!record || record.definition.owner !== owner) throw new Error('Skin variable is unavailable');
+    if (ancestry) this.variableAncestry.set(id, ancestry);
+    try { return Promise.resolve(this.variables.set(id, value, owner)); }
+    finally { this.variableAncestry.delete(id); }
+  }
+
+  private startSkinRuntimes() {
+    for (const skin of registeredSkins.values()) {
+      const viewId = `${skin.id}.view`;
+      if (!skin.views.some(view => view.id === this.variables.getValue(viewId)))
+        void this.setSkinVariable(skin, viewId, skin.defaultView);
+      if (!skin.runtime) continue;
+      const config = writable<SkinConfig>(resolveSkinConfig(skin, settings.skinSettings[skin.id] ?? {}));
+      this.skinConfigs.set(skin.id, config);
+      this.skinConfigSignatures.set(skin.id, JSON.stringify(settings.skinSettings[skin.id] ?? {}));
+      const context: SkinRuntimeContext = {
+        config,
+        getState: key => this.variables.getValue(key === 'view' ? `${skin.id}.view` : `${skin.id}.${key}`),
+        setState: (key, value, ancestry) => this.setSkinState(skin.id, key, value, ancestry),
+        setView: (viewId, ancestry) => this.setSkinView(skin.id, viewId, ancestry),
+        emitEvent: (id, parameter, payload, ancestry) => this.emitSkinEvent(skin.id, id, parameter, payload, ancestry),
+      };
+      const cleanup = skin.runtime(context);
+      if (typeof cleanup === 'function') this.skinRuntimeCleanups.push(cleanup);
+    }
   }
 
   private publish(variables: VariableSnapshot, online = true) {
@@ -507,7 +580,7 @@ export async function requestRuntime(request: RuntimeRequest) {
   return clientSync.request(request);
 }
 
-export async function requestPageChange(change: { direction: 'next' | 'prev' } | { page: string }, reason: 'dot' | 'swipe') {
+export async function requestPageChange(change: { direction: 'next' | 'prev' } | { page: string }, reason: 'dot' | 'swipe' | 'skin') {
   const runtime = currentRuntime();
   if (runtime?.isOwner) return 'page' in change ? runtime.changePage(change.page, reason) : runtime.changePageInDirection(change.direction, reason);
   const payload: PageChangePayload = 'page' in change ? { page: change.page, reason } : { direction: change.direction, reason };

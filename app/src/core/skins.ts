@@ -1,6 +1,6 @@
 import type { Component } from 'svelte';
 import type { Readable } from 'svelte/store';
-import type { ActionRef, EventDef, Param } from './registry';
+import type { ActionDef, ActionRef, EventDef, Param } from './registry';
 import type { ControlConfig, ControlFaceProps } from './controls';
 import type { Page } from './settings.svelte';
 import type { VariableType, VariableValue } from './variables';
@@ -41,6 +41,7 @@ export type SkinStateField = {
   initialValue: VariableValue;
   persistent?: boolean;
 };
+export type SkinPageNavigation = 'swipe' | 'skin';
 export type SkinConfig = Readonly<Record<string, unknown>>;
 export type SkinRuntimeContext = {
   config: Readable<SkinConfig>;
@@ -63,6 +64,7 @@ export type SkinDef = {
   slots: SkinSlot[];
   views: SkinView[];
   defaultView: string;
+  pageNavigation?: SkinPageNavigation;
   controlSkins?: Record<string, SkinControlFace>;
   settings?: Param[];
   quickActions?: ActionRef[];
@@ -83,13 +85,30 @@ export function validSkinStateValue(type: VariableType, value: unknown) {
         : typeof value === 'string';
 }
 
-export function validSkinParam(param: Param, value: unknown) {
+export function validSkinParam(param: Param, value: unknown, args?: Record<string, unknown>) {
   if (param.type === 'boolean') return typeof value === 'boolean';
   if (param.type === 'number') return typeof value === 'number' && Number.isFinite(value);
+  if (param.type === 'actions') return Array.isArray(value) && value.every(step => !!step && typeof step === 'object' &&
+    typeof (step as { id?: unknown }).id === 'string');
   if (typeof value !== 'string') return false;
   if (param.type !== 'select') return true;
-  const options = typeof param.suggestions === 'function' ? param.suggestions() : param.suggestions;
+  const options = typeof param.suggestions === 'function' ? param.suggestions(args) : param.suggestions;
   return options?.some(option => option.value === value) ?? false;
+}
+
+export function resolveQuickActions(refs: readonly ActionRef[] | undefined, available: ReadonlyMap<string, ActionDef>) {
+  return (refs ?? []).map(ref => ({ ref, action: available.get(ref.id) }));
+}
+
+export function resolveSkinConfig(skin: SkinDef, stored: Record<string, unknown> = {}) {
+  const config: Record<string, unknown> = { ...stored };
+  for (const param of skin.settings ?? []) {
+    const value = Object.hasOwn(stored, param.key) ? stored[param.key] : param.default;
+    if (value !== undefined && validSkinParam(param, value)) config[param.key] = value;
+    else if (param.default !== undefined && validSkinParam(param, param.default)) config[param.key] = param.default;
+    else delete config[param.key];
+  }
+  return config;
 }
 
 export function validateSkinDefinition(def: SkinDef) {
@@ -100,6 +119,8 @@ export function validateSkinDefinition(def: SkinDef) {
   if (def.design && (![def.design.width, def.design.height].every(Number.isFinite) || def.design.width <= 0 || def.design.height <= 0))
     fail('design dimensions must be finite and positive');
   if (!Array.isArray(def.slots) || !Array.isArray(def.views)) fail('slots and views are required');
+  if (def.pageNavigation !== undefined && def.pageNavigation !== 'swipe' && def.pageNavigation !== 'skin')
+    fail('pageNavigation must be "swipe" or "skin"');
   const slots = new Map<string, SkinSlot>();
   for (const slot of def.slots ?? []) {
     if (!slot || typeof slot.id !== 'string' || !slot.id.trim() || slots.has(slot.id)) fail('slot IDs must be unique and nonempty');

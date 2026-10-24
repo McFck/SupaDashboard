@@ -1,0 +1,175 @@
+import { localizedName, stepStation, type LineDefinition, type StationDefinition } from './lines';
+import type { RunSnapshot } from './run';
+
+export type ScreenPage = 'platform' | 'nearby' | 'broad' | 'transfers' | 'closing' | 'emergency' | 'suspension';
+export type ScreenLanguage = 'ja' | 'en' | 'zh' | 'ko';
+
+export interface ScreenConfig {
+  line: LineDefinition;
+  languages?: readonly string[];
+  manualView?: 'display' | 'map';
+  viewingSide?: 'left' | 'right';
+}
+
+export interface ScreenSchedule {
+  readonly page: ScreenPage;
+  readonly language: ScreenLanguage;
+  readonly languages: readonly ScreenLanguage[];
+  readonly line: LineDefinition;
+  readonly snapshot: Readonly<RunSnapshot>;
+  readonly station: StationDefinition;
+  readonly nextStation?: StationDefinition;
+  readonly destination: string;
+  readonly transfers: readonly string[];
+  readonly route: readonly StationDefinition[];
+  readonly nearby: readonly StationDefinition[];
+  readonly sideLabel: 'this side' | 'opposite side' | 'both sides' | null;
+  readonly currentCar: number;
+  readonly visibleElapsed: number;
+  readonly pageDeadline: number | null;
+  readonly languageDeadline: number | null;
+  readonly nextDeadline: number | null;
+  readonly invalidationKey: string;
+}
+
+const LANGUAGE_DWELL_MS = 6_000;
+const INCIDENT_LANGUAGES: readonly ScreenLanguage[] = ['ja', 'en', 'zh', 'ko'];
+
+function supportedLanguages(config: ScreenConfig): ScreenLanguage[] {
+  const requested = config.languages?.filter((language): language is ScreenLanguage =>
+    language === 'ja' || language === 'en' || language === 'zh' || language === 'ko');
+  const present = requested?.filter(language => config.line.stations.some(station => station.names[language])) ?? [];
+  return [...new Set(present.length ? present : ['ja', 'en'].filter(language =>
+    config.line.stations.some(station => station.names[language])))].map(language => language as ScreenLanguage);
+}
+
+function cycleFor(snapshot: RunSnapshot, config: ScreenConfig): { pages: { page: ScreenPage; duration: number }[]; period: number } {
+  const base = snapshot.state === 'stopped'
+    ? [{ page: 'platform' as const, duration: 6_000 }, { page: 'nearby' as const, duration: 6_000 }]
+    : [{ page: 'broad' as const, duration: 8_000 }, { page: 'nearby' as const, duration: 8_000 }];
+  const current = config.line.stations.find(station => station.code === snapshot.station);
+  const transfers = current?.transfers.length ?? 0;
+  const pages = transfers > 0 && snapshot.state !== 'stopped' ? [...base, { page: 'transfers' as const, duration: 6_000 }] : base;
+  return { pages, period: pages.reduce((sum, page) => sum + page.duration, 0) };
+}
+
+function routeFrom(line: LineDefinition, stationCode: string, direction: string): StationDefinition[] {
+  const currentIndex = line.stations.findIndex(station => station.code === stationCode);
+  const routeDirection = line.directions.find(item => item.id === direction);
+  if (currentIndex < 0 || !routeDirection) return [];
+  if (!line.loop) return routeDirection.delta > 0 ? line.stations.slice(currentIndex) : line.stations.slice(0, currentIndex + 1).reverse();
+  return Array.from({ length: line.stations.length }, (_, index) =>
+    line.stations[(currentIndex + routeDirection.delta * index + line.stations.length * 2) % line.stations.length]);
+}
+
+function nearbyFrom(line: LineDefinition, stationCode: string, direction: string): StationDefinition[] {
+  const currentIndex = line.stations.findIndex(station => station.code === stationCode);
+  const routeDirection = line.directions.find(item => item.id === direction);
+  if (currentIndex < 0 || !routeDirection) return [];
+  return [-1, 0, 1, 2, 3].flatMap(offset => {
+    const index = currentIndex + routeDirection.delta * offset;
+    if (line.loop) return [line.stations[(index + line.stations.length * 2) % line.stations.length]];
+    return line.stations[index] ? [line.stations[index]] : [];
+  });
+}
+
+function sideLabel(snapshot: RunSnapshot, station: StationDefinition, viewingSide: 'left' | 'right'): ScreenSchedule['sideLabel'] {
+  const side = station.doorByDirection[snapshot.direction]?.side ?? 'unknown';
+  if (side === 'both') return 'both sides';
+  if (side === 'unknown') return null;
+  return side === viewingSide ? 'this side' : 'opposite side';
+}
+
+function transferNames(station: StationDefinition, language: ScreenLanguage): string[] {
+  return station.transfers.map(transfer => transfer.kind === 'badge'
+    ? transfer.code
+    : localizedName(transfer.names, language, transfer.names.ja ?? transfer.names.en ?? ''))
+    .filter(Boolean);
+}
+
+function sessionKey(snapshot: RunSnapshot, config: ScreenConfig): string {
+  return [snapshot.line, snapshot.station, snapshot.next, snapshot.direction, snapshot.state, snapshot.doors,
+    snapshot.generation, config.manualView ?? 'display', (config.languages ?? []).join(',')].join('|');
+}
+
+export function scheduleScreen(snapshot: RunSnapshot, config: ScreenConfig, visibleElapsed: number): ScreenSchedule {
+  if (!Number.isFinite(visibleElapsed) || visibleElapsed < 0) throw new Error('Visible screen time must be finite and non-negative');
+  const line = config.line;
+  if (snapshot.line !== line.id) throw new Error(`Screen line mismatch: ${snapshot.line} / ${line.id}`);
+  const station = line.stations.find(item => item.code === snapshot.station);
+  if (!station) throw new Error(`Unknown Subway screen station: ${snapshot.station}`);
+  const nextStation = line.stations.find(item => item.code === snapshot.next);
+  const languages = supportedLanguages(config);
+  const abnormal = snapshot.state === 'emergency' || snapshot.state === 'suspended';
+  const localeIndex = Math.floor(visibleElapsed / LANGUAGE_DWELL_MS) % Math.max(1, languages.length);
+  const language = languages[localeIndex] ?? 'ja';
+  let page: ScreenPage;
+  let pageDeadline: number | null = null;
+  if (snapshot.state === 'emergency') page = 'emergency';
+  else if (snapshot.state === 'suspended') page = 'suspension';
+  else if (snapshot.state === 'doorsClosing') page = 'closing';
+  else if (snapshot.state === 'approaching' || snapshot.state === 'arriving') page = 'platform';
+  else if (snapshot.state === 'departing') page = 'nearby';
+  else if (config.manualView === 'map') page = 'broad';
+  else {
+    const cycle = cycleFor(snapshot, config);
+    const position = visibleElapsed % cycle.period;
+    let cursor = 0;
+    const item = cycle.pages.find(entry => {
+      if (position < cursor + entry.duration) return true;
+      cursor += entry.duration;
+      return false;
+    }) ?? cycle.pages[0];
+    page = item.page;
+    pageDeadline = visibleElapsed + item.duration - (position - cursor);
+  }
+  const languageDeadline = abnormal ? null : (Math.floor(visibleElapsed / LANGUAGE_DWELL_MS) + 1) * LANGUAGE_DWELL_MS;
+  const direction = line.directions.find(item => item.id === snapshot.direction);
+  const terminal = line.loop ? undefined : direction?.delta === -1 ? line.stations[0] : line.stations.at(-1);
+  const destination = line.loop
+    ? localizedName(direction?.names ?? {}, language, nextStation ? localizedName(nextStation.names, language, nextStation.code) : '')
+    : terminal ? localizedName(terminal.names, language, terminal.code) : '';
+  const route = routeFrom(line, snapshot.station, snapshot.direction);
+  const nearby = nearbyFrom(line, snapshot.station, snapshot.direction);
+  const transfers = transferNames(station, language);
+  const details = station.platformByDirection[snapshot.direction];
+  const transferKey = station.transfers.map(item => item.kind === 'badge' ? item.code : JSON.stringify(item.names)).join(',');
+  const facilityKey = details?.facilities.map(item => `${item.kind}:${item.car}:${item.relativePosition}:${item.label}`).join(',') ?? '';
+  const side = station.doorByDirection[snapshot.direction]?.side ?? 'unknown';
+  const invalidationKey = [snapshot.line, snapshot.direction, snapshot.station, snapshot.next, snapshot.state,
+    snapshot.doors, snapshot.remainingMinutes, page, language, side, transferKey, facilityKey].join('|');
+  return Object.freeze({
+    page, language, languages: Object.freeze(abnormal ? [...INCIDENT_LANGUAGES] : languages), line,
+    snapshot: Object.freeze({ ...snapshot }), station, nextStation, destination,
+    transfers: Object.freeze(transfers), route: Object.freeze(route), nearby: Object.freeze(nearby),
+    sideLabel: sideLabel(snapshot, station, config.viewingSide ?? 'right'), currentCar: 1,
+    visibleElapsed, pageDeadline, languageDeadline,
+    nextDeadline: pageDeadline === null ? languageDeadline : languageDeadline === null ? pageDeadline : Math.min(pageDeadline, languageDeadline),
+    invalidationKey,
+  });
+}
+
+export class VisibleScreenClock {
+  private key = '';
+  private elapsed = 0;
+  private startedAt: number | null = null;
+  private active = false;
+
+  update(snapshot: RunSnapshot, config: ScreenConfig, now: number, active: boolean): ScreenSchedule {
+    if (!Number.isFinite(now)) throw new Error('Screen clock must be finite');
+    const nextKey = sessionKey(snapshot, config);
+    if (nextKey !== this.key) {
+      this.key = nextKey;
+      this.elapsed = 0;
+      this.startedAt = active ? now : null;
+      this.active = active;
+    } else {
+      if (this.active && !active && this.startedAt !== null) this.elapsed += Math.max(0, now - this.startedAt);
+      if (!this.active && active) this.startedAt = now;
+      if (this.active && active && this.startedAt !== null && now < this.startedAt) this.startedAt = now;
+      this.active = active;
+    }
+    const visibleElapsed = this.elapsed + (active && this.startedAt !== null ? Math.max(0, now - this.startedAt) : 0);
+    return scheduleScreen(snapshot, config, visibleElapsed);
+  }
+}

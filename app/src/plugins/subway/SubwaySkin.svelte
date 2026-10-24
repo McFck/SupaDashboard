@@ -1,19 +1,82 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { Button } from '$lib/components/ui/button';
   import type { Page } from '../../core/settings.svelte';
+  import { watchDashboardVisibility, watchIntersection } from '../../core/content-visibility';
+  import { runtimeView } from '../../core/runtime.svelte';
   import { getSkinHostContext } from '../../skins/context';
   import Slot from '../../skins/Slot.svelte';
   import CanvasScene from '../../skins/CanvasScene.svelte';
-  import { createSubwayScene } from './scene';
+  import SkinQuickActions from '../../skins/SkinQuickActions.svelte';
+  import { createSubwayScene, type SubwaySceneData } from './scene';
+  import { registerSubwaySurface, subwaySceneState, type SubwaySurfaceRegistration } from './runtime';
+  import { VisibleScreenClock, type ScreenConfig } from './screens';
 
   let { page: _page }: { page: Page } = $props();
   const host = getSkinHostContext();
-  const emptyData = Object.freeze({ line: null });
+  let sceneElement: HTMLDivElement;
+  let runtimeOwner = $state(false), intersecting = $state(false), documentVisible = $state(false), dashboardVisible = $state(false);
+  let screenPulse = $state(0);
+  let sceneData = $state<SubwaySceneData>();
+  let surfaceRegistration: SubwaySurfaceRegistration | undefined;
+  const screenClock = new VisibleScreenClock();
   const sideActive = $derived(host?.viewId === 'cab');
+
+  function refreshSurface() {
+    surfaceRegistration?.setEligible(host?.mode === 'runtime' && host.visible && host.pageRenderVisible && runtimeOwner &&
+      intersecting && documentVisible && dashboardVisible);
+  }
+
+  onMount(() => {
+    surfaceRegistration = registerSubwaySurface(false);
+    const stopRuntimeView = runtimeView.subscribe(snapshot => { runtimeOwner = snapshot.owner; refreshSurface(); });
+    const stopIntersection = watchIntersection(sceneElement, value => { intersecting = value; refreshSurface(); });
+    const onVisibility = () => { documentVisible = document.visibilityState === 'visible'; refreshSurface(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    onVisibility();
+    let stopDashboard = () => {};
+    let disposed = false;
+    void watchDashboardVisibility(value => { dashboardVisible = value; refreshSurface(); }).then(stop => {
+      if (disposed) stop(); else stopDashboard = stop;
+    }).catch(() => {});
+    refreshSurface();
+    return () => {
+      disposed = true;
+      stopRuntimeView();
+      stopIntersection();
+      stopDashboard();
+      document.removeEventListener('visibilitychange', onVisibility);
+      surfaceRegistration?.dispose();
+      surfaceRegistration = undefined;
+    };
+  });
+
+  $effect(() => {
+    const mode = host?.mode, visible = host?.visible, pageVisible = host?.pageRenderVisible;
+    const owner = runtimeOwner, inView = intersecting, docVisible = documentVisible, dashboard = dashboardVisible;
+    void mode; void visible; void pageVisible; void owner; void inView; void docVisible; void dashboard;
+    refreshSurface();
+  });
+
+  $effect(() => {
+    const source = $subwaySceneState;
+    const pulse = screenPulse;
+    void pulse;
+    if (!source) { sceneData = undefined; return; }
+    const rawLanguages = source.config.displayLanguages ?? source.config.languages;
+    const languages = Array.isArray(rawLanguages) ? rawLanguages.filter((item): item is string => typeof item === 'string') : ['ja', 'en'];
+    const config: ScreenConfig = { line: source.line, languages };
+    const active = host?.mode === 'runtime' && host.visible && host.pageRenderVisible && runtimeOwner;
+    const schedule = screenClock.update(source.snapshot, config, performance.now(), active);
+    sceneData = { ...source, visibleElapsed: schedule.visibleElapsed };
+    if (!active || schedule.nextDeadline === null) return;
+    const timeout = window.setTimeout(() => { screenPulse++; }, Math.max(0, schedule.nextDeadline - schedule.visibleElapsed));
+    return () => window.clearTimeout(timeout);
+  });
 </script>
 
-<div class="absolute inset-0 overflow-hidden bg-[#10171b] text-[#e5ecef]">
-  <CanvasScene create={createSubwayScene} width={1920} height={480} view={host?.viewId ?? 'display'} data={emptyData}
+<div bind:this={sceneElement} class="absolute inset-0 overflow-hidden bg-[#10171b] text-[#e5ecef]">
+  <CanvasScene create={createSubwayScene} width={1920} height={480} view={host?.viewId ?? 'display'} data={sceneData}
     class="absolute left-0 top-0" />
   <div class="absolute left-0 top-[480px] h-[120px] w-[1920px]" data-skin-region="strip">
     <Slot id="strip" />
@@ -28,4 +91,5 @@
     <Button size="sm" variant={host?.viewId === 'cab' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'cab'}
       tabindex={host?.mode === 'runtime' ? -1 : 0} onclick={() => void host?.setView('cab')}>Cab</Button>
   </nav>
+  <SkinQuickActions />
 </div>

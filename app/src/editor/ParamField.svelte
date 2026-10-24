@@ -7,6 +7,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
+  import { Switch } from '$lib/components/ui/switch';
   import { suggestionsOf, type ActionRef, type Option, type Param } from '../core/registry';
   import ActionEditor from './ActionEditor.svelte';
   import Choice from './Choice.svelte';
@@ -16,6 +17,7 @@
   let { param, value, args, provider, onchange }: { param: Param; value: unknown; args?: Record<string, unknown>;
     provider?: string; onchange: (v: unknown) => void } = $props();
   const listId = `suggest-${Math.random().toString(36).slice(2)}`;
+  const fieldId = `param-${Math.random().toString(36).slice(2)}`;
   let version = $state(0);
   const suggestions = $derived.by(() => { void version; return suggestionsOf(param, args); });
   const refresh = () => param.refresh?.(args).then(() => version++).catch(() => {});
@@ -36,7 +38,7 @@
 </script>
 
 <div class="grid gap-1.5">
-  <Label class="text-xs text-muted-foreground">{param.label}</Label>
+  <Label for={fieldId} class="text-xs text-muted-foreground">{param.label}</Label>
   {#if param.type === 'actions'}
     <div class="grid gap-2 border-l-2 border-white/10 pl-3">
       {#each steps as step, i (i)}
@@ -59,8 +61,10 @@
   {:else if param.type === 'text' && markedTextSuggestions}
     <SuggestionInput value={String(value ?? param.default ?? '')} suggestions={suggestions ?? []} {provider}
       onchange={onchange} onrefresh={refresh} />
+  {:else if param.type === 'boolean'}
+    <Switch id={fieldId} checked={value === undefined ? param.default === true : value === true} onCheckedChange={onchange} />
   {:else}
-    <Input type={param.type === 'number' ? 'number' : 'text'} step="any" list={suggestions ? listId : undefined}
+    <Input id={fieldId} type={param.type === 'number' ? 'number' : 'text'} step="any" list={suggestions ? listId : undefined}
       value={String(value ?? param.default ?? '')}
       oninput={e => { const v = e.currentTarget.value; onchange(param.type === 'number' ? Number(v) : v); }} />
     {#if suggestions}
