@@ -1,17 +1,11 @@
 <script lang="ts">
   // Searchable grid of every Lucide icon (+ brand extras).
-  import { icons } from '@lucide/svelte';
   import * as Dialog from '$lib/components/ui/dialog';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
-  import { customIconOwners } from '../core/registry';
   import Icon, { iconNames } from '../controls/Icon.svelte';
-  import PluginMark from './PluginMark.svelte';
 
   let { value, onchange, size = 'default' }: { value?: string; onchange: (name: string) => void; size?: 'default' | 'sm' } = $props();
-  const lucideNames = new Set(Object.keys(icons));
-  const iconOwner = (name?: string) => name && !lucideNames.has(name) ? customIconOwners.get(name) : undefined;
-  const selectedOwner = $derived(iconOwner(value));
   let open = $state(false), query = $state('');
   const matches = $derived.by(() => {
     const q = query.trim().toLowerCase();
@@ -25,7 +19,7 @@
     {#snippet child({ props })}
       <Button {...props} variant="outline" size={size === 'sm' ? 'icon' : undefined}
         class={size === 'sm' ? 'p-0' : 'h-10 w-10 p-0'}>
-        <span class="sr-only">Choose icon</span><Icon name={value} size={20} fallback="?" /><PluginMark plugin={selectedOwner} />
+        <span class="sr-only">Choose icon</span><Icon name={value} size={20} fallback="?" />
       </Button>
     {/snippet}
   </Dialog.Trigger>
@@ -35,8 +29,8 @@
     <div class="grid max-h-[50vh] grid-cols-10 gap-1 overflow-y-auto pr-1">
       {#each matches as name (name)}
         <button type="button" aria-label={name} onclick={() => { onchange(name); open = false; }}
-          class="flex aspect-square items-center justify-center gap-1 rounded-lg transition hover:bg-white/10 {name === value ? 'bg-white/15 ring-1 ring-white/40' : ''}">
-          <span class="sr-only">{name}</span><Icon {name} size={20} /><PluginMark plugin={iconOwner(name)} />
+          class="flex aspect-square items-center justify-center rounded-lg transition hover:bg-white/10 {name === value ? 'bg-white/15 ring-1 ring-white/40' : ''}">
+          <span class="sr-only">{name}</span><Icon {name} size={20} />
         </button>
       {/each}
     </div>
