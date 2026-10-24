@@ -70,6 +70,14 @@ off by default, so tile gestures remain available; turn it on to use the embedde
 scripts, forms, and popups sandboxed and does not allow top-level navigation. `web.reload` can target this or another
 placed Web widget. Failed or blocked frames show `Unavailable`; page-hidden refresh timers pause.
 
+### Subway skin
+The Subway skin displays the Yamanote, Hibiya, and Sakaisuji line information screens, a route overview, and a
+deterministic simulated run. Immersion audio uses the bundled motion profiles and compatible sound-pack cues; it
+creates audio only in the visible dashboard owner. The shared mixer exposes it as **Subway**, independently of
+Windows app channels. Mixer gain and mute persist as `subway.mixVolume` and `subway.mixMuted`; the skin's
+announcement-volume setting affects voice cues only. The Sakaisuji motion profile is generic Osaka Metro sound,
+not a Hankyu recording. See [Subway assets](docs/subway-assets.md) for the content and timing limits.
+
 ### Gestures
 Buttons have separate ordered scenarios for Press, Release, Long press, Long press release, Double tap, Pull up,
 Pull down, Pull left, Pull right, and filtered Events. A short tap runs Press followed by Release. A held pointer

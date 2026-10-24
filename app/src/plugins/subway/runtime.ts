@@ -3,8 +3,9 @@ import type { EventAncestry } from '../../core/registry';
 import type { SkinRuntimeContext } from '../../core/skins';
 import { normalizeSubwayLines, stepStation, type LineDefinition } from './lines';
 import { announcementLanguages, firstStationForDirection, normalizeSubwayConfig, type SubwayLineId } from './config';
+import { createSubwayAudio, type SubwayAudioController } from './audio';
 import {
-  buildSegmentCuePlan, loadSubwayAssets, type LoadedSubwayAssets, type SegmentCuePlan,
+  buildSegmentCuePlan, loadSubwayAssets, loadSubwayMotionEngine, type LoadedSubwayAssets, type SegmentCuePlan,
 } from './sound-pack';
 import {
   createRunState, nextRunWake, reduceRun, segmentPlanKey, snapshotRun,
@@ -22,6 +23,7 @@ export interface SubwayRuntimeOptions {
   loadAssets?: () => Promise<LoadedSubwayAssets>;
   assetBase?: string;
   onCue?: (effect: Extract<RunEffect, { type: 'play-cue' }>) => void | Promise<void>;
+  audio?: SubwayAudioController;
 }
 
 export interface SubwaySurfaceRegistration {
@@ -30,7 +32,7 @@ export interface SubwaySurfaceRegistration {
 }
 
 export interface SubwayRuntimeHandle {
-  dispatch(command: RunCommand, ancestry?: EventAncestry): boolean;
+  dispatch(command: RunCommand, ancestry?: EventAncestry, audioGesture?: boolean): boolean;
   requestLine(args: { line?: unknown; direction?: unknown; startStation?: unknown }, ancestry?: EventAncestry): boolean;
   setImmersion(enabled?: boolean, ancestry?: EventAncestry): boolean;
   getSnapshot(): RunSnapshot | undefined;
@@ -145,6 +147,12 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
   let alive = true;
   let ready = false;
   let eligible = false;
+  const audio = options.audio ?? createSubwayAudio({
+    loadEngine: () => loadSubwayMotionEngine(assetBase),
+    onAvailability: available => {
+      if (alive && eligible) void context.setState('audioReady', available).catch(() => {});
+    },
+  });
   let unavailable = false;
   let epoch = 0;
   let timer: unknown;
@@ -163,6 +171,7 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
   const unsubscribeSurface = subscribeSurfaceEligibility(value => {
     if (eligible === value) return;
     eligible = value;
+    audio.setVisible(value);
     if (!alive || !ready) return;
     if (!state) {
       if (eligible && unavailable) publishUnavailable();
@@ -242,7 +251,10 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
       for (const effect of effects) {
         if (!alive || runtimeEpoch !== epoch || (!eligible && !allowHidden) || !state || state.generation !== effect.generation) return;
         if (effect.type === 'play-cue') {
-          if (eligible && nextState.immersion) await options.onCue?.(effect);
+          if (eligible && nextState.immersion) {
+            void audio.playCue(effect);
+            await options.onCue?.(effect);
+          }
           continue;
         }
         const event = eventFor(effect);
@@ -251,11 +263,18 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     }).catch(() => undefined);
   }
 
-  function dispatch(command: RunCommand, ancestry?: EventAncestry): boolean {
+  function dispatch(command: RunCommand, ancestry?: EventAncestry, audioGesture = false): boolean {
     if (!alive || !ready || (!eligible && command.type !== 'pause') || !state || !lines.length) return false;
     const runtimeEpoch = epoch;
+    const previousLine = state.lineId;
     const transition = reduceRun(state, command, clock.now(), lines, plans);
     state = transition.state;
+    if (state.lineId !== previousLine) audio.resetLine(audioGesture);
+    audio.transition(snapshotRun(state, clock.now(), lines, plans), transition.effects);
+    if (state.pendingCues.length) {
+      const group = state.pendingCues[0].id.split(':').slice(0, -1).join(':');
+      audio.preload(state.pendingCues.filter(cue => cue.id.startsWith(`${group}:`)).map(cue => cue.cue));
+    }
     scheduleWake();
     queueEffects(transition.effects, state, runtimeEpoch, command.type === 'pause', ancestry);
     return true;
@@ -280,13 +299,16 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     overrides.line = true;
     if (requestedDirection !== undefined) overrides.direction = true;
     if (requestedStation !== undefined || nextLine.id !== currentLine.id) overrides.startStation = true;
-    return dispatch({ type: 'configure', lineId: nextLine.id, direction, stationCode }, ancestry);
+    return dispatch({ type: 'configure', lineId: nextLine.id, direction, stationCode }, ancestry, true);
   }
 
   function setImmersion(enabled?: boolean, ancestry?: EventAncestry): boolean {
     if (!alive || !ready || !eligible || !state) return false;
+    const requested = enabled ?? !state.immersion;
+    if (requested) audio.setEnabled(true, true);
+    else audio.setEnabled(false);
     overrides.immersion = true;
-    return dispatch({ type: 'set-immersion', enabled: enabled ?? !state.immersion }, ancestry);
+    return dispatch({ type: 'set-immersion', enabled: requested }, ancestry);
   }
 
   function getSnapshot(): RunSnapshot | undefined {
@@ -300,6 +322,7 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     clearWake();
     unsubscribeSurface();
     unsubscribeConfig();
+    audio.dispose();
     if (activeRuntime === handle) {
       activeRuntime = undefined;
       sceneState.set(undefined);
@@ -321,6 +344,7 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     }
     appliedConfig = config;
     currentConfig = config;
+    audio.setAnnouncementVolume(config.announcementVolume);
     const targetLine = overrides.line ? lines.find(item => item.id === state!.lineId)! : lines.find(item => item.id === config.line)!;
     const requestedDirection = overrides.direction ? state.direction : config.direction;
     const direction = targetLine.directions.some(item => item.id === requestedDirection) ? requestedDirection : targetLine.directions[0].id;
@@ -364,8 +388,12 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
       now: clock.now(),
     });
     ready = true;
+    audio.setAnnouncementVolume(config.announcementVolume);
+    audio.setEnabled(state.immersion);
+    audio.transition(snapshotRun(state, clock.now(), lines, plans), []);
     if (eligible) {
       queueEffects([], state, epoch);
+      if (state.pendingCues.length) audio.preload(state.pendingCues.map(cue => cue.cue));
       scheduleWake();
     }
   }).catch(() => {

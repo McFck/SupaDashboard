@@ -26,7 +26,7 @@
       : options.channels;
     return list.slice(0, options.max ?? 8).map(f => {
       const c = findVolumeChannel($volumeChannels, f.target);
-      return { ...f, label: f.label ?? title(f.target), icon: f.icon || (f.target === 'system' ? 'Volume2' : appIcons.get(f.target)),
+      return { ...f, label: f.label ?? c?.label ?? title(f.target), icon: f.icon || c?.icon || (f.target === 'system' ? 'Volume2' : appIcons.get(f.target)),
         volume: c?.volume ?? null, muted: c?.muted ?? false };
     });
   });

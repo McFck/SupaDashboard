@@ -4,6 +4,7 @@ import type { SkinRuntimeContext } from '../../core/skins';
 import { normalizeSubwayLines, type RawLineBundle } from './lines';
 import { registerSubwaySurface, createSubwayRuntime, type SubwayRuntimeClock } from './runtime';
 import type { DoorSequenceApi, LoadedSubwayAssets, RuntimeCueManifest } from './sound-pack';
+import type { SubwayAudioController } from './audio';
 
 const files = import.meta.glob('../../../../assets/lines/*/{line,pack}.json', { eager: true, import: 'default' }) as Record<string, unknown>;
 const bundles: Record<string, RawLineBundle> = {};
@@ -226,5 +227,35 @@ describe('Subway owner runtime', () => {
     await flush();
     expect(fixture.events).toContain('subway.emergency');
     expect(fixture.ancestries).toContainEqual(ancestry);
+  });
+
+  it('keeps audio inside the eligible owner runtime and unlocks only through immersion commands', async () => {
+    const clock = new FakeClock();
+    const fixture = makeContext();
+    const surface = registerSubwaySurface(true);
+    disposers.push(() => surface.dispose());
+    const audio: SubwayAudioController = {
+      setEnabled: vi.fn(), resetLine: vi.fn(), setVisible: vi.fn(), setMix: vi.fn(), setAnnouncementVolume: vi.fn(),
+      transition: vi.fn(), preload: vi.fn(), playCue: vi.fn(async () => {}),
+      getStats: () => ({ activeSources: 0, decodedCacheBytes: 0, decodedCachePeakBytes: 0, cacheHits: 0, syntheticEmergencyAlert: true }),
+      dispose: vi.fn(),
+    };
+    const handle = createSubwayRuntime(fixture.context, {
+      clock, loadAssets: async () => assets, assetBase: 'http://localhost/subway/', audio,
+    });
+    disposers.push(() => handle.dispose());
+    await flush();
+    expect(audio.setVisible).toHaveBeenCalledWith(true);
+    expect(audio.setEnabled).toHaveBeenCalledWith(true);
+    expect(handle.setImmersion(true)).toBe(true);
+    expect(audio.setEnabled).toHaveBeenCalledWith(true, true);
+    expect(handle.dispatch({ type: 'start' })).toBe(true);
+    expect(audio.transition).toHaveBeenCalled();
+    expect(handle.requestLine({ line: 'hibiya', startStation: 'H14' })).toBe(true);
+    expect(audio.resetLine).toHaveBeenCalledWith(true);
+    surface.setEligible(false);
+    expect(audio.setVisible).toHaveBeenLastCalledWith(false);
+    handle.dispose();
+    expect(audio.dispose).toHaveBeenCalledOnce();
   });
 });

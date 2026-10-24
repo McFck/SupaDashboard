@@ -8,14 +8,14 @@ import { hasPlacement } from '../core/skin-layouts';
 import { currentRuntime } from '../core/runtime.svelte';
 import { appOwners, mediaSources, runAction, type ActionRef, type Param, type Plugin } from '../core/registry';
 import { parseVariableText } from '../core/variables';
-import { findVolumeChannel, initVolumeSync, readVolume, setMuted, setVolume, volumeChannels } from '../core/volume';
+import { findVolumeChannel, initVolumeSync, readVolume, setMuted, setVolume, volumeChannels, type Channel } from '../core/volume';
 
 export type { Channel } from '../core/volume';
 /** Apps with an audio session right now (process names without .exe). */
-let liveApps: string[] = [];
+let liveChannels: Channel[] = [];
 /** Master volume + every app with an audio session. */
 const stopVolumeTargets = volumeChannels.subscribe(list => {
-  liveApps = list.filter(c => c.target !== 'system').map(c => c.target);
+  liveChannels = list.filter(c => c.target !== 'system');
 });
 if (import.meta.hot) import.meta.hot.dispose(stopVolumeTargets);
 export const mixer = async () => {
@@ -65,7 +65,8 @@ const mediaControlParam: Param = { key: 'target', label: 'Media widget', type: '
     hasPlacement(settings, control.id)).map(control => ({ value: control.id, label: control.name }))] };
 const targetParam: Param = { key: 'target', label: 'Volume of', type: 'select', default: 'system',
   suggestions: () => [{ value: 'system', label: 'System' },
-    ...[...new Set([...liveApps, ...usedTargets()])].sort().map(a => ({ value: a, label: title(a), plugin: appOwners.get(a.toLowerCase()) }))],
+    ...[...new Set([...liveChannels.map(channel => channel.target), ...usedTargets()])].sort().map(target => ({ value: target,
+      label: liveChannels.find(channel => channel.target === target)?.label ?? title(target), plugin: appOwners.get(target.toLowerCase()) }))],
   refresh: mixer };
 const pageParam: Param = { key: 'page', label: 'Page', type: 'select',
   suggestions: () => settings.deck.pages.map(page => ({ value: page.id, label: page.name })) };

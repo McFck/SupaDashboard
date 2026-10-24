@@ -48,7 +48,8 @@ export function findVolumeChannel(channels: Channel[], target: string): Channel 
   if (exact) return exact;
   return channels.find(channel => {
     const channelTarget = normalizeTarget(channel.target);
-    return normalized === 'system' ? channelTarget === 'system' : channelTarget.includes(normalized);
+    return !localChannels.has(channelTarget) && (normalized === 'system'
+      ? channelTarget === 'system' : channelTarget.includes(normalized));
   }) ?? null;
 }
 

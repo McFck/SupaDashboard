@@ -1,6 +1,7 @@
 import type { RunEffect, RunSnapshot } from './run';
 import type { MotionAudioInstance, ResolvedCue, TrainMotionApi } from './sound-pack';
 import { loadSubwayMotionEngine } from './sound-pack';
+import { subscribeSubwayMixerSettings } from './audio-volume';
 
 const CACHE_LIMIT = 32 * 1024 * 1024;
 const MOTION_CALIBRATION = 0.65;
@@ -25,6 +26,7 @@ export type SubwayAudioOptions = {
 
 export interface SubwayAudioController {
   setEnabled(enabled: boolean, fromGesture?: boolean): void;
+  resetLine(fromGesture?: boolean): void;
   setVisible(visible: boolean): void;
   setMix(volume: number, muted: boolean): void;
   setAnnouncementVolume(volume: number): void;
@@ -59,6 +61,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
   let disposed = false;
   let epoch = 0;
   let profileEpoch = 0;
+  let visibilityEpoch = 0;
   let audioGeneration = -1;
   let mixVolume = 1;
   let mixMuted = false;
@@ -106,6 +109,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
 
   function ensureContext(): AudioContext | undefined {
     if (context || disposed || !enabled || !visible) return context;
+    if (!options.contextFactory && typeof AudioContext === 'undefined') return undefined;
     try {
       context = makeContext();
       cueBus = context.createGain();
@@ -231,7 +235,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
         applyGains(true);
         if (currentSnapshot && !currentSnapshot.paused)
           motion.update({ speed: currentSnapshot.speed, power: currentSnapshot.power, brake: currentSnapshot.brake });
-        setAvailability(true);
+        setAvailability(audioContext.state === 'running');
       } catch (error) {
         if (thisEpoch === epoch && thisProfileEpoch === profileEpoch) {
           setAvailability(false);
@@ -250,7 +254,10 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     try {
       const resumed = context.resume();
       void resumed.then(() => {
-        if (context && enabled && visible) applyGains(true);
+        if (context && enabled && visible) {
+          applyGains(true);
+          if (motion) setAvailability(true);
+        }
       }).catch(error => {
         setAvailability(false);
         warnOnce(fromGesture ? 'unlock' : 'resume', error);
@@ -302,14 +309,26 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     void ensureMotion(currentLine);
   }
 
+  function resetLine(fromGesture = false) {
+    if (!enabled) return;
+    setEnabled(false);
+    setEnabled(true, fromGesture);
+  }
+
   function setVisible(value: boolean) {
     if (disposed || visible === value) return;
     visible = value;
-    if (!context || !enabled) return;
+    const request = ++visibilityEpoch;
+    if (!enabled) return;
     if (!value) {
+      if (!context) return;
       applyGains(true);
-      void context.suspend().catch(error => warnOnce('suspend', error));
+      const suspendedContext = context;
+      void suspendedContext.suspend().then(() => {
+        if (visibilityEpoch !== request && visible && enabled && context === suspendedContext) resumeContext(false);
+      }).catch(error => warnOnce('suspend', error));
     } else {
+      ensureContext();
       resumeContext(false);
       applyGains(true);
       if (currentSnapshot) transition(currentSnapshot, []);
@@ -370,7 +389,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       void ensureMotion(snapshot.line);
       motion?.update({ speed: snapshot.speed, power: snapshot.power, brake: snapshot.brake });
     }
-    if (effects.some(effect => effect.type === 'emergency')) {
+    if (effects.some(effect => effect.type === 'emergency') && !alerts.has(snapshot.generation)) {
       stopSources();
       playAlert(snapshot.generation);
     }
@@ -419,7 +438,9 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     setEnabled(false);
     disposed = true;
     stopSources();
+    unsubscribeMixer();
   }
 
-  return { setEnabled, setVisible, setMix, setAnnouncementVolume, transition, preload, playCue, getStats, dispose };
+  const unsubscribeMixer = subscribeSubwayMixerSettings(settings => setMix(settings.volume, settings.muted));
+  return { setEnabled, resetLine, setVisible, setMix, setAnnouncementVolume, transition, preload, playCue, getStats, dispose };
 }

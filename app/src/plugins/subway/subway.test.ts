@@ -9,6 +9,7 @@ function collect() {
   subwayPlugin.setup({
     registerAction: (action: ActionDef) => { actions.set(action.id, action); },
     registerSkin: (definition: SkinDef) => { skin = definition; },
+    registerVariable: () => {},
   } as unknown as PluginApi);
   if (!skin) throw new Error('Subway skin was not registered');
   return { actions, skin };
@@ -37,7 +38,7 @@ describe('Subway skin registration', () => {
       'immersion', 'announcementVolume', 'gesture', 'corner',
     ]);
     expect(skin.state?.map(field => field.key)).toEqual([
-      'station', 'next', 'state', 'line', 'direction', 'doorSide', 'speed', 'progress', 'paused', 'immersion',
+      'station', 'next', 'state', 'line', 'direction', 'doorSide', 'speed', 'progress', 'paused', 'immersion', 'audioReady',
     ]);
     expect(skin.events?.map(event => event.id)).toEqual([
       'subway.departed', 'subway.arrived', 'subway.stateChanged', 'subway.emergency', 'subway.suspended',

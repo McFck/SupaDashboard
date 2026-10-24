@@ -4,6 +4,7 @@ import SubwayButton from './SubwayButton.svelte';
 import SubwaySlider from './SubwaySlider.svelte';
 import SubwaySkin from './SubwaySkin.svelte';
 import { ANNOUNCEMENT_LANGUAGE_PRESETS, DISPLAY_LANGUAGE_PRESETS, SUBWAY_DEFAULT_CONFIG, SUBWAY_LINE_IDS } from './config';
+import { registerSubwayMixerChannel, SUBWAY_MIX_MUTED_ID, SUBWAY_MIX_VOLUME_ID } from './audio-volume';
 import { requestSubwayLine, requestSubwayView, dispatchSubwayCommand, setSubwayImmersion, runtime } from './runtime';
 
 const lineTitles: Record<string, string> = { yamanote: 'Yamanote', hibiya: 'Hibiya', sakaisuji: 'Sakaisuji' };
@@ -63,6 +64,7 @@ const state: SkinStateField[] = [
   { key: 'direction', type: 'string', initialValue: 'inner' }, { key: 'doorSide', type: 'string', initialValue: 'unknown' },
   { key: 'speed', type: 'float', initialValue: 0 }, { key: 'progress', type: 'float', initialValue: 0 },
   { key: 'paused', type: 'boolean', initialValue: true }, { key: 'immersion', type: 'boolean', initialValue: false },
+  { key: 'audioReady', type: 'boolean', initialValue: false },
 ];
 
 export const subwayPlugin: Plugin = {
@@ -70,6 +72,11 @@ export const subwayPlugin: Plugin = {
   description: 'Japanese passenger-information displays with a compact control strip.',
   icon: 'TrainFront', author: 'SupaDashboard', version: '1.0.0', updated: '2026-10-24', source: 'bundled', size: 1618,
   setup(api) {
+    api.registerVariable({ id: SUBWAY_MIX_VOLUME_ID, name: 'Subway mixer volume', type: 'float', initialValue: 1,
+      persistent: true, readOnly: false });
+    api.registerVariable({ id: SUBWAY_MIX_MUTED_ID, name: 'Subway mixer muted', type: 'boolean', initialValue: false,
+      persistent: true, readOnly: false });
+    registerSubwayMixerChannel(api);
     api.registerAction({ id: 'subway.line', title: 'Change Subway line', params: [lineParam, directionParam, startStationParam],
       run: (args, context) => context?.signal.aborted ? false : requestSubwayLine({ line: args.line, direction: args.direction, startStation: args.startStation }, context?.eventAncestry) });
     api.registerAction({ id: 'subway.emergency', title: 'Subway emergency stop', run: (_args, context) =>

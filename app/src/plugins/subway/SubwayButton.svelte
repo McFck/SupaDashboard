@@ -7,7 +7,9 @@
   let { appearance, compact, busy, pull, pixelWidth, pixelHeight }: ControlFaceProps = $props();
   const host = getSkinHostContext();
   const lineId = $derived(host?.state.line);
+  const audioReady = $derived(host?.state.audioReady);
   const model = $derived(subwayButtonFaceModel({ appearance, compact, busy, pull, pixelWidth, pixelHeight } as ControlFaceProps, lineId));
+  const icon = $derived(model.label?.toLowerCase().includes('immersion') && audioReady !== true ? 'VolumeX' : model.icon);
   const lineCode = $derived(lineId === 'hibiya' ? 'H' : lineId === 'sakaisuji' ? 'K' : 'JY');
   const iconSize = $derived(buttonIconSize(pixelWidth, pixelHeight, compact));
 </script>
@@ -18,7 +20,7 @@
   style:border-left-color={model.color} style:border-left-width="3px"
   style:transform={model.transform ?? 'none'} style:opacity={model.disabledVisual ? 0.58 : 1}>
   <span class="grid size-9 shrink-0 place-items-center rounded-lg border border-current/25 bg-black/15" aria-hidden="true">
-    <Icon name={model.icon ?? undefined} size={iconSize} fallback={lineCode} />
+    <Icon name={icon ?? undefined} size={iconSize} fallback={lineCode} />
   </span>
   {#if !model.compact && model.label}
     <span class="min-w-0 flex-1 truncate text-left text-sm font-semibold tracking-wide">{model.label}</span>
