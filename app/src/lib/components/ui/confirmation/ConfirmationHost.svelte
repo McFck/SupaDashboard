@@ -31,7 +31,7 @@
       }
       if (visible(invoker)) invoker.focus({ preventScroll: true });
       else {
-        const fallback = document.querySelector<HTMLElement>('main h1, nav [aria-current="page"]');
+        const fallback = document.querySelector<HTMLElement>('main [role="tab"][aria-selected="true"], main h1, main');
         if (visible(fallback)) {
           if (!fallback.hasAttribute('tabindex')) fallback.tabIndex = -1;
           fallback.focus({ preventScroll: true });

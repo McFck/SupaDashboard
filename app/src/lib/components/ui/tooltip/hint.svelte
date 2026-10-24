@@ -12,7 +12,7 @@
 </script>
 
 {#if text}
-  <Root>
+  <Root ignoreNonKeyboardFocus>
     <Trigger>
       {#snippet child({ props })}{@render children(props)}{/snippet}
     </Trigger>
