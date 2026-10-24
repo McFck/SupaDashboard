@@ -73,7 +73,7 @@ if (!mounted) {
 await evaluate('document.fonts.ready');
 
 const manifest = await evaluate('window.__subwayHarness.manifest');
-assert(manifest.length >= 38, `Expected Yamanote and Hibiya fixtures, got ${manifest.length}`);
+assert(manifest.length >= 58, `Expected all three line fixtures, got ${manifest.length}`);
 const ids = new Set();
 const captures = [];
 let panelCrops = 0;
@@ -123,6 +123,20 @@ assert(hibiyaCaptures.some(capture => capture.sideLabel === null), 'Missing Hibi
 assert.equal(panelCrops, hibiyaCaptures.length * 2, 'Every Hibiya composite needs both panel crops');
 const panelLanguages = new Set(hibiyaCaptures.flatMap(capture => capture.panelLanguages ?? []));
 for (const language of ['ja', 'kana', 'en', 'zh', 'ko']) assert(panelLanguages.has(language), `Missing Hibiya ${language} language capture`);
+const sakaisujiCaptures = captures.filter(capture => capture.line === 'sakaisuji');
+assert.equal(sakaisujiCaptures.length, 19, 'Missing Sakaisuji fixture coverage');
+for (const capture of sakaisujiCaptures) assert.equal(capture.logicalSize, '1920x540');
+for (const state of [...ordinaryStates, 'emergency', 'suspended'])
+  assert(sakaisujiCaptures.some(capture => capture.state === state), `Missing Sakaisuji ${state} state capture`);
+for (const page of ['platform', 'closing', 'nearby', 'broad', 'transfers', 'emergency', 'suspension'])
+  assert(sakaisujiCaptures.some(capture => capture.page === page), `Missing Sakaisuji ${page} page capture`);
+for (const station of ['K11', 'K12', 'K20'])
+  assert(sakaisujiCaptures.some(capture => capture.station === station), `Missing Sakaisuji ${station} fixture`);
+assert(sakaisujiCaptures.some(capture => capture.direction === 'northbound'), 'Missing Sakaisuji northbound fixture');
+assert(sakaisujiCaptures.some(capture => capture.sideLabel === 'this side'), 'Missing Sakaisuji this-side fixture');
+assert(sakaisujiCaptures.some(capture => capture.sideLabel === 'opposite side'), 'Missing Sakaisuji opposite-side fixture');
+assert(sakaisujiCaptures.some(capture => capture.sideLabel === null), 'Missing Sakaisuji unknown-side fixture');
+assert(sakaisujiCaptures.some(capture => capture.language === 'kana'), 'Missing Sakaisuji kana fixture');
 
 await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
 await evaluate('window.__subwayHarness.startStaticProbe()');
@@ -132,6 +146,7 @@ const metrics = await evaluate('window.__subwayHarness.metrics()');
 assert.deepEqual(metrics.staticProbe, { requests: 1, executed: 1, cancelled: 0, pending: 0, draws: 1 });
 assert.equal(metrics.widgetOnlyUpdates, 50);
 assert.equal(consoleErrors.length, 0, `Browser console errors: ${consoleErrors.join(' | ')}`);
+assert.equal(failedRequests.length, 0, `Browser failed requests: ${JSON.stringify(failedRequests)}`);
 
 const report = {
   browser: 'existing isolated headless Chrome via CDP 9337',

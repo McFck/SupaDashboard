@@ -94,6 +94,15 @@ describe('Subway screen scheduler', () => {
     expect(scheduleScreen(noTransfers, hibiyaConfig, 8_000).page).toBe('nearby');
   });
 
+  it('limits Sakaisuji normal display rotation to kanji and kana', () => {
+    const sakaisuji = lines.find(line => line.id === 'sakaisuji')!;
+    const current = snapshot({ line: 'sakaisuji', station: 'K12', next: 'K13', direction: 'southbound' });
+    const pair = { line: sakaisuji, languages: ['ja', 'kana'] };
+    expect(scheduleScreen(current, pair, 0).language).toBe('ja');
+    expect(scheduleScreen(current, pair, 6_000).language).toBe('kana');
+    expect(scheduleScreen(current, { line: sakaisuji, languages: ['en'] }, 0).languages).toEqual(['ja', 'kana']);
+  });
+
   it('mirrors route ordering, resolves destinations and keeps progress out of the static cache key', () => {
     const inner = scheduleScreen(snapshot({ station: 'JY01', next: 'JY02' }), config, 0);
     const outer = scheduleScreen(snapshot({ station: 'JY01', next: 'JY30', direction: 'outer' }), config, 0);

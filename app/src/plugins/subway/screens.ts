@@ -40,10 +40,13 @@ function supportedLanguages(config: ScreenConfig): ScreenLanguage[] {
   const requested = config.languages?.filter((language): language is ScreenLanguage =>
     language === 'ja' || language === 'kana' || language === 'en' || language === 'zh' || language === 'ko');
   const choices: ScreenLanguage[] = requested?.length ? requested : ['ja', 'en'];
-  const present = choices.filter(language => (language === 'zh' || language === 'ko')
-    ? config.line.id === 'hibiya'
-    : config.line.stations.some(station => station.names[language]));
-  const fallback: ScreenLanguage[] = ['ja', 'en'];
+  const supports = (language: ScreenLanguage) => config.line.id === 'sakaisuji'
+    ? (language === 'ja' || language === 'kana') && config.line.stations.some(station => station.names[language])
+    : (language === 'zh' || language === 'ko')
+      ? config.line.id === 'hibiya'
+      : config.line.stations.some(station => station.names[language]);
+  const present = choices.filter(supports);
+  const fallback: ScreenLanguage[] = config.line.id === 'sakaisuji' ? ['ja', 'kana'] : ['ja', 'en'];
   return [...new Set(present.length ? present : fallback.filter(language =>
     config.line.stations.some(station => station.names[language])))];
 }

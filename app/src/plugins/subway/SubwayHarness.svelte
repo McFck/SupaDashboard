@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { SceneScheduler } from '../../core/skin-scene';
-  import { normalizeSubwayLines, type LineDefinition, type RawLineBundle } from './lines';
+  import { normalizeSubwayLines, stepStation, type LineDefinition, type RawLineBundle } from './lines';
   import { scheduleScreen, type ScreenConfig, type ScreenSchedule } from './screens';
   import { createHibiyaRenderer, scheduleHibiyaPair } from './lcd/hibiya';
+  import { createSakaisujiRenderer } from './lcd/sakaisuji';
   import { createYamanoteRenderer } from './lcd/yamanote';
   import { createRunState, reduceRun, segmentPlanKey, snapshotRun,
     type RunPhase, type RunSnapshot, type SubwayCuePlans, type SubwayRunState } from './run';
-  import { stepStation } from './lines';
   import type { PlatformDirectionDetail } from './station-details';
 
   type Fixture = { id: string; line: LineDefinition; snapshot: RunSnapshot; elapsed: number; config: ScreenConfig };
@@ -39,6 +39,7 @@
   const lines = normalizeSubwayLines(lineBundles);
   const yamanote = lines.find(line => line.id === 'yamanote')!;
   const hibiya = lines.find(line => line.id === 'hibiya')!;
+  const sakaisuji = lines.find(line => line.id === 'sakaisuji')!;
   const languages = ['ja', 'en'];
   const fixturePlans: SubwayCuePlans = {
     [segmentPlanKey('yamanote', 'JY01', 'JY02', 'inner')]: {
@@ -51,6 +52,7 @@
   let canvas: HTMLCanvasElement;
   let renderer = createYamanoteRenderer();
   const hibiyaRenderer = createHibiyaRenderer();
+  const sakaisujiRenderer = createSakaisujiRenderer();
   let lastLogicalSize = '1280x720';
   let drawCount = 0;
   let renderDurations: number[] = [];
@@ -196,6 +198,57 @@
     hibiyaFixture('hibiya-h22-terminal', 'stopped', 6_000, { station: 'H22' }),
   ];
 
+  function sakaisujiLineWithSide(side: 'left' | 'right' | 'unknown'): LineDefinition {
+    const stations = sakaisuji.stations.map(station => station.code === 'K15'
+      ? Object.freeze({ ...station, doorByDirection: Object.freeze({
+        ...station.doorByDirection,
+        southbound: Object.freeze({ side, provenance: 'Browser fixture only', sources: Object.freeze([]), synthetic: true }),
+      }) }) : station);
+    return Object.freeze({ ...sakaisuji, stations: Object.freeze(stations) });
+  }
+
+  function sakaisujiFixture(id: string, state: RunPhase, elapsed = 0, options: {
+    direction?: string; station?: string; viewingSide?: 'left' | 'right'; line?: LineDefinition; languages?: string[];
+  } = {}): Fixture {
+    const line = options.line ?? sakaisuji;
+    const direction = options.direction ?? 'southbound';
+    const station = options.station ?? 'K15';
+    return {
+      id, line, elapsed,
+      snapshot: {
+        station, next: stepStation(line, station, direction)?.code ?? '', state, line: 'sakaisuji', direction,
+        doorSide: 'unknown', doors: state === 'stopped' ? 'open' : state === 'arriving' ? 'opening' : state === 'doorsClosing' ? 'closing' : 'closed',
+        speed: state === 'cruising' ? 42 : state === 'approaching' ? 14 : state === 'departing' ? 6 : 0,
+        power: state === 'departing' || state === 'cruising' ? 0.35 : 0, brake: state === 'approaching' ? 0.2 : 0,
+        progress: 0.58, paused: false, immersion: false, generation: 1, multiplier: 1, remainingMinutes: 9,
+      },
+      config: { line, languages: options.languages ?? ['ja', 'kana'], viewingSide: options.viewingSide },
+    };
+  }
+
+  const sakaisujiTransferStation = sakaisuji.stations.find(station => station.transfers.length > 0)?.code ?? 'K12';
+  const sakaisujiFixtures: Fixture[] = [
+    sakaisujiFixture('sakaisuji-stopped-platform', 'stopped', 0, { station: 'K11' }),
+    sakaisujiFixture('sakaisuji-stopped-nearby', 'stopped', 6_000, { station: 'K12' }),
+    sakaisujiFixture('sakaisuji-doors-closing', 'doorsClosing'),
+    sakaisujiFixture('sakaisuji-departing', 'departing'),
+    sakaisujiFixture('sakaisuji-cruising-broad', 'cruising'),
+    sakaisujiFixture('sakaisuji-cruising-nearby', 'cruising', 8_000),
+    sakaisujiFixture('sakaisuji-cruising-transfers', 'cruising', 16_000, { station: sakaisujiTransferStation }),
+    sakaisujiFixture('sakaisuji-approaching', 'approaching', 0, { station: 'K12' }),
+    sakaisujiFixture('sakaisuji-arriving', 'arriving'),
+    sakaisujiFixture('sakaisuji-emergency', 'emergency'),
+    sakaisujiFixture('sakaisuji-suspended', 'suspended'),
+    sakaisujiFixture('sakaisuji-kana', 'cruising', 6_000, { station: 'K12' }),
+    sakaisujiFixture('sakaisuji-northbound', 'cruising', 0, { direction: 'northbound' }),
+    sakaisujiFixture('sakaisuji-k11-boundary', 'stopped', 0, { station: 'K11', direction: 'northbound' }),
+    sakaisujiFixture('sakaisuji-k12-midline', 'stopped', 0, { station: 'K12' }),
+    sakaisujiFixture('sakaisuji-k20-boundary', 'stopped', 0, { station: 'K20', direction: 'northbound' }),
+    sakaisujiFixture('sakaisuji-side-this', 'stopped', 0, { line: sakaisujiLineWithSide('right'), viewingSide: 'right' }),
+    sakaisujiFixture('sakaisuji-side-opposite', 'stopped', 0, { line: sakaisujiLineWithSide('right'), viewingSide: 'left' }),
+    sakaisujiFixture('sakaisuji-side-unknown', 'stopped', 0, { line: sakaisujiLineWithSide('unknown') }),
+  ];
+
   function modelFor(item: Fixture): ScreenSchedule {
     return scheduleScreen(item.snapshot, item.config, item.elapsed);
   }
@@ -203,7 +256,8 @@
   function reportFor(item: Fixture): FixtureReport {
     const model = modelFor(item);
     return {
-      id: item.id, line: item.line.id, logicalSize: item.line.id === 'hibiya' ? '2592x720' : '1280x720',
+      id: item.id, line: item.line.id,
+      logicalSize: item.line.id === 'hibiya' ? '2592x720' : item.line.id === 'sakaisuji' ? '1920x540' : '1280x720',
       state: item.snapshot.state, page: model.page, language: model.language,
       direction: item.snapshot.direction, station: item.snapshot.station, next: item.snapshot.next,
       sideLabel: model.sideLabel,
@@ -216,20 +270,22 @@
   }
 
   function render(id: string): FixtureReport {
-    const item = [...fixtures, ...hibiyaFixtures].find(candidate => candidate.id === id);
+    const item = [...fixtures, ...hibiyaFixtures, ...sakaisujiFixtures].find(candidate => candidate.id === id);
     if (!item) throw new Error(`Unknown Subway browser fixture: ${id}`);
-    const logicalWidth = item.line.id === 'hibiya' ? 2592 : 1280;
+    const logicalWidth = item.line.id === 'hibiya' ? 2592 : item.line.id === 'sakaisuji' ? 1920 : 1280;
+    const logicalHeight = item.line.id === 'sakaisuji' ? 540 : 720;
     canvas.width = logicalWidth;
-    canvas.height = 720;
+    canvas.height = logicalHeight;
     canvas.style.width = `${logicalWidth}px`;
-    canvas.style.height = '720px';
-    lastLogicalSize = `${logicalWidth}x720`;
+    canvas.style.height = `${logicalHeight}px`;
+    lastLogicalSize = `${logicalWidth}x${logicalHeight}`;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas 2D is unavailable');
     const started = performance.now();
     if (item.line.id === 'hibiya') {
       hibiyaRenderer.draw(context, logicalWidth, 720, scheduleHibiyaPair(item.snapshot, item.config, item.elapsed));
-    } else renderer.draw(context, logicalWidth, 720, modelFor(item));
+    } else if (item.line.id === 'sakaisuji') sakaisujiRenderer.draw(context, logicalWidth, logicalHeight, modelFor(item));
+    else renderer.draw(context, logicalWidth, logicalHeight, modelFor(item));
     drawCount++;
     renderDurations.push(performance.now() - started);
     return reportFor(item);
@@ -290,12 +346,12 @@
   onMount(() => {
     const harnessWindow = window as HarnessWindow;
     harnessWindow.__subwayHarness = {
-      manifest: [...fixtures, ...hibiyaFixtures].map(reportFor), render, startStaticProbe,
+      manifest: [...fixtures, ...hibiyaFixtures, ...sakaisujiFixtures].map(reportFor), render, startStaticProbe,
       updateWidgetOnly(count: number) { widgetOnlyUpdates += Math.max(0, Math.floor(count)); },
       metrics, stopStaticProbe,
     };
     render('stopped-platform');
-    return () => { stopStaticProbe(); renderer.dispose(); hibiyaRenderer.dispose(); delete harnessWindow.__subwayHarness; };
+    return () => { stopStaticProbe(); renderer.dispose(); hibiyaRenderer.dispose(); sakaisujiRenderer.dispose(); delete harnessWindow.__subwayHarness; };
   });
 </script>
 
