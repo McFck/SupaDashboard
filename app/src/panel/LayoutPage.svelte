@@ -477,10 +477,10 @@
 
 <svelte:window onkeydown={deleteKeydown} onpointermove={moveResize} onpointerup={stopResize} onpointercancel={stopResize} onblur={stopResize} />
 <div class="flex h-full min-h-0 min-w-0 flex-col overflow-visible">
-  <header style:padding-right="{frame.inspectorOpen ? rightWidth : 16}px" class="flex h-12 min-h-12 shrink-0 items-center gap-2 border-b border-[#262626] bg-[#171717] px-4">
+  <header style:padding-right="{frame.inspectorOpen ? rightWidth + 16 : 16}px" class="flex h-12 min-h-12 shrink-0 items-center gap-2 border-b border-[#262626] bg-[#171717] px-4">
     <PageTabs pages={settings.deck.pages} bind:selectedPageId active={active} onadd={addPage} onreorder={reorderPages}
       onrename={renamePage} onduplicate={duplicatePage} ondelete={deletePage} />
-    <div class="flex shrink-0 items-center gap-1.5">
+    <div class="flex shrink-0 items-center gap-1.5 border-l border-[#262626] pl-3">
       <Hint text="Undo" keys={['Ctrl', 'Z']} side="bottom">{#snippet children(props)}<Button {...props} variant="ghost" size="icon-sm" aria-label="Undo" disabled={!history.canUndo} onclick={undo}><Undo /></Button>{/snippet}</Hint>
       <Hint text="Redo" keys={['Ctrl', 'Shift', 'Z']} side="bottom">{#snippet children(props)}<Button {...props} variant="ghost" size="icon-sm" aria-label="Redo" disabled={!history.canRedo} onclick={redo}><Redo /></Button>{/snippet}</Hint>
       <Button variant="ghost" size="icon-sm" aria-label={frame.inspectorOpen ? 'Close inspector' : 'Open inspector'} aria-pressed={frame.inspectorOpen}
@@ -502,7 +502,7 @@
     <div class="right-slot relative min-h-0 shrink-0 overflow-visible" class:resizing={resizing !== null} class:inactive={!active} style:width="{frame.inspectorOpen ? rightWidth : 0}px">
       <section aria-label="Inspector" aria-hidden={!frame.inspectorOpen} inert={!frame.inspectorOpen}
         style:width="{rightWidth}px" style:display={frame.inspectorOpen ? undefined : 'none'} class="right-panel absolute -top-12 bottom-0 left-0 z-10 flex min-h-0 flex-col overflow-hidden bg-sidebar" class:open={frame.inspectorOpen}>
-        <div aria-hidden="true" class="absolute bottom-0 left-0 top-12 z-10 w-px bg-[#262626]"></div>
+        <div aria-hidden="true" class="pointer-events-none absolute inset-y-0 left-0 z-10 w-px bg-[#262626]"></div>
         <button type="button" aria-label="Resize inspector"
           onpointerdown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); resizing = { x: e.clientX, width: frame.inspectorWidth }; }}
           onkeydown={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); frame.inspectorWidth = Math.max(320, Math.min(640, frame.inspectorWidth + (e.key === 'ArrowLeft' ? 16 : -16))); saveFrame(); } }}
