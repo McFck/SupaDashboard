@@ -58,8 +58,8 @@
 </script>
 
 <svelte:window onpointermove={moveResize} onpointerup={stopResize} onpointercancel={stopResize} onblur={stopResize} />
-<div inert={confirmationActive} class="flex h-full min-h-0 min-w-0 overflow-hidden bg-background text-foreground">
-  <nav aria-label="Main navigation" style:width="{frame.sidebarWidth}px" class="relative flex min-h-0 shrink-0 flex-col bg-sidebar">
+<div inert={confirmationActive} class="flex h-full min-h-0 min-w-0 overflow-hidden bg-[var(--canvas-surface)] text-foreground">
+  <nav aria-label="Main navigation" style:width="{frame.sidebarWidth}px" class="relative flex min-h-0 shrink-0 flex-col bg-[var(--canvas-surface)]">
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto py-4 [scrollbar-gutter:stable]">
     <div class="relative grid h-9 shrink-0 grid-cols-[64px_minmax(0,1fr)] items-center">
       <Hint text={visible ? 'Hide dashboard' : 'Show dashboard'} side="right">
@@ -73,19 +73,16 @@
       <span class="absolute left-[53px] min-w-0 truncate text-[15px] font-semibold tracking-tight" class:invisible={collapsed} aria-hidden={collapsed}>SupaDashboard</span>
     </div>
     {#each NAV as group (group.title)}
-      <div class="grid gap-0.5">
-        <div class="relative flex h-5 items-center">
-          {#if collapsed}<div aria-hidden="true" class="absolute inset-x-3 top-1/2 h-px bg-border"></div>
-          {:else}<p class="pl-[53px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{group.title}</p>{/if}
-        </div>
+      <div class="grid gap-1">
+        {#if !collapsed}<div class="flex h-5 items-center"><p class="pl-[53px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{group.title}</p></div>{/if}
         {#each group.items as n (n.id)}
           <Hint text={collapsed ? n.label : undefined} side="right">
           {#snippet children(props)}
           <button {...props} type="button" onclick={() => (page = n.id)} aria-label={n.label} aria-current={page === n.id ? 'page' : undefined}
-            class="relative grid h-10 grid-cols-[48px_minmax(0,1fr)] items-center rounded-lg text-left text-[15px] transition-colors
-              {collapsed ? 'mx-3 w-10' : 'mx-2'}
+            class="relative grid items-center rounded-lg text-left text-[15px] transition-colors
+              {collapsed ? 'mx-auto size-8 grid-cols-1' : 'mx-2 h-10 grid-cols-[48px_minmax(0,1fr)]'}
               {page === n.id ? 'bg-white/[.08] text-foreground' : 'text-muted-foreground hover:bg-white/[.04] hover:text-foreground'}">
-            <span class="flex h-10 items-center justify-center {collapsed ? 'w-10' : 'w-12'}"><n.icon size={17} class="shrink-0" /></span>
+            <span class="flex items-center justify-center {collapsed ? 'size-8' : 'h-10 w-12'}"><n.icon size={17} class="shrink-0" /></span>
             <span class="absolute left-[45px] right-2 min-w-0 truncate" class:invisible={collapsed} aria-hidden={collapsed}>{n.label}</span>
           </button>
           {/snippet}
@@ -99,19 +96,21 @@
       class="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize touch-none bg-transparent outline-none hover:bg-primary/35 focus-visible:bg-primary/35"></button>
   </nav>
   <main class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-    <div class="absolute inset-0 min-h-0 min-w-0" style:display={page === 'layout' ? undefined : 'none'} class:pointer-events-none={page !== 'layout'}
-      inert={page !== 'layout'} aria-hidden={page !== 'layout'}>
-      <LayoutPage active={page === 'layout'} />
+    <div class="absolute inset-2 min-h-0 min-w-0 overflow-hidden rounded-xl border border-[#262626] bg-[#171717]">
+      <div class="absolute inset-0 min-h-0 min-w-0" style:display={page === 'layout' ? undefined : 'none'} class:pointer-events-none={page !== 'layout'}
+        inert={page !== 'layout'} aria-hidden={page !== 'layout'}>
+        <LayoutPage active={page === 'layout'} />
+      </div>
+      {#if page !== 'layout'}
+        {#key page}
+          <div class="absolute inset-0 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
+            {#if page === 'settings'}<SettingsPage />
+            {:else if page === 'plugins'}<PluginsPage />
+            {:else}<MarketPage />{/if}
+          </div>
+        {/key}
+      {/if}
     </div>
-    {#if page !== 'layout'}
-      {#key page}
-        <div class="absolute inset-0 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto bg-background [scrollbar-gutter:stable]">
-          {#if page === 'settings'}<SettingsPage />
-          {:else if page === 'plugins'}<PluginsPage />
-          {:else}<MarketPage />{/if}
-        </div>
-      {/key}
-    {/if}
   </main>
 </div>
 <ConfirmationHost />

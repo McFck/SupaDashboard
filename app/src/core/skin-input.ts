@@ -17,8 +17,8 @@ export class SkinInputRecognizer {
   private deliver?: (input: SceneInput) => void;
 
   constructor(private readonly onOpen: () => void,
-    private readonly schedule: (callback: () => void, delay: number) => Timer = setTimeout,
-    private readonly cancelTimer: (timer: Timer) => void = clearTimeout) {}
+    private readonly schedule: (callback: () => void, delay: number) => Timer = (callback, delay) => setTimeout(callback, delay),
+    private readonly cancelTimer: (timer: Timer) => void = timer => clearTimeout(timer)) {}
 
   setOptions(gesture: SkinGesture, corner: SkinCorner) {
     if (gesture === this.gesture && corner === this.corner) return;

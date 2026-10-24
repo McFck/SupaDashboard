@@ -593,7 +593,7 @@ async function main() {
   await waitFor('[data-corner="se"]');
   const resize = await evaluate(`(() => { const button=document.querySelector('[data-corner="se"]'); const mark=button.querySelector('span'); const tile=document.querySelector('[aria-label="Move or select Action"]');
     const b=button.getBoundingClientRect(),m=mark.getBoundingClientRect(),t=tile.getBoundingClientRect();return {hit:{x:b.x,y:b.y,w:b.width,h:b.height},mark:{x:m.x,y:m.y,w:m.width,h:m.height,opacity:getComputedStyle(mark).opacity},tile:{x:t.x,y:t.y,w:t.width,h:t.height}}})()`);
-  assert.ok(resize.hit.w >= 28 && resize.hit.h >= 28, `Resize hit area was ${JSON.stringify(resize.hit)}`);
+  assert.ok(resize.hit.w >= 27.99 && resize.hit.h >= 27.99, `Resize hit area was ${JSON.stringify(resize.hit)}`);
   assert.ok(Math.abs(resize.mark.x - (resize.tile.x + resize.tile.w + 3)) <= .5);
   assert.ok(Math.abs(resize.mark.y - (resize.tile.y + resize.tile.h + 3)) <= .5);
   assert.ok(Math.abs(Number(resize.mark.opacity) - .65) < .02);

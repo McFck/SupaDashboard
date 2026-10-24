@@ -4,7 +4,9 @@
   import { toast } from 'svelte-sonner';
 
   export type MenuAction = { label: string; run: () => void | Promise<void>; disabled?: boolean; danger?: boolean };
-  let { open, x, y, actions, onclose }: { open: boolean; x: number; y: number; actions: MenuAction[]; onclose: () => void } = $props();
+  let { open, x, y, actions, onclose, ariaLabel = 'Widget actions' }: {
+    open: boolean; x: number; y: number; actions: MenuAction[]; onclose: () => void; ariaLabel?: string;
+  } = $props();
   let menu = $state<HTMLDivElement>();
   let closing = $state(false);
   let restoreFocus = true;
@@ -134,7 +136,7 @@
   }
 </script>
 
-<div bind:this={menu} use:position={{ x, y }} role="menu" tabindex="-1" aria-label="Widget actions" aria-hidden={!open || closing} inert={!open || closing} onkeydown={keyboard}
+<div bind:this={menu} use:position={{ x, y }} role="menu" tabindex="-1" aria-label={ariaLabel} aria-hidden={!open || closing} inert={!open || closing} onkeydown={keyboard}
   oncontextmenu={event => event.preventDefault()} in:intro out:outro
   class="fixed z-50 grid max-h-[calc(100dvh-16px)] w-56 gap-0.5 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl">
   {#each actions as action (action.label)}

@@ -8,10 +8,10 @@
   type Option = { value: string; label: string; icon?: Component<any>; iconLabel?: string; iconHint?: string; disabled?: boolean; plugin?: string };
   let {
     value, options, onchange, placeholder = 'Choose…', class: className = 'w-full', id,
-    'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledby, onopen,
+    'aria-label': ariaLabel, 'aria-labelledby': ariaLabelledby, onopen, showPluginMark = true,
   }: {
     value: string; options: Option[]; onchange: (v: string) => void; placeholder?: string; class?: string;
-    id?: string; 'aria-label'?: string; 'aria-labelledby'?: string; onopen?: () => void;
+    id?: string; 'aria-label'?: string; 'aria-labelledby'?: string; onopen?: () => void; showPluginMark?: boolean;
   } = $props();
   const selected = $derived(options.find(o => o.value === value));
   const accessibleLabel = $derived(ariaLabel && selected?.plugin && pluginTitle(selected.plugin)
@@ -29,7 +29,7 @@
           {#snippet children(props)}<span {...props} class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground"><selected.icon size={12} strokeWidth={1.75} aria-hidden="true" /></span>{/snippet}
         </Hint>
       {/if}
-      {#if selected?.plugin}<PluginMark plugin={selected.plugin} />{/if}
+      {#if showPluginMark && selected?.plugin}<PluginMark plugin={selected.plugin} />{/if}
     </span>
   </Select.Trigger>
   <Select.Content class="w-max min-w-64 max-w-[calc(100vw-2rem)]">
@@ -45,7 +45,7 @@
                 {#snippet children(props)}<span {...props} class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground"><o.icon size={12} strokeWidth={1.75} aria-hidden="true" /></span>{/snippet}
               </Hint>
             {/if}
-            {#if o.plugin}<PluginMark plugin={o.plugin} />{/if}
+            {#if showPluginMark && o.plugin}<PluginMark plugin={o.plugin} />{/if}
           </span>
         </Select.Item>
       {/each}

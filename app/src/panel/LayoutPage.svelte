@@ -3,25 +3,21 @@
   import { onDestroy, tick } from 'svelte';
   import Undo from '@lucide/svelte/icons/undo-2';
   import Redo from '@lucide/svelte/icons/redo-2';
-  import X from '@lucide/svelte/icons/x';
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
   import * as Dialog from '$lib/components/ui/dialog';
   import { Hint } from '$lib/components/ui/tooltip';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
-  import { Slider } from '$lib/components/ui/slider';
   import SkinLayoutEditor from './SkinLayoutEditor.svelte';
   import { animateRemoval } from '../controls/removal';
   import { history, undo, redo, commit } from '../core/history.svelte';
   import { TRIGGERS, type Trigger } from '../core/scenario';
   import { dispatchRuntimeTrigger, runtimeView, simulateRuntimeEvent, stopRuntimeControl } from '../core/runtime.svelte';
   import { firstFree, fits, type Selection } from '../core/layout';
-  import { splitAlpha, withAlpha } from '../core/palette';
   import { registeredEvents, skins } from '../core/registry';
   import { controlById, settings } from '../core/settings.svelte';
   import { addPage as buildPage, deletePage as buildDeletePage, duplicatePage as buildDuplicatePage, MAX_PAGES,
     pageAfterRemoval, pageById, pageItems, removePlacement, renamePage as buildRenamePage, reorderPage as buildReorderPage } from '../core/pages';
-  import ColorField from '../editor/ColorField.svelte';
   import ScenarioEditor from '../editor/ScenarioEditor.svelte';
   import Inspector from './Inspector.svelte';
   import PageTabs from './PageTabs.svelte';
@@ -29,8 +25,6 @@
   import { canSetLayoutItems, effectiveSize, layoutFor, movePlacementToSlot, setLayoutItems, type LayoutTarget } from '../core/skin-layouts';
   import type { SkinDef } from '../core/skins';
   import ContextMenu, { type MenuAction } from './ContextMenu.svelte';
-  import Row from './ui/Row.svelte';
-  import Section from './ui/Section.svelte';
   import { frame, layoutPreview, saveFrame, saveLayoutPreview } from './ui/preferences.svelte';
   import { cloneControl, pasteWidget, type WidgetCopy } from './ui/layout-actions';
   import { clipboard } from './ui/widget-clipboard.svelte';
@@ -39,7 +33,6 @@
   let selection = $state<Selection>(null);
   let scenarioOpen = $state(false);
   let scenarioRequest = $state<{ controlId: string; itemId: string; trigger?: Trigger } | null>(null);
-  let rightPage = $state<'inspector' | 'canvas'>('inspector');
   let layout = $state<HTMLElement>();
   let layoutWidth = $state(0);
   let area = $state<HTMLElement>();
@@ -69,10 +62,8 @@
   type MoveRequest = { mode: 'page' | 'slot'; sourceTarget: LayoutTarget; itemId: string; destinationKey: string };
   type MoveOption = { value: string; label: string; disabled: boolean; target: LayoutTarget };
   let moveRequest = $state<MoveRequest | null>(null);
-  const bg = $derived(settings.display.background);
   const page = $derived(pageById(settings.deck.pages, selectedPageId)!);
   const editorSkin = $derived(skins.get(selectedSkinId) ?? skins.get('deck')!);
-  const viewOptions = $derived(editorSkin.views.map(view => ({ value: view.id, label: view.title })));
   const editorTarget = $derived.by(() => {
     const view = editorSkin.views.find(entry => entry.id === previewViewId);
     if (selectionTarget.skinId === editorSkin.id && selectionTarget.pageId === page.id &&
@@ -199,18 +190,9 @@
     scenarioOpen = false;
     closeMoveDialog();
   }
-  function changePreviewView(viewId: string) {
-    if (!editorSkin.views.some(view => view.id === viewId) || viewId === previewViewId) return;
-    previewViewId = viewId;
-    layoutPreview.views[editorSkin.id] = viewId;
-    selectionTarget = defaultTarget(editorSkin, page.id, viewId);
-    clearEditorTransient();
-    saveLayoutPreview();
-  }
   function select(s: Selection, target?: LayoutTarget) {
     selection = s;
     if (target) selectionTarget = target;
-    rightPage = 'inspector';
     if (s) { frame.inspectorOpen = true; saveFrame(); }
   }
   function openDeck() { select(null); frame.inspectorOpen = true; saveFrame(); }
@@ -494,27 +476,19 @@
 </script>
 
 <svelte:window onkeydown={deleteKeydown} onpointermove={moveResize} onpointerup={stopResize} onpointercancel={stopResize} onblur={stopResize} />
-<div class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-  <header class="flex h-16 shrink-0 items-center justify-between gap-3 border-b px-5">
-    <h1 class="text-xl font-semibold tracking-tight">Layout</h1>
-    <div class="flex items-center gap-2">
+<div class="flex h-full min-h-0 min-w-0 flex-col overflow-visible">
+  <header style:padding-right="{frame.inspectorOpen ? rightWidth : 16}px" class="flex h-12 min-h-12 shrink-0 items-center gap-2 border-b border-[#262626] bg-[#171717] px-4">
+    <PageTabs pages={settings.deck.pages} bind:selectedPageId active={active} onadd={addPage} onreorder={reorderPages}
+      onrename={renamePage} onduplicate={duplicatePage} ondelete={deletePage} />
+    <div class="flex shrink-0 items-center gap-1.5">
       <Hint text="Undo" keys={['Ctrl', 'Z']} side="bottom">{#snippet children(props)}<Button {...props} variant="ghost" size="icon-sm" aria-label="Undo" disabled={!history.canUndo} onclick={undo}><Undo /></Button>{/snippet}</Hint>
       <Hint text="Redo" keys={['Ctrl', 'Shift', 'Z']} side="bottom">{#snippet children(props)}<Button {...props} variant="ghost" size="icon-sm" aria-label="Redo" disabled={!history.canRedo} onclick={redo}><Redo /></Button>{/snippet}</Hint>
-      <Button variant="outline" size="sm" aria-pressed={frame.inspectorOpen && rightPage === 'canvas'}
-        onclick={() => { rightPage = 'canvas'; frame.inspectorOpen = true; saveFrame(); }}>Canvas</Button>
-      <Button variant="ghost" size="icon-sm" aria-label={frame.inspectorOpen && rightPage === 'inspector' ? 'Close inspector' : 'Open inspector'} aria-pressed={frame.inspectorOpen && rightPage === 'inspector'}
-        onclick={() => { frame.inspectorOpen = !(frame.inspectorOpen && rightPage === 'inspector'); rightPage = 'inspector'; saveFrame(); }}><PanelRight /></Button>
+      <Button variant="ghost" size="icon-sm" aria-label={frame.inspectorOpen ? 'Close inspector' : 'Open inspector'} aria-pressed={frame.inspectorOpen}
+        onclick={() => { frame.inspectorOpen = !frame.inspectorOpen; saveFrame(); }}><PanelRight /></Button>
     </div>
   </header>
-  <div bind:this={layout} class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-    <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--canvas-surface)]">
-      <PageTabs pages={settings.deck.pages} bind:selectedPageId active={active} onadd={addPage} onreorder={reorderPages}
-        onrename={renamePage} onduplicate={duplicatePage} ondelete={deletePage} />
-      {#if editorSkin.views.length > 1}
-        <div class="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-          <Choice value={previewViewId} options={viewOptions} aria-label="Preview view" onchange={changePreviewView} class="min-w-0 flex-1" />
-        </div>
-      {/if}
+  <div bind:this={layout} class="flex min-h-0 min-w-0 flex-1 overflow-visible">
+    <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-[var(--canvas-surface)]">
       <div bind:this={area} role="presentation" onclick={e => { if (e.target === e.currentTarget || e.target === e.currentTarget.lastElementChild) openDeck(); }}
         class="relative grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden">
         <div aria-hidden="true" class="canvas-grid"></div>
@@ -525,33 +499,19 @@
         </div>
       </div>
     </div>
-    <div class="right-slot relative min-h-0 shrink-0 overflow-hidden" class:resizing={resizing !== null} class:inactive={!active} style:width="{frame.inspectorOpen ? rightWidth : 0}px">
-      <section aria-label={rightPage === 'canvas' ? 'Canvas' : 'Inspector'} aria-hidden={!frame.inspectorOpen} inert={!frame.inspectorOpen}
-        style:width="{rightWidth}px" class="right-panel absolute inset-y-0 left-0 flex min-h-0 flex-col overflow-hidden border-l bg-sidebar" class:open={frame.inspectorOpen}>
+    <div class="right-slot relative min-h-0 shrink-0 overflow-visible" class:resizing={resizing !== null} class:inactive={!active} style:width="{frame.inspectorOpen ? rightWidth : 0}px">
+      <section aria-label="Inspector" aria-hidden={!frame.inspectorOpen} inert={!frame.inspectorOpen}
+        style:width="{rightWidth}px" style:display={frame.inspectorOpen ? undefined : 'none'} class="right-panel absolute -top-12 bottom-0 left-0 z-10 flex min-h-0 flex-col overflow-hidden bg-sidebar" class:open={frame.inspectorOpen}>
+        <div aria-hidden="true" class="absolute bottom-0 left-0 top-12 z-10 w-px bg-[#262626]"></div>
         <button type="button" aria-label="Resize inspector"
           onpointerdown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); resizing = { x: e.clientX, width: frame.inspectorWidth }; }}
           onkeydown={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); frame.inspectorWidth = Math.max(320, Math.min(640, frame.inspectorWidth + (e.key === 'ArrowLeft' ? 16 : -16))); saveFrame(); } }}
-          class="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none bg-transparent outline-none hover:bg-primary/40 focus-visible:bg-primary/40"></button>
-        <Button variant="ghost" size="icon" class="absolute top-4 right-3 z-10" aria-label="Close inspector" onclick={closeInspector}><X /></Button>
-        {#if rightPage === 'canvas'}
-          <header class="flex h-16 shrink-0 items-center border-b px-4 pr-14"><p class="font-semibold">Canvas</p></header>
-          <div class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
-            <Section>
-              <Row label="Colour" wide><ColorField palette={['#0a0a0a', '#171717', '#0f172a', '#1e1b4b', '#052e16', '#3f0d12']} value={withAlpha(bg.color, bg.opacity)}
-                onchange={v => { const p = splitAlpha(v); commit('Canvas colour'); settings.display.background = { ...bg, color: p.hex, opacity: p.alpha }; }} /></Row>
-              <Row label="Corner radius"><div class="flex w-44 items-center gap-3">
-                <Slider type="single" class="min-w-0 flex-1" value={bg.radius} min={0} max={60} step={1} onValueChange={v => { commit('Canvas radius'); settings.display.background = { ...bg, radius: v }; }} />
-                <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">{bg.radius}px</span>
-              </div></Row>
-            </Section>
-          </div>
-        {:else}
-          <div class="inspector-content min-h-0 flex-1 overflow-hidden">
-            {#key `${page.id}:${selection && 'item' in selection ? selection.item : 'collection'}`}
-              <Inspector {page} {selection} layoutTarget={editorTarget} onselect={select} oneditScenario={openScenario} />
-            {/key}
-          </div>
-        {/if}
+          class="absolute bottom-0 left-[-3px] top-12 z-20 w-2 cursor-col-resize touch-none bg-transparent outline-none hover:bg-primary/40 focus-visible:bg-primary/40"></button>
+        <div class="inspector-content min-h-0 flex-1 overflow-hidden">
+          {#key `${page.id}:${selection && 'item' in selection ? selection.item : 'collection'}`}
+            <Inspector {page} {selection} layoutTarget={editorTarget} onselect={select} oneditScenario={openScenario} onclose={closeInspector} />
+          {/key}
+        </div>
       </section>
     </div>
   </div>
@@ -592,6 +552,5 @@
   .right-slot.inactive { transition: none; }
   .right-slot.resizing { transition: none; }
   .inspector-content :global(aside) { min-height: 0; overflow: hidden; }
-  .inspector-content :global(aside > header) { flex-shrink: 0; padding-right: 3.5rem; }
   @media (prefers-reduced-motion: reduce) { .canvas-enter { animation-duration: 0ms; } .right-slot { transition: none; } }
 </style>

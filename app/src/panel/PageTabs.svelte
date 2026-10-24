@@ -1,13 +1,11 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
-  import Copy from '@lucide/svelte/icons/copy';
-  import Pencil from '@lucide/svelte/icons/pencil';
   import Plus from '@lucide/svelte/icons/plus';
-  import Trash2 from '@lucide/svelte/icons/trash-2';
   import { Button } from '$lib/components/ui/button';
   import * as Dialog from '$lib/components/ui/dialog';
   import { Input } from '$lib/components/ui/input';
   import { Hint } from '$lib/components/ui/tooltip';
+  import ContextMenu, { type MenuAction } from './ContextMenu.svelte';
   import { MAX_PAGES } from '../core/pages';
   import { sortable } from '../lib/sortable';
   import type { Page } from '../core/settings.svelte';
@@ -26,7 +24,9 @@
   let renameOpen = $state(false);
   let renamePageId = $state('');
   let renameDraft = $state('');
-  const selected = $derived(pages.find(page => page.id === selectedPageId));
+  let pageMenu = $state<{ x: number; y: number; actions: MenuAction[]; generation: number } | null>(null);
+  let pageMenuOpen = $state(false);
+  let pageMenuGeneration = 0;
 
   function updateScrollFade() {
     if (!list) { canScrollLeft = false; canScrollRight = false; return; }
@@ -96,11 +96,28 @@
   function tabItems() { return [...(list?.querySelectorAll<HTMLElement>('[data-page-tab]') ?? [])]; }
   function moveTab(from: number, to: number) { const page = pages[from]; if (page) onreorder(page.id, to); }
 
-  function openRename() {
-    if (!selected) return;
-    renamePageId = selected.id;
-    renameDraft = selected.name;
+  function openRename(pageId: string) {
+    const page = pages.find(entry => entry.id === pageId);
+    if (!page) return;
+    selectedPageId = page.id;
+    renamePageId = page.id;
+    renameDraft = page.name;
     renameOpen = true;
+  }
+
+  function closePageMenu(generation: number) {
+    if (pageMenu?.generation === generation) pageMenuOpen = false;
+  }
+
+  function openPageMenu(event: MouseEvent, page: Page) {
+    event.preventDefault();
+    const generation = ++pageMenuGeneration;
+    pageMenu = { x: event.clientX, y: event.clientY, generation, actions: [
+      { label: 'Rename', run: () => openRename(page.id) },
+      { label: 'Duplicate', disabled: pages.length >= MAX_PAGES, run: () => onduplicate(page.id) },
+      { label: 'Delete', disabled: pages.length <= 1, danger: true, run: () => ondelete(page.id) },
+    ] };
+    pageMenuOpen = true;
   }
 
   function saveRename() {
@@ -175,24 +192,27 @@
 </script>
 
 <svelte:window onpointermove={moveStripPan} onpointerup={finishStripPan} onpointercancel={cancelPointer} onblur={cancelStripPan} />
-<div class="flex h-12 min-h-12 shrink-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b px-3">
+<div class="flex h-12 min-h-12 min-w-0 flex-1 shrink-0 flex-nowrap items-center gap-1.5 overflow-hidden">
   <div bind:this={list} use:sortable={{ axis: 'x', enabled: active, items: tabItems, onmove: moveTab }} role="tablist" aria-label="Pages" tabindex="-1" onscroll={updateScrollFade} onwheel={wheelTabs}
     onpointerdown={beginStripPan} onlostpointercapture={event => { if (stripPan?.pointerId === event.pointerId) cancelStripPan(); }}
     class:fade-left={canScrollLeft} class:fade-right={canScrollRight}
-    class="page-tab-strip flex h-full min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap touch-pan-x">
+    class="page-tab-strip flex h-full min-w-0 flex-initial flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap touch-pan-x">
     {#each pages as page, index (page.id)}
       <button type="button" role="tab" aria-selected={page.id === selectedPageId} tabindex={page.id === selectedPageId ? 0 : -1}
         data-page-tab={page.id} onkeydown={event => keydown(event, page, index)} onclick={() => selectedPageId = page.id}
+        oncontextmenu={event => openPageMenu(event, page)}
         class="h-9 min-w-20 max-w-40 shrink-0 select-none truncate rounded-md px-3 text-sm text-foreground/70 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring aria-selected:bg-muted/70 aria-selected:text-foreground touch-none">
         {page.name}
       </button>
     {/each}
   </div>
   <Hint text="Add page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Add page" disabled={pages.length >= MAX_PAGES} onclick={onadd}><Plus /></Button>{/snippet}</Hint>
-  <Hint text="Rename page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Rename page" disabled={!selected} onclick={openRename}><Pencil /></Button>{/snippet}</Hint>
-  <Hint text="Duplicate page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Duplicate page" disabled={!selected || pages.length >= MAX_PAGES} onclick={() => selected && onduplicate(selected.id)}><Copy /></Button>{/snippet}</Hint>
-  <Hint text="Delete page" side="bottom">{#snippet children(props)}<Button {...props} data-page-action variant="ghost" size="icon-sm" aria-label="Delete page" disabled={!selected || pages.length <= 1} onclick={() => selected && ondelete(selected.id)}><Trash2 /></Button>{/snippet}</Hint>
 </div>
+
+{#each (pageMenuOpen && pageMenu ? [pageMenu] : []) as menu (menu.generation)}
+  <ContextMenu open={pageMenuOpen} ariaLabel="Page actions" x={menu.x} y={menu.y} actions={menu.actions}
+    onclose={() => closePageMenu(menu.generation)} />
+{/each}
 
 <Dialog.Root bind:open={renameOpen}>
   <Dialog.Content class="sm:max-w-sm">
