@@ -34,6 +34,8 @@ describe('gestures', () => {
 
   it('offers double taps and reserves the slider value axis', () => {
     expect(availableGestures('button', 1, 1)).toContain('doubleTap');
+    expect(availableGestures('media', 2, 2)).toContain('swipeLeft');
+    expect(availableGestures('web', 3, 2)).toContain('longPress');
     expect(availableGestures('slider', 1, 3)).toEqual(['swipeLeft', 'swipeRight', 'longPress', 'doubleTap']);
     expect(availableGestures('slider', 3, 1)).toEqual(['swipeDown', 'swipeUp', 'longPress', 'doubleTap']);
   });

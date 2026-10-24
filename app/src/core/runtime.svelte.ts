@@ -12,6 +12,7 @@ import { VariableStore, type VariableSnapshot, type VariableValue } from './vari
 import type { Trigger } from './scenario';
 import type { PageChangePayload, RuntimeSync, RuntimeRequest } from './runtime-sync';
 import { pageAfterRemoval, pageById } from './pages';
+import { readMediaOptions, stepSlide } from './content';
 
 export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'auto' | 'reconcile';
 let dashboardInteractionActive = false;
@@ -23,6 +24,7 @@ export type RuntimeSnapshot = {
   activePage: string;
   variables: VariableSnapshot;
   busy: Readonly<Record<string, number>>;
+  content: Readonly<Record<string, { slide: number; reload: number }>>;
 };
 export type VariablePersistence = { save(envelope: ReturnType<VariableStore['serializePersistent']>): Promise<void> };
 export type RuntimeOptions = { variables?: VariableStore; persistence?: VariablePersistence; owner?: boolean;
@@ -32,7 +34,7 @@ type Job = { packet: TriggerPacket; fingerprint: string; notify: boolean; resolv
   done?: { promise: Promise<RunResult>; resolve(result: RunResult): void } };
 type Lane = { key: string; controlId: string; queue: Job[]; current?: Job; draining: boolean };
 const EMPTY: RuntimeSnapshot = { online: false, owner: false, revision: 0, activePage: 'page-1',
-  variables: { revision: 0, records: {} }, busy: {} };
+  variables: { revision: 0, records: {} }, busy: {}, content: {} };
 const VARIABLE_KEY = 'supadashboard:variables:v1';
 const cancelled = (): RunResult => ({ status: 'cancelled' });
 const scenarioId = () => globalThis.crypto?.randomUUID?.() ?? `run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -64,6 +66,8 @@ export class AutomationRuntime {
   private readonly lanes = new Map<string, Lane>();
   private readonly busyCounts = new Map<string, number>();
   private readonly queueFullReported = new Set<string>();
+  private readonly contentState = new Map<string, { slide: number; reload: number }>();
+  private readonly contentSources = new Map<string, string>();
   private readonly unsubscribeVariables: () => void;
   private readonly detachRegistry: () => void;
   private readonly stopRemoteSettings: () => void;
@@ -203,6 +207,27 @@ export class AutomationRuntime {
     settings.variants[controlId] = resolved;
   }
 
+  contentCommand(controlId: string, command: 'next' | 'prev' | 'reload') {
+    if (this.disposed || !this.owner) throw new Error('Content runtime is unavailable');
+    const control = controlById(controlId);
+    if (!control || !settings.deck.pages.some(page => page.items.some(item => item.control === controlId)))
+      throw new Error('Content target is unavailable');
+    const current = this.contentState.get(controlId) ?? { slide: 0, reload: 0 };
+    let next: { slide: number; reload: number };
+    if (control.type === 'media' && command !== 'reload') {
+      const options = readMediaOptions(control.options);
+      next = { ...current, slide: stepSlide(current.slide, options.sources.length, command === 'next' ? 1 : -1, options.loop) };
+    } else if (control.type === 'web' && command === 'reload') {
+      next = { ...current, reload: current.reload + 1 };
+    } else {
+      throw new Error('Content command is not supported by this target');
+    }
+    if (next.slide === current.slide && next.reload === current.reload) return false;
+    this.contentState.set(controlId, next);
+    this.publish(this.variables.snapshot());
+    return true;
+  }
+
   changePage(pageId: string, reason: PageChangeReason = 'action', ancestry?: EventAncestry) {
     if (this.disposed || !this.owner || !settings.deck.pages.some(page => page.id === pageId) || pageId === this.activePage) return false;
     const previousPage = this.activePage;
@@ -277,6 +302,19 @@ export class AutomationRuntime {
         lane.queue = keep;
       }
     }
+    const placed = new Set(settings.deck.pages.flatMap(page => page.items.map(item => item.control)));
+    for (const id of this.contentState.keys()) if (!current.has(id) || !placed.has(id)) this.contentState.delete(id);
+    for (const id of this.contentSources.keys()) if (!current.has(id) || !placed.has(id)) this.contentSources.delete(id);
+    for (const control of controls) if (control.type === 'media' && placed.has(control.id)) {
+      const sourceKey = JSON.stringify(readMediaOptions(control.options).sources);
+      const previous = this.contentSources.get(control.id);
+      if (previous !== undefined && previous !== sourceKey) {
+        const state = this.contentState.get(control.id);
+        if (state) this.contentState.set(control.id, { ...state, slide: 0 });
+      }
+      this.contentSources.set(control.id, sourceKey);
+    }
+    this.publish(this.variables.snapshot());
   }
 
   async dispose() {
@@ -296,6 +334,8 @@ export class AutomationRuntime {
       for (const pending of lane.queue.splice(0)) pending.resolve(cancelled());
     }
     await this.flushPersistence();
+    this.contentState.clear();
+    this.contentSources.clear();
     this.publish(this.variables.snapshot(), true);
   }
 
@@ -341,7 +381,7 @@ export class AutomationRuntime {
   private publish(variables: VariableSnapshot, online = true) {
     this.revision++;
     this.snapshots.set({ online, owner: this.owner, revision: this.revision, activePage: this.activePage, variables,
-      busy: Object.fromEntries(this.busyCounts) });
+      busy: Object.fromEntries(this.busyCounts), content: Object.fromEntries(this.contentState) });
   }
 
   reconcilePages(pages = settings.deck.pages) {
@@ -413,7 +453,7 @@ export function acceptRuntimeSnapshot(snapshot: unknown, revision: number) {
   remoteRevision = revision;
   setVariableMirror(Object.values(value.variables.records));
   settings.deck.activePage = value.activePage;
-  runtimeView.set({ ...value, online: true, owner: false, revision });
+  runtimeView.set({ ...value, content: value.content && typeof value.content === 'object' ? value.content : {}, online: true, owner: false, revision });
 }
 
 export async function attachRuntimeConnection(sync: RuntimeSync) {

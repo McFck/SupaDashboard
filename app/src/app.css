@@ -132,7 +132,7 @@
 @utility tile {
   position: relative;
   isolation: isolate;
-  border-radius: 22px;
+  border-radius: var(--tile-radius, 22px);
   color: #f5f7fc;
   &::before {
     content: '';
@@ -145,6 +145,17 @@
     border: 1px solid color-mix(in oklab, var(--accent, #8ea8f0) 22%, var(--tile-edge));
     box-shadow: 0 2px 6px rgb(0 0 0 / .16);
   }
+}
+
+@utility tile-content {
+  box-sizing: border-box;
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--tile-radius, 22px);
+  padding: 0;
+  overflow: clip;
+  color: #f5f7fc;
+  background: var(--tile-surface, #14161b);
 }
 
 [data-empty-cell] {

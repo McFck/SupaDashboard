@@ -2,14 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import { get } from 'svelte/store';
 import { actions, install, type ActionContext } from './registry';
-import { settings, serializeSettings } from './settings.svelte';
+import { settings, serializeSettings, type Page } from './settings.svelte';
 import { captureTrigger } from './scenario-runner';
 import { acceptRuntimeSnapshot, AutomationRuntime, bootRuntime, runtimeView, stopRuntime } from './runtime.svelte';
 import type { ControlConfig } from './controls';
 import type { Trigger } from './scenario';
 
 const priorSettings = structuredClone(settings);
-const page = (id: string) => ({ ...structuredClone(priorSettings.deck.pages[0]), id, name: id, items: [] });
+const page = (id: string): Page => ({ ...structuredClone(priorSettings.deck.pages[0]), id, name: id, items: [] });
 const control = (): ControlConfig => ({ id: 'runtime-test', name: 'Test', type: 'button', variants: [{ id: 'off', label: 'Off' }],
   scenario: { triggers: { press: { steps: [{ id: 'run', kind: 'action', action: { id: 'test.action' } }] },
     release: { steps: [{ id: 'release', kind: 'action', action: { id: 'test.release' } }] } }, events: [] } });
@@ -48,6 +48,34 @@ describe('automation runtime', () => {
     runtime.setState(config.id, 'b');
     expect(settings.variants[config.id]).toBe(1);
     expect(() => runtime!.setState(config.id, 'missing')).toThrow();
+  });
+
+  it('routes owner-only media commands by global control id and resets after source edits', async () => {
+    const config = { ...control(), type: 'media', options: { sources: [
+      { kind: 'url', value: 'https://example.test/one.png' },
+      { kind: 'url', value: 'https://example.test/two.png' },
+    ], loop: false } };
+    const pageA = page('page-1'), pageB = page('page-2');
+    pageB.items.push({ id: 'media-item', control: config.id, x: 0, y: 0, w: 2, h: 2 });
+    settings.deck.pages = [pageA, pageB];
+    settings.deck.activePage = pageA.id;
+    settings.controls = [config];
+    runtime = new AutomationRuntime();
+    runtime.reconcile(settings.controls);
+    const saved = serializeSettings();
+
+    expect(runtime.contentCommand(config.id, 'next')).toBe(true);
+    expect(get(runtime.snapshots).content[config.id]).toEqual({ slide: 1, reload: 0 });
+    expect(runtime.contentCommand(config.id, 'next')).toBe(false);
+    expect(serializeSettings()).toBe(saved);
+
+    config.options.sources = [{ kind: 'url', value: 'https://example.test/replaced.png' }];
+    runtime.reconcile(settings.controls);
+    expect(get(runtime.snapshots).content[config.id]).toEqual({ slide: 0, reload: 0 });
+
+    await runtime.dispose();
+    runtime = new AutomationRuntime({ owner: false });
+    expect(() => runtime!.contentCommand(config.id, 'next')).toThrow('Content runtime is unavailable');
   });
 
   it('dispatches one configured pull action and keeps an unbound pull quiet', async () => {

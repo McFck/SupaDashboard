@@ -41,12 +41,14 @@
   let selectedKey = $state('trigger:press');
   let selectedState = $state('*');
   const editorId = $props.id();
-  const tabs = ['scenario', 'views', 'binding', 'variables'] as const;
-  let selectedTab = $state<typeof tabs[number]>('scenario');
+  type Tab = 'scenario' | 'views' | 'binding' | 'variables';
+  let selectedTab = $state<Tab>('scenario');
   let pickerKey = $state<string | null>(null);
   let manualFallbackStateId = '';
   let opener = $state<HTMLElement | null>(null);
   const control = $derived(controlById(controlId));
+  const contentControl = $derived(control?.type === 'media' || control?.type === 'web');
+  const tabs = $derived.by((): Tab[] => contentControl ? ['scenario', 'variables'] : ['scenario', 'views', 'binding', 'variables']);
   const eventDefinitions = $derived(registeredEvents(Object.values($runtimeView.variables.records)));
   const previewPlacement = $derived(placementById(settings.deck.pages, itemId));
   const previewItem = $derived(previewPlacement?.item);
@@ -251,7 +253,7 @@
   function keydown(event: KeyboardEvent) {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') event.stopPropagation();
   }
-  function selectTab(tab: typeof tabs[number]) { selectedTab = tab; pickerKey = null; }
+  function selectTab(tab: Tab) { selectedTab = tab; pickerKey = null; }
   function tabKeydown(event: KeyboardEvent) {
     const index = tabs.indexOf(selectedTab);
     const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length
@@ -315,7 +317,7 @@
     </Dialog.Header>
 
     {#if draft && control}
-      <div class="grid min-h-0 min-w-0 flex-1 grid-cols-[176px_minmax(0,1fr)_240px] max-[900px]:grid-cols-[144px_minmax(0,1fr)]">
+      <div class="grid min-h-0 min-w-0 flex-1 {contentControl ? 'grid-cols-[176px_minmax(0,1fr)]' : 'grid-cols-[176px_minmax(0,1fr)_240px]'} max-[900px]:grid-cols-[144px_minmax(0,1fr)]">
         <nav aria-label="Scenario triggers" class="flex min-h-0 min-w-0 flex-col gap-2 overflow-y-auto border-r p-3 [scrollbar-gutter:stable]">
           {#each TRIGGERS as trigger (trigger)}
             {@const label = ({ press: 'Press', release: 'Release', longPress: 'Long press', longPressRelease: 'Long press release', doubleTap: 'Double tap',
@@ -436,6 +438,7 @@
           </div>
         </main>
 
+        {#if !contentControl}
         <aside class="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto border-l p-4 [scrollbar-gutter:stable] max-[900px]:hidden">
           <h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">States</h2>
           {#each draft.variants as variant, index (variant.id ?? index)}
@@ -448,6 +451,7 @@
             </div>
           {/each}
         </aside>
+        {/if}
       </div>
     {/if}
 

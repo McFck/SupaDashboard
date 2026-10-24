@@ -160,4 +160,17 @@ describe('settings migration', () => {
     expect(migrate({ ...selected, pageRotation: { intervalSeconds: 3600 } }).pageRotation.intervalSeconds).toBe(3600);
     expect(migrate({ ...selected, pageRotation: { intervalSeconds: 3601 } }).pageRotation.intervalSeconds).toBe(0);
   });
+
+  it('preserves media options through v5 migration and serialization', () => {
+    const options = { sources: [{ kind: 'url', value: 'https://example.test/a.gif' }], fit: 'contain',
+      interval: 12, loop: false, muted: false, futureOption: 'kept' };
+    const saved = { ...structuredClone(DEFAULTS), controls: [{ id: 'media-a', name: 'Gallery', type: 'media',
+      variants: [{ id: 'state-1', label: '' }], options }],
+      deck: { pages: [{ ...structuredClone(DEFAULTS.deck.pages[0]), items: [
+        { id: 'media-item', control: 'media-a', x: 0, y: 0, w: 2, h: 2 },
+      ] }], activePage: 'page-1' } };
+    const migrated = migrate(saved);
+    expect(migrated.controls[0].options).toEqual(options);
+    expect(JSON.parse(serializeSettings(migrated)).controls[0].options).toEqual(options);
+  });
 });
