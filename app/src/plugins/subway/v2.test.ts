@@ -85,8 +85,8 @@ describe('Subway v2 content and composition', () => {
     scene.dispose?.();
   });
 
-  it.each([['to-kita-senju', 'H13', 'H14', -30], ['to-naka-meguro', 'H14', 'H13', 30]])(
-    'paints Hibiya physical stop order and arrow toward %s', (direction, station, next, arrowDelta) => {
+  it.each([['to-kita-senju', 'H13', 'H14', 1], ['to-naka-meguro', 'H14', 'H13', -1]])(
+    'paints Hibiya travel order and a cursor between the current and next stops toward %s', (direction, station, next, delta) => {
       const texts: string[] = [], path: number[][] = [];
       const target = { font: '', measureText: (text: string) => ({ width: text.length * 20 }), createLinearGradient: () => ({ addColorStop() {} }),
         fillText: (text: string) => texts.push(text), moveTo: (x: number,y: number) => path.push([x,y]),
@@ -97,10 +97,13 @@ describe('Subway v2 content and composition', () => {
         snapshot:{...snapshot,line:'hibiya',direction:String(direction),station:String(station),next:String(next)},config:{displayLanguages:'ja-en'},visibleElapsed:0}});
       const codes=texts.filter(t=>/^H-\d/.test(t));
       expect(codes).toHaveLength(16);
-      expect(codes).toEqual([...codes].sort((a,b)=>Number(b.slice(2))-Number(a.slice(2))));
-      const arrow=path.findIndex((point,i)=>point[1]===480 && path[i+1]?.[1]===508);
+      expect(codes).toEqual([...codes].sort((a,b)=>Number(delta)*(Number(a.slice(2))-Number(b.slice(2)))));
+      const currentIndex = codes.indexOf(String(station).replace('H','H-'));
+      expect(codes[currentIndex + 1]).toBe(String(next).replace('H','H-'));
+      const arrow=path.findIndex((point,i)=>point[1]===484 && path[i+1]?.[1]===514);
       expect(arrow).toBeGreaterThanOrEqual(0);
-      expect(path[arrow+1][0]-path[arrow][0]).toBe(arrowDelta);
+      expect(path[arrow+1][0]-path[arrow][0]).toBe(32);
+      expect(path[arrow][0]).toBe(150 + 140 * (currentIndex % 8) + 70 - 28);
       scene.dispose?.();
     });
 });

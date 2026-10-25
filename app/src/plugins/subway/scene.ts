@@ -49,7 +49,7 @@ export const createSubwayScene: SkinSceneFactory<SubwaySceneData | undefined> = 
         return yamanote.draw(ctx, viewport.width, viewport.height, model, time);
       } else if (data.line.id === 'hibiya') {
         const pair = scheduleHibiyaPair(data.snapshot, { line: data.line, languages, manualView: screenView }, data.visibleElapsed);
-        hibiya.draw(ctx, viewport.width, viewport.height, pair);
+        return hibiya.draw(ctx, viewport.width, viewport.height, pair, time);
       } else if (data.line.id === 'sakaisuji') {
         const model = scheduleScreen(data.snapshot, { line: data.line, languages, manualView: screenView }, data.visibleElapsed);
         sakaisuji.draw(ctx, viewport.width, viewport.height, model);

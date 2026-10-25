@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines, stepStation } from '../lines';
 import type { RunSnapshot } from '../run';
-import { scheduleHibiyaPair, HIBIYA_LCD_HEIGHT, HIBIYA_LCD_WIDTH, HIBIYA_MULLION_WIDTH,
+import { createHibiyaRenderer, hibiyaLanguageFrame, HIBIYA_FLIP_MS, scheduleHibiyaPair, HIBIYA_LCD_HEIGHT, HIBIYA_LCD_WIDTH, HIBIYA_MULLION_WIDTH,
   HIBIYA_PANEL_HEIGHT, HIBIYA_PANEL_WIDTH, hibiyaPanelStations, hibiyaRouteWindow } from './hibiya';
 
 const lineFiles = import.meta.glob('../../../../../assets/lines/*/line.json', { eager: true, import: 'default' }) as Record<string, unknown>;
@@ -27,18 +27,85 @@ describe('Tokyo Metro 13000 LCD pair', () => {
     expect([HIBIYA_PANEL_WIDTH, HIBIYA_PANEL_HEIGHT, HIBIYA_MULLION_WIDTH]).toEqual([1280, 720, 32]);
   });
 
-  it('keeps both panels on one page, run snapshot and six-second locale clock', () => {
-    const config = { line: hibiya, languages: ['ja', 'en', 'zh', 'ko'] };
-    const before = scheduleHibiyaPair(snapshot(), config, 5_999);
+  it('coordinates the English/Japanese pair on the documented 4/9/14 second flip clock', () => {
+    const config = { line: hibiya, languages: ['ja', 'en'] };
+    const before = scheduleHibiyaPair(snapshot(), config, 3_999);
     expect([before.left.page, before.right.page]).toEqual(['broad', 'broad']);
-    expect([before.left.language, before.right.language]).toEqual(['ja', 'en']);
+    expect([before.left.language, before.right.language]).toEqual(['en', 'ja']);
+    expect(before.left.languages).toEqual(['ja', 'kana', 'en']);
+    expect(before.left.languageDeadline).toBe(4_000);
     expect(before.left.pageDeadline).toBe(before.right.pageDeadline);
     expect(before.left.snapshot.progress).toBe(before.right.snapshot.progress);
 
-    const after = scheduleHibiyaPair(snapshot(), config, 6_000);
-    expect([after.left.language, after.right.language]).toEqual(['en', 'zh']);
+    const after = scheduleHibiyaPair(snapshot(), config, 4_000);
+    expect([after.left.language, after.right.language]).toEqual(['ja', 'kana']);
+    expect(after.left.languageDeadline).toBe(4_700);
+    expect(scheduleHibiyaPair(snapshot(), config, 4_700).left.languageDeadline).toBe(9_000);
+    expect(scheduleHibiyaPair(snapshot(), config, 9_000).left.language).toBe('kana');
+    expect(scheduleHibiyaPair(snapshot(), config, 14_000).left.language).toBe('en');
+    expect(scheduleHibiyaPair(snapshot(), config, 19_000).left.language).toBe('ja');
     const oneLanguage = scheduleHibiyaPair(snapshot(), { line: hibiya, languages: ['ja'] }, 6_000);
     expect(oneLanguage.left.language).toBe(oneLanguage.right.language);
+    expect(oneLanguage.left.languageDeadline).toBeNull();
+  });
+
+  it.each([4_000, 9_000, 14_000])('runs a continuous 700ms flip at %dms without a boundary jump', start => {
+    const languages = ['ja', 'kana', 'en'] as const;
+    const before = hibiyaLanguageFrame(languages, start - 1);
+    const beginning = hibiyaLanguageFrame(languages, start);
+    const middle = hibiyaLanguageFrame(languages, start + 350);
+    const end = hibiyaLanguageFrame(languages, start + HIBIYA_FLIP_MS);
+    expect(beginning.from).toBe(before.to);
+    expect(beginning.progress).toBe(0);
+    expect(middle.progress).toBe(.5);
+    expect(middle.animating).toBe(true);
+    expect(end.progress).toBe(1);
+    expect(end.to).toBe(beginning.to);
+    expect(end.animating).toBe(false);
+  });
+
+  it('matches the H06..H21 reference window for next Ginza, with eight stops per panel', () => {
+    const model = scheduleHibiyaPair(snapshot('H08'), { line: hibiya }, 0).left;
+    const route = hibiyaRouteWindow(model);
+    expect(route[0].code).toBe('H06');
+    expect(route[3].code).toBe('H09');
+    expect(hibiyaPanelStations(route, 0).at(-1)?.code).toBe('H13');
+    expect(hibiyaPanelStations(route, 1)[0].code).toBe('H14');
+    expect(route.at(-1)?.code).toBe('H21');
+  });
+
+  it('keeps frames coming between language triggers and passes the visible clock through animation', () => {
+    const text: string[] = [], scales: number[][] = [];
+    const target = { measureText: (value: string) => ({ width: value.length * 20 }),
+      createLinearGradient: () => ({ addColorStop() {} }), fillText: (value: string) => text.push(value),
+      scale: (...values: number[]) => scales.push(values) };
+    const ctx = new Proxy(target, { get: (object, key) => key in object ? object[key as keyof typeof object] : () => {} }) as unknown as CanvasRenderingContext2D;
+    const renderer = createHibiyaRenderer();
+    const pair = scheduleHibiyaPair(snapshot('H08'), { line: hibiya, manualView: 'map' }, 0);
+    expect(renderer.draw(ctx, 2592, 720, pair, 100)).toBe(true);
+    text.length = 0;
+    expect(renderer.draw(ctx, 2592, 720, pair, 4_450)).toBe(true);
+    expect(scales).toContainEqual([1, .5]);
+    expect(text).toContain('Ginza');
+    expect(text).toContain('銀座');
+    renderer.dispose();
+    expect(renderer.cacheSize).toBe(0);
+  });
+
+  it.each([null, 'this side', 'opposite side', 'both sides'] as const)('keeps %s door guidance consistent with the indicated side', sideLabel => {
+    const text: string[] = [], arrowScales: number[] = [];
+    const target = { measureText: (value: string) => ({ width: value.length * 20 }),
+      createLinearGradient: () => ({ addColorStop() {} }), fillText: (value: string) => text.push(value),
+      scale: (x: number, y: number) => { if (y === 1 && Math.abs(x) === 1) arrowScales.push(x); } };
+    const ctx = new Proxy(target, { get: (object, key) => key in object ? object[key as keyof typeof object] : () => {} }) as unknown as CanvasRenderingContext2D;
+    const base = scheduleHibiyaPair({ ...snapshot('H08'), state: 'approaching' }, { line: hibiya, languages: ['ja'] }, 0);
+    const pair = { ...base, right: { ...base.right, sideLabel } };
+    const renderer = createHibiyaRenderer(); renderer.draw(ctx, 2592, 720, pair);
+    expect(arrowScales).toEqual(sideLabel === 'this side' || sideLabel === 'both sides' ? [1, 1, -1] : [1]);
+    expect(text.some(value => value.includes(sideLabel === 'opposite side' ? 'Doors on the opposite side'
+      : sideLabel === 'this side' ? 'Doors on this side' : sideLabel === 'both sides' ? 'Doors on both sides' : 'Please take care around the doors'))).toBe(true);
+    expect(text).not.toContain('出口');
+    renderer.dispose();
   });
 
   it('windows route stops in order without duplicate seam stations or invented terminal stops', () => {
@@ -57,7 +124,7 @@ describe('Tokyo Metro 13000 LCD pair', () => {
         expect(new Set(codes).size).toBe(codes.length);
         const ordered = direction.delta > 0 ? [...hibiya.stations] : [...hibiya.stations].reverse();
         const currentIndex = ordered.findIndex(item => item.code === station.code);
-        const start = Math.max(0, Math.min(currentIndex - 7, ordered.length - 16));
+        const start = Math.max(0, Math.min(currentIndex - 2, ordered.length - 16));
         expect(codes).toEqual(ordered.slice(start, start + 16).map(item => item.code));
         expect(model.route.at(-1)?.code).toBe(direction.delta > 0 ? hibiya.stations.at(-1)?.code : hibiya.stations[0].code);
       }
