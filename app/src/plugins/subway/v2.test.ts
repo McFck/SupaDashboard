@@ -73,7 +73,7 @@ describe('Subway v2 content and composition', () => {
     expect(transferColor('S17')).toBe('#d3759f');
   });
 
-  it('paints reverse geometry and the live clock through the real scene renderer', () => {
+  it('paints the live clock through the real scene renderer', () => {
     const texts: string[] = [], scales: number[][] = [];
     const target = { font: '', measureText: (text: string) => ({ width: text.length * 20 }),
       fillText: (text: string) => texts.push(text), scale: (...args: number[]) => scales.push(args) };
@@ -81,7 +81,7 @@ describe('Subway v2 content and composition', () => {
     const scene = createSubwayScene();
     scene.draw({ ctx, width: 1280, height: 720, mode: 'frozen', time: 0, view: 'display',
       data: { ...data, visibleElapsed: 8_000, snapshot: { ...snapshot, direction: 'outer', next: 'JY01' } } });
-    expect(scales).toContainEqual([-1, 1]); expect(texts).toContain('09:41');
+    expect(texts).toContain('09:41');
     scene.dispose?.();
   });
 

@@ -1,5 +1,6 @@
-import { stationMinutes, type ScreenSchedule } from '../screens';
-import { CanvasLayerCache, drawBadge, drawFacilitySymbol, drawFittedText, drawStationName, E235_COLORS as C, JAPANESE_FONT } from './shared';
+import type { ScreenSchedule } from '../screens';
+import { transferSigns, type TransferSign } from './transfers';
+import { CanvasLayerCache, drawBadge, drawFittedText, drawStationName, E235_COLORS as C, JAPANESE_FONT } from './shared';
 
 export const YAMANOTE_LCD_WIDTH = 1280;
 export const YAMANOTE_LCD_HEIGHT = 720;
@@ -26,134 +27,268 @@ export function yamanoteBroadNodePositions(count: number, directionDelta: 1 | -1
   });
 }
 
+const MAJOR = new Set(['JY01', 'JY05', 'JY13', 'JY17', 'JY20', 'JY25']);
+const HEADER_BG = '#26292a';
+const BODY_BG = '#e9ebea';
+const YELLOW = '#f5c518';
+const TRAIN_RED = '#c8202f';
+
+/** The station the header and map point at: the stop while standing, otherwise the next stop. */
+function targetStation(model: ScreenSchedule) {
+  return ['stopped', 'arriving'].includes(model.snapshot.state) ? model.station : model.nextStation ?? model.station;
+}
+
+/** E235 numbering badge: green frame, white face, line code over number; optional three-letter code tab above. */
+function drawNumbering(ctx: CanvasRenderingContext2D, code: string, abbr: string | undefined, x: number, y: number, size: number) {
+  if (abbr) {
+    ctx.fillStyle = '#3a3e40'; ctx.beginPath(); ctx.roundRect(x - 6, y - size * .34, size + 12, size * 1.4, 10); ctx.fill();
+    drawFittedText(ctx, abbr, x + size / 2, y - size * .17, size, size * .26, 12, C.white, 700, 'Arial, sans-serif', 'center');
+  }
+  ctx.fillStyle = C.route; ctx.beginPath(); ctx.roundRect(x, y, size, size, size * .1); ctx.fill();
+  ctx.fillStyle = C.white; ctx.beginPath(); ctx.roundRect(x + size * .12, y + size * .12, size * .76, size * .76, size * .05); ctx.fill();
+  const parts = code.match(/^([A-Z]+)(\d+)$/);
+  drawFittedText(ctx, parts?.[1] ?? code, x + size / 2, y + size * .37, size * .6, size * .3, 10, '#1d2124', 700, 'Arial, sans-serif', 'center');
+  if (parts) drawFittedText(ctx, parts[2], x + size / 2, y + size * .65, size * .66, size * .36, 10, '#1d2124', 700, 'Arial, sans-serif', 'center');
+}
+
 function header(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
   const ja = model.language !== 'en';
-  const current = ['stopped', 'arriving'].includes(model.snapshot.state) ? model.station : model.nextStation ?? model.station;
+  const current = targetStation(model);
   const direction = model.line.directions.find(item => item.id === model.snapshot.direction);
-  const landmarks = model.route.slice(1).filter(s => ['JY07', 'JY13', 'JY17', 'JY20', 'JY25'].includes(s.code)).slice(0, 2);
-  const directionText = landmarks.map(s => s.names[model.language] ?? s.names.ja).join(model.language === 'en' ? ' / ' : '・')
-    || direction?.names[model.language] || direction?.names.ja || '';
-  ctx.fillStyle = C.header; ctx.fillRect(0, 0, 1280, 216);
-  ctx.fillStyle = C.route; ctx.fillRect(346, 0, 22, 216);
-  drawFittedText(ctx, directionText, 24, 132, 298, ja ? 45 : 39, 26, C.white, 700, JAPANESE_FONT);
-  drawFittedText(ctx, ja ? '方面' : 'Bound for', 318, 184, 270, 28, 22, C.white, 500, JAPANESE_FONT, 'right');
+  const landmarks = model.route.slice(1).filter(s => MAJOR.has(s.code) && s.code !== current.code).slice(0, 2);
+  const termini = landmarks.map(s => s.names[model.language] ?? s.names.ja);
+  ctx.fillStyle = HEADER_BG; ctx.fillRect(0, 0, 1280, 216);
+  ctx.fillStyle = C.route; ctx.fillRect(318, 0, 42, 216);
+  if (ja) {
+    drawFittedText(ctx, termini.join('・') || direction?.names.ja || '', 22, 118, 286, 50, 26, C.white, 700, JAPANESE_FONT);
+    drawFittedText(ctx, '方面', 300, 174, 120, 26, 18, C.white, 500, JAPANESE_FONT, 'right');
+  } else {
+    drawFittedText(ctx, 'Bound for', 22, 62, 280, 25, 18, '#d6dadc', 500, 'Arial, sans-serif');
+    const lines = termini.length > 1 ? [termini[0] + '&', termini[1]] : [termini[0] ?? direction?.names.en ?? ''];
+    lines.forEach((text, i) => drawFittedText(ctx, text, 22, 108 + i * 46, 286, 40, 22, C.white, 700, 'Arial, sans-serif'));
+  }
   const state = model.snapshot.state;
   const caption = state === 'stopped' || state === 'arriving' ? (ja ? 'ただいま' : 'Now stopping at')
-    : state === 'approaching' ? (ja ? 'まもなく' : 'Arriving at') : (ja ? '次は' : 'Next');
-  drawFittedText(ctx, caption, 390, 36, 540, 31, 24, C.white, 600);
-  drawFittedText(ctx, model.clock, 1126, 34, 150, 30, 24, C.white, 500, 'Arial, sans-serif', 'right');
-  drawFittedText(ctx, String(model.currentCar), 1230, 38, 70, 44, 32, C.white, 500, 'Arial, sans-serif', 'center');
-  drawFittedText(ctx, ja ? '号車' : 'Car', 1230, 78, 70, 20, 16, C.white, 500, JAPANESE_FONT, 'center');
-  drawBadge(ctx, current.code, 390, 94, 104, C.route);
-  drawStationName(ctx, current, model.language, 520, 140, 680, ja ? 126 : 104, 54, C.white);
+    : state === 'approaching' ? (ja ? 'まもなく' : 'Arriving at') : (ja ? 'つぎは' : 'Next');
+  drawFittedText(ctx, caption, 384, 34, 560, 32, 22, C.white, 700, ja ? JAPANESE_FONT : 'Arial, sans-serif');
+  drawFittedText(ctx, model.clock, 1130, 38, 160, 36, 24, C.white, 500, 'Arial, sans-serif', 'right');
+  if (ja) {
+    drawFittedText(ctx, String(model.currentCar), 1236, 30, 70, 40, 28, C.white, 500, 'Arial, sans-serif', 'center');
+    drawFittedText(ctx, '号車', 1236, 62, 70, 17, 13, C.white, 500, JAPANESE_FONT, 'center');
+  } else {
+    drawFittedText(ctx, 'Car No.', 1212, 30, 80, 15, 12, '#d6dadc', 500, 'Arial, sans-serif', 'right');
+    drawFittedText(ctx, String(model.currentCar), 1240, 40, 60, 46, 30, C.white, 500, 'Arial, sans-serif', 'center');
+  }
+  drawNumbering(ctx, current.code, ja ? undefined : current.abbr, 392, ja ? 84 : 98, 104);
+  drawStationName(ctx, current, model.language, 528, ja ? 146 : 136, 1280 - 528 - 28, ja ? 120 : 132, 56, C.white);
 }
 
-function vertical(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, height: number, size: number) {
-  const step = Math.min(size, height / Math.max(1, [...text].length));
-  [...text].forEach((char, i) => drawFittedText(ctx, char, x, y + step * (i + .5), 60, step, 12, C.ink, 600, JAPANESE_FONT, 'center'));
+function vertical(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, height: number, size: number, weight = 600, alignBottom = false) {
+  // Vertical writing turns the long-vowel mark; names longer than five characters wrap into a second column.
+  const chars = [...text.replace(/ー/g, '丨')];
+  const columns = chars.length > 5 ? [chars.slice(0, Math.min(2, Math.ceil(chars.length / 2))), chars.slice(Math.min(2, Math.ceil(chars.length / 2)))] : [chars];
+  const longest = Math.max(...columns.map(column => column.length));
+  const step = Math.min(columns.length > 1 ? size * .78 : size, height / Math.max(1, longest));
+  columns.forEach((column, c) => {
+    const cx = columns.length > 1 ? x + (c ? -step * .55 : step * .55) : x;
+    const start = alignBottom ? y + height - step * column.length : y;
+    column.forEach((char, i) => drawFittedText(ctx, char, cx, start + step * (i + .5), 60, step, 10, '#1d2124', weight, JAPANESE_FONT, 'center'));
+  });
 }
+
+/** Fixed E235 loop map: Shin-Ōkubo (JY16) to Kanda (JY02) along the top, Shinjuku (JY17) to Tokyo (JY01) along the bottom. */
+export function yamanoteLoopPosition(code: string) {
+  const n = Number(code.slice(2));
+  const step = 1000 / 14;
+  if (n >= 2 && n <= 16) return { x: 140 + (16 - n) * step, y: 414, top: true };
+  return { x: 140 + (n === 1 ? 14 : n - 17) * step, y: 532, top: false };
+}
+
+/** Minutes shown on the map: about two minutes per stop, only for stops up to half an hour ahead. */
+export function loopMinutes(index: number) { return index >= 1 && index * 2 <= 30 ? index * 2 : null; }
 
 function broad(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
-  const delta = model.line.directions.find(d => d.id === model.snapshot.direction)?.delta ?? 1;
-  const points = yamanoteBroadNodePositions(model.route.length, delta);
-  ctx.strokeStyle = C.route; ctx.lineWidth = 48; ctx.lineJoin = 'round';
-  ctx.beginPath(); ctx.roundRect(84, 418, 1112, 112, 56); ctx.stroke();
-  model.route.forEach((station, i) => {
-    const point = points[i], top = i < Math.ceil(points.length / 2);
-    const current = station.code === model.snapshot.station;
-    ctx.fillStyle = current ? C.currentCar : C.white;
-    if (current) ctx.fillRect(point.x - 15, point.y - 15, 30, 30);
-    else {
-      ctx.beginPath(); ctx.arc(point.x, point.y, 17, 0, Math.PI * 2); ctx.fill();
-      drawFittedText(ctx, String(stationMinutes(model, station.code) ?? ''), point.x, point.y, 32, 21, 15, C.ink, 700, 'Arial, sans-serif', 'center');
+  const ja = model.language !== 'en';
+  ctx.strokeStyle = C.route; ctx.lineWidth = 54;
+  ctx.beginPath(); ctx.roundRect(88, 414, 1104, 118, 59); ctx.stroke();
+  const target = targetStation(model).code;
+  const ahead = model.route.slice(model.route[0]?.code === target ? 0 : 1);
+  const minuteOf = new Map(ahead.map((station, i) => [station.code, loopMinutes(i + 1)] as const));
+  let last: { x: number; y: number; minutes: number } | null = null;
+  for (const station of model.line.stations) {
+    const p = yamanoteLoopPosition(station.code);
+    const minutes = minuteOf.get(station.code) ?? null;
+    const isTarget = station.code === target;
+    if (minutes != null || isTarget) {
+      ctx.fillStyle = isTarget ? YELLOW : C.white; ctx.beginPath(); ctx.arc(p.x, p.y, 19, 0, Math.PI * 2); ctx.fill();
+      drawFittedText(ctx, String(minutes ?? ''), p.x, p.y + 1, 32, 22, 14, '#1d2124', 700, 'Arial, sans-serif', 'center');
+      if (minutes != null && (!last || minutes > last.minutes)) last = { x: p.x, y: p.y, minutes };
+    } else {
+      ctx.fillStyle = C.white; ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.fill();
     }
     const text = station.names[model.language] ?? station.names.ja ?? station.code;
-    if (model.language === 'en') {
-      ctx.save(); ctx.translate(point.x, top ? 391 : 562); ctx.rotate(-Math.PI / 3);
-      drawFittedText(ctx, text, 0, 0, 156, 20, 15, C.ink, 600, 'Arial, sans-serif', top ? 'left' : 'right'); ctx.restore();
-    } else vertical(ctx, text, point.x, top ? 232 : 564, top ? 152 : 110, 24);
-  });
-  drawFittedText(ctx, model.language === 'en' ? 'Transfer and waiting times are not included.' : 'のりかえ・待ち時間は含まれません。電車により多少時間が異なります。', 28, 704, 1224, 18, 14, C.ink, 500);
+    const weight = MAJOR.has(station.code) ? 700 : 500;
+    if (ja) vertical(ctx, text, p.x, p.top ? 236 : 566, p.top ? 146 : 132, 25, weight, p.top);
+    else {
+      ctx.save(); ctx.translate(p.x - 4, p.top ? p.y - 34 : p.y + 34); ctx.rotate(-Math.PI / 3);
+      drawFittedText(ctx, text, 0, 0, 150, 20, 13, '#1d2124', weight, 'Arial, sans-serif', p.top ? 'left' : 'right'); ctx.restore();
+    }
+  }
+  if (last) drawFittedText(ctx, ja ? '(分)' : '(min)', last.x + 22, last.y + 10, 44, 12, 10, '#1d2124', 600, ja ? JAPANESE_FONT : 'Arial, sans-serif');
+  const moving = !['stopped', 'arriving'].includes(model.snapshot.state);
+  const from = yamanoteLoopPosition(model.snapshot.station), to = yamanoteLoopPosition(target);
+  if (moving && from.y === to.y && from.x !== to.x) {
+    const dir = Math.sign(to.x - from.x), x = (from.x + to.x) / 2, y = to.y;
+    // A single thick chevron pointing the way the train runs, centred between the two stops.
+    ctx.fillStyle = TRAIN_RED; ctx.beginPath();
+    ctx.moveTo(x - dir * 4, y - 16); ctx.lineTo(x + dir * 10, y); ctx.lineTo(x - dir * 4, y + 16);
+    ctx.lineTo(x - dir * 13, y + 16); ctx.lineTo(x + dir * 1, y); ctx.lineTo(x - dir * 13, y - 16); ctx.closePath();
+    ctx.fill();
+  }
+  drawFittedText(ctx, ja ? 'のりかえ、待ち時間は含まれません。電車により多少時間が異なります。' : 'Transfer and waiting times are not included. Times may differ by train.',
+    28, 704, 1224, 16, 12, '#1d2124', 500, ja ? JAPANESE_FONT : 'Arial, sans-serif');
+}
+
+/** Point on the "Now stopping" arc, which rises from the bottom right toward the top left. */
+function arcPoint(t: number) {
+  const p = [[900, 770], [880, 460], [600, 280], [120, 214]];
+  const u = 1 - t;
+  return { x: u ** 3 * p[0][0] + 3 * u * u * t * p[1][0] + 3 * u * t * t * p[2][0] + t ** 3 * p[3][0],
+    y: u ** 3 * p[0][1] + 3 * u * u * t * p[1][1] + 3 * u * t * t * p[2][1] + t ** 3 * p[3][1] };
 }
 
 function nearby(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
-  const reverse = model.line.directions.find(d => d.id === model.snapshot.direction)?.delta === -1;
-  ctx.save(); if (reverse) { ctx.translate(1280, 0); ctx.scale(-1, 1); }
-  ctx.strokeStyle = C.route; ctx.lineWidth = 106;
-  ctx.beginPath(); ctx.moveTo(450, 758); ctx.bezierCurveTo(566, 426, 820, 284, 1300, 244); ctx.stroke();
+  const ja = model.language !== 'en';
+  ctx.strokeStyle = C.route; ctx.lineWidth = 92; ctx.lineCap = 'butt';
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 216, 1280, 504); ctx.clip();
+  ctx.beginPath(); ctx.moveTo(900, 770); ctx.bezierCurveTo(880, 460, 600, 280, 120, 214); ctx.stroke();
   ctx.restore();
-  const positions = [{ x: 498, y: 634 }, { x: 622, y: 477 }, { x: 796, y: 361 }, { x: 960, y: 310 }, { x: 1160, y: 278 }];
-  model.route.slice(1, 6).forEach((station, i) => {
-    const original = positions[i], p = { ...original, x: reverse ? 1280 - original.x : original.x }, size = 62 - i * 8;
-    ctx.fillStyle = C.white; ctx.beginPath(); ctx.arc(p.x, p.y, 31 - i * 3, 0, Math.PI * 2); ctx.fill();
-    drawFittedText(ctx, String(stationMinutes(model, station.code) ?? ''), p.x, p.y, 54, 36 - i * 3, 18, C.ink, 700, 'Arial, sans-serif', 'center');
-    drawStationName(ctx, station, model.language, p.x + (reverse ? 72 : -72), Math.max(256, p.y - 30), 470 - i * 36, size, 22, C.ink, reverse ? 'left' : 'right');
-    drawBadge(ctx, station.code, p.x + (reverse ? 32 : -66), p.y - 9, 34, C.route);
+  const stopped = ['stopped', 'arriving'].includes(model.snapshot.state);
+  const stops = model.route.slice(stopped ? 0 : 1, (stopped ? 0 : 1) + 5);
+  const ts = [.12, .34, .52, .68, .82];
+  stops.forEach((station, i) => {
+    const p = arcPoint(ts[i]);
+    if (i === 0) {
+      // Train marker: a red home-plate pointing along the arc, at the current or next stop.
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(-Math.PI / 5);
+      ctx.fillStyle = TRAIN_RED; ctx.strokeStyle = C.white; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(26, -8); ctx.lineTo(26, 24); ctx.lineTo(-26, 24); ctx.lineTo(-26, -8); ctx.closePath();
+      ctx.fill(); ctx.stroke(); ctx.restore();
+    } else {
+      ctx.fillStyle = C.white; ctx.beginPath(); ctx.arc(p.x, p.y, 25, 0, Math.PI * 2); ctx.fill();
+      drawFittedText(ctx, String(loopMinutes(i) ?? ''), p.x, p.y + 1, 40, 28, 16, '#1d2124', 700, 'Arial, sans-serif', 'center');
+      if (i === stops.length - 1) drawFittedText(ctx, ja ? '(分)' : '(min)', p.x + 28, p.y + 14, 44, 13, 10, '#1d2124', 600, ja ? JAPANESE_FONT : 'Arial, sans-serif');
+    }
+    const name = station.names[model.language] ?? station.names.ja ?? station.code;
+    const size = 64 - i * 6;
+    const spaced = ja && [...name].length <= 3 ? [...name].join(' ') : name;
+    drawFittedText(ctx, spaced, p.x + (i === 0 ? 70 : 62), p.y, 1240 - p.x - 70, size, 24, '#1d2124', 700, ja ? JAPANESE_FONT : 'Arial, sans-serif');
   });
-  drawTransfers(ctx, model, reverse ? 40 : 880, 480, 360);
+  drawTransfers(ctx, model, 40, 330, 470);
 }
 
-function doors(ctx: CanvasRenderingContext2D, x: number, y: number, open: boolean) {
-  ctx.fillStyle = '#eef3f7'; ctx.fillRect(x, y, 200, 150);
-  ctx.fillStyle = '#4580a5'; const gap = open ? 50 : 4;
-  ctx.fillRect(x + 8, y + 8, 92 - gap / 2, 134); ctx.fillRect(x + 100 + gap / 2, y + 8, 92 - gap / 2, 134);
-  ctx.fillStyle = '#bdddeb'; ctx.fillRect(x + 18, y + 18, 56, 62); ctx.fillRect(x + 126, y + 18, 56, 62);
-  ctx.fillStyle = '#f5e45b'; ctx.fillRect(x - 12, y + 152, 224, 8);
+/** Door illustration: grey frame, two leaves with tall windows; open leaves slide apart. */
+function doors(ctx: CanvasRenderingContext2D, cx: number, top: number, open: boolean) {
+  const w = 300, h = 300, x = cx - w / 2, gap = open ? 96 : 6;
+  ctx.fillStyle = '#c5cacd'; ctx.fillRect(x - 70, top, w + 140, h);
+  ctx.fillStyle = '#2f3437'; ctx.fillRect(x, top, w, h);
+  ctx.fillStyle = '#6b7276';
+  ctx.fillRect(x + 6 - (open ? gap / 2 : 0), top + 6, w / 2 - 9, h - 6);
+  ctx.fillRect(x + w / 2 + 3 + (open ? gap / 2 : 0), top + 6, w / 2 - 9, h - 6);
+  ctx.save(); ctx.beginPath(); ctx.rect(x, top, w, h); ctx.clip();
+  ctx.fillStyle = '#e9eef2'; ctx.strokeStyle = '#1d2124'; ctx.lineWidth = 3;
+  for (const [wx, shift] of [[x + 26, -1], [x + w / 2 + 22, 1]]) {
+    ctx.beginPath(); ctx.roundRect(wx + (open ? shift * gap / 2 : 0), top + 30, w / 2 - 48, 120, 16); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
 }
 
+function arrow(ctx: CanvasRenderingContext2D, x: number, y: number, dir: 1 | -1) {
+  ctx.fillStyle = '#ee7b30'; ctx.beginPath();
+  ctx.moveTo(x + dir * 70, y); ctx.lineTo(x + dir * 10, y - 56); ctx.lineTo(x + dir * 10, y - 26); ctx.lineTo(x - dir * 60, y - 26);
+  ctx.lineTo(x - dir * 60, y + 26); ctx.lineTo(x + dir * 10, y + 26); ctx.lineTo(x + dir * 10, y + 56); ctx.closePath(); ctx.fill();
+}
+
+/** Door-side page after the Tokyu/JR LCD convention: car strip, a "this side opens" band, the door picture with arrows, a caution strip. */
 function platform(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
-  ctx.fillStyle = '#8a9eb8'; ctx.fillRect(0, 270, 1280, 250);
+  ctx.fillStyle = '#f4f5f5'; ctx.fillRect(0, 216, 1280, 504);
   const order = model.guidanceStation.platformByDirection[model.snapshot.direction]?.carOrder ?? Array.from({ length: 11 }, (_, i) => i + 1);
   order.forEach((car, i) => {
-    const x = 30 + i * 111;
-    ctx.fillStyle = car === model.currentCar ? C.currentCar : '#d6e0e9'; ctx.fillRect(x, 228, 108, 40);
-    drawFittedText(ctx, String(car), x + 54, 248, 102, 29, 20, car === model.currentCar ? C.white : C.ink, 700, 'Arial, sans-serif', 'center');
+    const w = 1220 / order.length, x = 30 + i * w;
+    ctx.fillStyle = car === model.currentCar ? TRAIN_RED : '#dfe3e6'; ctx.fillRect(x + 2, 226, w - 4, 34);
+    drawFittedText(ctx, String(car), x + w / 2, 244, w - 8, 24, 16, car === model.currentCar ? C.white : '#1d2124', 700, 'Arial, sans-serif', 'center');
   });
-  const facilities = model.guidanceStation.platformByDirection[model.snapshot.direction]?.facilities ?? [];
-  facilities.forEach(f => {
-    const x = 40 + (f.relativePosition ?? ((f.car ?? 1) - .5) / 11) * 1200;
-    ctx.fillStyle = C.exit; ctx.fillRect(Math.max(12, x - 110), 304, 220, 44);
-    drawFittedText(ctx, f.label, x, 326, 210, 24, 14, C.ink, 700, JAPANESE_FONT, 'center');
-    ctx.strokeStyle = '#edf2f5'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, 349); ctx.lineTo(x, 480); ctx.stroke();
-    drawFacilitySymbol(ctx, f.kind, x, 410, 68);
-  });
-  ctx.fillStyle = C.doorPanel; ctx.fillRect(0, 520, 1280, 200);
-  const opposite = model.sideLabel === 'opposite side';
-  doors(ctx, 58, 544, !opposite && model.snapshot.doors === 'open');
-  if (opposite) {
-    ctx.fillStyle = '#cf2835'; ctx.beginPath(); ctx.arc(158, 612, 39, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5; ctx.stroke();
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(130, 603, 56, 18);
-  } else if (model.sideLabel) {
-    ctx.fillStyle = C.white;
-    for (const direction of [-1,1]) {
-      const x=158+direction*126;
-      ctx.beginPath(); ctx.moveTo(x+direction*20, 612); ctx.lineTo(x-direction*4, 596); ctx.lineTo(x-direction*4, 628); ctx.closePath(); ctx.fill();
-    }
+  const opposite = model.sideLabel === 'opposite side', closing = model.snapshot.state === 'doorsClosing';
+  const ja = closing ? 'ドアが閉まります' : model.sideLabel === 'both sides' ? '両側のドアが開きます'
+    : model.sideLabel ? (opposite ? '反対側のドアが開きます' : 'こちら側のドアが開きます') : 'ドアにご注意ください';
+  const en = closing ? 'Doors are closing.' : model.sideLabel === 'both sides' ? 'Doors on both sides will open.'
+    : model.sideLabel ? (opposite ? 'Doors on the opposite side will open.' : 'Doors on this side will open.') : 'Please take care around the doors.';
+  ctx.fillStyle = '#e4edf8'; ctx.fillRect(0, 272, 1280, 56);
+  drawFittedText(ctx, ja + ' / ' + en, 640, 300, 1220, 32, 18, '#1b4f9c', 700, JAPANESE_FONT, 'center');
+  const open = !opposite && !closing && model.snapshot.doors === 'open';
+  doors(ctx, 640, 344, open);
+  if (model.sideLabel && !opposite && !closing) { arrow(ctx, 360, 494, -1); arrow(ctx, 920, 494, 1); }
+  ctx.fillStyle = '#f2cf3a'; ctx.fillRect(0, 656, 1280, 64);
+  drawFittedText(ctx, 'ドア引込まれにご注意ください', 30, 688, 760, 30, 18, '#1d2124', 700, JAPANESE_FONT);
+  drawFittedText(ctx, 'Caution', 1250, 688, 300, 30, 18, '#1d2124', 700, 'Arial, sans-serif', 'right');
+}
+
+/** Line symbol as printed on JR East LCDs: JR codes in a coloured frame, subway letters in a coloured disc, private railways as a train glyph. */
+function drawLineSymbol(ctx: CanvasRenderingContext2D, sign: TransferSign, x: number, y: number, size: number) {
+  if (sign.circle) {
+    ctx.fillStyle = sign.color; ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.white; ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size * .34, 0, Math.PI * 2); ctx.fill();
+    drawFittedText(ctx, sign.code, x + size / 2, y + size / 2 + 1, size * .5, size * .46, 8, sign.color, 700, 'Arial, sans-serif', 'center');
+  } else if (sign.train || !sign.code) {
+    ctx.fillStyle = sign.color; ctx.beginPath(); ctx.roundRect(x, y, size, size, size * .12); ctx.fill();
+    ctx.fillStyle = C.white; ctx.beginPath(); ctx.roundRect(x + size * .28, y + size * .16, size * .44, size * .52, size * .1); ctx.fill();
+    ctx.fillStyle = sign.color; ctx.fillRect(x + size * .34, y + size * .24, size * .32, size * .18);
+    ctx.fillStyle = C.white; ctx.fillRect(x + size * .26, y + size * .74, size * .1, size * .12); ctx.fillRect(x + size * .64, y + size * .74, size * .1, size * .12);
+  } else {
+    ctx.fillStyle = C.white; ctx.fillRect(x, y, size, size);
+    ctx.strokeStyle = sign.color; ctx.lineWidth = Math.max(2, size * .09); ctx.strokeRect(x + ctx.lineWidth / 2, y + ctx.lineWidth / 2, size - ctx.lineWidth, size - ctx.lineWidth);
+    drawFittedText(ctx, sign.code, x + size / 2, y + size / 2 + 1, size * .74, size * .5, 8, '#1d2124', 700, 'Arial, sans-serif', 'center');
   }
-  const ja = model.snapshot.state === 'doorsClosing' ? 'ドアが閉まります'
-    : model.sideLabel === 'both sides' ? '両側のドアが開きます' : model.sideLabel ? (opposite ? '反対側のドアが開きます' : 'こちら側のドアが開きます')
-    : model.snapshot.doors === 'open' ? 'ドアが開いています' : 'ドアにご注意ください';
-  const en = model.snapshot.state === 'doorsClosing' ? 'Doors are closing.'
-    : model.sideLabel === 'both sides' ? 'Doors on both sides will open.' : model.sideLabel ? (opposite ? 'Doors on the opposite side will open.' : 'Doors on this side will open.') : 'Please take care around the doors.';
-  drawFittedText(ctx, ja, 322, 594, 906, 51, 32, C.white);
-  drawFittedText(ctx, en, 322, 653, 906, 29, 20, C.white, 600, 'Arial, sans-serif');
 }
 
 function drawTransfers(ctx: CanvasRenderingContext2D, model: ScreenSchedule, x: number, y: number, width: number) {
-  drawFittedText(ctx, model.language === 'en' ? 'Transfer information' : 'お乗り換えのご案内', x, y, width, 30, 18, C.ink);
-  model.transfers.flatMap(text => text.split(/[、,]/).map(part => part.trim()).filter(Boolean)).slice(0, 4).forEach((transfer, i) => {
-    if (isTransferBadge(transfer)) drawBadge(ctx, transfer, x, y + 32 + i * 44, 38, '#8e687e');
-    else drawFittedText(ctx, transfer, x, y + 50 + i * 44, width, 26, 16, C.ink, 600);
+  const signs = transferSigns(model);
+  if (!signs.length) return;
+  const ja = model.language !== 'en';
+  const name = model.transferStation.names[model.language] ?? model.transferStation.names.ja ?? '';
+  drawFittedText(ctx, ja ? name + '駅' : name, x, y, width, 26, 16, '#1d2124', 700, ja ? JAPANESE_FONT : 'Arial, sans-serif');
+  drawFittedText(ctx, ja ? '乗換えのご案内' : 'Transfer information', x, y + 32, width, 24, 14, '#1d2124', 500, ja ? JAPANESE_FONT : 'Arial, sans-serif');
+  const columns = signs.length > 5 ? 2 : 1, colWidth = width / columns, rows = Math.ceil(signs.length / columns);
+  signs.forEach((sign, i) => {
+    const cx = x + Math.floor(i / rows) * colWidth, cy = y + 66 + (i % rows) * 40;
+    drawLineSymbol(ctx, sign, cx, cy, 28);
+    drawFittedText(ctx, ja ? sign.ja : sign.en || sign.ja, cx + 38, cy + 15, colWidth - 46, 22, 12, '#1d2124', 500, ja ? JAPANESE_FONT : 'Arial, sans-serif');
+  });
+}
+
+/** The full "Transfer" page: a grey caption band and a three-column grid of line symbols with Japanese and English names. */
+function transferGrid(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 216, 1280, 504);
+  ctx.fillStyle = '#d5d8da'; ctx.fillRect(0, 216, 1280, 44);
+  drawFittedText(ctx, 'のりかえ案内', 620, 238, 300, 26, 16, '#1d2124', 500, JAPANESE_FONT, 'right');
+  drawFittedText(ctx, 'Transfer', 660, 238, 300, 26, 16, '#1d2124', 500, 'Arial, sans-serif');
+  const signs = transferSigns(model).slice(0, 9);
+  const rows = Math.max(1, Math.ceil(signs.length / 3));
+  const rowHeight = Math.min(140, 430 / rows);
+  signs.forEach((sign, i) => {
+    const x = 90 + (i % 3) * 400, y = 300 + Math.floor(i / 3) * rowHeight;
+    drawLineSymbol(ctx, sign, x, y, 48);
+    drawFittedText(ctx, sign.ja, x + 62, y + 22, 320, 46, 22, '#1d2124', 500, JAPANESE_FONT);
+    drawFittedText(ctx, sign.en, x + 62, y + 66, 320, 25, 14, '#1d2124', 700, 'Arial, sans-serif');
   });
 }
 
 function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
-  ctx.fillStyle = C.body; ctx.fillRect(0, 0, 1280, 720); header(ctx, model);
+  ctx.fillStyle = BODY_BG; ctx.fillRect(0, 0, 1280, 720); header(ctx, model);
   if (model.page === 'platform' || model.page === 'closing') platform(ctx, model);
   else if (model.page === 'broad') broad(ctx, model);
   else if (model.page === 'nearby') nearby(ctx, model);
-  else if (model.page === 'transfers') { nearby(ctx, model); }
+  else if (model.page === 'transfers') transferGrid(ctx, model);
   else {
     ctx.fillStyle = '#eed85b'; ctx.beginPath(); ctx.moveTo(112, 300); ctx.lineTo(210, 480); ctx.lineTo(14, 480); ctx.closePath(); ctx.fill();
     drawFittedText(ctx, '!', 112, 420, 90, 108, 90, C.ink, 700, 'Arial, sans-serif', 'center');
