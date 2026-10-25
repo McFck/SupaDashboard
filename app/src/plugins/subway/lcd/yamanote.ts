@@ -1,5 +1,6 @@
 import type { ScreenSchedule } from '../screens';
-import { transferSigns, type TransferSign } from './transfers';
+import { drawLineSymbol, transferSigns } from './transfers';
+import { drawE235Detailed, drawE235Header, drawE235Overlay, drawE235RouteMap, E235_WIDTH } from './e235';
 import { CanvasLayerCache, drawBadge, drawFittedText, drawStationName, E235_COLORS as C, JAPANESE_FONT } from './shared';
 
 export const YAMANOTE_LCD_WIDTH = 1280;
@@ -229,24 +230,6 @@ function platform(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
   drawFittedText(ctx, 'Caution', 1250, 688, 300, 30, 18, '#1d2124', 700, 'Arial, sans-serif', 'right');
 }
 
-/** Line symbol as printed on JR East LCDs: JR codes in a coloured frame, subway letters in a coloured disc, private railways as a train glyph. */
-function drawLineSymbol(ctx: CanvasRenderingContext2D, sign: TransferSign, x: number, y: number, size: number) {
-  if (sign.circle) {
-    ctx.fillStyle = sign.color; ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = C.white; ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size * .34, 0, Math.PI * 2); ctx.fill();
-    drawFittedText(ctx, sign.code, x + size / 2, y + size / 2 + 1, size * .5, size * .46, 8, sign.color, 700, 'Arial, sans-serif', 'center');
-  } else if (sign.train || !sign.code) {
-    ctx.fillStyle = sign.color; ctx.beginPath(); ctx.roundRect(x, y, size, size, size * .12); ctx.fill();
-    ctx.fillStyle = C.white; ctx.beginPath(); ctx.roundRect(x + size * .28, y + size * .16, size * .44, size * .52, size * .1); ctx.fill();
-    ctx.fillStyle = sign.color; ctx.fillRect(x + size * .34, y + size * .24, size * .32, size * .18);
-    ctx.fillStyle = C.white; ctx.fillRect(x + size * .26, y + size * .74, size * .1, size * .12); ctx.fillRect(x + size * .64, y + size * .74, size * .1, size * .12);
-  } else {
-    ctx.fillStyle = C.white; ctx.fillRect(x, y, size, size);
-    ctx.strokeStyle = sign.color; ctx.lineWidth = Math.max(2, size * .09); ctx.strokeRect(x + ctx.lineWidth / 2, y + ctx.lineWidth / 2, size - ctx.lineWidth, size - ctx.lineWidth);
-    drawFittedText(ctx, sign.code, x + size / 2, y + size / 2 + 1, size * .74, size * .5, 8, '#1d2124', 700, 'Arial, sans-serif', 'center');
-  }
-}
-
 function drawTransfers(ctx: CanvasRenderingContext2D, model: ScreenSchedule, x: number, y: number, width: number) {
   const signs = transferSigns(model);
   if (!signs.length) return;
@@ -280,10 +263,14 @@ function transferGrid(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
 }
 
 function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
-  ctx.fillStyle = BODY_BG; ctx.fillRect(0, 0, 1280, 720); header(ctx, model);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 1280, 720);
+  // Header, route map and detailed map come from the E235-0 theme port, drawn in its 960x540 space.
+  ctx.save(); ctx.scale(E235_SCALE, E235_SCALE); drawE235Header(ctx, model);
+  if (model.page === 'broad') drawE235RouteMap(ctx, model);
+  else if (model.page === 'nearby') drawE235Detailed(ctx, model);
+  ctx.restore();
+  if (model.page === 'broad' || model.page === 'nearby') return;
   if (model.page === 'platform' || model.page === 'closing') platform(ctx, model);
-  else if (model.page === 'broad') broad(ctx, model);
-  else if (model.page === 'nearby') nearby(ctx, model);
   else if (model.page === 'transfers') transferGrid(ctx, model);
   else {
     ctx.fillStyle = '#eed85b'; ctx.beginPath(); ctx.moveTo(112, 300); ctx.lineTo(210, 480); ctx.lineTo(14, 480); ctx.closePath(); ctx.fill();
@@ -310,7 +297,13 @@ function drawCursor(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time: 
   return true;
 }
 
-export function drawYamanoteLCD(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time = 0) { drawStatic(ctx, model); drawCursor(ctx, model, time); }
+const E235_SCALE = 1280 / E235_WIDTH;
+function overlay(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time: number) {
+  ctx.save(); ctx.scale(E235_SCALE, E235_SCALE); const animating = drawE235Overlay(ctx, model, time); ctx.restore();
+  return animating;
+}
+
+export function drawYamanoteLCD(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time = 0) { drawStatic(ctx, model); overlay(ctx, model, time); }
 
 export function createYamanoteRenderer() {
   const cache = new CanvasLayerCache(12);
@@ -319,7 +312,7 @@ export function createYamanoteRenderer() {
       const scale = Math.min(width / 1280, height / 720);
       ctx.save(); ctx.translate((width - 1280 * scale) / 2, (height - 720 * scale) / 2); ctx.scale(scale, scale);
       if (!cache.draw(ctx, model.invalidationKey, 1280, 720, layer => drawStatic(layer, model))) drawStatic(ctx, model);
-      const animating = drawCursor(ctx, model, time);
+      const animating = overlay(ctx, model, time);
       ctx.restore();
       return animating;
     },

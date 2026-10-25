@@ -38,3 +38,27 @@ export function transferSigns(model: ScreenSchedule): TransferSign[] {
   }
   return result.filter((sign, index) => result.findIndex(item => item.ja === sign.ja) === index);
 }
+
+function symbolText(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, size: number, color: string) {
+  ctx.font = `700 ${size}px Arial, sans-serif`; ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(value, x, y);
+}
+
+/** Line symbol as printed on JR East LCDs: JR codes in a coloured frame, subway letters in a coloured disc, private railways as a train glyph. */
+export function drawLineSymbol(ctx: CanvasRenderingContext2D, sign: TransferSign, x: number, y: number, size: number) {
+  if (sign.circle) {
+    ctx.fillStyle = sign.color; ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size * .34, 0, Math.PI * 2); ctx.fill();
+    symbolText(ctx, sign.code, x + size / 2, y + size / 2 + 1, size * .46, sign.color);
+  } else if (sign.train || !sign.code) {
+    ctx.fillStyle = sign.color; ctx.beginPath(); ctx.roundRect(x, y, size, size, size * .12); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(x + size * .28, y + size * .16, size * .44, size * .52, size * .1); ctx.fill();
+    ctx.fillStyle = sign.color; ctx.fillRect(x + size * .34, y + size * .24, size * .32, size * .18);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(x + size * .26, y + size * .74, size * .1, size * .12); ctx.fillRect(x + size * .64, y + size * .74, size * .1, size * .12);
+  } else {
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, size, size);
+    ctx.strokeStyle = sign.color; ctx.lineWidth = Math.max(2, size * .09); ctx.strokeRect(x + ctx.lineWidth / 2, y + ctx.lineWidth / 2, size - ctx.lineWidth, size - ctx.lineWidth);
+    symbolText(ctx, sign.code, x + size / 2, y + size / 2 + 1, size * .5, '#1d2124');
+  }
+}
+
