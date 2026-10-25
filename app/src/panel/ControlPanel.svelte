@@ -45,11 +45,11 @@
 <div inert={confirmationActive} class="flex h-full min-h-0 min-w-0 overflow-hidden bg-[var(--canvas-surface)] text-foreground">
   <nav aria-label="Main navigation" style:width="{SIDEBAR_RAIL}px" class="relative flex min-h-0 shrink-0 flex-col bg-[var(--canvas-surface)]">
     <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto py-3">
-    <div class="relative grid h-10 shrink-0 grid-cols-[64px_minmax(0,1fr)] items-center">
+    <div class="relative grid h-10 shrink-0 grid-cols-[56px_minmax(0,1fr)] items-center">
       <Hint text={visible ? 'Hide dashboard' : 'Show dashboard'} side="right">
         {#snippet children(props)}
           <Button {...props} size="icon-lg" variant="ghost" aria-label={visible ? 'Hide dashboard' : 'Show dashboard'} aria-pressed={!!visible}
-            disabled={visible == null} onclick={toggle} class="h-10 w-12 justify-self-center {visible ? 'text-foreground' : 'text-muted-foreground'}">
+            disabled={visible == null} onclick={toggle} class="ml-2 h-10 w-12 justify-self-start {visible ? 'text-foreground' : 'text-muted-foreground'}">
             {#if visible}<Eye class="size-[17px]" />{:else}<EyeOff class="size-[17px]" />{/if}
           </Button>
         {/snippet}
@@ -59,7 +59,7 @@
           <Hint text={n.label} side="right">
           {#snippet children(props)}
           <button {...props} type="button" onclick={() => (page = n.id)} aria-label={n.label} aria-current={page === n.id ? 'page' : undefined}
-            class="relative mx-2 grid h-10 shrink-0 grid-cols-[48px_minmax(0,1fr)] items-center rounded-lg text-left text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring
+            class="relative ml-2 grid h-10 w-12 shrink-0 place-items-center rounded-lg text-left text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring
               {page === n.id ? 'bg-white/[.08] text-foreground' : 'text-muted-foreground hover:bg-white/[.04] hover:text-foreground'}">
             <span class="flex h-10 w-12 items-center justify-center"><n.icon size={17} class="shrink-0" /></span>
           </button>

@@ -1,4 +1,4 @@
-export const SIDEBAR_RAIL = 64;
+export const SIDEBAR_RAIL = 56;
 export const SIDEBAR_MIN = 192;
 export const SIDEBAR_MAX = 320;
 export function sidebarWidth(width: number) {
