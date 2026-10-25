@@ -31,7 +31,7 @@
   const composition = $derived(subwayComposition(compact, sceneData?.line.id));
   const sceneRevision = $derived(subwaySceneRevision(sceneData, host?.viewId ?? 'display'));
   const previewConfig = $derived(JSON.stringify({ line: host?.config.line, direction: host?.config.direction,
-    startStation: host?.config.startStation, displayLanguages: host?.config.displayLanguages }));
+    startStation: host?.config.startStation, displayLanguages: host?.config.displayLanguages, carNumber: host?.config.carNumber }));
   const line = $derived(sceneData?.line);
   $effect(() => { host?.setDesignHeight?.(composition.height); });
 

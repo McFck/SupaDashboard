@@ -97,6 +97,10 @@ export interface RunTransition {
 }
 
 export interface RunSnapshot {
+  /** True before the first departure, distinct from a later visit to the same stop. */
+  initialStop?: boolean;
+  /** Actual departure + cruise budget, so the LCD cycle also fits a shortened simulation. */
+  screenRunDurationMs?: number;
   station: string;
   next: string;
   state: RunPhase;
@@ -650,6 +654,8 @@ export function snapshotRun(state: SubwayRunState, now: number, lines: readonly 
   const remaining = remainingJourneyMs(state, at, line, plans);
   return {
     station: state.stationCode, next, state: state.phase, line: line.id, direction: state.segment?.direction ?? state.direction,
+    initialStop: !state.segment && state.loopArrivalsRemaining === line.stations.length,
+    screenRunDurationMs: state.segment ? state.segment.departureMs + state.segment.cruiseMs : undefined,
     doorSide: side, doors: state.doors, speed: clamp(motion.speed, 0, 60), power, brake,
     progress: clamp(motion.progress, 0, 1), paused: state.pausedAt !== null, immersion: state.immersion,
     generation: state.generation, multiplier: state.nextMultiplier, remainingMinutes: Math.ceil(Math.max(0, remaining) / 60_000),

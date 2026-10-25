@@ -28,12 +28,12 @@ describe('Subway screen scheduler', () => {
   it('cycles broad, nearby and useful transfer pages with exact visible-time boundaries', () => {
     const withTransfers = snapshot({ station: 'JY01', next: 'JY02' });
     expect(scheduleScreen(withTransfers, config, 0).page).toBe('broad');
-    expect(scheduleScreen(withTransfers, config, 7_999).page).toBe('broad');
-    expect(scheduleScreen(withTransfers, config, 8_000).page).toBe('nearby');
-    expect(scheduleScreen(withTransfers, config, 15_999).page).toBe('nearby');
-    expect(scheduleScreen(withTransfers, config, 16_000).page).toBe('transfers');
-    expect(scheduleScreen(withTransfers, config, 21_999).page).toBe('transfers');
-    expect(scheduleScreen(withTransfers, config, 22_000).page).toBe('broad');
+    expect(scheduleScreen(withTransfers, config, 11_999).page).toBe('broad');
+    expect(scheduleScreen(withTransfers, config, 12_000).page).toBe('nearby');
+    expect(scheduleScreen(withTransfers, config, 23_999).page).toBe('nearby');
+    expect(scheduleScreen(withTransfers, config, 48_000).page).toBe('transfers');
+    expect(scheduleScreen(withTransfers, config, 59_999).page).toBe('transfers');
+    expect(scheduleScreen(withTransfers, config, 60_000).page).toBe('platform');
   });
 
   it('skips a transfer page when the upcoming station has no connections', () => {
@@ -41,27 +41,29 @@ describe('Subway screen scheduler', () => {
     const next = stepStation(yamanote, station.code, 'inner')!;
     const noTransfer = snapshot({ station: station.code, next: next.code });
     const schedule = scheduleScreen(noTransfer, config, 16_000);
-    expect(schedule.page).toBe('broad');
+    expect(schedule.page).toBe('nearby');
     expect(schedule.pageDeadline).toBe(24_000);
     expect(schedule.nextDeadline).toBe(18_000);
   });
 
   it('pins incident and arrival phases above manual map and ordinary cycling', () => {
-    expect(scheduleScreen(snapshot({ state: 'approaching' }), { ...config, manualView: 'map' }, 0).page).toBe('platform');
-    expect(scheduleScreen(snapshot({ state: 'doorsClosing' }), config, 0).page).toBe('closing');
+    expect(scheduleScreen(snapshot({ state: 'approaching' }), { ...config, manualView: 'map' }, 0).page).toBe('door');
+    expect(scheduleScreen(snapshot({ state: 'doorsClosing' }), config, 0).page).toBe('broad');
     expect(scheduleScreen(snapshot({ state: 'emergency' }), { ...config, manualView: 'map' }, 44_000).page).toBe('emergency');
     expect(scheduleScreen(snapshot({ state: 'suspended' }), config, 44_000).page).toBe('suspension');
   });
 
-  it('rotates locale at six seconds independently of the eight-second map page', () => {
+  it('rotates the native header every three seconds independently of the optional area', () => {
     const atZero = scheduleScreen(snapshot(), config, 0);
     const before = scheduleScreen(snapshot(), config, 5_999);
     const atSix = scheduleScreen(snapshot(), config, 6_000);
     expect([atZero.page, before.page, atSix.page]).toEqual(['broad', 'broad', 'broad']);
     expect(atZero.language).toBe('ja');
-    expect(atSix.language).toBe('en');
-    expect(atSix.languageDeadline).toBe(12_000);
-    expect(atSix.nextDeadline).toBe(8_000);
+    expect(atSix.language).toBe('ja');
+    expect(scheduleScreen(snapshot(), config, 3_000).headerLanguage).toBe('en');
+    expect(scheduleScreen(snapshot(), config, 24_000).language).toBe('en');
+    expect(atSix.languageDeadline).toBe(9_000);
+    expect(atSix.nextDeadline).toBe(9_000);
     expect(scheduleScreen(snapshot({ state: 'emergency' }), config, 6_000).languages).toEqual(['ja', 'en', 'zh', 'ko']);
   });
 
@@ -145,9 +147,9 @@ describe('Subway screen scheduler', () => {
     expect(start.visibleElapsed).toBe(0);
     expect(hidden.visibleElapsed).toBe(8_000);
     expect(resumed.visibleElapsed).toBe(8_000);
-    expect(resumed.page).toBe('nearby');
+    expect(resumed.page).toBe('broad');
     const nextPhase = clock.update(snapshot({ state: 'approaching' }), config, 109_500, true);
     expect(nextPhase.visibleElapsed).toBe(0);
-    expect(nextPhase.page).toBe('platform');
+    expect(nextPhase.page).toBe('door');
   });
 });

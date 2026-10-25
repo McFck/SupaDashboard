@@ -5,13 +5,13 @@ export type SubwayLineId = typeof SUBWAY_LINE_IDS[number];
 export const DISPLAY_LANGUAGE_PRESETS = ['ja-en', 'ja-kana', 'ja-zh', 'ja-ko'] as const;
 export const ANNOUNCEMENT_LANGUAGE_PRESETS = ['ja', 'en', 'ja-en'] as const;
 export const SUBWAY_DEFAULT_CONFIG = Object.freeze({
-  line: 'yamanote', direction: 'inner', startStation: 'JY01', speed: 1,
+  line: 'yamanote', direction: 'inner', startStation: 'JY01', speed: 1, carNumber: 1,
   displayLanguages: 'ja-en', announcementLanguages: 'ja-en', immersion: false, announcementVolume: 0.8,
   gesture: 'tripleTap', corner: 'bottomRight',
 });
 
 export type NormalizedSubwayConfig = Readonly<Record<string, unknown> & {
-  line: SubwayLineId; direction: string; startStation: string; speed: 0.5 | 1 | 2;
+  line: SubwayLineId; direction: string; startStation: string; speed: 0.5 | 1 | 2; carNumber: number;
   displayLanguages: string; announcementLanguages: string; immersion: boolean; announcementVolume: number;
   gesture: 'tripleTap' | 'cornerHold' | 'off'; corner: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
 }>;
@@ -19,6 +19,10 @@ export type NormalizedSubwayConfig = Readonly<Record<string, unknown> & {
 const lineIds = new Set<string>(SUBWAY_LINE_IDS);
 const displayPresets = new Set<string>(DISPLAY_LANGUAGE_PRESETS);
 const announcementPresets = new Set<string>(ANNOUNCEMENT_LANGUAGE_PRESETS);
+export function normalizeCarNumber(value: unknown, carCount: number): number {
+  const number = typeof value === 'string' && value.trim() ? Number(value) : value;
+  return typeof number === 'number' && Number.isInteger(number) && number >= 1 && number <= carCount ? number : 1;
+}
 const supportedDisplay = (line: LineDefinition, preset: string) => {
   if (line.id === 'yamanote' && preset !== 'ja-en') return false;
   if (line.id === 'hibiya' && preset === 'ja-kana') return false;
@@ -72,7 +76,7 @@ export function normalizeSubwayConfig(
   const gesture = stored.gesture === 'cornerHold' || stored.gesture === 'off' ? stored.gesture : 'tripleTap';
   const corner = stored.corner === 'topLeft' || stored.corner === 'topRight' || stored.corner === 'bottomLeft'
     ? stored.corner : 'bottomRight';
-  return Object.freeze({ ...stored, line: line.id, direction, startStation, speed, displayLanguages: display,
+  return Object.freeze({ ...stored, line: line.id, direction, startStation, speed, carNumber: normalizeCarNumber(stored.carNumber, line.carCount), displayLanguages: display,
     announcementLanguages: announcementCandidate, immersion: typeof stored.immersion === 'boolean' ? stored.immersion : false,
     announcementVolume: volume, gesture, corner }) as NormalizedSubwayConfig;
 }

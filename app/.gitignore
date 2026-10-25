@@ -11,7 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
-/public/subway/
+/public/subway/*
+!/public/subway/e235/
 
 # Editor directories and files
 .vscode/*

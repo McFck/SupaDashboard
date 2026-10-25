@@ -22,7 +22,9 @@ describe('Subway v2 content and composition', () => {
     expect(subwaySceneRevision({ ...data, snapshot: { ...snapshot, progress: .9, speed: 52, immersion: true },
       config: { ...data.config, announcementVolume: .4 } }, 'display')).toBe(key);
     expect(subwaySceneRevision({ ...data, clockLabel: '09:42' }, 'display')).not.toBe(key);
-    expect(subwaySceneRevision({ ...data, visibleElapsed: 6_000 }, 'display')).not.toBe(key);
+    expect(subwaySceneRevision({ ...data, config:{...data.config,carNumber:'3'} }, 'display')).not.toBe(key);
+    expect(subwaySceneRevision({ ...data, visibleElapsed: 2_999 }, 'display')).toBe(key);
+    expect(subwaySceneRevision({ ...data, visibleElapsed: 3_000 }, 'display')).not.toBe(key);
     expect(subwaySceneRevision({ ...data, snapshot: { ...snapshot, state: 'emergency' } }, 'display')).not.toBe(key);
   });
 

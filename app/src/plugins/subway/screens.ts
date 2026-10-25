@@ -1,7 +1,9 @@
 import { localizedName, stepStation, type LineDefinition, type StationDefinition } from './lines';
 import type { RunSnapshot } from './run';
+import { e235Routine } from './lcd/e235-data';
+import { normalizeCarNumber } from './config';
 
-export type ScreenPage = 'platform' | 'nearby' | 'broad' | 'transfers' | 'closing' | 'emergency' | 'suspension';
+export type ScreenPage = 'platform' | 'nearby' | 'broad' | 'transfers' | 'closing' | 'emergency' | 'suspension' | 'door' | 'notice' | 'priority' | 'mobile';
 export type ScreenLanguage = 'ja' | 'kana' | 'en' | 'zh' | 'ko';
 
 export interface ScreenConfig {
@@ -11,11 +13,13 @@ export interface ScreenConfig {
   manualView?: 'display' | 'map';
   viewingSide?: 'left' | 'right';
   clock?: string;
+  currentCar?: number;
 }
 
 export interface ScreenSchedule {
   readonly page: ScreenPage;
   readonly language: ScreenLanguage;
+  readonly headerLanguage?: ScreenLanguage;
   readonly languages: readonly ScreenLanguage[];
   readonly line: LineDefinition;
   readonly snapshot: Readonly<RunSnapshot>;
@@ -30,6 +34,7 @@ export interface ScreenSchedule {
   readonly nearby: readonly StationDefinition[];
   readonly sideLabel: 'this side' | 'opposite side' | 'both sides' | null;
   readonly currentCar: number;
+  readonly viewingSide?: 'left' | 'right';
   readonly visibleElapsed: number;
   readonly pageDeadline: number | null;
   readonly languageDeadline: number | null;
@@ -108,8 +113,9 @@ function transferNames(station: StationDefinition, language: ScreenLanguage): st
 }
 
 function sessionKey(snapshot: RunSnapshot, config: ScreenConfig): string {
-  return [snapshot.line, snapshot.station, snapshot.next, snapshot.direction, snapshot.state, snapshot.doors,
-    snapshot.generation, config.manualView ?? 'display', (config.languages ?? []).join(','), config.languageOffset ?? 0].join('|');
+  const phase = snapshot.line === 'yamanote' && ['departing', 'cruising'].includes(snapshot.state) ? 'running' : snapshot.state;
+  return [snapshot.line, snapshot.station, snapshot.next, snapshot.direction, phase, snapshot.doors,
+    snapshot.generation, snapshot.initialStop, config.manualView ?? 'display', config.viewingSide ?? 'right', (config.languages ?? []).join(','), config.languageOffset ?? 0].join('|');
 }
 
 export function scheduleScreen(snapshot: RunSnapshot, config: ScreenConfig, visibleElapsed: number): ScreenSchedule {
@@ -123,11 +129,20 @@ export function scheduleScreen(snapshot: RunSnapshot, config: ScreenConfig, visi
   const abnormal = snapshot.state === 'emergency' || snapshot.state === 'suspended';
   const offset = Number.isSafeInteger(config.languageOffset) ? config.languageOffset! : 0;
   const localeIndex = ((Math.floor(visibleElapsed / LANGUAGE_DWELL_MS) + offset) % languages.length + languages.length) % languages.length;
-  const language = languages[localeIndex] ?? 'ja';
+  let language = languages[localeIndex] ?? 'ja';
+  let headerLanguage = language;
+  const native = line.id === 'yamanote' && !abnormal
+    ? e235Routine(snapshot, visibleElapsed, config.viewingSide ?? 'right', languages, offset) : null;
   let page: ScreenPage;
   let pageDeadline: number | null = null;
   if (snapshot.state === 'emergency') page = 'emergency';
   else if (snapshot.state === 'suspended') page = 'suspension';
+  else if (native) {
+    page = config.manualView === 'map' && !['approaching', 'arriving', 'doorsClosing'].includes(snapshot.state) ? 'broad' : native.page;
+    language = native.language;
+    headerLanguage = native.headerLanguage;
+    pageDeadline = config.manualView === 'map' ? null : native.pageDeadline;
+  }
   else if (snapshot.state === 'doorsClosing') page = 'closing';
   else if (snapshot.state === 'approaching' || snapshot.state === 'arriving') page = 'platform';
   else if (snapshot.state === 'departing') page = 'nearby';
@@ -144,7 +159,7 @@ export function scheduleScreen(snapshot: RunSnapshot, config: ScreenConfig, visi
     page = item.page;
     pageDeadline = visibleElapsed + item.duration - (position - cursor);
   }
-  const languageDeadline = abnormal ? null : (Math.floor(visibleElapsed / LANGUAGE_DWELL_MS) + 1) * LANGUAGE_DWELL_MS;
+  const languageDeadline = abnormal ? null : native?.languageDeadline ?? (Math.floor(visibleElapsed / LANGUAGE_DWELL_MS) + 1) * LANGUAGE_DWELL_MS;
   const direction = line.directions.find(item => item.id === snapshot.direction);
   const terminal = line.loop ? undefined : direction?.delta === -1 ? line.stations[0] : line.stations.at(-1);
   const destination = line.loop
@@ -160,13 +175,14 @@ export function scheduleScreen(snapshot: RunSnapshot, config: ScreenConfig, visi
   const facilityKey = details?.facilities.map(item => `${item.kind}:${item.car}:${item.relativePosition}:${item.label}`).join(',') ?? '';
   const side = guidanceStation.doorByDirection[snapshot.direction]?.side ?? 'unknown';
   const clock = config.clock ?? '12:00';
+  const currentCar = normalizeCarNumber(config.currentCar, line.carCount);
   const invalidationKey = [snapshot.line, snapshot.direction, snapshot.station, snapshot.next, snapshot.state,
-    snapshot.doors, snapshot.remainingMinutes, page, language, side, transferKey, facilityKey, line.id === 'yamanote' ? clock : ''].join('|');
+    snapshot.doors, snapshot.remainingMinutes, page, language, headerLanguage, side, transferKey, facilityKey, currentCar, line.id === 'yamanote' ? clock : ''].join('|');
   return Object.freeze({
-    page, language, languages: Object.freeze(abnormal ? [...INCIDENT_LANGUAGES] : languages), line,
+    page, language, headerLanguage, languages: Object.freeze(abnormal ? [...INCIDENT_LANGUAGES] : languages), line,
     snapshot: Object.freeze({ ...snapshot }), station, nextStation, guidanceStation, transferStation, clock, destination,
     transfers: Object.freeze(transfers), route: Object.freeze(route), nearby: Object.freeze(nearby),
-    sideLabel: sideLabel(snapshot, guidanceStation, config.viewingSide ?? 'right'), currentCar: 1,
+    sideLabel: sideLabel(snapshot, guidanceStation, config.viewingSide ?? 'right'), currentCar, viewingSide: config.viewingSide ?? 'right',
     visibleElapsed, pageDeadline, languageDeadline,
     nextDeadline: pageDeadline === null ? languageDeadline : languageDeadline === null ? pageDeadline : Math.min(pageDeadline, languageDeadline),
     invalidationKey,

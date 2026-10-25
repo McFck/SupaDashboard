@@ -35,7 +35,7 @@ describe('Subway skin registration', () => {
   it('declares persistent settings, owner projections, events, face-only renderers and required quick actions', () => {
     const { actions, skin } = collect();
     expect(skin.settings?.map(param => param.key)).toEqual([
-      'line', 'direction', 'startStation', 'speed', 'displayLanguages', 'announcementLanguages',
+      'line', 'direction', 'startStation', 'carNumber', 'speed', 'displayLanguages', 'announcementLanguages',
       'immersion', 'announcementVolume', 'gesture', 'corner',
     ]);
     expect(skin.state?.map(field => field.key)).toEqual([

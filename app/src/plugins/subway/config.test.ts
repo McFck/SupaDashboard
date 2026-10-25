@@ -14,6 +14,13 @@ const bundles = Object.entries(files).reduce<Record<string, { line?: unknown; pa
 const lines = normalizeSubwayLines(Object.values(bundles).map(bundle => ({ line: bundle.line, pack: bundle.pack })));
 
 describe('Subway settings boundary', () => {
+  it('persists the selected car and validates it against the line formation', () => {
+    expect(normalizeSubwayConfig({carNumber:'3'},lines).carNumber).toBe(3);
+    expect(normalizeSubwayConfig({carNumber:'11'},lines).carNumber).toBe(11);
+    for(const carNumber of [0,-1,12,2.5,'invalid',NaN,Infinity])
+      expect(normalizeSubwayConfig({carNumber},lines).carNumber).toBe(1);
+    expect(normalizeSubwayConfig({line:'hibiya',carNumber:8},lines).carNumber).toBe(1);
+  });
   it('keeps unknown settings and supplies safe defaults', () => {
     const config = normalizeSubwayConfig({ unknownKey: { retained: true } }, lines);
     expect(config).toMatchObject({ line: 'yamanote', direction: 'inner', startStation: 'JY01', speed: 1,
