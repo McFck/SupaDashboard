@@ -1,5 +1,4 @@
 <script lang="ts">
-  import PanelRight from '@lucide/svelte/icons/panel-right';
   import { onDestroy, tick } from 'svelte';
   import Undo from '@lucide/svelte/icons/undo-2';
   import Redo from '@lucide/svelte/icons/redo-2';
@@ -7,6 +6,7 @@
   import { Button } from '$lib/components/ui/button';
   import * as Dialog from '$lib/components/ui/dialog';
   import { Hint } from '$lib/components/ui/tooltip';
+  import PaneHandle from './ui/PaneHandle.svelte';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import SkinLayoutEditor from './SkinLayoutEditor.svelte';
   import { animateRemoval } from '../controls/removal';
@@ -200,7 +200,9 @@
     scenarioRequest = { controlId, itemId, trigger };
     scenarioOpen = true;
   }
-  function closeInspector() { frame.inspectorOpen = false; saveFrame(); }
+  // The inspector always has content, so it never closes; "close" falls back to the Deck settings.
+  frame.inspectorOpen = true;
+  function closeInspector() { select(null); }
   function closeMenu(generation: number) {
     if (context?.generation === generation) menuOpen = false;
   }
@@ -483,8 +485,6 @@
     <div class="flex shrink-0 items-center gap-1.5 border-l border-[#262626] pl-3">
       <Hint text="Undo" keys={['Ctrl', 'Z']} side="bottom">{#snippet children(props)}<Button {...props} variant="ghost" size="icon-sm" aria-label="Undo" disabled={!history.canUndo} onclick={undo}><Undo /></Button>{/snippet}</Hint>
       <Hint text="Redo" keys={['Ctrl', 'Shift', 'Z']} side="bottom">{#snippet children(props)}<Button {...props} variant="ghost" size="icon-sm" aria-label="Redo" disabled={!history.canRedo} onclick={redo}><Redo /></Button>{/snippet}</Hint>
-      <Button variant="ghost" size="icon-sm" aria-label={frame.inspectorOpen ? 'Close inspector' : 'Open inspector'} aria-pressed={frame.inspectorOpen}
-        onclick={() => { frame.inspectorOpen = !frame.inspectorOpen; saveFrame(); }}><PanelRight /></Button>
     </div>
   </header>
   <div bind:this={layout} class="flex min-h-0 min-w-0 flex-1 overflow-visible">
@@ -500,13 +500,12 @@
       </div>
     </div>
     <div class="right-slot relative min-h-0 shrink-0 overflow-visible" class:resizing={resizing !== null} class:inactive={!active} style:width="{frame.inspectorOpen ? rightWidth : 0}px">
+      <PaneHandle label="Resize inspector" class="bottom-0 -left-1.5 top-0"
+        onpointerdown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); resizing = { x: e.clientX, width: frame.inspectorWidth }; }}
+        onkeydown={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); frame.inspectorWidth = Math.max(320, Math.min(640, frame.inspectorWidth + (e.key === 'ArrowLeft' ? 16 : -16))); saveFrame(); } }} />
       <section aria-label="Inspector" aria-hidden={!frame.inspectorOpen} inert={!frame.inspectorOpen}
         style:width="{rightWidth}px" style:display={frame.inspectorOpen ? undefined : 'none'} class="right-panel absolute -top-12 bottom-0 left-0 z-10 flex min-h-0 flex-col overflow-hidden bg-sidebar" class:open={frame.inspectorOpen}>
         <div aria-hidden="true" class="pointer-events-none absolute inset-y-0 left-0 z-10 w-px bg-[#262626]"></div>
-        <button type="button" aria-label="Resize inspector"
-          onpointerdown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); resizing = { x: e.clientX, width: frame.inspectorWidth }; }}
-          onkeydown={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); frame.inspectorWidth = Math.max(320, Math.min(640, frame.inspectorWidth + (e.key === 'ArrowLeft' ? 16 : -16))); saveFrame(); } }}
-          class="absolute bottom-0 left-[-3px] top-12 z-20 w-2 cursor-col-resize touch-none bg-transparent outline-none hover:bg-primary/40 focus-visible:bg-primary/40"></button>
         <div class="inspector-content min-h-0 flex-1 overflow-hidden">
           {#key `${page.id}:${selection && 'item' in selection ? selection.item : 'collection'}`}
             <Inspector {page} {selection} layoutTarget={editorTarget} onselect={select} oneditScenario={openScenario} onclose={closeInspector} />

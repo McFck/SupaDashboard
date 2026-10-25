@@ -9,6 +9,7 @@
   import Store from '@lucide/svelte/icons/store';
   import { Button } from '$lib/components/ui/button';
   import { Hint } from '$lib/components/ui/tooltip';
+  import PaneHandle from './ui/PaneHandle.svelte';
   import LayoutPage from './LayoutPage.svelte';
   import PluginsPage from './PluginsPage.svelte';
   import SettingsPage from './SettingsPage.svelte';
@@ -85,9 +86,8 @@
           </Hint>
     {/each}
     </div>
-    <button type="button" aria-label="Resize navigation"
-      onpointerdown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); resizing = { x: e.clientX, width: frame.sidebarWidth }; }} onkeydown={resizeKey}
-      class="absolute bottom-0 -right-3 top-2 z-20 w-2 cursor-col-resize touch-none bg-transparent outline-none hover:bg-primary/35 focus-visible:bg-primary/35"></button>
+    <PaneHandle label="Resize navigation" class="bottom-0 -right-3.5 top-2"
+      onpointerdown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); resizing = { x: e.clientX, width: frame.sidebarWidth }; }} onkeydown={resizeKey} />
   </nav>
   <main class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
     <div class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl border-l border-t border-[#262626] bg-[#171717]">

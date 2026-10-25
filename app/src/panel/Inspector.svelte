@@ -6,7 +6,6 @@
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import Plus from '@lucide/svelte/icons/plus';
   import Trash from '@lucide/svelte/icons/trash-2';
-  import X from '@lucide/svelte/icons/x';
   import { Button } from '$lib/components/ui/button';
   import { sortable } from '$lib/sortable';
   import { Input } from '$lib/components/ui/input';
@@ -205,8 +204,6 @@
       <p class="min-w-0 flex-1 truncate text-base font-semibold">{def.title}</p>
       <Button size="icon-sm" variant="ghost" aria-label="Duplicate" onclick={duplicate}><Copy /></Button>
       <Button size="icon-sm" variant="ghost" class="text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Remove" onclick={removeItem}><Trash /></Button>
-      <span class="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true"></span>
-      <Button size="icon-sm" variant="ghost" aria-label="Close inspector" onclick={onclose}><X /></Button>
     </header>
     <div class="grid min-h-0 min-w-0 flex-1 content-start gap-5 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
       <div class="grid gap-1.5"><Label class="text-xs font-semibold uppercase tracking-wide text-muted-foreground" for="wname">Name</Label><Input id="wname" bind:value={control.name} /></div>
@@ -291,7 +288,7 @@
     </div>
 
   {:else if cell}
-    <header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4"><p class="flex-1 font-semibold">Add widget</p><Button size="icon-sm" variant="ghost" aria-label="Close inspector" onclick={onclose}><X /></Button></header>
+    <header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4"><p class="flex-1 font-semibold">Add widget</p></header>
     <div class="grid min-h-0 min-w-0 flex-1 content-start gap-2 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
       {#each [...controlTypes.values()] as t (t.type)}
         {@const bounds = targetSlot && effectiveSize(layoutTarget.skinId, targetSlot, t.type)}
@@ -344,12 +341,12 @@
     </div>
 
   {:else if layoutTarget.skinId === 'deck'}
-    <header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4"><p class="flex-1 font-semibold">Deck</p><Button size="icon-sm" variant="ghost" aria-label="Close inspector" onclick={onclose}><X /></Button></header>
+    <header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4"><p class="flex-1 font-semibold">Deck</p></header>
     <div class="grid min-h-0 min-w-0 flex-1 content-start gap-6 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
       <Section title="Canvas">
         <Row label="Colour" wide><ColorField palette={['#0a0a0a', '#171717', '#0f172a', '#1e1b4b', '#052e16', '#3f0d12']} value={withAlpha(settings.display.background.color, settings.display.background.opacity)}
           onchange={v => { const p = splitAlpha(v); commit('Canvas colour'); settings.display.background = { ...settings.display.background, color: p.hex, opacity: p.alpha }; }} /></Row>
-        <Row label="Corner radius"><div class="flex w-44 items-center gap-3">
+        <Row label="Corner radius"><div class="flex w-40 items-center gap-3">
           <Slider type="single" class="min-w-0 flex-1" value={settings.display.background.radius} min={0} max={60} step={1} onValueChange={v => { commit('Canvas radius'); settings.display.background = { ...settings.display.background, radius: v }; }} />
           <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">{settings.display.background.radius}px</span>
         </div></Row>
@@ -360,7 +357,7 @@
           ...(page.sizing === 'manual' ? [{ k: 'size', label: 'Cell size', min: 60, max: 240, unit: 'px' }] : []),
           { k: 'gap', label: 'Gap', min: 0, max: 40, unit: 'px' }] as s (s.k)}
           {@const key = s.k as 'rows' | 'cols' | 'size' | 'gap'}
-          <Row label={s.label}><div class="flex w-44 items-center gap-3">
+          <Row label={s.label}><div class="flex w-40 items-center gap-3">
             <Slider type="single" class="min-w-0 flex-1" value={page[key]} min={s.min} max={s.max} step={1} onValueChange={v => setGrid(key, v)} onValueCommit={() => commitGrid(key)} />
             <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">{page[key]}{s.unit ?? ''}</span>
           </div></Row>
@@ -368,6 +365,6 @@
       </Section>
     </div>
   {:else}
-    <header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4"><p class="flex-1 font-semibold">{targetSlot?.id ?? 'Slot'}</p><Button size="icon-sm" variant="ghost" aria-label="Close inspector" onclick={onclose}><X /></Button></header>
+    <header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4"><p class="flex-1 font-semibold">{targetSlot?.id ?? 'Slot'}</p></header>
   {/if}
 </aside>
