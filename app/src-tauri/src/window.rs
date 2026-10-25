@@ -354,7 +354,8 @@ mod win32 {
         }
         let result = unsafe { DefSubclassProc(hwnd, message, wparam, lparam) };
         if message == WM_SHOWWINDOW {
-            let visible = unsafe { IsWindowVisible(hwnd).as_bool() };
+            // WS_VISIBLE is set only after WM_SHOWWINDOW returns, so the message's wParam is the new state.
+            let visible = wparam.0 != 0;
             let minimized = unsafe { IsIconic(hwnd).as_bool() };
             publish_visibility(policy, dashboard_visible(visible, minimized));
         } else if message == WM_SIZE {
