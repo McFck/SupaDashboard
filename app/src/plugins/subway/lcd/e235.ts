@@ -17,6 +17,8 @@ const ACTIVE = '#000000';
 const SANS = '"Microsoft Sans Serif", Arial, sans-serif';
 const MEIRYO = 'Meiryo, "Meiryo UI", "Yu Gothic UI", sans-serif';
 const MEIRYO_UI = '"Meiryo UI", Meiryo, "Yu Gothic UI", sans-serif';
+/** Stations with a three-letter code in NextStation's Lines/Yamanote.xml (the rest have none on the real displays). */
+const E235_CODES = new Set(['JY01', 'JY02', 'JY03', 'JY05', 'JY07', 'JY13', 'JY17', 'JY20', 'JY21', 'JY24', 'JY25', 'JY28', 'JY29']);
 const MAJOR = new Set(['JY01', 'JY05', 'JY13', 'JY17', 'JY20', 'JY25']);
 
 type Lang = 'ja' | 'en' | 'kana';
@@ -71,11 +73,12 @@ export function drawE235Header(ctx: CanvasRenderingContext2D, model: ScreenSched
   // Column 0: destination, Margin="12,4", bottom aligned in a 95px grid.
   const termini = terminiFor(model, current, lang);
   if (lang === 'en') {
-    text(ctx, 'Bound for', 12, 61 + 26, 26, SANS, '#d0d0d0', { weight: 700 });
+    text(ctx, 'Bound for', 12, 61 + 26, 26, SANS, '#d0d0d0');
     const lines = termini.length > 1 ? [termini[0] + '&', termini[1]] : [termini[0] ?? ''];
-    lines.forEach((line, i) => text(ctx, line, 12, 61 + 30 + 28 + i * 30, 32, SANS, '#ffffff', { weight: 700, maxWidth: 216 }));
+    lines.forEach((line, i) => text(ctx, line, 12, 61 + 30 + 32 + i * 30, 32, SANS, '#ffffff', { maxWidth: 216 }));
   } else {
-    const destination = termini.join('・');
+    // NextStation's middle dot is narrow: set the two names around a tight dot instead of the wide CJK glyph.
+    const destination = termini.join('･');
     ctx.font = `700 48px ${MEIRYO}`;
     const width = Math.min(216, ctx.measureText(destination).width);
     text(ctx, destination, 12, 156 - 34 - 12, 48, MEIRYO, '#ffffff', { weight: 700, maxWidth: 216 });
@@ -87,19 +90,20 @@ export function drawE235Header(ctx: CanvasRenderingContext2D, model: ScreenSched
     : state === 'stopped' ? 'ただいま' : state === 'approaching' || state === 'arriving' ? 'まもなく' : lang === 'kana' ? 'つぎは' : '次は';
   if (lang === 'en') text(ctx, caption, 305, 36, 38, SANS, '#ffffff');
   else text(ctx, caption, 305, 36, 32, MEIRYO, '#ffffff', { weight: 700 });
-  const code = lang === 'en' ? current.abbr : undefined;
+  // The three-letter code tab appears in every language, but only for stations that carry a code in NextStation's data.
+  const code = E235_CODES.has(current.code) ? current.abbr : undefined;
   const blockHeight = code ? 30 + 70 + 8 : 70 + 16, blockTop = HEADER - 6 - blockHeight;
   ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.roundRect(300, blockTop, 84, blockHeight, 8); ctx.fill();
   if (code) text(ctx, code, 342, blockTop + 25, 26, SANS, '#ffffff', { align: 'center' });
   numbering(ctx, current.code, 308, code ? blockTop + 30 : blockTop + 8);
   const name = (lang === 'en' ? current.names.en : lang === 'kana' ? current.names.kana ?? current.names.ja : current.names.ja) ?? current.code;
-  if (lang === 'en') text(ctx, name, 392, 146, 105, SANS, '#ffffff', { maxWidth: 540 });
+  // Names are centred in their box (510px from x=392 for Japanese, 540px for English), regular weight.
+  if (lang === 'en') text(ctx, name, 392 + 270, 140, 105, SANS, '#ffffff', { align: 'center', maxWidth: 540 });
   else {
-    // Meiryo UI 115px with fixed advance widths for two- and three-character names.
-    const chars = [...name], advance = chars.length === 2 ? 180 : chars.length === 3 ? 140 : 0;
-    ctx.font = `700 115px ${MEIRYO_UI}`;
-    if (advance) chars.forEach((ch, i) => text(ctx, ch, 392 + advance * i + advance / 2, 146, 115, MEIRYO_UI, '#ffffff', { weight: 700, align: 'center' }));
-    else text(ctx, name, 392, 146, 115, MEIRYO_UI, '#ffffff', { weight: 700, maxWidth: 510 });
+    // Two- and three-character names use AdvanceWidth 180 / 140, which renders as a 205 / 160px glyph pitch.
+    const chars = [...name], pitch = chars.length === 2 ? 205 : chars.length === 3 ? 160 : 0, centre = 392 + 255;
+    if (pitch) chars.forEach((ch, i) => text(ctx, ch, centre + (i - (chars.length - 1) / 2) * pitch, 146, 115, MEIRYO_UI, '#ffffff', { align: 'center' }));
+    else text(ctx, name, centre, 146, 115, MEIRYO_UI, '#ffffff', { align: 'center', maxWidth: 510 });
   }
   // Column 3: clock (hour right-aligned in 42px, colon, minute right-aligned in 42px), 38px.
   const [hour, minute] = model.clock.split(':');
@@ -114,8 +118,10 @@ export function drawE235Header(ctx: CanvasRenderingContext2D, model: ScreenSched
 
 // ---------- Route map (RouteMap / RouteMapList) ----------
 
-const CELL = 54;
-const ROW_X = 75; // 15 cells of 54px centred in the 944px ItemsControl (Margin 8,0,8,24).
+// Each cell is a 54px canvas with Margin="-0.2,0,-0.2,...", so cells advance by 53.6px; 15 of them are centred
+// in the 944px ItemsControl (Margin 8,0,8,24), which puts the first cell's left edge at 77.2.
+const CELL = 53.6;
+const ROW_X = 8 + (944 - 15 * CELL) / 2;
 const UPPER_TRACK = HEADER + 125; // Upper canvas: names 0..120, track at 125..161.
 const LOWER_TOP = HEADER + 185 + 2 + 2; // Upper canvas 185 + margins.
 const LOWER_TRACK = LOWER_TOP + 24;
@@ -139,8 +145,8 @@ function path(ctx: CanvasRenderingContext2D, d: string, x: number, y: number, fi
 
 /** Loop-end pieces copied from the theme; the 4px V-shaped gap between them is the white direction mark. */
 function loopEnds(ctx: CanvasRenderingContext2D, forward: boolean) {
-  const left = cellX(0) - 63, right = cellX(14);
-  const [ul, ur, ll, lr] = forward ? [52, 68, 8, -8] : [68, 52, -8, 8];
+  const left = ROW_X + CELL - 27 - 90, right = ROW_X + 14 * CELL + 27;
+  const [ul, ur, ll, lr] = forward ? [52, 68, -8, 8] : [68, 52, 8, -8]; // both pieces of an end notch the same way
   path(ctx, `M0,60 L0,56 A56,56 0 0 1 56,0 L90.5,0 L90.5,36 L56,36 A20,20 0 0 0 36,56 L36,60 L18,${ul} Z`, left, UPPER_TRACK, LINE);
   path(ctx, `M-0.5,0 L34,0 A56,56 0 0 1 90,56 L90,60 L72,${ur} L54,60 L54,56 A20,20 0 0 0 34,36 L-0.5,36 Z`, right, UPPER_TRACK, LINE);
   path(ctx, `M0,0 L0,4 A56,56 0 0 0 56,60 L90.5,60 L90.5,24 L56,24 A20,20 0 0 1 36,4 L36,0 L18,${ll} Z`, left, LOWER_TOP, LINE);
@@ -164,8 +170,8 @@ function verticalLabel(ctx: CanvasRenderingContext2D, value: string, cx: number,
 export function drawE235RouteMap(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
   const lang = langOf(model), forward = !opposite(model);
   ctx.fillStyle = LINE;
-  ctx.fillRect(cellX(0) - 27.5, UPPER_TRACK, 15 * CELL, 36);
-  ctx.fillRect(cellX(0) - 27.5, LOWER_TRACK, 15 * CELL, 36);
+  ctx.fillRect(ROW_X + CELL - 27, UPPER_TRACK, 14 * CELL, 36);
+  ctx.fillRect(ROW_X + CELL - 27, LOWER_TRACK, 14 * CELL, 36);
   loopEnds(ctx, forward);
   const target = e235Target(model).code;
   const ahead = model.route.slice(model.route[0]?.code === target ? 0 : 1);
@@ -258,9 +264,9 @@ export function drawE235Detailed(ctx: CanvasRenderingContext2D, model: ScreenSch
     const chars = [...name];
     const nameX = mirror ? badgeX + badgeW + 3 * scale : badgeX - 3 * scale;
     if (lang !== 'en' && chars.length === 2) {
-      // AdvanceWidth 200 spreads two-character names.
-      const adv = Math.min(200 * scale / 2, room / 2);
-      chars.forEach((ch, k) => text(ctx, ch, mirror ? nameX + adv * (k + .5) : nameX - adv * (1.5 - k), nameY + size * .36, size, family, nameColor, { weight: 700, align: 'center' }));
+      // AdvanceWidth 200: the first glyph sits against the badge, the second 120px (at row scale) further out.
+      const sign = mirror ? 1 : -1;
+      chars.forEach((ch, k) => text(ctx, ch, nameX + sign * (30 + 120 * k) * scale, nameY + size * .36, size, family, nameColor, { weight: 700, align: 'center' }));
     } else text(ctx, name, nameX, nameY + size * .36, size, family, nameColor, { weight: 700, align: mirror ? 'left' : 'right', maxWidth: room });
   });
   drawDetailedTransfers(ctx, model, lang, mirror);
@@ -287,7 +293,8 @@ function drawDetailedTransfers(ctx: CanvasRenderingContext2D, model: ScreenSched
   const columns = signs.length > 4 ? 2 : 1, colW = 330 / columns, rows = Math.ceil(signs.length / columns);
   const gridLeft = mirror ? left : left + 20;
   signs.forEach((sign, i) => {
-    const x = gridLeft + Math.floor(i / rows) * colW + 2, y = top + 55 + (i % rows) * 30;
+    // TransferInfoPresenter fills rows left to right.
+    const x = gridLeft + (i % columns) * colW + 2, y = top + 55 + Math.floor(i / columns) * 30;
     drawLineSymbol(ctx, sign, x, y, 24);
     text(ctx, lang === 'en' ? sign.en || sign.ja : sign.ja, x + 29, y + 20, 24, lang === 'en' ? SANS : MEIRYO, ACTIVE, { maxWidth: colW - 40 });
   });
@@ -300,8 +307,8 @@ function detailedMarker(ctx: CanvasRenderingContext2D, model: ScreenSchedule, ti
   const ox = 380, oy = 360;
   if (model.snapshot.state === 'stopped') {
     const t = (time % 1000) / 1000, h = t < .5 ? 86 + 20 * t : 96 - 20 * (t - .5);
-    ctx.translate(0, -10); ctx.scale(1, .8);
-    ctx.translate(ox, oy); ctx.rotate(30 * Math.PI / 180); ctx.translate(-ox, -oy);
+    // RenderTransformOrigin="1,1": Rotate 30, then ScaleY .8, then TranslateY -10, all about the box's bottom-right corner.
+    ctx.translate(ox, oy); ctx.translate(0, -10); ctx.scale(1, .8); ctx.rotate(30 * Math.PI / 180); ctx.translate(-ox, -oy);
     const house = (s: number) => { ctx.beginPath(); [[0, 100], [0, 15], [40, 0], [80, 15], [80, 100]].forEach(([px, py], i) => { const X = 300 + 40 + (px - 40) * s, Y = 260 + 50 + (py - 50) * s; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); };
     ctx.fillStyle = '#ffffff'; house(1); ctx.fill();
     ctx.fillStyle = MARKER_RED; house(h / 100); ctx.fill();
