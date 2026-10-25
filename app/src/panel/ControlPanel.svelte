@@ -86,7 +86,7 @@
           </Hint>
     {/each}
     </div>
-    <PaneHandle label="Resize navigation" class="bottom-0 -right-3.5 top-2"
+    <PaneHandle label="Resize navigation" active={resizing !== null} class="bottom-0 -right-3.5 top-2"
       onpointerdown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); resizing = { x: e.clientX, width: frame.sidebarWidth }; }} onkeydown={resizeKey} />
   </nav>
   <main class="relative min-h-0 min-w-0 flex-1 overflow-hidden">

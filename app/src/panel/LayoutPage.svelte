@@ -500,7 +500,7 @@
       </div>
     </div>
     <div class="right-slot relative min-h-0 shrink-0 overflow-visible" class:resizing={resizing !== null} class:inactive={!active} style:width="{frame.inspectorOpen ? rightWidth : 0}px">
-      <PaneHandle label="Resize inspector" class="bottom-0 -left-1.5 top-0"
+      <PaneHandle label="Resize inspector" active={resizing !== null} class="bottom-0 -left-1.5 top-0"
         onpointerdown={e => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); resizing = { x: e.clientX, width: frame.inspectorWidth }; }}
         onkeydown={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); frame.inspectorWidth = Math.max(320, Math.min(640, frame.inspectorWidth + (e.key === 'ArrowLeft' ? 16 : -16))); saveFrame(); } }} />
       <section aria-label="Inspector" aria-hidden={!frame.inspectorOpen} inert={!frame.inspectorOpen}

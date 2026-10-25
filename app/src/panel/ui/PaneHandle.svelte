@@ -1,14 +1,12 @@
 <script lang="ts">
-  // Pane divider grip in the look of shadcn's ResizableHandle withHandle.
-  import GripVertical from '@lucide/svelte/icons/grip-vertical';
-  let { label, class: className = '', onpointerdown, onkeydown }: { label: string; class?: string;
+  // Pane divider in the look of shadcn's ResizableHandle: an invisible hit area whose line lights up on hover and while held.
+  let { label, active = false, class: className = '', onpointerdown, onkeydown }: { label: string; active?: boolean; class?: string;
     onpointerdown: (e: PointerEvent & { currentTarget: HTMLButtonElement }) => void;
     onkeydown: (e: KeyboardEvent) => void } = $props();
 </script>
 
-<button type="button" aria-label={label} {onpointerdown} {onkeydown}
-  class="group absolute z-20 flex w-3 cursor-col-resize touch-none items-center justify-center bg-transparent outline-none {className}">
-  <span aria-hidden="true" class="z-10 flex h-4 w-3 items-center justify-center rounded-sm border border-[#2e2e2e] bg-[#262626] text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:ring-1 group-focus-visible:ring-ring">
-    <GripVertical size={10} />
-  </span>
+<button type="button" aria-label={label} data-active={active} {onpointerdown} {onkeydown}
+  class="group absolute z-20 w-3 cursor-col-resize touch-none bg-transparent outline-none {className}">
+  <span aria-hidden="true" class="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-transparent transition-colors duration-150
+    group-hover:bg-[#3a3a3a] group-focus-visible:bg-ring group-data-[active=true]:bg-primary"></span>
 </button>
