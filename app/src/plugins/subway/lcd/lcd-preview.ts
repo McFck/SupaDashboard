@@ -19,5 +19,5 @@ const canvas = document.getElementById('c') as HTMLCanvasElement;
 const dpr = devicePixelRatio; canvas.width = 1280 * dpr; canvas.height = 720 * dpr; canvas.style.width = '1280px'; canvas.style.height = '720px';
 const ctx = canvas.getContext('2d')!; ctx.scale(dpr, dpr);
 await document.fonts.ready;
-drawYamanoteLCD(ctx, model);
+drawYamanoteLCD(ctx, model, Number(q.get('t') ?? 600));
 (window as any).__lcdReady = model.page;

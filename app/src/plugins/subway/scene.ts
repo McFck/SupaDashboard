@@ -34,7 +34,7 @@ export const createSubwayScene: SkinSceneFactory<SubwaySceneData | undefined> = 
   const hibiya = createHibiyaRenderer();
   const sakaisuji = createSakaisujiRenderer();
   return {
-    draw({ ctx, width, height, view, data }) {
+    draw({ ctx, width, height, view, data, time }) {
       ctx.fillStyle = BACKGROUND;
       ctx.fillRect(0, 0, width, height);
       if (!data) return false;
@@ -46,7 +46,7 @@ export const createSubwayScene: SkinSceneFactory<SubwaySceneData | undefined> = 
       const screenView = isMap ? 'map' : 'display';
       if (data.line.id === 'yamanote') {
         const model = scheduleScreen(data.snapshot, { line: data.line, languages, clock: data.clockLabel, manualView: screenView }, data.visibleElapsed);
-        yamanote.draw(ctx, viewport.width, viewport.height, model);
+        return yamanote.draw(ctx, viewport.width, viewport.height, model, time);
       } else if (data.line.id === 'hibiya') {
         const pair = scheduleHibiyaPair(data.snapshot, { line: data.line, languages, manualView: screenView }, data.visibleElapsed);
         hibiya.draw(ctx, viewport.width, viewport.height, pair);

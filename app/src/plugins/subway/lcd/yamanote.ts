@@ -60,7 +60,7 @@ function header(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
   ctx.fillStyle = HEADER_BG; ctx.fillRect(0, 0, 1280, 216);
   ctx.fillStyle = C.route; ctx.fillRect(318, 0, 42, 216);
   if (ja) {
-    drawFittedText(ctx, termini.join('・') || direction?.names.ja || '', 22, 118, 286, 50, 26, C.white, 700, JAPANESE_FONT);
+    drawFittedText(ctx, termini.join('・') || direction?.names.ja || '', 300, 118, 280, 50, 26, C.white, 700, JAPANESE_FONT, 'right');
     drawFittedText(ctx, '方面', 300, 174, 120, 26, 18, C.white, 500, JAPANESE_FONT, 'right');
   } else {
     drawFittedText(ctx, 'Bound for', 22, 62, 280, 25, 18, '#d6dadc', 500, 'Arial, sans-serif');
@@ -135,15 +135,12 @@ function broad(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
     }
   }
   if (last) drawFittedText(ctx, ja ? '(分)' : '(min)', last.x + 22, last.y + 10, 44, 12, 10, '#1d2124', 600, ja ? JAPANESE_FONT : 'Arial, sans-serif');
-  const moving = !['stopped', 'arriving'].includes(model.snapshot.state);
-  const from = yamanoteLoopPosition(model.snapshot.station), to = yamanoteLoopPosition(target);
-  if (moving && from.y === to.y && from.x !== to.x) {
-    const dir = Math.sign(to.x - from.x), x = (from.x + to.x) / 2, y = to.y;
-    // A single thick chevron pointing the way the train runs, centred between the two stops.
-    ctx.fillStyle = TRAIN_RED; ctx.beginPath();
-    ctx.moveTo(x - dir * 4, y - 16); ctx.lineTo(x + dir * 10, y); ctx.lineTo(x - dir * 4, y + 16);
-    ctx.lineTo(x - dir * 13, y + 16); ctx.lineTo(x + dir * 1, y); ctx.lineTo(x - dir * 13, y - 16); ctx.closePath();
-    ctx.fill();
+  // White chevrons on the rounded ends show which way trains circulate (numbers rise left to right along the bottom).
+  const delta = model.line.directions.find(d => d.id === model.snapshot.direction)?.delta ?? 1;
+  ctx.strokeStyle = C.white; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const [x, up] of [[88, delta === -1], [1192, delta === 1]] as const) {
+    const d = up ? -1 : 1;
+    ctx.beginPath(); ctx.moveTo(x - 14, 473 - d * 8); ctx.lineTo(x, 473 + d * 8); ctx.lineTo(x + 14, 473 - d * 8); ctx.stroke();
   }
   drawFittedText(ctx, ja ? 'のりかえ、待ち時間は含まれません。電車により多少時間が異なります。' : 'Transfer and waiting times are not included. Times may differ by train.',
     28, 704, 1224, 16, 12, '#1d2124', 500, ja ? JAPANESE_FONT : 'Arial, sans-serif');
@@ -298,16 +295,34 @@ function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
   }
 }
 
-export function drawYamanoteLCD(ctx: CanvasRenderingContext2D, model: ScreenSchedule) { drawStatic(ctx, model); }
+/** Animated red cursor between the last and next stop on the map page; true while it needs frames. */
+function drawCursor(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time: number) {
+  if (model.page !== 'broad' || ['stopped', 'arriving'].includes(model.snapshot.state)) return false;
+  const from = yamanoteLoopPosition(model.snapshot.station), to = yamanoteLoopPosition(targetStation(model).code);
+  if (from.y !== to.y || from.x === to.x) return false;
+  const dir = Math.sign(to.x - from.x), phase = (time % 1200) / 1200;
+  // Glides from just past the last stop toward the next one, then restarts; fades in and out at the ends.
+  const x = from.x + (to.x - from.x) * (.3 + .4 * phase), y = to.y;
+  ctx.globalAlpha = Math.min(1, phase * 6, (1 - phase) * 6);
+  ctx.fillStyle = TRAIN_RED; ctx.beginPath();
+  ctx.moveTo(x - dir * 4, y - 16); ctx.lineTo(x + dir * 10, y); ctx.lineTo(x - dir * 4, y + 16);
+  ctx.lineTo(x - dir * 13, y + 16); ctx.lineTo(x + dir * 1, y); ctx.lineTo(x - dir * 13, y - 16); ctx.closePath();
+  ctx.fill(); ctx.globalAlpha = 1;
+  return true;
+}
+
+export function drawYamanoteLCD(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time = 0) { drawStatic(ctx, model); drawCursor(ctx, model, time); }
 
 export function createYamanoteRenderer() {
   const cache = new CanvasLayerCache(12);
   return {
-    draw(ctx: CanvasRenderingContext2D, width: number, height: number, model: ScreenSchedule) {
+    draw(ctx: CanvasRenderingContext2D, width: number, height: number, model: ScreenSchedule, time = 0) {
       const scale = Math.min(width / 1280, height / 720);
       ctx.save(); ctx.translate((width - 1280 * scale) / 2, (height - 720 * scale) / 2); ctx.scale(scale, scale);
       if (!cache.draw(ctx, model.invalidationKey, 1280, 720, layer => drawStatic(layer, model))) drawStatic(ctx, model);
+      const animating = drawCursor(ctx, model, time);
       ctx.restore();
+      return animating;
     },
     get cacheSize() { return cache.size; },
     dispose() { cache.clear(); },
