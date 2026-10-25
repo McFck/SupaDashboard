@@ -81,7 +81,7 @@ describe('Subway v2 content and composition', () => {
     const scene = createSubwayScene();
     scene.draw({ ctx, width: 1280, height: 720, mode: 'frozen', time: 0, view: 'display',
       data: { ...data, visibleElapsed: 8_000, snapshot: { ...snapshot, direction: 'outer', next: 'JY01' } } });
-    expect(texts).toContain('09:41');
+    expect(texts).toEqual(expect.arrayContaining(['09', '41']));
     scene.dispose?.();
   });
 

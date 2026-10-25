@@ -129,8 +129,12 @@ export function e235LoopCell(code: string) {
 const cellX = (index: number) => ROW_X + index * CELL + CELL / 2;
 const trackY = (upper: boolean) => (upper ? UPPER_TRACK : LOWER_TRACK) + 18;
 
+/** Path2D from SVG data; absent outside the browser (unit tests draw on a stub context). */
+const svg = (d: string) => typeof Path2D === 'undefined' ? null : new Path2D(d);
+
 function path(ctx: CanvasRenderingContext2D, d: string, x: number, y: number, fill: string) {
-  ctx.save(); ctx.translate(x, y); ctx.fillStyle = fill; ctx.fill(new Path2D(d)); ctx.restore();
+  const shape = svg(d); if (!shape) return;
+  ctx.save(); ctx.translate(x, y); ctx.fillStyle = fill; ctx.fill(shape); ctx.restore();
 }
 
 /** Loop-end pieces copied from the theme; the 4px V-shaped gap between them is the white direction mark. */
@@ -230,8 +234,8 @@ export function drawE235Detailed(ctx: CanvasRenderingContext2D, model: ScreenSch
   const mx = (x: number) => mirror ? E235_WIDTH - x : x;
   ctx.save(); ctx.translate(0, HEADER);
   if (mirror) { ctx.translate(E235_WIDTH, 0); ctx.scale(-1, 1); }
-  ctx.fillStyle = LINE; ctx.fill(new Path2D('M250,380 A1000,600 0 0 1 750,0 L960,0 A900,500 0 0 0 400,380 Z'));
-  ctx.strokeStyle = LINE_EDGE; ctx.lineWidth = 5; ctx.stroke(new Path2D('M960,0 A900,500 0 0 0 400,380'));
+  const band = svg('M250,380 A1000,600 0 0 1 750,0 L960,0 A900,500 0 0 0 400,380 Z'), edge = svg('M960,0 A900,500 0 0 0 400,380');
+  if (band && edge) { ctx.fillStyle = LINE; ctx.fill(band); ctx.strokeStyle = LINE_EDGE; ctx.lineWidth = 5; ctx.stroke(edge); }
   ctx.restore();
   const isStopped = model.snapshot.state === 'stopped';
   const first = isStopped ? model.station : e235Target(model);
