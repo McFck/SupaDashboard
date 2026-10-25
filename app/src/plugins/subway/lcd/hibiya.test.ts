@@ -108,6 +108,24 @@ describe('Tokyo Metro 13000 LCD pair', () => {
     renderer.dispose();
   });
 
+  it.each(['emergency', 'suspended'] as const)('keeps configured header languages and shows the %s caption instead of Next', state => {
+    const text: { value: string; y: number }[] = [];
+    const target = { measureText: (value: string) => ({ width: value.length * 20 }),
+      createLinearGradient: () => ({ addColorStop() {} }), fillText: (value: string, _x: number, y: number) => text.push({ value, y }) };
+    const ctx = new Proxy(target, { get: (object, key) => key in object ? object[key as keyof typeof object] : () => {} }) as unknown as CanvasRenderingContext2D;
+    const pair = scheduleHibiyaPair({ ...snapshot('H08'), state }, { line: hibiya, languages: ['ja', 'en'] }, 0);
+    expect(pair.left.languages).toEqual(['ja', 'kana', 'en']);
+    expect([pair.left.language, pair.right.language]).toEqual(['en', 'ja']);
+    const renderer = createHibiyaRenderer(); renderer.draw(ctx, 2592, 720, pair);
+    const headers = text.filter(item => item.y < 224).map(item => item.value);
+    expect(headers).toContain(state === 'emergency' ? 'Emergency stop' : 'Service suspended');
+    expect(headers).toContain(state === 'emergency' ? '緊急停止' : '運転見合わせ');
+    for (const caption of ['Next', 'つぎは', '下一站']) expect(headers).not.toContain(caption);
+    expect(text.filter(item => item.y >= 224).map(item => item.value)).toEqual(expect.arrayContaining(
+      state === 'emergency' ? ['緊急停止', 'Emergency stop', '紧急停车', '비상 정차'] : ['運転見合わせ', 'Service suspended', '暂停服务', '운행 중단']));
+    renderer.dispose();
+  });
+
   it('windows route stops in order without duplicate seam stations or invented terminal stops', () => {
     for (const direction of hibiya.directions) {
       for (const station of hibiya.stations) {
