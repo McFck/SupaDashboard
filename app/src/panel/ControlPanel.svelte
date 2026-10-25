@@ -9,33 +9,17 @@
   import Store from '@lucide/svelte/icons/store';
   import { Button } from '$lib/components/ui/button';
   import { Hint } from '$lib/components/ui/tooltip';
-  import PaneHandle from './ui/PaneHandle.svelte';
   import LayoutPage from './LayoutPage.svelte';
   import PluginsPage from './PluginsPage.svelte';
   import SettingsPage from './SettingsPage.svelte';
   import MarketPage from './MarketPage.svelte';
   import ConfirmationHost from '$lib/components/ui/confirmation/ConfirmationHost.svelte';
   import { confirmationState } from '$lib/components/ui/confirmation/confirm.svelte';
-  import { frame, saveFrame } from './ui/preferences.svelte';
-  import { SIDEBAR_RAIL, SIDEBAR_MIN, SIDEBAR_MAX, sidebarWidth } from './ui/frame';
+  import { SIDEBAR_RAIL } from './ui/frame';
 
   type Page = 'layout' | 'settings' | 'plugins' | 'market';
   let page = $state<Page>('layout');
-  let resizing = $state<{ x: number; width: number } | null>(null);
-  const collapsed = $derived(frame.sidebarWidth === SIDEBAR_RAIL);
   const confirmationActive = $derived(confirmationState.current !== null);
-  function moveResize(e: PointerEvent) {
-    if (resizing) frame.sidebarWidth = sidebarWidth(resizing.width + e.clientX - resizing.x);
-  }
-  function stopResize() { if (resizing) { resizing = null; saveFrame(); } }
-  function resizeKey(e: KeyboardEvent) {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
-    e.preventDefault();
-    frame.sidebarWidth = e.key === 'Home' ? SIDEBAR_RAIL : e.key === 'End' ? SIDEBAR_MAX
-      : e.key === 'ArrowLeft' ? frame.sidebarWidth <= SIDEBAR_MIN ? SIDEBAR_RAIL : sidebarWidth(frame.sidebarWidth - 16)
-      : collapsed ? SIDEBAR_MIN : sidebarWidth(frame.sidebarWidth + 16);
-    saveFrame();
-  }
   const NAV: { id: Page; label: string; icon: typeof Monitor }[] = [
     { id: 'layout', label: 'Layout', icon: LayoutGrid }, { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'plugins', label: 'Plugins', icon: Puzzle }, { id: 'market', label: 'Market', icon: Store },
@@ -58,9 +42,8 @@
   }
 </script>
 
-<svelte:window onpointermove={moveResize} onpointerup={stopResize} onpointercancel={stopResize} onblur={stopResize} />
 <div inert={confirmationActive} class="flex h-full min-h-0 min-w-0 overflow-hidden bg-[var(--canvas-surface)] text-foreground">
-  <nav aria-label="Main navigation" style:width="{frame.sidebarWidth}px" class="relative flex min-h-0 shrink-0 flex-col bg-[var(--canvas-surface)]">
+  <nav aria-label="Main navigation" style:width="{SIDEBAR_RAIL}px" class="relative flex min-h-0 shrink-0 flex-col bg-[var(--canvas-surface)]">
     <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto py-3">
     <div class="relative grid h-10 shrink-0 grid-cols-[64px_minmax(0,1fr)] items-center">
       <Hint text={visible ? 'Hide dashboard' : 'Show dashboard'} side="right">
@@ -71,23 +54,19 @@
           </Button>
         {/snippet}
       </Hint>
-      <span class="absolute left-14 right-2 min-w-0 truncate text-[15px] font-semibold tracking-tight" class:invisible={collapsed} aria-hidden={collapsed}>SupaDashboard</span>
     </div>
     {#each NAV as n (n.id)}
-          <Hint text={collapsed ? n.label : undefined} side="right">
+          <Hint text={n.label} side="right">
           {#snippet children(props)}
           <button {...props} type="button" onclick={() => (page = n.id)} aria-label={n.label} aria-current={page === n.id ? 'page' : undefined}
             class="relative mx-2 grid h-10 shrink-0 grid-cols-[48px_minmax(0,1fr)] items-center rounded-lg text-left text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring
               {page === n.id ? 'bg-white/[.08] text-foreground' : 'text-muted-foreground hover:bg-white/[.04] hover:text-foreground'}">
             <span class="flex h-10 w-12 items-center justify-center"><n.icon size={17} class="shrink-0" /></span>
-            <span class="absolute left-12 right-2 min-w-0 truncate" class:invisible={collapsed} aria-hidden={collapsed}>{n.label}</span>
           </button>
           {/snippet}
           </Hint>
     {/each}
     </div>
-    <PaneHandle label="Resize navigation" active={resizing !== null} class="bottom-0 -right-3.5 top-6"
-      onpointerdown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); resizing = { x: e.clientX, width: frame.sidebarWidth }; }} onkeydown={resizeKey} />
   </nav>
   <main class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
     <div class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl border-l border-t border-[#262626] bg-[#171717]">
