@@ -305,6 +305,10 @@ pub async fn open_panel(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("panel") {
         if ready {
             reveal_panel(window, &state, generation).await?;
+        } else {
+            // A page that never sent panel_ready (for example after a dev reload) would leave the open request
+            // pending forever; reloading makes it handshake again and reveal.
+            let _ = window.eval("location.reload()");
         }
         return Ok(());
     }
