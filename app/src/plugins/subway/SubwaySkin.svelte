@@ -144,8 +144,8 @@
   </nav>
   {#if host?.mode === 'runtime'}
     <nav data-skin-input="ui" aria-label="Dashboard pages" class="absolute z-30 grid grid-cols-2 gap-3" style={regionStyle(composition.pages)}>
-      <Button class="size-full p-0 [&_svg]:size-10" variant="outline" aria-label="Previous page" tabindex={-1} onclick={() => void host?.page.prev()}><ArrowLeft /></Button>
-      <Button class="size-full p-0 [&_svg]:size-10" variant="outline" aria-label="Next page" tabindex={-1} onclick={() => void host?.page.next()}><ArrowRight /></Button>
+      <Button class="size-full p-0 [&_svg]:size-10" variant="outline" aria-label="Previous page" tabindex={-1} onclick={() => void host?.page.prev()}><ArrowLeft class="size-12" strokeWidth={2.5} /></Button>
+      <Button class="size-full p-0 [&_svg]:size-10" variant="outline" aria-label="Next page" tabindex={-1} onclick={() => void host?.page.next()}><ArrowRight class="size-12" strokeWidth={2.5} /></Button>
     </nav>
   {/if}
   <SkinQuickActions />
