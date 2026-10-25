@@ -7,6 +7,7 @@
   import { getSkinHostContext } from './context';
 
   const host = getSkinHostContext();
+  const quickActionScale = $derived(1 / Math.max(host?.designScale ?? 1, 0.01));
   let root = $state<HTMLDivElement>();
   let expanded = $state<number | undefined>();
   let running = $state<number | undefined>();
@@ -72,7 +73,8 @@
   <button type="button" aria-label="Close quick actions" tabindex="-1" class="absolute inset-0 bg-black/55"
     onclick={() => host?.setQuickActionsOpen(false)}></button>
   <div role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="skin-quick-actions-title"
-    class="relative z-10 grid max-h-full w-full max-w-sm content-start gap-3 overflow-y-auto rounded-xl border bg-card p-4 shadow-xl">
+    class="relative z-10 grid max-h-full w-full max-w-sm content-start gap-3 overflow-y-auto rounded-xl border bg-card p-4 shadow-xl"
+    style:transform={`scale(${quickActionScale})`} style:max-height="calc(100vh - 2rem)">
     <header class="flex items-center justify-between gap-3">
       <h2 id="skin-quick-actions-title" class="font-semibold">Quick actions</h2>
       <Button size="icon-sm" variant="ghost" aria-label="Close quick actions" onclick={() => host?.setQuickActionsOpen(false)}>×</Button>
@@ -80,12 +82,12 @@
     {#each rows as row (row.index)}
       <div class="grid gap-2 rounded-lg border bg-background/70 p-2">
         <div class="flex min-w-0 items-center gap-2">
-          <Button class="min-w-0 flex-1 justify-start" variant="outline" disabled={!row.action || !row.valid || running !== undefined}
+          <Button class="min-h-9 min-w-0 flex-1 justify-start" variant="outline" disabled={!row.action || !row.valid || running !== undefined}
             aria-label={row.action ? `Run ${row.action.title}` : 'Unavailable'} onclick={() => void invoke(row)}>
             <span class="truncate">{row.action?.title ?? 'Unavailable'}</span>
           </Button>
           {#if row.action?.params?.length}
-            <Button size="sm" variant="ghost" aria-label="Parameters for {row.action.title}"
+            <Button size="sm" class="min-h-9" variant="ghost" aria-label="Parameters for {row.action.title}"
               aria-expanded={expanded === row.index} onclick={() => expanded = expanded === row.index ? undefined : row.index}>
               {expanded === row.index ? 'Done' : 'Params'}
             </Button>
@@ -97,7 +99,7 @@
               <ParamField {param} value={row.args[param.key]} args={row.args} provider={row.action.plugin}
                 onchange={value => setParam(row.index, param.key, value)} />
             {/each}
-            <Button size="sm" disabled={!row.valid || running !== undefined} onclick={() => void invoke(row)}>
+            <Button size="sm" class="min-h-9" disabled={!row.valid || running !== undefined} onclick={() => void invoke(row)}>
               {running === row.index ? 'Running' : `Run ${row.action.title}`}
             </Button>
           </div>

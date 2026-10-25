@@ -5,12 +5,40 @@
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Badge } from '$lib/components/ui/badge';
   import Icon from '../controls/Icon.svelte';
-  import { pluginState, setPluginEnabled, skins, type Plugin } from '../core/registry';
+  import { pluginState, setPluginEnabled, skins, suggestionsOf, type Param, type Plugin } from '../core/registry';
+  import ParamField from '../editor/ParamField.svelte';
+  import { commit } from '../core/history.svelte';
+  import { currentRuntime } from '../core/runtime.svelte';
+  import { resolveSkinConfig, validSkinParam } from '../core/skins';
+  import { settings } from '../core/settings.svelte';
   import Row from './ui/Row.svelte';
   import Section from './ui/Section.svelte';
   let { plugin, onback }: { plugin: Plugin; onback: () => void } = $props();
   const pluginSkins = $derived([...skins.values()].filter(skin => skin.plugin === plugin.id));
   let removing = $state(false);
+  function setSkinSetting(skin: typeof pluginSkins[number], param: Param, value: unknown) {
+    const current = settings.skinSettings[skin.id] ?? {};
+    const previous = resolveSkinConfig(skin, current);
+    if (!validSkinParam(param, value, previous)) return;
+    const next = { ...current, [param.key]: value };
+    const resolved = { ...previous, [param.key]: value };
+    for (const dependent of skin.settings ?? []) {
+      if (dependent.key === param.key || validSkinParam(dependent, resolved[dependent.key], resolved)) continue;
+      const options = suggestionsOf(dependent, resolved);
+      const fallback = options?.find(option => Object.is(option.value, dependent.default))?.value ?? options?.[0]?.value;
+      if (fallback === undefined) {
+        delete next[dependent.key];
+        delete resolved[dependent.key];
+      } else {
+        next[dependent.key] = fallback;
+        resolved[dependent.key] = fallback;
+      }
+    }
+    if (Object.keys(next).every(key => Object.is(next[key], current[key])) && Object.keys(current).every(key => Object.is(current[key], next[key]))) return;
+    commit(`Change ${skin.title} ${param.label}`);
+    settings.skinSettings = { ...settings.skinSettings, [skin.id]: next };
+    currentRuntime()?.updateSkinConfig(skin.id, settings.skinSettings[skin.id]);
+  }
   function date(value?: string) {
     return value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) : '—';
   }
@@ -58,6 +86,19 @@
         </Row>
       {/each}
     </Section>
+    {#each pluginSkins as skin (skin.id)}
+      {#if skin.settings?.length}
+        {@const values = resolveSkinConfig(skin, settings.skinSettings[skin.id] ?? {})}
+        <Section title={`${skin.title} settings`}>
+          {#each skin.settings as param (param.key)}
+            <div class="border-b py-3.5 last:border-b-0">
+              <ParamField {param} args={values} provider={skin.plugin} value={values[param.key]} showPluginMark={false}
+                onchange={value => setSkinSetting(skin, param, value)} />
+            </div>
+          {/each}
+        </Section>
+      {/if}
+    {/each}
   {/if}
   {#if plugin.settings}
     {@const Settings = plugin.settings}

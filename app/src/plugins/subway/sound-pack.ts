@@ -227,17 +227,31 @@ function queueStationCues(
   return result;
 }
 
+function packDepartureMelody(line: LoadedSubwayLine): PackCueRecord | undefined {
+  const entries = Array.isArray(line.pack.on_station) ? line.pack.on_station : [];
+  return entries.map(asRecord).find((entry): entry is Record<string, unknown> & PackCueRecord => !!entry &&
+    (entry.kind === 'departure_melody' || (typeof entry.text === 'string' && entry.text.trim().toLowerCase() === 'departure melody')));
+}
+
 function departureMelody(
-  station: Record<string, unknown>, direction: string, catalogue: RuntimeCueManifest, base: string,
+  line: LoadedSubwayLine, station: Record<string, unknown>, stationCode: string, direction: string,
+  catalogue: RuntimeCueManifest, base: string,
 ): ResolvedCue | undefined {
   const byDirection = asRecord(station.departure_melody);
-  const melody = asRecord(byDirection?.[direction]) as PackCueRecord | undefined;
-  return melody && typeof melody.file === 'string' ? resolveCue(melody, 'melody', catalogue, base) : undefined;
+  const stationMelody = asRecord(byDirection?.[direction]) as PackCueRecord | undefined;
+  const melody = stationMelody && typeof stationMelody.file === 'string' ? stationMelody : packDepartureMelody(line);
+  return melody && typeof melody.file === 'string' ? resolveCue(melody, 'melody', catalogue, base, stationCode) : undefined;
 }
 
 function planContainsDepartureMelody(sequence: unknown): boolean {
   const close = asRecord(sequence)?.close;
   return Array.isArray(close) && close.some(step => asRecord(step)?.part === 'departure_melody');
+}
+
+function withoutDepartureMelodyAnchor(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const match = /^departure_melody_end([+-]\d+(?:\.\d+)?)?$/.exec(value);
+  return match ? Number(match[1] ?? 0) : value;
 }
 
 export function resolveDoorPlanLine(
@@ -252,7 +266,15 @@ export function resolveDoorPlanLine(
   const sequenceRecord = asRecord(doors.sequence);
   const closeSteps = sequenceRecord?.close;
   const filteredSequence = Array.isArray(closeSteps) && !melody
-    ? { ...sequenceRecord, close: closeSteps.filter(step => asRecord(step)?.part !== 'departure_melody') }
+    ? { ...sequenceRecord, close: closeSteps.filter(step => asRecord(step)?.part !== 'departure_melody').map(step => {
+      const record = asRecord(step);
+      if (!record) return step;
+      return {
+        ...record,
+        ...(Object.hasOwn(record, 'at') ? { at: withoutDepartureMelodyAnchor(record.at) } : {}),
+        ...(Object.hasOwn(record, 'until') ? { until: withoutDepartureMelodyAnchor(record.until) } : {}),
+      };
+    }) }
     : doors.sequence;
   const cues: Record<string, ResolvedCue> = {};
   if (melody) cues.departure_melody = melody;
@@ -266,7 +288,10 @@ export function resolveDoorPlanLine(
 }
 
 function freezePlan(plan: DoorSequencePlan): DoorSequencePlan {
-  const events = plan.events.map(event => Object.freeze({ ...event, cue: Object.freeze({ ...event.cue }) }));
+  const events = plan.events.map(event => Object.freeze({ ...event, cue: Object.freeze({
+    ...event.cue,
+    audible_end: Math.min(event.cue.audible_end, event.cue.duration),
+  }) }));
   return Object.freeze({ ...plan, events: Object.freeze(events) as unknown as DoorSequencePlan['events'] });
 }
 
@@ -285,7 +310,7 @@ export function buildSegmentCuePlan(
   const target = packStation(line, to);
   if (!source || !target) throw new Error(`Missing Subway pack station for ${from} → ${to}`);
   const languageOrder = [...new Set(languages)].filter(language => ['ja', 'en', 'zh', 'ko'].includes(language));
-  const melody = departureMelody(source, direction, catalogue, base);
+  const melody = departureMelody(line, source, from, direction, catalogue, base);
   const doors = asRecord(line.pack.doors);
   const sequence = doors?.sequence;
   const includesMelody = planContainsDepartureMelody(sequence);

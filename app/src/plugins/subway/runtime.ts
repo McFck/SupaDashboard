@@ -160,6 +160,7 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
   let assets: LoadedSubwayAssets | undefined;
   let plans: SubwayCuePlans = {};
   let state: SubwayRunState | undefined;
+  let autoStarted = false;
   let lastDiscreteProjection = '';
   let lastNumericProjectionAt = Number.NEGATIVE_INFINITY;
   let lastSceneProjection = '';
@@ -180,6 +181,7 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     if (eligible) {
       dispatch({ type: 'resume' });
       syncConfig();
+      autoStartIfNeeded();
     } else dispatch({ type: 'pause' });
   });
 
@@ -280,6 +282,20 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     return true;
   }
 
+  function autoStartIfNeeded(): boolean {
+    if (!alive || !ready || !eligible || !state || !lines.length) return false;
+    if (state.active) {
+      autoStarted = true;
+      return true;
+    }
+    if (autoStarted) return false;
+    const line = lines.find(item => item.id === state!.lineId);
+    if (!line || !stepStation(line, state.stationCode, state.direction)) return false;
+    dispatch({ type: 'start' });
+    autoStarted = state.active;
+    return autoStarted;
+  }
+
   function requestLine(args: { line?: unknown; direction?: unknown; startStation?: unknown }, ancestry?: EventAncestry): boolean {
     if (!alive || !ready || !eligible || !state || !lines.length) return false;
     const currentLine = lines.find(item => item.id === state!.lineId)!;
@@ -299,7 +315,10 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     overrides.line = true;
     if (requestedDirection !== undefined) overrides.direction = true;
     if (requestedStation !== undefined || nextLine.id !== currentLine.id) overrides.startStation = true;
-    return dispatch({ type: 'configure', lineId: nextLine.id, direction, stationCode }, ancestry, true);
+    if (!dispatch({ type: 'configure', lineId: nextLine.id, direction, stationCode }, ancestry, true)) return false;
+    autoStarted = false;
+    autoStartIfNeeded();
+    return true;
   }
 
   function setImmersion(enabled?: boolean, ancestry?: EventAncestry): boolean {
@@ -336,6 +355,8 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     if (!alive || !ready || !eligible || !state || !lines.length) return;
     const config = normalizeSubwayConfig(currentConfig, lines);
     const previous = appliedConfig;
+    const routeChanged = !previous || config.line !== previous.line || config.direction !== previous.direction ||
+      config.startStation !== previous.startStation;
     if (previous) {
       if (config.line !== previous.line) overrides.line = false;
       if (config.direction !== previous.direction) overrides.direction = false;
@@ -351,8 +372,11 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     const requestedStation = overrides.startStation ? state.stationCode : config.startStation;
     const stationCode = targetLine.stations.some(item => item.code === requestedStation)
       ? requestedStation : firstStationForDirection(targetLine, direction);
-    if (state.lineId !== targetLine.id || state.direction !== direction || state.stationCode !== stationCode)
+    if (routeChanged && (state.lineId !== targetLine.id || state.direction !== direction || state.stationCode !== stationCode)) {
       dispatch({ type: 'configure', lineId: targetLine.id, direction, stationCode });
+      autoStarted = false;
+      autoStartIfNeeded();
+    }
     if (config.speed !== state.nextMultiplier) dispatch({ type: 'set-speed', multiplier: config.speed });
     if (!overrides.immersion && config.immersion !== state.immersion)
       dispatch({ type: 'set-immersion', enabled: config.immersion });
@@ -364,6 +388,7 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
   const unsubscribeConfig = context.config.subscribe(config => {
     currentConfig = config;
     syncConfig();
+    autoStartIfNeeded();
   });
 
   const requestEpoch = epoch;
@@ -392,9 +417,12 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
     audio.setEnabled(state.immersion);
     audio.transition(snapshotRun(state, clock.now(), lines, plans), []);
     if (eligible) {
-      queueEffects([], state, epoch);
-      if (state.pendingCues.length) audio.preload(state.pendingCues.map(cue => cue.cue));
-      scheduleWake();
+      syncConfig();
+      if (!autoStartIfNeeded()) {
+        queueEffects([], state, epoch);
+        if (state.pendingCues.length) audio.preload(state.pendingCues.map(cue => cue.cue));
+        scheduleWake();
+      }
     }
   }).catch(() => {
     if (!alive || requestEpoch !== epoch) return;

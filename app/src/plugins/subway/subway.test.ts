@@ -20,7 +20,7 @@ describe('Subway skin registration', () => {
     const { skin } = collect();
     validateSkinDefinition(skin);
     expect(skin.design).toEqual({ width: 1920, height: 1200 });
-    expect(skin.slots.find(slot => slot.id === 'strip')?.rect).toEqual({ x: 0, y: 1080, w: 1920, h: 120 });
+    expect(skin.slots.find(slot => slot.id === 'strip')?.rect).toEqual({ x: 0, y: 1080, w: 1200, h: 120 });
     expect(skin.slots.find(slot => slot.id === 'strip')).toMatchObject({ max: 8, size: { w: 1, h: 1 } });
     expect(skin.slots.find(slot => slot.id === 'side')).toMatchObject({ max: 2, rect: { x: 1728, y: 64, w: 128, h: 352 } });
     expect(skin.views).toEqual([

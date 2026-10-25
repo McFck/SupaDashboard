@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+  import ArrowRight from '@lucide/svelte/icons/arrow-right';
   import { Button } from '$lib/components/ui/button';
   import type { Page } from '../../core/settings.svelte';
   import { watchDashboardVisibility, watchIntersection } from '../../core/content-visibility';
@@ -102,10 +104,10 @@
   });
 </script>
 
-<div bind:this={sceneElement} class="absolute inset-0 overflow-hidden bg-[#10171b] text-[#e5ecef]">
+<div bind:this={sceneElement} class="absolute inset-0 bg-[#10171b] text-[#e5ecef]" class:overflow-hidden={host?.mode === 'runtime'}>
   <CanvasScene create={createSubwayScene} width={1920} height={1080} view={host?.viewId ?? 'display'} data={sceneData}
     class="absolute left-0 top-0" />
-  <div class="absolute left-0 top-[1080px] h-[120px] w-[1920px]" data-skin-region="strip">
+  <div class="absolute left-0 top-[1080px] h-[120px] w-[1200px]" data-skin-region="strip">
     <Slot id="strip" />
   </div>
   <div class="absolute left-[1728px] top-[64px] h-[352px] w-[128px] transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
@@ -113,18 +115,18 @@
     style:opacity={sideActive ? 1 : 0} style:transform={sideActive ? 'translateY(0)' : 'translateY(4px)'} data-skin-region="side">
     <Slot id="side" />
   </div>
-  <nav data-skin-input="ui" aria-label="Skin view" class="absolute left-[1456px] top-[1116px] z-20 flex gap-1.5">
-    <Button size="sm" variant={host?.viewId === 'display' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'display'}
+  <nav data-skin-input="ui" aria-label="Skin view" class="absolute left-[1352px] top-[1104px] z-20 grid w-[384px] grid-cols-[repeat(3,minmax(0,1fr))] gap-2">
+    <Button class="h-[72px] min-w-0 px-1 text-[28px] font-semibold" variant={host?.viewId === 'display' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'display'}
       tabindex={host?.mode === 'runtime' ? -1 : 0} onclick={() => void host?.setView('display')}>Display</Button>
-    <Button size="sm" variant={host?.viewId === 'map' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'map'}
+    <Button class="h-[72px] min-w-0 px-1 text-[28px] font-semibold" variant={host?.viewId === 'map' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'map'}
       tabindex={host?.mode === 'runtime' ? -1 : 0} onclick={() => void host?.setView('map')}>Map</Button>
-    <Button size="sm" variant={host?.viewId === 'cab' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'cab'}
+    <Button class="h-[72px] min-w-0 px-1 text-[28px] font-semibold" variant={host?.viewId === 'cab' ? 'secondary' : 'outline'} aria-pressed={host?.viewId === 'cab'}
       tabindex={host?.mode === 'runtime' ? -1 : 0} onclick={() => void host?.setView('cab')}>Run</Button>
   </nav>
   {#if host?.mode === 'runtime'}
-    <nav data-skin-input="ui" aria-label="Dashboard pages" class="absolute left-[1780px] top-[1116px] z-30 flex gap-2">
-      <Button size="sm" variant="outline" aria-label="Previous page" tabindex={-1} onclick={() => void host?.page.prev()}>‹</Button>
-      <Button size="sm" variant="outline" aria-label="Next page" tabindex={-1} onclick={() => void host?.page.next()}>›</Button>
+    <nav data-skin-input="ui" aria-label="Dashboard pages" class="absolute left-[1752px] top-[1104px] z-30 grid grid-cols-2 gap-2">
+      <Button class="size-[72px] p-0 [&_svg]:size-8" variant="outline" aria-label="Previous page" tabindex={-1} onclick={() => void host?.page.prev()}><ArrowLeft /></Button>
+      <Button class="size-[72px] p-0 [&_svg]:size-8" variant="outline" aria-label="Next page" tabindex={-1} onclick={() => void host?.page.next()}><ArrowRight /></Button>
     </nav>
   {/if}
   <SkinQuickActions />

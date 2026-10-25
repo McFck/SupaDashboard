@@ -1,6 +1,10 @@
+/// <reference types="node" />
 import { describe, expect, it, vi } from 'vitest';
+import { createRequire } from 'node:module';
 import { buildSegmentCuePlan, resolveAssetUrl, resolveCue, selectDirectionalEntries, selectStationEntries,
-  type DoorSequenceApi, type LoadedSubwayLine, type RuntimeCueManifest, type RuntimeCue } from './sound-pack';
+  type DoorSequenceApi, type LoadedSubwayLine, type RuntimeCueManifest, type RuntimeCue, type SegmentCuePlan } from './sound-pack';
+import { normalizeSubwayLines, stepStation, type RawLineBundle } from './lines';
+import { createRunState, reduceRun, segmentPlanKey, type SubwayCuePlans } from './run';
 
 const manifest: RuntimeCueManifest = {
   version: 1,
@@ -17,7 +21,13 @@ const manifest: RuntimeCueManifest = {
   }],
 };
 const packModules = import.meta.glob('../../../../assets/lines/*/pack.json', { eager: true, import: 'default' }) as Record<string, Record<string, unknown>>;
+const lineModules = import.meta.glob('../../../../assets/lines/*/line.json', { eager: true, import: 'default' }) as Record<string, unknown>;
 const runtimeCatalogue = Object.values(import.meta.glob('../../../../assets/motion/runtime-cues.json', { eager: true, import: 'default' }) as Record<string, RuntimeCueManifest>)[0];
+const shippedBundles = Object.entries(packModules).map(([packPath, pack]) => ({
+  line: lineModules[packPath.replace('/pack.json', '/line.json')], pack,
+}));
+const shippedLines = normalizeSubwayLines(shippedBundles as RawLineBundle[]);
+const realDoorSequence = createRequire(import.meta.url)('../../../../assets/motion/door-sequence.js') as DoorSequenceApi;
 
 function referencedFiles(value: unknown, result = new Set<string>()): Set<string> {
   if (Array.isArray(value)) for (const item of value) referencedFiles(item, result);
@@ -49,6 +59,98 @@ describe('Subway sound pack', () => {
     const referenced = new Set(Object.values(packModules).flatMap(pack => [...referencedFiles(pack)]));
     const catalogued = new Set(runtimeCatalogue.cues.map(cue => cue.file));
     expect([...referenced].filter(file => !catalogued.has(file))).toEqual([]);
+  });
+
+  it('uses the Sakaisuji pack departure melody when station records omit it', () => {
+    const bundle: LoadedSubwayLine = { line: {}, pack: packModules['../../../../assets/lines/sakaisuji/pack.json'] };
+    const plan = buildSegmentCuePlan(bundle, 'K11', 'K12', 'southbound', ['ja', 'en'], false,
+      runtimeCatalogue, 'http://localhost/subway/', realDoorSequence);
+    expect(plan.close.events.map(event => event.part)).toEqual(['departure_melody', 'close']);
+  });
+
+  it('builds real door plans for every shipped station and direction', () => {
+    for (const line of shippedLines) {
+      const bundle: LoadedSubwayLine = { line: {}, pack: packModules[`../../../../assets/lines/${line.id}/pack.json`] };
+      for (const station of line.stations) for (const direction of line.directions) {
+        const next = stepStation(line, station.code, direction.id);
+        const targets = next ? [next, station] : [station];
+        for (const target of targets) {
+          expect(() => buildSegmentCuePlan(bundle, station.code, target.code, direction.id, ['ja', 'en'], target.transfers.length > 0,
+            runtimeCatalogue, 'http://localhost/subway/', realDoorSequence),
+          `${line.id} ${station.code} → ${target.code} ${direction.id}`).not.toThrow();
+        }
+      }
+    }
+  });
+
+  it('reduces real shipped door plans through close validation for every route and reaches the next station', () => {
+    const plans: Record<string, SegmentCuePlan> = {};
+    for (const line of shippedLines) {
+      const bundle: LoadedSubwayLine = { line: {}, pack: packModules[`../../../../assets/lines/${line.id}/pack.json`] };
+      for (const station of line.stations) for (const direction of line.directions) {
+        const next = stepStation(line, station.code, direction.id);
+        if (!next) continue;
+        plans[segmentPlanKey(line.id, station.code, next.code, direction.id)] = buildSegmentCuePlan(
+          bundle, station.code, next.code, direction.id, ['ja', 'en'], next.transfers.length > 0,
+          runtimeCatalogue, 'http://localhost/subway/', realDoorSequence,
+        );
+      }
+    }
+
+    let checkedRoutes = 0;
+    for (const line of shippedLines) for (const station of line.stations) for (const direction of line.directions) {
+      const next = stepStation(line, station.code, direction.id);
+      if (!next) continue;
+      const state = createRunState(shippedLines, {
+        lineId: line.id, stationCode: station.code, direction: direction.id, dwellSeconds: 0, now: 0,
+      });
+      const started = reduceRun(state, { type: 'start' }, 0, shippedLines, plans as SubwayCuePlans).state;
+      const stopDeadline = started.stopDeadline ?? 0;
+      let closed = started;
+      for (let at = 0; at < stopDeadline; at += 250) {
+        closed = reduceRun(closed, { type: 'tick' }, Math.min(stopDeadline, at + 250), shippedLines, plans as SubwayCuePlans).state;
+      }
+      expect(() => reduceRun(closed, { type: 'tick' }, stopDeadline, shippedLines, plans as SubwayCuePlans),
+        `${line.id} ${station.code} ${direction.id}`).not.toThrow();
+      expect(reduceRun(closed, { type: 'tick' }, stopDeadline, shippedLines, plans as SubwayCuePlans).state.phase).toBe('doorsClosing');
+      checkedRoutes++;
+    }
+    expect(checkedRoutes).toBeGreaterThan(0);
+
+    const yamanotePlan = plans[segmentPlanKey('yamanote', 'JY01', 'JY02', 'inner')]!;
+    const shortenedPlatformCue = yamanotePlan.close.events.find(event => event.part === 'platform_open')!.cue;
+    expect(shortenedPlatformCue.duration).toBe(3.2);
+    expect(shortenedPlatformCue.audible_end).toBe(shortenedPlatformCue.duration);
+
+    let state = createRunState(shippedLines, { lineId: 'yamanote', stationCode: 'JY01', direction: 'inner', dwellSeconds: 0, now: 0 });
+    state = reduceRun(state, { type: 'start' }, 0, shippedLines, plans as SubwayCuePlans).state;
+    let at = 0;
+    for (let transitions = 0; state.stationCode !== 'JY02' && transitions < 2_000; transitions++) {
+      const deadline = state.stopDeadline ?? state.phaseDeadline ?? at + 250;
+      at = Math.min(at + 250, deadline);
+      state = reduceRun(state, { type: 'tick' }, at, shippedLines, plans as SubwayCuePlans).state;
+    }
+    expect(state.stationCode).toBe('JY02');
+    expect(state.phase).toBe('arriving');
+  });
+
+  it('keeps close timing valid when neither the station nor pack has a departure melody', () => {
+    const closeFile = 'lines/yamanote/clips/door/close.opus';
+    const openFile = 'lines/yamanote/clips/door/open.opus';
+    const noMelodyCatalogue: RuntimeCueManifest = { version: 1, inputs: {}, cues: [closeFile, openFile].map(file => ({
+      file, offset: 0, duration: 1, audible_end: 0.8, gainByRole: { mechanics: 1 },
+      sha256: 'd'.repeat(64), status: 'approved', source: 'fixture',
+    })) };
+    const line: LoadedSubwayLine = { line: {}, pack: {
+      id: 'yamanote', stations: [{ code: 'JY01' }, { code: 'JY02' }],
+      doors: { close: { file: closeFile }, open: { file: openFile }, sequence: {
+        close: [{ part: 'departure_melody', at: 0 }, { part: 'close', at: 'departure_melody_end+0.3' }],
+        open: [{ part: 'open', at: 0 }],
+      } },
+    } };
+    const plan = buildSegmentCuePlan(line, 'JY01', 'JY02', 'inner', [], false, noMelodyCatalogue,
+      'http://localhost/subway/', realDoorSequence);
+    expect(plan.close.events.map(event => [event.part, event.at])).toEqual([['close', 0.3]]);
   });
 
   it('uses the line default once when a station-specific cue is unavailable', () => {

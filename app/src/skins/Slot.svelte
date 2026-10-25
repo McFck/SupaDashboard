@@ -82,5 +82,9 @@
 {/if}
 
 <style>
-  .skin-editor-slot { outline: 1px solid color-mix(in srgb, var(--foreground) 28%, transparent); outline-offset: -1px; }
+  .skin-editor-slot {
+    outline: 1px solid color-mix(in srgb, var(--foreground) 28%, transparent);
+    outline-offset: -1px;
+    overflow: visible;
+  }
 </style>

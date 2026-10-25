@@ -202,10 +202,7 @@
   {#if control && item && def}
     {@const sizeBounds = targetSlot && effectiveSize(layoutTarget.skinId, targetSlot, control.type)}
     <header class="flex h-12 shrink-0 items-center gap-3 border-b border-[#262626] px-4">
-      <div class="grid min-w-0 flex-1 leading-tight">
-        <p class="truncate text-base font-semibold">{control.name}</p>
-        <p class="truncate text-xs text-muted-foreground">{def.title}</p>
-      </div>
+      <p class="min-w-0 flex-1 truncate text-base font-semibold">{def.title}</p>
       <Button size="icon-sm" variant="ghost" aria-label="Duplicate" onclick={duplicate}><Copy /></Button>
       <Button size="icon-sm" variant="ghost" class="text-destructive hover:bg-destructive/10 hover:text-destructive" aria-label="Remove" onclick={removeItem}><Trash /></Button>
       <span class="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true"></span>

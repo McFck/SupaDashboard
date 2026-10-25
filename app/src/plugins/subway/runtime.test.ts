@@ -44,6 +44,14 @@ class FakeClock implements SubwayRuntimeClock {
     }
     this.nowMs = target;
   }
+  advanceUntil(predicate: () => boolean, timeoutMs = 5 * 60_000): void {
+    const deadline = this.nowMs + timeoutMs;
+    while (!predicate() && this.nowMs < deadline) {
+      // Keep each simulated tick below the run reducer's hidden-gap stall guard.
+      this.advanceBy(Math.min(250, deadline - this.nowMs));
+    }
+    if (!predicate()) throw new Error(`Subway state was not reached within ${timeoutMs}ms`);
+  }
 }
 
 function makeContext(onEvent?: (id: string) => void) {
@@ -71,7 +79,7 @@ afterEach(() => {
 });
 
 describe('Subway owner runtime', () => {
-  it('waits for an eligible runtime surface, then uses one timer and publishes the owner projection', async () => {
+  it('starts automatically on the first eligible runtime surface and publishes the owner projection', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
     fixture.config.update(config => ({ ...config, dwellSeconds: 15 }));
@@ -85,16 +93,47 @@ describe('Subway owner runtime', () => {
     const surface = registerSubwaySurface(true);
     disposers.push(() => surface.dispose());
     await flush();
-    expect(clock.pending).toBe(0);
-    expect(fixture.values.get('station')).toBe('JY30');
-    expect(handle.dispatch({ type: 'start' })).toBe(true);
     expect(clock.pending).toBe(1);
+    expect(fixture.values.get('station')).toBe('JY30');
+    expect(fixture.values.get('paused')).toBe(false);
     clock.advanceBy(15_000);
     await flush();
     expect(handle.getSnapshot()).toMatchObject({ state: 'doorsClosing', station: 'JY30', next: 'JY01' });
     expect(clock.pending).toBe(1);
     surface.dispose();
     expect(clock.pending).toBe(0);
+  });
+
+  it('auto-starts after an editor-only period and preserves the progressed station across hide/show', async () => {
+    const clock = new FakeClock();
+    const fixture = makeContext();
+    fixture.config.update(config => ({ ...config, startStation: 'JY01', dwellSeconds: 0 }));
+    const surface = registerSubwaySurface(false);
+    disposers.push(() => surface.dispose());
+    const handle = createSubwayRuntime(fixture.context, { clock, loadAssets: async () => assets, assetBase: 'http://localhost/subway/' });
+    disposers.push(() => handle.dispose());
+    await flush();
+    expect(clock.pending).toBe(0);
+
+    surface.setEligible(true);
+    await flush();
+    expect(handle.getSnapshot()).toMatchObject({ station: 'JY01', next: 'JY02', paused: false });
+    expect(clock.pending).toBe(1);
+
+    clock.advanceUntil(() => handle.getSnapshot()?.station === 'JY02');
+    await flush();
+    expect(handle.getSnapshot()).toMatchObject({ station: 'JY02', next: 'JY03' });
+    surface.setEligible(false);
+    const hidden = handle.getSnapshot()!;
+    clock.advanceBy(60_000);
+    expect(handle.getSnapshot()).toMatchObject({ station: 'JY02', progress: hidden.progress, state: hidden.state });
+
+    surface.setEligible(true);
+    await flush();
+    expect(handle.getSnapshot()).toMatchObject({ station: 'JY02', next: 'JY03', paused: false });
+    clock.advanceUntil(() => handle.getSnapshot()?.station === 'JY03');
+    await flush();
+    expect(handle.getSnapshot()).toMatchObject({ station: 'JY03' });
   });
 
   it('freezes on the last eligible surface and resumes one shared controller when another surface remains', async () => {
@@ -137,8 +176,8 @@ describe('Subway owner runtime', () => {
     expect(clock.pending).toBe(0);
     surface.setEligible(true);
     await flush();
-    handle.dispatch({ type: 'start' });
     expect(clock.pending).toBe(1);
+    expect(handle.getSnapshot()).toMatchObject({ station: 'JY30', next: 'JY01', paused: false });
     surface.setEligible(false);
     await flush();
     expect(clock.pending).toBe(0);
@@ -202,13 +241,38 @@ describe('Subway owner runtime', () => {
     disposers.push(() => handle.dispose());
     await flush();
     expect(handle.requestLine({ line: 'hibiya', direction: 'to-kita-senju', startStation: 'H14' })).toBe(true);
-    expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', direction: 'to-kita-senju', station: 'H14', generation: 1 });
+    expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', direction: 'to-kita-senju', station: 'H14', next: 'H15', paused: false, generation: 3 });
     expect(handle.setImmersion(false)).toBe(true);
     fixture.config.update(config => ({ ...config, speed: 2 }));
     expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', station: 'H14', immersion: false, multiplier: 2 });
     fixture.config.update(config => ({ ...config, immersion: false }));
     fixture.config.update(config => ({ ...config, line: 'hibiya', direction: 'to-naka-meguro', startStation: 'H06' }));
-    expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', direction: 'to-naka-meguro', station: 'H06', immersion: false });
+    expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', direction: 'to-naka-meguro', station: 'H06', next: 'H05', immersion: false, paused: false });
+  });
+
+  it('keeps a completed non-loop terminal stopped across hide/show and starts after an explicit new route', async () => {
+    const clock = new FakeClock();
+    const fixture = makeContext();
+    fixture.config.update(config => ({ ...config, line: 'hibiya', direction: 'to-naka-meguro', station: 'H02', dwellSeconds: 0 }));
+    const surface = registerSubwaySurface(true);
+    disposers.push(() => surface.dispose());
+    const handle = createSubwayRuntime(fixture.context, { clock, loadAssets: async () => assets, assetBase: 'http://localhost/subway/' });
+    disposers.push(() => handle.dispose());
+    await flush();
+    clock.advanceUntil(() => handle.getSnapshot()?.station === 'H01' && clock.pending === 0);
+    await flush();
+    expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', station: 'H01', next: '', state: 'stopped', paused: false });
+    expect(clock.pending).toBe(0);
+
+    surface.setEligible(false);
+    surface.setEligible(true);
+    await flush();
+    expect(handle.getSnapshot()).toMatchObject({ line: 'hibiya', station: 'H01', next: '', state: 'stopped', paused: false });
+    expect(clock.pending).toBe(0);
+
+    expect(handle.requestLine({ line: 'sakaisuji', direction: 'southbound', startStation: 'K11' })).toBe(true);
+    expect(handle.getSnapshot()).toMatchObject({ line: 'sakaisuji', direction: 'southbound', station: 'K11', next: 'K12', paused: false });
+    expect(clock.pending).toBe(1);
   });
 
   it('passes scenario ancestry through runtime action events and rejects invalid requested station data without mutation', async () => {

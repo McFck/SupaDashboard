@@ -33,7 +33,8 @@
   }
 
   function eligible() {
-    return (mode === 'frozen' || runtimeOwner) && !!host?.visible && !!host?.pageRenderVisible && documentVisible && dashboardVisible && intersecting &&
+    return (mode === 'frozen' || runtimeOwner) && !!host?.visible && (mode === 'frozen' || !!host?.pageRenderVisible) &&
+      documentVisible && (mode === 'frozen' || dashboardVisible) && intersecting &&
       width > 0 && height > 0 && (host?.designScale ?? 1) > 0;
   }
 

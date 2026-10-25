@@ -14,8 +14,8 @@
   import PluginMark, { pluginTitle } from './PluginMark.svelte';
   import SuggestionInput from './SuggestionInput.svelte';
 
-  let { param, value, args, provider, onchange }: { param: Param; value: unknown; args?: Record<string, unknown>;
-    provider?: string; onchange: (v: unknown) => void } = $props();
+  let { param, value, args, provider, showPluginMark = true, onchange }: { param: Param; value: unknown; args?: Record<string, unknown>;
+    provider?: string; showPluginMark?: boolean; onchange: (v: unknown) => void } = $props();
   const listId = `suggest-${Math.random().toString(36).slice(2)}`;
   const fieldId = `param-${Math.random().toString(36).slice(2)}`;
   let version = $state(0);
@@ -57,7 +57,7 @@
       <Button variant="outline" size="sm" onclick={() => onchange([...steps, { id: 'media.toggle' }])}><Plus /> Add step</Button>
     </div>
   {:else if param.type === 'select'}
-    <Choice value={String(value ?? param.default ?? '')} options={selectOptions} onchange={onchange} onopen={refresh} />
+    <Choice value={String(value ?? param.default ?? '')} options={selectOptions} onchange={onchange} onopen={refresh} {showPluginMark} />
   {:else if param.type === 'text' && markedTextSuggestions}
     <SuggestionInput value={String(value ?? param.default ?? '')} suggestions={suggestions ?? []} {provider}
       onchange={onchange} onrefresh={refresh} />

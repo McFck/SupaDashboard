@@ -489,7 +489,7 @@
   </header>
   <div bind:this={layout} class="flex min-h-0 min-w-0 flex-1 overflow-visible">
     <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-[var(--canvas-surface)]">
-      <div bind:this={area} role="presentation" onclick={e => { if (e.target === e.currentTarget || e.target === e.currentTarget.lastElementChild) openDeck(); }}
+      <div bind:this={area} role="presentation" onclick={e => { if (e.target instanceof Element && !e.target.closest('button, [role="button"], [data-dashboard-tile], [data-editing-chrome]')) openDeck(); }}
         class="relative grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden">
         <div aria-hidden="true" class="canvas-grid"></div>
         <div class="relative grid h-full min-h-0 w-full min-w-0 place-items-center p-6" class:canvas-enter={active && wasInactive}>

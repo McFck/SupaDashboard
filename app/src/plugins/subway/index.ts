@@ -99,7 +99,7 @@ export const subwayPlugin: Plugin = {
       id: 'subway', title: 'Subway', component: SubwaySkin, runtime, pageNavigation: 'skin', alters: ['layout', 'logic'],
       design: { width: 1920, height: 1200 },
       slots: [
-        { id: 'strip', style: 'region', kind: 'strip', rect: { x: 0, y: 1080, w: 1920, h: 120 },
+        { id: 'strip', style: 'region', kind: 'strip', rect: { x: 0, y: 1080, w: 1200, h: 120 },
           accepts: ['button', 'slider'], max: 8, size: { w: 1, h: 1 },
           grid: { rows: 1, cols: 8, size: 112, gap: 8, sizing: 'auto' } },
         { id: 'side', style: 'anchored', kind: 'grid', rect: { x: 1728, y: 64, w: 128, h: 352 },
