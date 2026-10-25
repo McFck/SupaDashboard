@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { buttonIconSize, type ControlFaceProps } from '../../core/controls';
+  import type { ControlFaceProps } from '../../core/controls';
   import { getSkinHostContext } from '../../skins/context';
   import Icon from '../../controls/Icon.svelte';
   import { subwayButtonFaceModel } from './faces';
@@ -11,7 +11,7 @@
   const model = $derived(subwayButtonFaceModel({ appearance, compact, busy, pull, pixelWidth, pixelHeight } as ControlFaceProps, lineId));
   const icon = $derived(model.label?.toLowerCase().includes('immersion') && audioReady !== true ? 'VolumeX' : model.icon);
   const lineCode = $derived(lineId === 'hibiya' ? 'H' : lineId === 'sakaisuji' ? 'K' : 'JY');
-  const iconSize = $derived(buttonIconSize(pixelWidth, pixelHeight, compact));
+  const iconSize = $derived(Math.max(28, Math.min(pixelWidth, pixelHeight) * .44));
 </script>
 
 <span class="relative flex h-full w-full items-center justify-center gap-2 overflow-hidden rounded-[inherit] border border-white/10 px-2 text-white transition-[opacity,transform] duration-150"
@@ -19,7 +19,7 @@
     ? `color-mix(in oklab, ${model.color} 11%, #171b22)` : model.background ?? 'transparent'}
   style:border-left-color={model.color} style:border-left-width="3px"
   style:transform={model.transform ?? 'none'} style:opacity={model.disabledVisual ? 0.58 : 1}>
-  <span class="grid size-9 shrink-0 place-items-center rounded-lg border border-current/25 bg-black/15" aria-hidden="true">
+  <span class="grid shrink-0 place-items-center" style={`width:${iconSize}px;height:${iconSize}px`} aria-hidden="true">
     <Icon name={icon ?? undefined} size={iconSize} fallback={lineCode} />
   </span>
   {#if !model.compact && model.label}

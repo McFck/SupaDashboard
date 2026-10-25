@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import type { SkinSceneFactory, SkinSceneRenderer, SceneInput, SceneMode, SceneRect } from '../core/skin-scene';
   import { mapScenePoint, SceneScheduler } from '../core/skin-scene';
   import { runtimeView } from '../core/runtime.svelte';
   import { watchDashboardVisibility, watchIntersection } from '../core/content-visibility';
   import { getSkinHostContext } from './context';
 
-  let { create, width, height, view, data, class: className = '' }:
-    { create: SkinSceneFactory<any>; width: number; height: number; view: string; data: unknown; class?: string } = $props();
+  let { create, width, height, view, data, revision = data, opaque = false, class: className = '' }:
+    { create: SkinSceneFactory<any>; width: number; height: number; view: string; data: unknown;
+      revision?: unknown; opaque?: boolean; class?: string } = $props();
   const host = getSkinHostContext();
   const mode = $derived<SceneMode>(host?.mode === 'editor' ? 'frozen' : 'live');
   let canvas: HTMLCanvasElement;
@@ -16,6 +17,7 @@
   let intersecting = $state(false), documentVisible = $state(false), dashboardVisible = $state(false);
   let runtimeOwner = $state(false);
   let rasterWidth = 0, rasterHeight = 0;
+  let painted = false;
   let pointer: SceneInput | null = null;
   let lastView: string | undefined, lastSkinId: string | undefined, lastPageId: string | undefined;
   let dprQuery: MediaQueryList | undefined;
@@ -28,7 +30,6 @@
     const nextWidth = Math.ceil(width * scale * ratio), nextHeight = Math.ceil(height * scale * ratio);
     if (nextWidth <= 0 || nextHeight <= 0 || (nextWidth === rasterWidth && nextHeight === rasterHeight)) return;
     rasterWidth = nextWidth; rasterHeight = nextHeight;
-    canvas.width = nextWidth; canvas.height = nextHeight;
     scheduler?.invalidate();
   }
 
@@ -36,6 +37,12 @@
     return (mode === 'frozen' || runtimeOwner) && !!host?.visible && (mode === 'frozen' || !!host?.pageRenderVisible) &&
       documentVisible && (mode === 'frozen' || dashboardVisible) && intersecting &&
       width > 0 && height > 0 && (host?.designScale ?? 1) > 0;
+  }
+
+  function canPaint() {
+    // Prepaint an opaque page once before its first transition into view, then keep hidden pages idle.
+    return eligible() || (opaque && !painted && untrack(() => data != null) && mode === 'live' && runtimeOwner &&
+      documentVisible && dashboardVisible && width > 0 && height > 0 && (host?.designScale ?? 1) > 0);
   }
 
   function scheduleBackingResize() {
@@ -80,16 +87,20 @@
   }
 
   $effect(() => {
-    const nextMode = mode, nextView = view, nextData = data, nextWidth = width, nextHeight = height;
+    const nextMode = mode, nextView = view;
     const skinId = host?.skin.id, pageId = host?.page.id;
     const canDraw = eligible();
     if (pointer && (nextMode !== 'live' || nextView !== lastView || skinId !== lastSkinId || pageId !== lastPageId || !canDraw))
       cancelPointer();
     lastView = nextView; lastSkinId = skinId; lastPageId = pageId;
-    void nextView; void nextData; void nextWidth; void nextHeight;
+  });
+
+  $effect(() => {
+    const nextMode = mode, contentRevision = revision, nextView = view;
+    void contentRevision; void nextView;
     resizeBacking();
     scheduler?.setMode(nextMode);
-    scheduler?.setActive(canDraw);
+    scheduler?.setActive(canPaint());
     scheduler?.invalidate();
   });
 
@@ -98,15 +109,21 @@
     const ctx = canvas.getContext('2d');
     if (!ctx) return () => renderer?.dispose?.();
     scheduler = new SceneScheduler(time => {
+      // Resizing clears a canvas; do it in the same frame as the replacement paint.
+      if (canvas.width !== rasterWidth) canvas.width = rasterWidth;
+      if (canvas.height !== rasterHeight) canvas.height = rasterHeight;
       const ratioX = canvas.width / width, ratioY = canvas.height / height;
       ctx.setTransform(ratioX, 0, 0, ratioY, 0, 0);
-      ctx.clearRect(0, 0, width, height);
-      return renderer?.draw({ ctx, width, height, time, mode, view, data }) ?? false;
+      if (!opaque) ctx.clearRect(0, 0, width, height);
+      const animate = renderer?.draw({ ctx, width, height, time, mode, view, data }) ?? false;
+      painted = true;
+      scheduler?.setActive(eligible());
+      return animate;
     }, mode, undefined, undefined, () => renderer?.dispose?.());
     const visibility = () => {
       documentVisible = document.visibilityState === 'visible';
       if (!eligible()) cancelPointer();
-      scheduler?.setActive(eligible());
+      scheduler?.setActive(canPaint());
     };
     const stopRuntimeOwner = runtimeView.subscribe(snapshot => {
       if (runtimeOwner === snapshot.owner) return;
@@ -127,7 +144,7 @@
     bindDprQuery();
     visibility();
     resizeBacking();
-    scheduler.setActive(eligible());
+    scheduler.setActive(canPaint());
     return () => {
       cancelPointer();
       disposed = true;

@@ -71,7 +71,7 @@
           {resolveSize} onitemschange={writeItems} />
       </div>
       {#if host.mode === 'editor' && host.skin.id !== 'deck'}
-        <span aria-hidden="true" class="pointer-events-none absolute left-1 top-1 z-[70] rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-foreground">{slot.id}</span>
+        <span aria-hidden="true" class="pointer-events-none absolute left-1 top-1 z-[70] rounded bg-background/90 px-1.5 py-0.5 text-[24px] font-medium text-foreground">{slot.id}</span>
       {/if}
     {/if}
   </div>
@@ -83,8 +83,8 @@
 
 <style>
   .skin-editor-slot {
-    outline: 1px solid color-mix(in srgb, var(--foreground) 28%, transparent);
-    outline-offset: -1px;
+    outline: 2px dashed #a6d7c3;
+    outline-offset: 2px;
     overflow: visible;
   }
 </style>

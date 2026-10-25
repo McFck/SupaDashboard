@@ -21,7 +21,9 @@
   let runtimeOwner = $state(false);
   let skinState = $state<Record<string, VariableValue>>({});
   let width = $state(0), height = $state(0);
-  const fit = $derived(skin.design ? fitSkinDesign(width, height, skin.design.width, skin.design.height) : null);
+  let designHeight = $state<number>();
+  const fittedHeight = $derived(designHeight ?? skin.design?.height ?? 0);
+  const fit = $derived(skin.design ? fitSkinDesign(width, height, skin.design.width, fittedHeight) : null);
   const scale = $derived(skin.design ? fit?.scale ?? 0 : 1);
   const offsetX = $derived(fit?.offsetX ?? 0), offsetY = $derived(fit?.offsetY ?? 0);
   const viewId = $derived.by(() => {
@@ -77,6 +79,8 @@
     get viewId() { return viewId; },
     get designScale() { return scale; },
     get designOffset() { return { x: offsetX, y: offsetY }; },
+    get viewport() { return { width, height }; },
+    setDesignHeight(next) { if (Number.isFinite(next) && next > 0) designHeight = next; },
     get config() { return resolveSkinConfig(skin, settings.skinSettings[skin.id] ?? {}); },
     get state() { return skinState; },
     get visible() { return visible; },
@@ -103,7 +107,7 @@
   onpointerdowncapture={onOriginDown}>
   {#if skin.design}
     {#if fit}
-      <div class="absolute left-0 top-0" data-skin-design style={`width:${skin.design.width}px;height:${skin.design.height}px;transform:translate(${offsetX}px,${offsetY}px) scale(${scale});transform-origin:top left`}>
+      <div class="absolute left-0 top-0" data-skin-design style={`width:${skin.design.width}px;height:${fittedHeight}px;transform:translate(${offsetX}px,${offsetY}px) scale(${scale});transform-origin:top left`}>
         <Skin {page} />
       </div>
     {/if}

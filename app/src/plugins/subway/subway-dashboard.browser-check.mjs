@@ -314,8 +314,8 @@ const stripButton = await evaluate(`(() => {
 assert.equal(stripButton.length, 8, `Expected all 8 Subway strip controls: ${JSON.stringify(stripButton)}`);
 for (let index = 0; index < stripButton.length; index++) {
   const button = stripButton[index];
-  assert(button.bounds.right <= displayControls[0].left || button.bounds.left >= displayControls.at(-1).right ||
-    button.bounds.bottom <= (await evaluate(`document.querySelector('[data-visible-page="true"] nav[aria-label="Skin view"]').getBoundingClientRect().top`)),
+  assert(navBounds.every(nav => button.bounds.right <= nav.left || button.bounds.left >= nav.right ||
+    button.bounds.bottom <= nav.top || button.bounds.top >= nav.bottom),
     `Subway strip control overlaps the view navigation: ${JSON.stringify(button.bounds)}`);
   await tap(button.x, button.y);
   await waitFor(`window.__subwayDashboardCheck.slotActionCalls() === ${index + 1}`,

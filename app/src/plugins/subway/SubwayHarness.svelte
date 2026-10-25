@@ -101,6 +101,8 @@
   function lineWithFacilities(): LineDefinition {
     const facilities = Object.freeze([
       Object.freeze({ kind: 'lift' as const, car: 3, relativePosition: 0.24, label: 'Lift', source: 'Browser fixture only', revision: 'fixture' }),
+      Object.freeze({ kind: 'stairs' as const, car: 5, relativePosition: 0.44, label: 'Stairs', source: 'Browser fixture only', revision: 'fixture' }),
+      Object.freeze({ kind: 'escalator' as const, car: 6, relativePosition: 0.60, label: 'Escalator', source: 'Browser fixture only', revision: 'fixture' }),
       Object.freeze({ kind: 'exit' as const, car: 8, relativePosition: 0.76, label: 'Exit', source: 'Browser fixture only', revision: 'fixture' }),
     ]);
     const stations = yamanote.stations.map(station => {
@@ -184,7 +186,7 @@
     hibiyaFixture('hibiya-doors-closing', 'doorsClosing'),
     hibiyaFixture('hibiya-departing', 'departing'),
     hibiyaFixture('hibiya-cruising-broad', 'cruising'),
-    hibiyaFixture('hibiya-cruising-transfers', 'cruising', 8_000),
+    hibiyaFixture('hibiya-cruising-transfers', 'cruising', 8_000, { station: 'H13' }),
     hibiyaFixture('hibiya-approaching', 'approaching', 0, { station: 'H06' }),
     hibiyaFixture('hibiya-arriving', 'arriving'),
     hibiyaFixture('hibiya-emergency', 'emergency'),
@@ -196,6 +198,7 @@
     hibiyaFixture('hibiya-side-opposite', 'stopped', 0, { line: hibiyaLineWithSide('right'), viewingSide: 'left' }),
     hibiyaFixture('hibiya-side-unknown', 'stopped', 0, { line: hibiyaLineWithSide('unknown') }),
     hibiyaFixture('hibiya-h22-terminal', 'stopped', 6_000, { station: 'H22' }),
+    hibiyaFixture('reference-hibiya-route', 'cruising', 0, { station: 'H13', languages: ['en', 'ja'] }),
   ];
 
   function sakaisujiLineWithSide(side: 'left' | 'right' | 'unknown'): LineDefinition {
@@ -247,6 +250,8 @@
     sakaisujiFixture('sakaisuji-side-this', 'stopped', 0, { line: sakaisujiLineWithSide('right'), viewingSide: 'right' }),
     sakaisujiFixture('sakaisuji-side-opposite', 'stopped', 0, { line: sakaisujiLineWithSide('right'), viewingSide: 'left' }),
     sakaisujiFixture('sakaisuji-side-unknown', 'stopped', 0, { line: sakaisujiLineWithSide('unknown') }),
+    sakaisujiFixture('reference-hankyu-nearby', 'cruising', 8_000, { station: 'K11', languages: ['ja'] }),
+    sakaisujiFixture('reference-hankyu-broad', 'cruising', 0, { station: 'K11', languages: ['kana'] }),
   ];
 
   function modelFor(item: Fixture): ScreenSchedule {

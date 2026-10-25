@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { fittedFont } from './shared';
-import { isTransferBadge, yamanoteBroadNodePositions, yamanoteLayout, yamanoteNearbyLabelLayout } from './yamanote';
+import { isTransferBadge, yamanoteBroadNodePositions, yamanoteLayout } from './yamanote';
 
 describe('E235-0 Yamanote LCD geometry', () => {
   it('keeps the 30 percent header, route separator, body and blue door-panel anchors', () => {
     const layout = yamanoteLayout();
     expect(layout).toMatchObject({ width: 1280, height: 720, header: { height: 216 }, body: { y: 216, height: 504 } });
     expect(layout.direction.width / layout.width).toBeCloseTo(0.2703, 3);
-    expect(layout.separator).toEqual({ x: 346, y: 0, width: 16, height: 216 });
+    expect(layout.separator).toEqual({ x: 346, y: 0, width: 22, height: 216 });
     expect(layout.doorPanel).toEqual({ x: 0, y: 520, width: 1280, height: 200 });
   });
 
@@ -26,15 +26,6 @@ describe('E235-0 Yamanote LCD geometry', () => {
       expect(outer[index].x).toBeCloseTo(1280 - inner[index].x, 8);
       expect(outer[index].y).toBeCloseTo(inner[index].y, 8);
     }
-  });
-
-  it('keeps nearby labels centered and inside the LCD edges', () => {
-    for (const pointX of [110, 366, 640, 914, 1170]) {
-      const layout = yamanoteNearbyLabelLayout(pointX, pointX === 640);
-      expect(layout.centerX - layout.width / 2).toBeGreaterThanOrEqual(24);
-      expect(layout.centerX + layout.width / 2).toBeLessThanOrEqual(1256);
-    }
-    expect(yamanoteNearbyLabelLayout(640, true)).toEqual({ centerX: 640, width: 360 });
   });
 
   it('renders only station codes as badges and leaves transfer prose as text', () => {

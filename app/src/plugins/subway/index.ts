@@ -97,13 +97,13 @@ export const subwayPlugin: Plugin = {
 
     api.registerSkin({
       id: 'subway', title: 'Subway', component: SubwaySkin, runtime, pageNavigation: 'skin', alters: ['layout', 'logic'],
-      design: { width: 1920, height: 1200 },
+      design: { width: 1920, height: 480 },
       slots: [
-        { id: 'strip', style: 'region', kind: 'strip', rect: { x: 0, y: 1080, w: 1200, h: 120 },
-          accepts: ['button', 'slider'], max: 8, size: { w: 1, h: 1 },
+        { id: 'strip', style: 'region', kind: 'strip', rect: { x: 24, y: 360, w: 1320, h: 96 },
+          accepts: ['button', 'slider'], max: 8,
           grid: { rows: 1, cols: 8, size: 112, gap: 8, sizing: 'auto' } },
-        { id: 'side', style: 'anchored', kind: 'grid', rect: { x: 1728, y: 64, w: 128, h: 352 },
-          accepts: ['button'], max: 2, size: { w: 1, h: 1 },
+        { id: 'side', style: 'anchored', kind: 'grid', rect: { x: 1392, y: 264, w: 256, h: 192 },
+          accepts: ['button'], max: 2,
           grid: { rows: 2, cols: 1, size: 112, gap: 8, sizing: 'auto' } },
       ],
       views: [

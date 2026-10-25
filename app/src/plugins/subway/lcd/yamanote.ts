@@ -1,254 +1,177 @@
-import type { ScreenSchedule } from '../screens';
-import { CanvasLayerCache, drawBadge, drawFittedText, drawProgressBar, drawStationName, E235_COLORS, fittedFont } from './shared';
+import { stationMinutes, type ScreenSchedule } from '../screens';
+import { CanvasLayerCache, drawBadge, drawFacilitySymbol, drawFittedText, drawStationName, E235_COLORS as C, JAPANESE_FONT } from './shared';
 
 export const YAMANOTE_LCD_WIDTH = 1280;
 export const YAMANOTE_LCD_HEIGHT = 720;
 
 export function yamanoteLayout() {
   return Object.freeze({
-    width: YAMANOTE_LCD_WIDTH, height: YAMANOTE_LCD_HEIGHT,
-    header: { x: 0, y: 0, width: 1280, height: 216 },
-    direction: { x: 0, y: 0, width: 346, height: 216 },
-    separator: { x: 346, y: 0, width: 16, height: 216 },
-    main: { x: 382, y: 0, width: 738, height: 216 },
-    body: { x: 0, y: 216, width: 1280, height: 504 },
+    width: 1280, height: 720, header: { x: 0, y: 0, width: 1280, height: 216 },
+    direction: { x: 0, y: 0, width: 346, height: 216 }, separator: { x: 346, y: 0, width: 22, height: 216 },
+    main: { x: 382, y: 0, width: 738, height: 216 }, body: { x: 0, y: 216, width: 1280, height: 504 },
     doorPanel: { x: 0, y: 520, width: 1280, height: 200 },
   });
 }
 
-export function yamanoteNearbyLabelLayout(pointX: number, next: boolean): { centerX: number; width: number } {
-  const width = next ? 360 : 220;
-  const margin = 24;
-  return { centerX: Math.max(margin + width / 2, Math.min(YAMANOTE_LCD_WIDTH - margin - width / 2, pointX)), width };
-}
+export const isTransferBadge = (value: string) => /^[A-Z]{1,2}\d{1,2}$/.test(value);
 
-export function isTransferBadge(value: string): boolean {
-  return /^[A-Z]{1,2}\d{1,2}$/.test(value);
-}
-
-function label(model: ScreenSchedule, values: Record<string, string>): string {
-  return values[model.language] ?? values.en ?? values.ja ?? '';
-}
-
-function stationInHeader(model: ScreenSchedule) {
-  return model.snapshot.state === 'doorsClosing' || model.snapshot.state === 'approaching'
-    ? model.nextStation ?? model.station
-    : model.station;
-}
-
-function headerState(model: ScreenSchedule): string {
-  const byState: Record<string, Record<string, string>> = {
-    stopped: { ja: '停車中', en: 'Stopped' },
-    doorsClosing: { ja: 'ドアが閉まります', en: 'Doors closing' },
-    departing: { ja: '発車します', en: 'Departing' },
-    cruising: { ja: '次は', en: 'Next' },
-    approaching: { ja: 'まもなく', en: 'Approaching' },
-    arriving: { ja: '到着', en: 'Arriving' },
-    emergency: { ja: '緊急停止', en: 'Emergency stop' },
-    suspended: { ja: '運転見合わせ', en: 'Service suspended' },
-  };
-  return label(model, byState[model.snapshot.state] ?? {});
-}
-
-function drawHeader(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  const current = stationInHeader(model);
-  const direction = model.line.directions.find(item => item.id === model.snapshot.direction);
-  const destination = model.destination;
-  ctx.fillStyle = E235_COLORS.header;
-  ctx.fillRect(0, 0, 1280, 216);
-  ctx.fillStyle = E235_COLORS.route;
-  ctx.fillRect(346, 0, 16, 216);
-  drawBadge(ctx, 'JY', 46, 36, 54, E235_COLORS.route);
-  const directionName = direction?.names[model.language] ?? direction?.names.ja ?? direction?.names.en ?? direction?.id ?? '';
-  drawFittedText(ctx, directionName, 120, 64, 200, 30, 22, E235_COLORS.white, 700,
-    model.language === 'ja' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif');
-  drawFittedText(ctx, destination, 48, 126, 274, 34, 22, E235_COLORS.white, 700,
-    model.language === 'ja' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif');
-  drawFittedText(ctx, headerState(model), 48, 178, 274, 30, 21, '#d8dfe2', 600,
-    model.language === 'ja' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif');
-
-  drawFittedText(ctx, current.code, 386, 38, 110, 23, 18, '#d6dde0', 700);
-  const name = current.names[model.language] ?? current.names.ja ?? current.names.en ?? current.code;
-  const family = model.language === 'ja' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif';
-  ctx.font = fittedFont(ctx, name, 696, 126, 86, 700, family);
-  ctx.fillStyle = E235_COLORS.white;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(name, 386, 108, 696);
-
-  ctx.fillStyle = '#252c2f';
-  ctx.fillRect(1136, 20, 116, 176);
-  drawFittedText(ctx, `${model.snapshot.remainingMinutes}`, 1194, 70, 92, 46, 28, E235_COLORS.white, 700, 'Arial, sans-serif', 'center');
-  drawFittedText(ctx, label(model, { ja: '分', en: 'min' }), 1194, 112, 92, 24, 18, '#d6dde0', 600, 'Arial, sans-serif', 'center');
-  drawFittedText(ctx, label(model, { ja: '11両', en: '11 cars' }), 1194, 164, 100, 24, 18, '#d6dde0', 600, 'Arial, sans-serif', 'center');
-}
-
-function drawPlatform(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  ctx.fillStyle = E235_COLORS.body;
-  ctx.fillRect(0, 216, 1280, 504);
-  drawFittedText(ctx, label(model, { ja: '乗車位置', en: 'Train formation' }), 54, 258, 480, 28, 20, E235_COLORS.ink, 700,
-    model.language === 'ja' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif');
-  const left = 50, top = 302, gap = 8, carWidth = (1180 - 10 * gap) / 11;
-  for (let car = 1; car <= 11; car++) {
-    const x = left + (car - 1) * (carWidth + gap);
-    ctx.fillStyle = car === model.currentCar ? E235_COLORS.currentCar : '#dce2e5';
-    ctx.fillRect(x, top, carWidth, 98);
-    ctx.strokeStyle = car === model.currentCar ? '#8e1d21' : '#7d898f';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x + 1, top + 1, carWidth - 2, 96);
-    ctx.fillStyle = car === model.currentCar ? E235_COLORS.white : E235_COLORS.ink;
-    ctx.font = '700 20px Arial, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(car), x + carWidth / 2, top + 50);
-  }
-  const facilities = model.station.platformByDirection[model.snapshot.direction]?.facilities ?? [];
-  for (const facility of facilities) {
-    const x = facility.relativePosition === null ? left + (facility.car ?? 1) * (carWidth + gap) : left + facility.relativePosition * 1180;
-    ctx.fillStyle = E235_COLORS.exit;
-    ctx.beginPath(); ctx.arc(x, 420, 13, 0, Math.PI * 2); ctx.fill();
-    drawFittedText(ctx, facility.label, x + 20, 420, 180, 18, 14, E235_COLORS.ink, 600);
-  }
-
-  ctx.fillStyle = E235_COLORS.doorPanel;
-  ctx.fillRect(0, 520, 1280, 200);
-  drawDoorGlyph(ctx, 532, 548, 216, 150, model.snapshot.doors);
-  const state = model.sideLabel ? `${model.sideLabel} doors` : '';
-  if (state) drawFittedText(ctx, state, 792, 600, 380, 38, 24, E235_COLORS.white, 700);
-  if (model.snapshot.doors === 'open') {
-    ctx.fillStyle = E235_COLORS.exit;
-    ctx.fillRect(754, 670, 10, 10);
-  }
-}
-
-function drawDoorGlyph(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number,
-  doors: string): void {
-  ctx.fillStyle = '#f1f4f5';
-  ctx.fillRect(x, y, width, height);
-  ctx.fillStyle = doors === 'open' ? '#cbd9e3' : '#a9bac7';
-  const center = x + width / 2;
-  const half = doors === 'open' ? width * 0.37 : width * 0.49;
-  ctx.fillRect(x + 12, y + 12, half - 12, height - 24);
-  ctx.fillRect(center + (doors === 'open' ? width * 0.13 : 0), y + 12, half - 12, height - 24);
-  ctx.strokeStyle = '#647681'; ctx.lineWidth = 5;
-  ctx.strokeRect(x + 12, y + 12, width - 24, height - 24);
-  ctx.beginPath(); ctx.moveTo(center, y + 12); ctx.lineTo(center, y + height - 12); ctx.stroke();
-}
-
-function drawNearby(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  ctx.fillStyle = E235_COLORS.body; ctx.fillRect(0, 216, 1280, 504);
-  const points = [
-    { x: 110, y: 482, r: 26 }, { x: 366, y: 365, r: 40 }, { x: 640, y: 292, r: 82 },
-    { x: 914, y: 365, r: 46 }, { x: 1170, y: 482, r: 30 },
-  ];
-  ctx.strokeStyle = E235_COLORS.route; ctx.lineWidth = 13; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.beginPath(); points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.stroke();
-  model.nearby.slice(0, points.length).forEach((station, index) => {
-    const point = points[index];
-    const next = station.code === model.snapshot.next;
-    ctx.fillStyle = next ? E235_COLORS.route : E235_COLORS.white;
-    ctx.strokeStyle = E235_COLORS.route; ctx.lineWidth = next ? 9 : 6;
-    ctx.beginPath(); ctx.arc(point.x, point.y, point.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    const name = yamanoteNearbyLabelLayout(point.x, next);
-    drawStationName(ctx, station, model.language, name.centerX, point.y + point.r + 32,
-      name.width, next ? 34 : 25, 18, E235_COLORS.ink, 'center');
-    drawFittedText(ctx, station.code, point.x, point.y, point.r * 1.55, next ? 27 : 18, 13,
-      next ? E235_COLORS.white : E235_COLORS.route, 700, 'Arial, sans-serif', 'center');
-  });
-}
-
-export function yamanoteBroadNodePositions(count: number, directionDelta: 1 | -1): readonly { x: number; y: number }[] {
+export function yamanoteBroadNodePositions(count: number, directionDelta: 1 | -1) {
   if (!Number.isInteger(count) || count < 1) return [];
+  const half = Math.ceil(count / 2);
   return Array.from({ length: count }, (_, index) => {
-    const angle = -Math.PI / 2 + directionDelta * index * (Math.PI * 2 / count);
-    return { x: 640 + 500 * Math.cos(angle), y: 470 + 180 * Math.sin(angle) };
+    const top = index < half;
+    const offset = top ? index : count - index - 1;
+    const x = 140 + offset * 1000 / Math.max(1, half - 1);
+    return { x: directionDelta === 1 ? x : 1280 - x, y: top ? 418 : 530 };
   });
 }
 
-function drawBroad(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  ctx.fillStyle = E235_COLORS.body; ctx.fillRect(0, 216, 1280, 504);
-  const directionDelta = model.line.directions.find(item => item.id === model.snapshot.direction)?.delta ?? 1;
-  const points = yamanoteBroadNodePositions(model.route.length, directionDelta);
-  ctx.strokeStyle = E235_COLORS.route; ctx.lineWidth = 8;
-  ctx.beginPath(); points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
-  if (model.line.loop) ctx.closePath(); ctx.stroke();
-  model.route.forEach((station, index) => {
-    const point = points[index];
-    if (!point) return;
+function header(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
+  const ja = model.language !== 'en';
+  const current = ['stopped', 'arriving'].includes(model.snapshot.state) ? model.station : model.nextStation ?? model.station;
+  const direction = model.line.directions.find(item => item.id === model.snapshot.direction);
+  const landmarks = model.route.slice(1).filter(s => ['JY07', 'JY13', 'JY17', 'JY20', 'JY25'].includes(s.code)).slice(0, 2);
+  const directionText = landmarks.map(s => s.names[model.language] ?? s.names.ja).join(model.language === 'en' ? ' / ' : '・')
+    || direction?.names[model.language] || direction?.names.ja || '';
+  ctx.fillStyle = C.header; ctx.fillRect(0, 0, 1280, 216);
+  ctx.fillStyle = C.route; ctx.fillRect(346, 0, 22, 216);
+  drawFittedText(ctx, directionText, 24, 132, 298, ja ? 45 : 39, 26, C.white, 700, JAPANESE_FONT);
+  drawFittedText(ctx, ja ? '方面' : 'Bound for', 318, 184, 270, 28, 22, C.white, 500, JAPANESE_FONT, 'right');
+  const state = model.snapshot.state;
+  const caption = state === 'stopped' || state === 'arriving' ? (ja ? 'ただいま' : 'Now stopping at')
+    : state === 'approaching' ? (ja ? 'まもなく' : 'Arriving at') : (ja ? '次は' : 'Next');
+  drawFittedText(ctx, caption, 390, 36, 540, 31, 24, C.white, 600);
+  drawFittedText(ctx, model.clock, 1126, 34, 150, 30, 24, C.white, 500, 'Arial, sans-serif', 'right');
+  drawFittedText(ctx, String(model.currentCar), 1230, 38, 70, 44, 32, C.white, 500, 'Arial, sans-serif', 'center');
+  drawFittedText(ctx, ja ? '号車' : 'Car', 1230, 78, 70, 20, 16, C.white, 500, JAPANESE_FONT, 'center');
+  drawBadge(ctx, current.code, 390, 94, 104, C.route);
+  drawStationName(ctx, current, model.language, 520, 140, 680, ja ? 126 : 104, 54, C.white);
+}
+
+function vertical(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, height: number, size: number) {
+  const step = Math.min(size, height / Math.max(1, [...text].length));
+  [...text].forEach((char, i) => drawFittedText(ctx, char, x, y + step * (i + .5), 60, step, 12, C.ink, 600, JAPANESE_FONT, 'center'));
+}
+
+function broad(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
+  const delta = model.line.directions.find(d => d.id === model.snapshot.direction)?.delta ?? 1;
+  const points = yamanoteBroadNodePositions(model.route.length, delta);
+  ctx.strokeStyle = C.route; ctx.lineWidth = 48; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.roundRect(84, 418, 1112, 112, 56); ctx.stroke();
+  model.route.forEach((station, i) => {
+    const point = points[i], top = i < Math.ceil(points.length / 2);
     const current = station.code === model.snapshot.station;
-    ctx.fillStyle = current ? E235_COLORS.currentCar : E235_COLORS.white;
-    ctx.strokeStyle = current ? E235_COLORS.currentCar : E235_COLORS.route;
-    ctx.lineWidth = current ? 5 : 3;
-    ctx.beginPath(); ctx.arc(point.x, point.y, current ? 15 : 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    drawFittedText(ctx, station.code, point.x, point.y + 27, 52, 14, 11,
-      current ? E235_COLORS.currentCar : E235_COLORS.ink, 700, 'Arial, sans-serif', 'center');
-  });
-  const current = model.station.names[model.language] ?? model.station.names.ja ?? model.station.code;
-  drawFittedText(ctx, current, 640, 470, 300, 30, 20, E235_COLORS.ink, 700,
-    model.language === 'ja' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif', 'center');
-}
-
-function drawTransfers(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  ctx.fillStyle = E235_COLORS.body; ctx.fillRect(0, 216, 1280, 504);
-  drawFittedText(ctx, label(model, { ja: '乗り換え', en: 'Transfers' }), 64, 276, 600, 42, 30, E235_COLORS.ink, 700,
-    model.language === 'ja' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif');
-  if (!model.transfers.length) return;
-  const columns = Math.min(4, model.transfers.length);
-  const cardWidth = 1100 / columns;
-  model.transfers.forEach((transfer, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const centerX = 90 + (column + 0.5) * cardWidth;
-    const top = 350 + row * 144;
-    if (isTransferBadge(transfer)) {
-      drawBadge(ctx, transfer, centerX - 38, top, 76, transfer.startsWith('JY') ? '#4aa235' : '#8c6b9a');
-      return;
+    ctx.fillStyle = current ? C.currentCar : C.white;
+    if (current) ctx.fillRect(point.x - 15, point.y - 15, 30, 30);
+    else {
+      ctx.beginPath(); ctx.arc(point.x, point.y, 17, 0, Math.PI * 2); ctx.fill();
+      drawFittedText(ctx, String(stationMinutes(model, station.code) ?? ''), point.x, point.y, 32, 21, 15, C.ink, 700, 'Arial, sans-serif', 'center');
     }
-    const family = model.language === 'ja' || model.language === 'zh' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif';
-    drawFittedText(ctx, transfer, centerX, top + 48, cardWidth - 24, 34, 18, E235_COLORS.ink, 700, family, 'center');
+    const text = station.names[model.language] ?? station.names.ja ?? station.code;
+    if (model.language === 'en') {
+      ctx.save(); ctx.translate(point.x, top ? 391 : 562); ctx.rotate(-Math.PI / 3);
+      drawFittedText(ctx, text, 0, 0, 156, 20, 15, C.ink, 600, 'Arial, sans-serif', top ? 'left' : 'right'); ctx.restore();
+    } else vertical(ctx, text, point.x, top ? 232 : 564, top ? 152 : 110, 24);
+  });
+  drawFittedText(ctx, model.language === 'en' ? 'Transfer and waiting times are not included.' : 'のりかえ・待ち時間は含まれません。電車により多少時間が異なります。', 28, 704, 1224, 18, 14, C.ink, 500);
+}
+
+function nearby(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
+  const reverse = model.line.directions.find(d => d.id === model.snapshot.direction)?.delta === -1;
+  ctx.save(); if (reverse) { ctx.translate(1280, 0); ctx.scale(-1, 1); }
+  ctx.strokeStyle = C.route; ctx.lineWidth = 106;
+  ctx.beginPath(); ctx.moveTo(450, 758); ctx.bezierCurveTo(566, 426, 820, 284, 1300, 244); ctx.stroke();
+  ctx.restore();
+  const positions = [{ x: 498, y: 634 }, { x: 622, y: 477 }, { x: 796, y: 361 }, { x: 960, y: 310 }, { x: 1160, y: 278 }];
+  model.route.slice(1, 6).forEach((station, i) => {
+    const original = positions[i], p = { ...original, x: reverse ? 1280 - original.x : original.x }, size = 62 - i * 8;
+    ctx.fillStyle = C.white; ctx.beginPath(); ctx.arc(p.x, p.y, 31 - i * 3, 0, Math.PI * 2); ctx.fill();
+    drawFittedText(ctx, String(stationMinutes(model, station.code) ?? ''), p.x, p.y, 54, 36 - i * 3, 18, C.ink, 700, 'Arial, sans-serif', 'center');
+    drawStationName(ctx, station, model.language, p.x + (reverse ? 72 : -72), Math.max(256, p.y - 30), 470 - i * 36, size, 22, C.ink, reverse ? 'left' : 'right');
+    drawBadge(ctx, station.code, p.x + (reverse ? 32 : -66), p.y - 9, 34, C.route);
+  });
+  drawTransfers(ctx, model, reverse ? 40 : 880, 480, 360);
+}
+
+function doors(ctx: CanvasRenderingContext2D, x: number, y: number, open: boolean) {
+  ctx.fillStyle = '#eef3f7'; ctx.fillRect(x, y, 200, 150);
+  ctx.fillStyle = '#4580a5'; const gap = open ? 50 : 4;
+  ctx.fillRect(x + 8, y + 8, 92 - gap / 2, 134); ctx.fillRect(x + 100 + gap / 2, y + 8, 92 - gap / 2, 134);
+  ctx.fillStyle = '#bdddeb'; ctx.fillRect(x + 18, y + 18, 56, 62); ctx.fillRect(x + 126, y + 18, 56, 62);
+  ctx.fillStyle = '#f5e45b'; ctx.fillRect(x - 12, y + 152, 224, 8);
+}
+
+function platform(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
+  ctx.fillStyle = '#8a9eb8'; ctx.fillRect(0, 270, 1280, 250);
+  const order = model.guidanceStation.platformByDirection[model.snapshot.direction]?.carOrder ?? Array.from({ length: 11 }, (_, i) => i + 1);
+  order.forEach((car, i) => {
+    const x = 30 + i * 111;
+    ctx.fillStyle = car === model.currentCar ? C.currentCar : '#d6e0e9'; ctx.fillRect(x, 228, 108, 40);
+    drawFittedText(ctx, String(car), x + 54, 248, 102, 29, 20, car === model.currentCar ? C.white : C.ink, 700, 'Arial, sans-serif', 'center');
+  });
+  const facilities = model.guidanceStation.platformByDirection[model.snapshot.direction]?.facilities ?? [];
+  facilities.forEach(f => {
+    const x = 40 + (f.relativePosition ?? ((f.car ?? 1) - .5) / 11) * 1200;
+    ctx.fillStyle = C.exit; ctx.fillRect(Math.max(12, x - 110), 304, 220, 44);
+    drawFittedText(ctx, f.label, x, 326, 210, 24, 14, C.ink, 700, JAPANESE_FONT, 'center');
+    ctx.strokeStyle = '#edf2f5'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, 349); ctx.lineTo(x, 480); ctx.stroke();
+    drawFacilitySymbol(ctx, f.kind, x, 410, 68);
+  });
+  ctx.fillStyle = C.doorPanel; ctx.fillRect(0, 520, 1280, 200);
+  const opposite = model.sideLabel === 'opposite side';
+  doors(ctx, 58, 544, !opposite && model.snapshot.doors === 'open');
+  if (opposite) {
+    ctx.fillStyle = '#cf2835'; ctx.beginPath(); ctx.arc(158, 612, 39, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(130, 603, 56, 18);
+  } else if (model.sideLabel) {
+    ctx.fillStyle = C.white;
+    for (const direction of [-1,1]) {
+      const x=158+direction*126;
+      ctx.beginPath(); ctx.moveTo(x+direction*20, 612); ctx.lineTo(x-direction*4, 596); ctx.lineTo(x-direction*4, 628); ctx.closePath(); ctx.fill();
+    }
+  }
+  const ja = model.snapshot.state === 'doorsClosing' ? 'ドアが閉まります'
+    : model.sideLabel === 'both sides' ? '両側のドアが開きます' : model.sideLabel ? (opposite ? '反対側のドアが開きます' : 'こちら側のドアが開きます')
+    : model.snapshot.doors === 'open' ? 'ドアが開いています' : 'ドアにご注意ください';
+  const en = model.snapshot.state === 'doorsClosing' ? 'Doors are closing.'
+    : model.sideLabel === 'both sides' ? 'Doors on both sides will open.' : model.sideLabel ? (opposite ? 'Doors on the opposite side will open.' : 'Doors on this side will open.') : 'Please take care around the doors.';
+  drawFittedText(ctx, ja, 322, 594, 906, 51, 32, C.white);
+  drawFittedText(ctx, en, 322, 653, 906, 29, 20, C.white, 600, 'Arial, sans-serif');
+}
+
+function drawTransfers(ctx: CanvasRenderingContext2D, model: ScreenSchedule, x: number, y: number, width: number) {
+  drawFittedText(ctx, model.language === 'en' ? 'Transfer information' : 'お乗り換えのご案内', x, y, width, 30, 18, C.ink);
+  model.transfers.flatMap(text => text.split(/[、,]/).map(part => part.trim()).filter(Boolean)).slice(0, 4).forEach((transfer, i) => {
+    if (isTransferBadge(transfer)) drawBadge(ctx, transfer, x, y + 32 + i * 44, 38, '#8e687e');
+    else drawFittedText(ctx, transfer, x, y + 50 + i * 44, width, 26, 16, C.ink, 600);
   });
 }
 
-function drawIncident(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  ctx.fillStyle = '#f6f6f4'; ctx.fillRect(0, 216, 1280, 504);
-  ctx.fillStyle = '#fff3c6'; ctx.fillRect(0, 216, 1280, 6);
-  ctx.fillStyle = '#edc83d';
-  ctx.beginPath(); ctx.moveTo(104, 306); ctx.lineTo(204, 480); ctx.lineTo(4, 480); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#202629'; ctx.font = '700 100px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('!', 104, 420);
-  const strings = model.page === 'emergency'
-    ? ['緊急停止しました', 'Emergency stop', '紧急停车', '비상 정차']
-    : ['運転を見合わせています', 'Service suspended', '暂停服务', '운행 중단'];
-  strings.forEach((text, index) => drawFittedText(ctx, text, 264, 302 + index * 82, 900, 42, 27,
-    index ? '#3a4246' : '#15191b', 700, index === 0 || index === 2 ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif'));
+function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
+  ctx.fillStyle = C.body; ctx.fillRect(0, 0, 1280, 720); header(ctx, model);
+  if (model.page === 'platform' || model.page === 'closing') platform(ctx, model);
+  else if (model.page === 'broad') broad(ctx, model);
+  else if (model.page === 'nearby') nearby(ctx, model);
+  else if (model.page === 'transfers') { nearby(ctx, model); }
+  else {
+    ctx.fillStyle = '#eed85b'; ctx.beginPath(); ctx.moveTo(112, 300); ctx.lineTo(210, 480); ctx.lineTo(14, 480); ctx.closePath(); ctx.fill();
+    drawFittedText(ctx, '!', 112, 420, 90, 108, 90, C.ink, 700, 'Arial, sans-serif', 'center');
+    const strings = model.page === 'emergency' ? ['緊急停止しました', 'Emergency stop', '紧急停车', '비상 정차']
+      : ['運転を見合わせています', 'Service suspended', '暂停服务', '운행 중단'];
+    strings.forEach((text, i) => drawFittedText(ctx, text, 264, 304 + i * 84, 940, 46, 28, C.ink));
+  }
 }
 
-function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  ctx.fillStyle = E235_COLORS.body; ctx.fillRect(0, 0, YAMANOTE_LCD_WIDTH, YAMANOTE_LCD_HEIGHT);
-  drawHeader(ctx, model);
-  if (model.page === 'platform' || model.page === 'closing') drawPlatform(ctx, model);
-  else if (model.page === 'nearby') drawNearby(ctx, model);
-  else if (model.page === 'broad') drawBroad(ctx, model);
-  else if (model.page === 'transfers') drawTransfers(ctx, model);
-  else drawIncident(ctx, model);
-}
-
-export function drawYamanoteLCD(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  drawStatic(ctx, model);
-  drawProgressBar(ctx, 0, 714, YAMANOTE_LCD_WIDTH, model.snapshot.progress);
-}
+export function drawYamanoteLCD(ctx: CanvasRenderingContext2D, model: ScreenSchedule) { drawStatic(ctx, model); }
 
 export function createYamanoteRenderer() {
   const cache = new CanvasLayerCache(12);
   return {
-    draw(ctx: CanvasRenderingContext2D, width: number, height: number, model: ScreenSchedule): void {
-      const scale = Math.min(width / YAMANOTE_LCD_WIDTH, height / YAMANOTE_LCD_HEIGHT);
-      const x = (width - YAMANOTE_LCD_WIDTH * scale) / 2;
-      const y = (height - YAMANOTE_LCD_HEIGHT * scale) / 2;
-      ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
-      const painted = cache.draw(ctx, model.invalidationKey, YAMANOTE_LCD_WIDTH, YAMANOTE_LCD_HEIGHT,
-        layer => drawStatic(layer, model));
-      if (!painted) drawStatic(ctx, model);
-      drawProgressBar(ctx, 0, 714, YAMANOTE_LCD_WIDTH, model.snapshot.progress);
+    draw(ctx: CanvasRenderingContext2D, width: number, height: number, model: ScreenSchedule) {
+      const scale = Math.min(width / 1280, height / 720);
+      ctx.save(); ctx.translate((width - 1280 * scale) / 2, (height - 720 * scale) / 2); ctx.scale(scale, scale);
+      if (!cache.draw(ctx, model.invalidationKey, 1280, 720, layer => drawStatic(layer, model))) drawStatic(ctx, model);
       ctx.restore();
     },
     get cacheSize() { return cache.size; },

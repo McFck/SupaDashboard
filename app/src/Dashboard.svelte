@@ -99,7 +99,9 @@
     const surface = shell.getBoundingClientRect();
     const excluded: LocalRect[] = [];
     const add = (node: Element) => {
-      const skinSurface = node.matches('[data-skin-input="scene"], [data-skin-input="slot"]');
+      if (node.closest('[data-skin-input="ui"][aria-hidden="true"]')) return;
+      // Opening overlays start their opacity transition at zero; their logical state already owns pointer input.
+      const skinSurface = node.matches('[data-skin-input="scene"], [data-skin-input="slot"], [data-skin-input="ui"][aria-hidden="false"]');
       for (let current: Element | null = node; current && current !== skinRoot.parentElement; current = current.parentElement) {
         const style = getComputedStyle(current);
         if (style.display === 'none' || style.visibility === 'hidden' || (!skinSurface && Number(style.opacity) === 0)) return;

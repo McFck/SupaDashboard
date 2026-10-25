@@ -36,8 +36,8 @@ describe('Subway screen scheduler', () => {
     expect(scheduleScreen(withTransfers, config, 22_000).page).toBe('broad');
   });
 
-  it('skips a transfer page when the current station has no connections', () => {
-    const station = yamanote.stations.find(item => item.transfers.length === 0)!;
+  it('skips a transfer page when the upcoming station has no connections', () => {
+    const station = yamanote.stations.find(item => stepStation(yamanote, item.code, 'inner')?.transfers.length === 0)!;
     const next = stepStation(yamanote, station.code, 'inner')!;
     const noTransfer = snapshot({ station: station.code, next: next.code });
     const schedule = scheduleScreen(noTransfer, config, 16_000);
@@ -80,7 +80,7 @@ describe('Subway screen scheduler', () => {
   it('uses Hibiya route guidance as the second stopped page and keeps transfers six seconds', () => {
     const hibiya = lines.find(line => line.id === 'hibiya')!;
     const hibiyaConfig = { line: hibiya, languages: ['ja', 'en'] };
-    const stopped = snapshot({ line: 'hibiya', station: 'H14', next: 'H15', state: 'stopped', direction: 'to-kita-senju' });
+    const stopped = snapshot({ line: 'hibiya', station: 'H13', next: 'H14', state: 'stopped', direction: 'to-kita-senju' });
     const cruising = { ...stopped, state: 'cruising' as const };
     expect(scheduleScreen(stopped, hibiyaConfig, 0).page).toBe('platform');
     expect(scheduleScreen(stopped, hibiyaConfig, 6_000).page).toBe('broad');
@@ -88,7 +88,7 @@ describe('Subway screen scheduler', () => {
     expect(scheduleScreen(cruising, hibiyaConfig, 8_000).page).toBe('transfers');
     expect(scheduleScreen(cruising, hibiyaConfig, 13_999).page).toBe('transfers');
     expect(scheduleScreen(cruising, hibiyaConfig, 14_000).page).toBe('broad');
-    const noTransferStation = hibiya.stations.find(station => station.transfers.length === 0)!;
+    const noTransferStation = hibiya.stations.find(station => stepStation(hibiya, station.code, 'to-kita-senju')?.transfers.length === 0)!;
     const noTransferNext = stepStation(hibiya, noTransferStation.code, 'to-kita-senju')!;
     const noTransfers = { ...cruising, station: noTransferStation.code, next: noTransferNext.code };
     expect(scheduleScreen(noTransfers, hibiyaConfig, 8_000).page).toBe('nearby');

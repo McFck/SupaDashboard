@@ -230,7 +230,8 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
 
   function queueEffects(effects: readonly RunEffect[], nextState: SubwayRunState, runtimeEpoch: number,
     allowHidden = false, ancestry?: EventAncestry): void {
-    publishScene();
+    const settled = nextRunWake(nextState, clock.now()) === null;
+    publishScene(settled);
     const capturedGeneration = nextState.generation;
     projectionChain = projectionChain.then(async () => {
       if (!alive || runtimeEpoch !== epoch || (!eligible && !allowHidden) || !state || state.generation !== capturedGeneration) return;
@@ -240,7 +241,7 @@ export function createSubwayRuntime(context: SkinRuntimeContext, options: Subway
       const discrete = [snapshot.station, snapshot.next, snapshot.state, snapshot.line, snapshot.direction,
         snapshot.doorSide, snapshot.doors, snapshot.paused, snapshot.immersion, snapshot.multiplier, snapshot.generation].join('|');
       const discreteChanged = discrete !== lastDiscreteProjection;
-      if (discreteChanged || now - lastNumericProjectionAt >= 250) {
+      if (settled || discreteChanged || now - lastNumericProjectionAt >= 250) {
         lastDiscreteProjection = discrete;
         lastNumericProjectionAt = now;
         for (const key of projectionKeys) {

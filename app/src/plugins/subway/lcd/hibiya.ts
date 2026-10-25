@@ -1,7 +1,7 @@
 import { localizedName, type StationDefinition } from '../lines';
-import { scheduleScreen, type ScreenConfig, type ScreenLanguage, type ScreenSchedule } from '../screens';
+import { scheduleScreen, stationMinutes, type ScreenConfig, type ScreenLanguage, type ScreenSchedule } from '../screens';
 import type { RunSnapshot } from '../run';
-import { CanvasLayerCache, drawBadge, drawFittedText, drawProgressBar } from './shared';
+import { CanvasLayerCache, drawBadge, drawFittedText, JAPANESE_FONT } from './shared';
 
 export const HIBIYA_PANEL_WIDTH = 1280;
 export const HIBIYA_PANEL_HEIGHT = 720;
@@ -63,92 +63,76 @@ export function hibiyaRouteWindow(model: ScreenSchedule): readonly StationDefini
   const currentIndex = ordered.findIndex(station => station.code === model.snapshot.station);
   if (currentIndex < 0) return Object.freeze(model.route.slice(0, PANEL_STATIONS * 2));
   const length = Math.min(PANEL_STATIONS * 2, ordered.length);
-  const start = Math.max(0, Math.min(currentIndex - Math.floor(PANEL_STATIONS / 2), ordered.length - length));
+  const start = Math.max(0, Math.min(currentIndex - (PANEL_STATIONS - 1), ordered.length - length));
   return Object.freeze(ordered.slice(start, start + length));
 }
 
-function stationAtHeader(model: ScreenSchedule): StationDefinition {
-  return model.snapshot.state === 'approaching'
-    ? model.nextStation ?? model.station : model.station;
-}
-
 function fontFamily(language: ScreenLanguage): string {
-  return language === 'ja' || language === 'kana' || language === 'zh' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif';
+  return language === 'ja' || language === 'kana' || language === 'zh' ? JAPANESE_FONT : 'Arial, sans-serif';
 }
 
 function stationName(station: StationDefinition, language: ScreenLanguage): string {
   return station.names[language] ?? station.names.ja ?? station.names.en ?? station.code;
 }
 
-function drawHeader(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  const current = stationAtHeader(model);
-  const direction = model.line.directions.find(item => item.id === model.snapshot.direction);
-  ctx.fillStyle = C.header; ctx.fillRect(0, 0, HIBIYA_PANEL_WIDTH, 216);
-  drawBadge(ctx, current.code, 34, 36, 70, C.route);
-  drawFittedText(ctx, current.code, 124, 46, 150, 28, 20, C.ink, 700);
-  drawFittedText(ctx, stationName(current, model.language), 124, 112, 820, 122, 94, C.ink, 700, fontFamily(model.language));
-  drawFittedText(ctx, phrase(model.language, model.snapshot.state), 124, 174, 400, 32, 22, C.ink, 600, fontFamily(model.language));
-  drawFittedText(ctx, localizedName(direction?.names ?? {}, model.language, model.destination), 542, 174, 500, 28, 18,
-    C.ink, 600, fontFamily(model.language));
-  ctx.fillStyle = C.ink; ctx.fillRect(1082, 24, 164, 168);
-  drawFittedText(ctx, String(model.snapshot.remainingMinutes), 1164, 82, 132, 58, 38, C.white, 700, 'Arial, sans-serif', 'center');
-  const minute = model.language === 'ja' ? '分' : model.language === 'kana' ? 'ふん' : model.language === 'zh' ? '分钟' : model.language === 'ko' ? '분' : 'min';
-  drawFittedText(ctx, minute, 1164, 140, 132, 25, 18, C.white, 600, fontFamily(model.language), 'center');
-}
-
-function drawVerticalName(ctx: CanvasRenderingContext2D, station: StationDefinition, language: ScreenLanguage, x: number): void {
-  const name = stationName(station, language);
-  if (language !== 'ja' && language !== 'kana') {
-    drawFittedText(ctx, name, x, 420, 136, 26, 16, C.ink, 700, fontFamily(language), 'center');
-    return;
+function drawHeader(ctx: CanvasRenderingContext2D, model: ScreenSchedule, panel: 0 | 1): void {
+  const current = ['stopped', 'arriving'].includes(model.snapshot.state) ? model.station : model.nextStation ?? model.station;
+  const destination = model.destination;
+  const gradient = ctx.createLinearGradient(0, 0, 0, 216);
+  gradient.addColorStop(0, '#d6d8d5'); gradient.addColorStop(.35, '#fafbf9'); gradient.addColorStop(1, '#e7e9e5');
+  ctx.fillStyle = gradient; ctx.fillRect(0, 0, 1280, 216);
+  const ja = model.language !== 'en';
+  const caption = model.snapshot.state === 'approaching' ? (ja ? 'まもなく' : 'Arriving at') : model.snapshot.state === 'stopped' ? (ja ? 'ただいま' : 'Now at') : (ja ? 'つぎは' : 'Next');
+  if (panel === 0) {
+    ctx.fillStyle = '#626a69'; ctx.fillRect(22, 12, 252, 52);
+    drawFittedText(ctx, ja ? '普通' : 'Local', 148, 38, 236, 32, 24, C.white, 700, JAPANESE_FONT, 'center');
+    drawFittedText(ctx, caption, 1022, 46, 420, 34, 24, C.ink, 600, JAPANESE_FONT, 'right');
+    drawBadge(ctx, current.code, 1074, 20, 176, C.route);
+    drawFittedText(ctx, ja ? destination + ' ゆき' : 'For ' + destination, 28, 179, 480, 37, 24, C.ink);
+    drawFittedText(ctx, stationName(current, model.language), 1036, 132, 900, 112, 54, C.ink, 700, fontFamily(model.language), 'right');
+  } else {
+    drawFittedText(ctx, caption, 28, 38, 680, 36, 24, C.ink);
+    drawFittedText(ctx, stationName(current, model.language), 28, 130, 1080, 120, 56, C.ink, 700, fontFamily(model.language));
+    drawFittedText(ctx, ja ? destination + ' ゆき' : 'For ' + destination, 1112, 182, 760, 34, 22, C.ink, 700, fontFamily(model.language), 'right');
+    ctx.fillStyle = '#d5d9d5'; ctx.fillRect(1142, 14, 120, 188);
+    drawFittedText(ctx, 'Car No.', 1202, 42, 110, 23, 18, C.ink, 500, 'Arial, sans-serif', 'center');
+    drawFittedText(ctx, String(model.currentCar), 1202, 111, 110, 100, 66, C.ink, 600, 'Arial, sans-serif', 'center');
+    drawFittedText(ctx, '号車', 1202, 179, 110, 26, 20, C.ink, 500, JAPANESE_FONT, 'center');
   }
-  const chars = [...name];
-  const size = Math.min(34, 186 / Math.max(1, chars.length));
-  chars.forEach((char, index) => drawFittedText(ctx, char, x, 286 + index * size, 38, size, Math.max(16, size - 1),
-    C.ink, 700, fontFamily(language), 'center'));
-}
-
-function drawConnections(ctx: CanvasRenderingContext2D, station: StationDefinition, language: ScreenLanguage, x: number): void {
-  const names = station.transfers.map(item => item.kind === 'badge'
-    ? item.code : localizedName(item.names, language, item.names.ja ?? item.names.en ?? ''));
-  if (names.length) drawFittedText(ctx, names.join(' · '), x, 614, 136, 23, 14, C.ink, 600, fontFamily(language), 'center');
+  ctx.fillStyle = C.route; ctx.fillRect(0, 210, 1280, 6);
 }
 
 function drawRoutePanel(ctx: CanvasRenderingContext2D, model: ScreenSchedule, panel: 0 | 1): void {
-  const route = hibiyaRouteWindow(model);
-  const stations = hibiyaPanelStations(route, panel);
-  ctx.fillStyle = C.body; ctx.fillRect(0, 216, HIBIYA_PANEL_WIDTH, 498);
-  const slotWidth = 144;
-  if (stations.length > 1) {
-    ctx.strokeStyle = C.route; ctx.lineWidth = 10;
-    ctx.beginPath(); ctx.moveTo(64 + slotWidth / 2, 512); ctx.lineTo(64 + slotWidth * (stations.length - 0.5), 512); ctx.stroke();
-  }
-  if (route.length > PANEL_STATIONS && panel === 0) {
-    ctx.strokeStyle = C.route; ctx.lineWidth = 10;
-    ctx.beginPath(); ctx.moveTo(64 + slotWidth * (PANEL_STATIONS - 0.5), 512); ctx.lineTo(HIBIYA_PANEL_WIDTH, 512); ctx.stroke();
-  } else if (route.length > PANEL_STATIONS && panel === 1) {
-    ctx.strokeStyle = C.route; ctx.lineWidth = 10;
-    ctx.beginPath(); ctx.moveTo(0, 512); ctx.lineTo(64 + slotWidth / 2, 512); ctx.stroke();
-  }
-  const directionDelta = model.line.directions.find(item => item.id === model.snapshot.direction)?.delta ?? 1;
-  const currentIndex = model.line.stations.findIndex(station => station.code === model.snapshot.station);
-  const currentPosition = directionDelta > 0 ? currentIndex : model.line.stations.length - 1 - currentIndex;
+  const route = [...hibiyaRouteWindow(model)].sort((a,b) => b.order-a.order), stations = hibiyaPanelStations(route, panel);
+  ctx.fillStyle = C.body; ctx.fillRect(0, 216, 1280, 504);
+  const rail = ctx.createLinearGradient(0, 480, 0, 536);
+  rail.addColorStop(0, '#d9ddda'); rail.addColorStop(.48, '#929d9c'); rail.addColorStop(1, '#c6cbc6');
+  ctx.fillStyle = rail; ctx.fillRect(0, 480, 1280, 56);
+  const ordered = model.line.directions.find(d => d.id === model.snapshot.direction)?.delta === -1 ? [...model.line.stations].reverse() : model.line.stations;
+  const currentPosition = ordered.findIndex(s => s.code === model.snapshot.station);
   stations.forEach((station, index) => {
-    const x = 64 + slotWidth * (index + 0.5);
-    const current = station.code === model.snapshot.station;
-    const next = station.code === model.snapshot.next;
-    const stationIndex = model.line.stations.findIndex(item => item.code === station.code);
-    const stationPosition = directionDelta > 0 ? stationIndex : model.line.stations.length - 1 - stationIndex;
-    const past = stationPosition < currentPosition;
-    drawVerticalName(ctx, station, model.language, x);
-    ctx.fillStyle = current ? C.current : next ? C.next : past ? C.past : C.white;
-    ctx.strokeStyle = C.route; ctx.lineWidth = current || next ? 5 : 3;
-    ctx.beginPath(); ctx.arc(x, 512, current || next ? 34 : 27, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    drawFittedText(ctx, station.code, x, 512, 60, 18, 12, current ? C.white : C.ink, 700, 'Arial, sans-serif', 'center');
-    drawConnections(ctx, station, model.language, x);
+    const x = 64 + 144 * (index + .5);
+    const position = ordered.findIndex(s => s.code === station.code);
+    const past = position < currentPosition;
+    const language = model.language === 'kana' ? 'kana' : 'ja';
+    ctx.save(); if (past) ctx.globalAlpha = .4;
+    const name = stationName(station, language), step = Math.min(48, 214 / [...name].length);
+    [...name].forEach((char, i) => drawFittedText(ctx, char, x, 240 + step * (i + .5), 64, step, 20, C.ink, 600, JAPANESE_FONT, 'center'));
+    drawFittedText(ctx, station.code.replace(/([A-Z]+)(\d+)/, '$1-$2'), x, 464, 132, 25, 20, C.ink, 600, 'Arial, sans-serif', 'center');
+    ctx.fillStyle = '#f9faf8'; ctx.fillRect(x - 40, 486, 80, 44);
+    if (position > currentPosition) drawFittedText(ctx, String(stationMinutes(model, station.code) ?? ''), x, 508, 76, 39, 26, C.ink, 700, 'Arial, sans-serif', 'center');
+    if (station.code === model.snapshot.station) {
+      const arrow = model.line.directions.find(d=>d.id===model.snapshot.direction)?.delta === 1 ? -1 : 1;
+      ctx.fillStyle = '#19539a'; ctx.beginPath(); ctx.moveTo(x - arrow*16, 480); ctx.lineTo(x + arrow*14, 508); ctx.lineTo(x - arrow*16, 536); ctx.lineTo(x, 508); ctx.closePath(); ctx.fill();
+    }
+    station.transfers.slice(0, 3).forEach((item, i) => {
+      const text = item.kind === 'badge' ? item.code : localizedName(item.names, 'ja', item.names.en ?? '');
+      ctx.fillStyle = ['#b44451', '#277a9a', '#938f30'][i]; ctx.beginPath(); ctx.arc(x - 60, 560 + i * 31, 8, 0, Math.PI * 2); ctx.fill();
+      drawFittedText(ctx, text, x - 46, 560 + i * 31, 112, 22, 14, C.ink, 600);
+    });
+    ctx.restore();
   });
-  if (panel === 1) drawFittedText(ctx, `${model.snapshot.remainingMinutes} min`, 1180, 674, 180, 28, 18,
-    C.ink, 700, 'Arial, sans-serif', 'right');
+  if (panel === 1) drawFittedText(ctx, '運転状況により、多少時間は異なります。', 1240, 691, 1180, 24, 18, C.ink, 600, JAPANESE_FONT, 'right');
 }
 
 function drawNearbyRoute(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
@@ -173,7 +157,7 @@ function drawNearbyRoute(ctx: CanvasRenderingContext2D, model: ScreenSchedule): 
 function drawTransferDetail(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
   ctx.fillStyle = C.body; ctx.fillRect(0, 216, HIBIYA_PANEL_WIDTH, 498);
   drawFittedText(ctx, phrase(model.language, 'transfers'), 72, 276, 760, 42, 30, C.ink, 700, fontFamily(model.language));
-  drawFittedText(ctx, `${model.station.code}  ${stationName(model.station, model.language)}`, 72, 342, 1120, 56, 40, C.ink, 700, fontFamily(model.language));
+  drawFittedText(ctx, `${model.transferStation.code}  ${stationName(model.transferStation, model.language)}`, 72, 342, 1120, 56, 40, C.ink, 700, fontFamily(model.language));
   model.transfers.slice(0, 5).forEach((transfer, index) => {
     const y = 424 + index * 54;
     if (/^[A-Z]{1,2}\d{1,2}$/.test(transfer)) {
@@ -185,44 +169,56 @@ function drawTransferDetail(ctx: CanvasRenderingContext2D, model: ScreenSchedule
 }
 
 function drawPlatformGuidance(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  const station = model.snapshot.state === 'approaching'
-    ? model.nextStation ?? model.station : model.station;
-  ctx.fillStyle = C.body; ctx.fillRect(0, 216, HIBIYA_PANEL_WIDTH, 498);
-  drawFittedText(ctx, `${phrase(model.language, 'platform')}  ${station.code}`, 64, 264, 1080, 42, 28, C.ink, 700, fontFamily(model.language));
-  const order = station.platformByDirection[model.snapshot.direction]?.carOrder ?? Array.from({ length: 7 }, (_, index) => index + 1);
-  const left = 56, gap = 8, top = 338, width = (1168 - 6 * gap) / 7;
-  order.forEach((car, index) => {
-    const x = left + index * (width + gap);
-    ctx.fillStyle = car === 1 ? C.current : C.white; ctx.strokeStyle = C.route; ctx.lineWidth = 3;
-    ctx.fillRect(x, top, width, 112); ctx.strokeRect(x + 1.5, top + 1.5, width - 3, 109);
-    drawFittedText(ctx, String(car), x + width / 2, top + 56, width - 8, 30, 20,
-      car === 1 ? C.white : C.ink, 700, 'Arial, sans-serif', 'center');
+  ctx.fillStyle = C.body; ctx.fillRect(0, 216, 1280, 504);
+  const order = model.guidanceStation.platformByDirection[model.snapshot.direction]?.carOrder ?? [7, 6, 5, 4, 3, 2, 1];
+  ctx.fillStyle = '#cbd1cf'; ctx.beginPath(); ctx.moveTo(76, 352); ctx.lineTo(138, 292); ctx.lineTo(1142, 292); ctx.lineTo(1204, 352); ctx.lineTo(1204, 532); ctx.lineTo(76, 532); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#9da8a7'; ctx.lineWidth = 5; ctx.stroke();
+  ctx.fillStyle = C.route; ctx.fillRect(76, 524, 1128, 10);
+  const facilities = model.guidanceStation.platformByDirection[model.snapshot.direction]?.facilities ?? [];
+  facilities.forEach(f => {
+    const x = 76 + (f.relativePosition ?? ((f.car ?? 1) - .5) / 7) * 1128;
+    ctx.fillStyle = C.caution; ctx.fillRect(Math.max(16, x - 110), 274, 220, 44);
+    drawFittedText(ctx, f.label, x, 296, 210, 24, 16, C.ink, 600, JAPANESE_FONT, 'center');
   });
+  order.forEach((car, i) => {
+    const x = 76 + i * 161;
+    ctx.fillStyle = car === model.currentCar ? C.current : '#ebeeeb'; ctx.fillRect(x, 548, 157, 50);
+    drawFittedText(ctx, String(car), x + 78, 573, 150, 40, 26, car === model.currentCar ? C.white : C.ink, 600, 'Arial, sans-serif', 'center');
+  });
+  drawFittedText(ctx, 'この電車は 7 両編成です', 48, 654, 1000, 32, 24, C.ink);
+  drawFittedText(ctx, '7-car train', 48, 694, 1000, 23, 18, C.ink, 500, 'Arial, sans-serif');
 }
 
 function drawDoorGlyph(ctx: CanvasRenderingContext2D, x: number, y: number, doors: string): void {
-  const width = 260, height = 180, center = x + width / 2;
-  ctx.fillStyle = C.white; ctx.fillRect(x, y, width, height);
-  ctx.fillStyle = doors === 'open' ? '#c7d4dc' : '#a8b6bf';
-  const gap = doors === 'open' ? 78 : 12;
-  ctx.fillRect(x + 12, y + 12, width / 2 - gap / 2 - 12, height - 24);
-  ctx.fillRect(center + gap / 2, y + 12, width / 2 - gap / 2 - 12, height - 24);
-  ctx.strokeStyle = C.ink; ctx.lineWidth = 4; ctx.strokeRect(x + 12, y + 12, width - 24, height - 24);
-  ctx.beginPath(); ctx.moveTo(center, y + 12); ctx.lineTo(center, y + height - 12); ctx.stroke();
+  const width = 804, height = 366, gap = doors === 'open' ? 166 : 8;
+  ctx.fillStyle = '#e2e6e4'; ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = '#727b79'; ctx.lineWidth = 7; ctx.strokeRect(x, y, width, height);
+  for (const side of [0, 1]) {
+    const left = x + 16 + side * (width / 2 + gap / 2);
+    const paneWidth = width / 2 - gap / 2 - 24;
+    const metal = ctx.createLinearGradient(left, 0, left + paneWidth, 0);
+    metal.addColorStop(0, '#aeb9bc'); metal.addColorStop(.5, '#d7dfe0'); metal.addColorStop(1, '#a6b0b4');
+    ctx.fillStyle = metal; ctx.fillRect(left, y + 12, paneWidth, height - 24);
+    ctx.fillStyle = '#7896a5'; ctx.fillRect(left + 36, y + 30, paneWidth - 72, 144);
+    ctx.strokeStyle = '#edf4f1'; ctx.lineWidth = 4; ctx.strokeRect(left + 36, y + 30, paneWidth - 72, 144);
+  }
 }
 
 function drawDoorGuidance(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  ctx.fillStyle = '#fffbed'; ctx.fillRect(0, 216, HIBIYA_PANEL_WIDTH, 498);
-  ctx.fillStyle = C.caution; ctx.fillRect(0, 216, HIBIYA_PANEL_WIDTH, 12);
-  drawFittedText(ctx, phrase(model.language, 'doors'), 72, 286, 1000, 42, 30, C.ink, 700, fontFamily(model.language));
-  const doorText = model.snapshot.state === 'approaching' ? phrase(model.language, 'approachingDoor')
-    : phrase(model.language, model.snapshot.doors === 'open' ? 'open' : 'closed');
-  drawFittedText(ctx, doorText, 72, 352, 1100, 38, 24, C.ink, 600, fontFamily(model.language));
-  drawDoorGlyph(ctx, 112, 424, model.snapshot.doors);
-  if (model.sideLabel && model.snapshot.state !== 'approaching') {
-    const key = model.sideLabel === 'this side' ? 'thisSide' : model.sideLabel === 'opposite side' ? 'oppositeSide' : 'bothSides';
-    drawFittedText(ctx, phrase(model.language, key), 472, 516, 640, 42, 28, C.ink, 700, fontFamily(model.language));
-  }
+  ctx.fillStyle = C.body; ctx.fillRect(0, 216, 1280, 504);
+  const closing = model.page === 'closing';
+  const side = model.sideLabel === 'opposite side' ? '反対側' : model.sideLabel === 'both sides' ? '両側' : model.sideLabel ? 'こちら側' : '';
+  const message = closing ? 'ドアが閉まります' : side ? side + 'のドアが開きます' : 'ドアにご注意ください';
+  drawFittedText(ctx, message, 28, 243, 1220, 38, 26, C.ink);
+  const english = closing ? 'Doors are closing.' : model.sideLabel === 'opposite side' ? 'Doors on the opposite side will open.'
+    : model.sideLabel === 'both sides' ? 'Doors on both sides will open.' : model.sideLabel ? 'Doors on this side will open.' : 'Please take care around the doors.';
+  drawFittedText(ctx, english, 28, 276, 1220, 24, 18, C.ink, 500, 'Arial, sans-serif');
+  drawDoorGlyph(ctx, 238, 290, model.snapshot.doors);
+  ctx.fillStyle = '#edcf28'; ctx.beginPath(); ctx.moveTo(640, 488); ctx.lineTo(682, 560); ctx.lineTo(598, 560); ctx.closePath(); ctx.fill();
+  drawFittedText(ctx, '!', 640, 539, 50, 48, 34, C.ink, 700, 'Arial, sans-serif', 'center');
+  ctx.fillStyle = C.caution; ctx.fillRect(0, 666, 1280, 54);
+  drawFittedText(ctx, closing ? 'ドアが閉まります ご注意ください' : model.snapshot.doors === 'open' ? 'ドアが開いています ご注意ください' : 'ドアにご注意ください', 20, 692, 950, 30, 22, C.ink);
+  drawFittedText(ctx, 'Caution', 1248, 692, 260, 30, 22, C.ink, 600, 'Arial, sans-serif', 'right');
 }
 
 function drawIncident(ctx: CanvasRenderingContext2D, model: ScreenSchedule, panel: 0 | 1): void {
@@ -242,7 +238,7 @@ function drawIncident(ctx: CanvasRenderingContext2D, model: ScreenSchedule, pane
 function drawPanel(ctx: CanvasRenderingContext2D, model: ScreenSchedule, panel: 0 | 1): void {
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, HIBIYA_PANEL_WIDTH, HIBIYA_PANEL_HEIGHT); ctx.clip();
   ctx.fillStyle = C.body; ctx.fillRect(0, 0, HIBIYA_PANEL_WIDTH, HIBIYA_PANEL_HEIGHT);
-  drawHeader(ctx, model);
+  drawHeader(ctx, model, panel);
   if (model.page === 'emergency' || model.page === 'suspension') drawIncident(ctx, model, panel);
   else if (model.page === 'platform' || model.page === 'closing') {
     if (panel === 0) drawPlatformGuidance(ctx, model);
@@ -251,7 +247,7 @@ function drawPanel(ctx: CanvasRenderingContext2D, model: ScreenSchedule, panel: 
   else if (model.page === 'transfers') {
     if (panel === 0) drawNearbyRoute(ctx, model);
     else drawTransferDetail(ctx, model);
-  } else if (panel === 0) drawNearbyRoute(ctx, model);
+  } else if (panel === 0) drawRoutePanel(ctx, model, panel);
   else if (model.transfers.length) drawTransferDetail(ctx, model);
   else drawDoorGuidance(ctx, model);
   ctx.restore();
@@ -275,9 +271,6 @@ export function createHibiyaRenderer() {
       ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
       const painted = cache.draw(ctx, key, HIBIYA_LCD_WIDTH, HIBIYA_LCD_HEIGHT, layer => drawStaticPair(layer, pair));
       if (!painted) drawStaticPair(ctx, pair);
-      drawProgressBar(ctx, 0, HIBIYA_PANEL_HEIGHT - 6, HIBIYA_PANEL_WIDTH, pair.left.snapshot.progress, C.route);
-      drawProgressBar(ctx, HIBIYA_PANEL_WIDTH + HIBIYA_MULLION_WIDTH, HIBIYA_PANEL_HEIGHT - 6,
-        HIBIYA_PANEL_WIDTH, pair.right.snapshot.progress, C.route);
       ctx.fillStyle = '#101416'; ctx.fillRect(HIBIYA_PANEL_WIDTH, 0, HIBIYA_MULLION_WIDTH, HIBIYA_PANEL_HEIGHT);
       ctx.restore();
     },

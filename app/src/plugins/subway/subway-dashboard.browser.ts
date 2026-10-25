@@ -8,6 +8,7 @@ import { normalizeSubwayLines, stepStation } from './lines';
 import { runtimeView } from '../../core/runtime.svelte';
 import { buildSegmentCuePlan, loadSubwayAssets } from './sound-pack';
 import { subwaySceneState } from './runtime';
+import { dispatchSubwayCommand, requestSubwayLine } from './runtime';
 
 const role = new URLSearchParams(location.search).get('view') === 'panel' ? 'panel' : 'main';
 const browserActionId = 'subway.browser-check';
@@ -22,10 +23,11 @@ fixture.controls.push(...stripControlIds.slice(4).map((id, index) => normalizeCo
   id, name: `Browser tile ${index + 5}`, type: 'button',
   variants: [{ label: `Browser tile ${index + 5}`, icon: 'Circle', color: '#79cba3' }],
 })));
+fixture.controls.push(normalizeControl({ id: 'browser-side', name: 'Side', type: 'button', variants: [{ label: 'Side', icon: 'Square' }] }));
 fixture.skinLayouts = { subway: {
   [first.id]: {
     strip: stripControlIds.map((control, index) => ({ id: `subway-strip-item-${index + 1}`, control, x: index, y: 0, w: 1, h: 1 })),
-    side: [{ id: 'subway-side-item', control: 'prev', x: 0, y: 0, w: 1, h: 1 }],
+    side: [{ id: 'subway-side-item', control: 'browser-side', x: 0, y: 0, w: 1, h: 1 }],
   },
   [second.id]: { strip: [], side: [] },
 } };
@@ -72,6 +74,10 @@ Object.assign(window, {
     assetLoadResult: () => assetLoadResult,
     cuePlanResult: () => cuePlanResult,
     slotActionCalls: () => slotActionCalls,
+    unrelatedSetting: () => { settings.skinSettings.subway.announcementVolume = settings.skinSettings.subway.announcementVolume === .61 ? .62 : .61; },
+    publish: () => runtimeView.update(value => ({ ...value })),
+    suspend: () => dispatchSubwayCommand({ type: 'suspend' }),
+    setLine: (line: string) => requestSubwayLine({ line }),
     snapshot: () => {
       const snapshot = get(runtimeView);
       return {

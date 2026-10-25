@@ -659,7 +659,6 @@ export function snapshotRun(state: SubwayRunState, now: number, lines: readonly 
 export function nextRunWake(state: SubwayRunState, now: number): number | null {
   if (state.pausedAt !== null) return null;
   if (state.incident) {
-    if (state.incident.kind === 'suspended') return null;
     const cueDeadline = state.pendingCues[0]?.at ?? Number.POSITIVE_INFINITY;
     const brakeDeadline = state.incident.brakeMs > 0 ? Math.min(now + 50, state.incident.startedAt + state.incident.brakeMs) : Number.POSITIVE_INFINITY;
     const wakeAt = Math.min(cueDeadline, brakeDeadline);

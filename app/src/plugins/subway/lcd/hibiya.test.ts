@@ -57,7 +57,7 @@ describe('Tokyo Metro 13000 LCD pair', () => {
         expect(new Set(codes).size).toBe(codes.length);
         const ordered = direction.delta > 0 ? [...hibiya.stations] : [...hibiya.stations].reverse();
         const currentIndex = ordered.findIndex(item => item.code === station.code);
-        const start = Math.max(0, Math.min(currentIndex - 4, ordered.length - 16));
+        const start = Math.max(0, Math.min(currentIndex - 7, ordered.length - 16));
         expect(codes).toEqual(ordered.slice(start, start + 16).map(item => item.code));
         expect(model.route.at(-1)?.code).toBe(direction.delta > 0 ? hibiya.stations.at(-1)?.code : hibiya.stations[0].code);
       }

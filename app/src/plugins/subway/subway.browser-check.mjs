@@ -51,10 +51,11 @@ function call(method, params = {}) {
 
 async function evaluate(expression) {
   const result = await call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-  if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+  if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
   return result.result.value;
 }
 
+await call('Runtime.discardConsoleEntries');
 await call('Runtime.enable');
 await call('Log.enable');
 await call('Page.enable');
@@ -124,7 +125,7 @@ assert.equal(panelCrops, hibiyaCaptures.length * 2, 'Every Hibiya composite need
 const panelLanguages = new Set(hibiyaCaptures.flatMap(capture => capture.panelLanguages ?? []));
 for (const language of ['ja', 'kana', 'en', 'zh', 'ko']) assert(panelLanguages.has(language), `Missing Hibiya ${language} language capture`);
 const sakaisujiCaptures = captures.filter(capture => capture.line === 'sakaisuji');
-assert.equal(sakaisujiCaptures.length, 19, 'Missing Sakaisuji fixture coverage');
+assert.equal(sakaisujiCaptures.length, 21, 'Missing Sakaisuji fixture coverage');
 for (const capture of sakaisujiCaptures) assert.equal(capture.logicalSize, '1920x540');
 for (const state of [...ordinaryStates, 'emergency', 'suspended'])
   assert(sakaisujiCaptures.some(capture => capture.state === state), `Missing Sakaisuji ${state} state capture`);
@@ -149,7 +150,7 @@ assert.equal(consoleErrors.length, 0, `Browser console errors: ${consoleErrors.j
 assert.equal(failedRequests.length, 0, `Browser failed requests: ${JSON.stringify(failedRequests)}`);
 
 const report = {
-  browser: 'existing isolated headless Chrome via CDP 9337',
+  browser: `owned isolated headless Chrome via CDP ${new URL(cdp).port}, muted`,
   vite: base,
   viewport: { width: 1280, height: 720, devicePixelRatio: 1 },
   nativeVisibility: 'simulated by the isolated browser harness',

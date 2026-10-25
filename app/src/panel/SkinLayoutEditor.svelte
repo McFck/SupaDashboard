@@ -88,5 +88,4 @@
     background: #10171b;
   }
   .skin-layout-editor.multi-view :global([data-skin-design] canvas) { border-radius: 5px; }
-  .skin-layout-editor.multi-view :global(nav[aria-label="Skin view"]) { display: none; }
 </style>

@@ -1,6 +1,6 @@
 import { localizedName, type StationDefinition } from '../lines';
 import type { ScreenLanguage, ScreenSchedule } from '../screens';
-import { CanvasLayerCache, drawBadge, drawFittedText, drawProgressBar } from './shared';
+import { CanvasLayerCache, drawBadge, drawFittedText, JAPANESE_FONT } from './shared';
 
 export const SAKAISUJI_LCD_WIDTH = 1920;
 export const SAKAISUJI_LCD_HEIGHT = 540;
@@ -40,7 +40,7 @@ export function sakaisujiCarOrder(model: ScreenSchedule): readonly number[] {
 }
 
 function fontFamily(language: ScreenLanguage): string {
-  return language === 'ja' || language === 'kana' ? 'Yu Gothic, Meiryo, sans-serif' : 'Arial, sans-serif';
+  return language === 'ja' || language === 'kana' ? JAPANESE_FONT : 'Arial, sans-serif';
 }
 
 function nameOf(station: StationDefinition, language: ScreenLanguage): string {
@@ -76,16 +76,19 @@ function fillRounded(ctx: CanvasRenderingContext2D, x: number, y: number, width:
 }
 
 function drawHeader(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
-  const next = model.nextStation ?? model.station;
-  ctx.fillStyle = C.header;
-  ctx.fillRect(0, 0, SAKAISUJI_LCD_WIDTH, SAKAISUJI_HEADER_HEIGHT);
-  fillRounded(ctx, 28, 17, 190, 74, C.dark);
-  drawFittedText(ctx, model.language === 'kana' ? 'ふつう' : '普通', 123, 54, 170, 38, 28, C.white, 700, fontFamily(model.language), 'center');
-  drawFittedText(ctx, displayDestination(model), 256, 52, 1030, 56, 52, C.white, 700, fontFamily(model.language));
-  drawFittedText(ctx, stateLabel(model), 256, 86, 920, 27, 22, '#eadfd7', 600, fontFamily(model.language));
-  fillRounded(ctx, 1480, 15, 412, 78, C.next);
-  drawBadge(ctx, next.code, 1497, 29, 48, C.route);
-  drawFittedText(ctx, nameOf(next, model.language), 1564, 43, 310, 38, 24, C.ink, 700, fontFamily(model.language));
+  const next = ['stopped', 'arriving'].includes(model.snapshot.state) ? model.station : model.nextStation ?? model.station;
+  const gradient = ctx.createLinearGradient(0, 0, 0, 108);
+  gradient.addColorStop(0, '#8e4a22'); gradient.addColorStop(.72, '#a9632e'); gradient.addColorStop(1, '#ca9855');
+  ctx.fillStyle = gradient; ctx.fillRect(0, 0, 1920, 108);
+  fillRounded(ctx, 24, 17, 300, 72, '#263341');
+  ctx.strokeStyle = '#edf1ef'; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(24, 17, 300, 72, 18); ctx.stroke();
+  drawFittedText(ctx, model.language === 'kana' ? 'ふつう' : '普　通', 174, 54, 274, 46, 32, C.white, 700, JAPANESE_FONT, 'center');
+  drawFittedText(ctx, displayDestination(model).replace('方面', ' ゆき').replace('ほうめん', ' ゆき'), 350, 56, 730, 46, 32, C.white, 700, JAPANESE_FONT);
+  drawFittedText(ctx, stateLabel(model), 1110, 59, 260, 36, 26, C.white, 700, JAPANESE_FONT);
+  fillRounded(ctx, 1334, 16, 486, 76, '#f8faf6');
+  drawFittedText(ctx, nameOf(next, model.language), 1536, 54, 366, 51, 32, '#263341', 700, JAPANESE_FONT, 'center');
+  drawBadge(ctx, next.code, 1745, 24, 60, C.header);
+  drawFittedText(ctx, 'です', 1830, 62, 80, 28, 22, C.white);
 }
 
 function drawVerticalName(ctx: CanvasRenderingContext2D, station: StationDefinition, language: ScreenLanguage, x: number,
@@ -101,17 +104,27 @@ function drawVerticalName(ctx: CanvasRenderingContext2D, station: StationDefinit
     charHeight, Math.min(20, charHeight), C.ink, 700, fontFamily(language), 'center'));
 }
 
+export function transferColor(code: string): string {
+  if (/^T\d/.test(code) || /Tanimachi/i.test(code)) return '#82539d';
+  if (/^C\d/.test(code) || /Chuo/i.test(code)) return '#229780';
+  if (/^N\d/.test(code) || /Nagahori/i.test(code)) return '#87ad35';
+  if (/^M\d/.test(code) || /Midosuji/i.test(code)) return '#cf363d';
+  if (/^S\d/.test(code) || /Sennichimae/i.test(code)) return '#d3759f';
+  if (/JR|Keihan/i.test(code)) return '#4a8193';
+  return '#586f86';
+}
+
 function drawTransfers(ctx: CanvasRenderingContext2D, station: StationDefinition, language: ScreenLanguage, x: number, y: number): void {
   const transfers = station.transfers.slice(0, 3);
   if (!transfers.length) return;
   let offset = 0;
   for (const transfer of transfers) {
     if (transfer.kind === 'badge') {
-      drawBadge(ctx, transfer.code, x - 18 + offset, y - 13, 36, C.route);
+      drawBadge(ctx, transfer.code, x - 18 + offset, y - 13, 36, transferColor(transfer.code));
       offset += 40;
     } else {
       const text = localizedName(transfer.names, language, transfer.names.ja ?? transfer.names.en ?? '');
-      drawFittedText(ctx, text, x, y + offset, 164, 18, 12, C.ink, 600, fontFamily(language), 'center');
+      drawFittedText(ctx, text, x, y + offset, 164, 18, 12, transferColor(text), 600, fontFamily(language), 'center');
       offset += 20;
     }
   }
@@ -123,7 +136,7 @@ function drawBroad(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
   const currentIndex = stations.findIndex(station => station.code === model.snapshot.station);
   const nextIndex = stations.findIndex(station => station.code === model.snapshot.next);
   const left = 104, gap = 190, y = 370;
-  ctx.strokeStyle = C.route; ctx.lineWidth = 12;
+  ctx.strokeStyle = C.route; ctx.lineWidth = 58;
   ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + gap * (stations.length - 1), y); ctx.stroke();
   stations.forEach((station, index) => {
     const x = left + gap * index;
@@ -132,11 +145,10 @@ function drawBroad(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
     const fill = index === currentIndex ? C.header : index === nextIndex ? C.next : past ? C.past : C.white;
     ctx.fillStyle = fill; ctx.strokeStyle = C.route; ctx.lineWidth = index === currentIndex || index === nextIndex ? 6 : 3;
     ctx.beginPath(); ctx.arc(x, y, 34, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    drawFittedText(ctx, station.code, x, y, 62, 18, 13, index === currentIndex ? C.white : C.ink, 700, 'Arial, sans-serif', 'center');
+    drawBadge(ctx, station.code, x - 34, y - 34, 68, index === nextIndex ? '#c7dc63' : C.route);
     drawTransfers(ctx, station, model.language, x, 430);
   });
-  drawDirectionArrow(ctx, 1848, y, 1);
-  drawFittedText(ctx, `${model.snapshot.remainingMinutes} min`, 1848, 496, 140, 28, 20, C.ink, 700, 'Arial, sans-serif', 'right');
+  if (nextIndex >= 0) drawDirectionArrow(ctx, left + gap * nextIndex - 100, y, 1);
 }
 
 function drawNearby(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
@@ -145,8 +157,7 @@ function drawNearby(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void 
   const ordered = sakaisujiOrderedStations(model);
   const currentIndex = ordered.findIndex(station => station.code === model.snapshot.station);
   const left = 160, gap = 320, y = 360;
-  drawFittedText(ctx, model.language === 'kana' ? 'ちかくのえき' : '近くの駅', 78, 145, 400, 30, 22, C.ink, 700, fontFamily(model.language));
-  ctx.strokeStyle = C.route; ctx.lineWidth = 12;
+  ctx.strokeStyle = C.route; ctx.lineWidth = 58;
   ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + gap * (stations.length - 1), y); ctx.stroke();
   stations.forEach((station, index) => {
     const x = left + gap * index;
@@ -157,15 +168,15 @@ function drawNearby(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void 
     ctx.fillStyle = current ? C.header : next ? C.next : past ? C.past : C.white;
     ctx.strokeStyle = C.route; ctx.lineWidth = current || next ? 6 : 3;
     ctx.beginPath(); ctx.arc(x, y, current || next ? 38 : 31, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    drawFittedText(ctx, station.code, x, y, 70, 18, 13, current ? C.white : C.ink, 700, 'Arial, sans-serif', 'center');
+    drawBadge(ctx, station.code, x - 38, y - 38, 76, next ? '#c7dc63' : C.route);
     drawTransfers(ctx, station, model.language, x, 426);
   });
-  drawDirectionArrow(ctx, 1838, y, 1);
-  drawFittedText(ctx, `${model.snapshot.remainingMinutes} min`, 1848, 496, 140, 28, 20, C.ink, 700, 'Arial, sans-serif', 'right');
+  const nextIndex = stations.findIndex(station => station.code === model.snapshot.next);
+  if (nextIndex >= 0) drawDirectionArrow(ctx, left + gap * nextIndex - 148, y, 1);
 }
 
 function drawDirectionArrow(ctx: CanvasRenderingContext2D, x: number, y: number, direction: 1 | -1): void {
-  ctx.strokeStyle = C.route; ctx.fillStyle = C.route; ctx.lineWidth = 7;
+  ctx.strokeStyle = '#f8faf4'; ctx.fillStyle = '#d7e574'; ctx.lineWidth = 5;
   ctx.beginPath(); ctx.moveTo(x - direction * 18, y); ctx.lineTo(x + direction * 18, y); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x + direction * 30, y); ctx.lineTo(x + direction * 12, y - 13); ctx.lineTo(x + direction * 12, y + 13); ctx.closePath(); ctx.fill();
 }
@@ -212,7 +223,7 @@ function drawPlatform(ctx: CanvasRenderingContext2D, model: ScreenSchedule): voi
 function drawTransferDetail(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
   ctx.fillStyle = C.body; ctx.fillRect(0, SAKAISUJI_HEADER_HEIGHT, SAKAISUJI_LCD_WIDTH, SAKAISUJI_LCD_HEIGHT - SAKAISUJI_HEADER_HEIGHT);
   drawFittedText(ctx, model.language === 'kana' ? 'のりかえあんない' : '乗り換え案内', 80, 162, 800, 42, 30, C.ink, 700, fontFamily(model.language));
-  drawFittedText(ctx, `${model.station.code}  ${nameOf(model.station, model.language)}`, 80, 224, 1100, 56, 42, C.ink, 700, fontFamily(model.language));
+  drawFittedText(ctx, `${model.transferStation.code}  ${nameOf(model.transferStation, model.language)}`, 80, 224, 1100, 56, 42, C.ink, 700, fontFamily(model.language));
   model.transfers.slice(0, 8).forEach((transfer, index) => {
     const x = 112 + (index % 4) * 440, y = 332 + Math.floor(index / 4) * 98;
     if (/^[A-Z]{1,3}\d{2}$/.test(transfer)) drawBadge(ctx, transfer, x, y - 25, 52, C.route);
@@ -228,7 +239,7 @@ function drawIncident(ctx: CanvasRenderingContext2D, model: ScreenSchedule): voi
   const messages = model.page === 'emergency'
     ? ['緊急停止', 'Emergency stop'] : ['運転見合わせ', 'Service suspended'];
   messages.forEach((message, index) => drawFittedText(ctx, message, 340, 238 + index * 86, 1280, 56, 38,
-    index ? C.ink : C.header, 700, index ? 'Arial, sans-serif' : 'Yu Gothic, Meiryo, sans-serif'));
+    index ? C.ink : C.header, 700, index ? 'Arial, sans-serif' : JAPANESE_FONT));
 }
 
 function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
@@ -252,7 +263,6 @@ export function createSakaisujiRenderer() {
       const painted = cache.draw(ctx, model.invalidationKey, SAKAISUJI_LCD_WIDTH, SAKAISUJI_LCD_HEIGHT,
         layer => drawStatic(layer, model));
       if (!painted) drawStatic(ctx, model);
-      drawProgressBar(ctx, 0, SAKAISUJI_LCD_HEIGHT - 6, SAKAISUJI_LCD_WIDTH, model.snapshot.progress, C.route);
       ctx.restore();
     },
     get cacheSize() { return cache.size; },

@@ -19,10 +19,11 @@ describe('Subway skin registration', () => {
   it('registers the planned host geometry and view slot visibility', () => {
     const { skin } = collect();
     validateSkinDefinition(skin);
-    expect(skin.design).toEqual({ width: 1920, height: 1200 });
-    expect(skin.slots.find(slot => slot.id === 'strip')?.rect).toEqual({ x: 0, y: 1080, w: 1200, h: 120 });
-    expect(skin.slots.find(slot => slot.id === 'strip')).toMatchObject({ max: 8, size: { w: 1, h: 1 } });
-    expect(skin.slots.find(slot => slot.id === 'side')).toMatchObject({ max: 2, rect: { x: 1728, y: 64, w: 128, h: 352 } });
+    expect(skin.design).toEqual({ width: 1920, height: 480 });
+    expect(skin.slots.find(slot => slot.id === 'strip')?.rect).toEqual({ x: 24, y: 360, w: 1320, h: 96 });
+    expect(skin.slots.find(slot => slot.id === 'strip')).toMatchObject({ max: 8, accepts: ['button', 'slider'] });
+    expect(skin.slots.find(slot => slot.id === 'strip')?.size).toBeUndefined();
+    expect(skin.slots.find(slot => slot.id === 'side')).toMatchObject({ max: 2, rect: { x: 1392, y: 264, w: 256, h: 192 } });
     expect(skin.views).toEqual([
       { id: 'display', title: 'Display', slots: ['strip'] },
       { id: 'map', title: 'Map', slots: ['strip'] },

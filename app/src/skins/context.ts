@@ -18,6 +18,8 @@ export type SkinHostContext = {
   viewId: string;
   designScale: number;
   designOffset: { x: number; y: number };
+  viewport?: { width: number; height: number };
+  setDesignHeight?(height: number): void;
   config: SkinConfig;
   state: Readonly<Record<string, VariableValue>>;
   visible: boolean;

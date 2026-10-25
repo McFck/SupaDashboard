@@ -10,6 +10,7 @@ export interface ScreenConfig {
   languageOffset?: number;
   manualView?: 'display' | 'map';
   viewingSide?: 'left' | 'right';
+  clock?: string;
 }
 
 export interface ScreenSchedule {
@@ -20,6 +21,9 @@ export interface ScreenSchedule {
   readonly snapshot: Readonly<RunSnapshot>;
   readonly station: StationDefinition;
   readonly nextStation?: StationDefinition;
+  readonly guidanceStation: StationDefinition;
+  readonly transferStation: StationDefinition;
+  readonly clock: string;
   readonly destination: string;
   readonly transfers: readonly string[];
   readonly route: readonly StationDefinition[];
@@ -52,7 +56,8 @@ function supportedLanguages(config: ScreenConfig): ScreenLanguage[] {
 }
 
 function cycleFor(snapshot: RunSnapshot, config: ScreenConfig): { pages: { page: ScreenPage; duration: number }[]; period: number } {
-  const current = config.line.stations.find(station => station.code === snapshot.station);
+  const current = config.line.stations.find(station => station.code === (snapshot.state === 'stopped' || snapshot.state === 'arriving' ? snapshot.station : snapshot.next))
+    ?? config.line.stations.find(station => station.code === snapshot.station);
   const transfers = current?.transfers.length ?? 0;
   if (config.line.id === 'hibiya') {
     const pages = snapshot.state === 'stopped'
@@ -147,22 +152,31 @@ export function scheduleScreen(snapshot: RunSnapshot, config: ScreenConfig, visi
     : terminal ? localizedName(terminal.names, language, terminal.code) : '';
   const route = routeFrom(line, snapshot.station, snapshot.direction);
   const nearby = nearbyFrom(line, snapshot.station, snapshot.direction);
-  const transfers = transferNames(station, language);
-  const details = station.platformByDirection[snapshot.direction];
-  const transferKey = station.transfers.map(item => item.kind === 'badge' ? item.code : JSON.stringify(item.names)).join(',');
+  const transferStation = ['stopped', 'arriving'].includes(snapshot.state) ? station : nextStation ?? station;
+  const transfers = transferNames(transferStation, language);
+  const guidanceStation = snapshot.state === 'approaching' ? nextStation ?? station : station;
+  const details = guidanceStation.platformByDirection[snapshot.direction];
+  const transferKey = transferStation.transfers.map(item => item.kind === 'badge' ? item.code : JSON.stringify(item.names)).join(',');
   const facilityKey = details?.facilities.map(item => `${item.kind}:${item.car}:${item.relativePosition}:${item.label}`).join(',') ?? '';
-  const side = station.doorByDirection[snapshot.direction]?.side ?? 'unknown';
+  const side = guidanceStation.doorByDirection[snapshot.direction]?.side ?? 'unknown';
+  const clock = config.clock ?? '12:00';
   const invalidationKey = [snapshot.line, snapshot.direction, snapshot.station, snapshot.next, snapshot.state,
-    snapshot.doors, snapshot.remainingMinutes, page, language, side, transferKey, facilityKey].join('|');
+    snapshot.doors, snapshot.remainingMinutes, page, language, side, transferKey, facilityKey, line.id === 'yamanote' ? clock : ''].join('|');
   return Object.freeze({
     page, language, languages: Object.freeze(abnormal ? [...INCIDENT_LANGUAGES] : languages), line,
-    snapshot: Object.freeze({ ...snapshot }), station, nextStation, destination,
+    snapshot: Object.freeze({ ...snapshot }), station, nextStation, guidanceStation, transferStation, clock, destination,
     transfers: Object.freeze(transfers), route: Object.freeze(route), nearby: Object.freeze(nearby),
-    sideLabel: sideLabel(snapshot, station, config.viewingSide ?? 'right'), currentCar: 1,
+    sideLabel: sideLabel(snapshot, guidanceStation, config.viewingSide ?? 'right'), currentCar: 1,
     visibleElapsed, pageDeadline, languageDeadline,
     nextDeadline: pageDeadline === null ? languageDeadline : languageDeadline === null ? pageDeadline : Math.min(pageDeadline, languageDeadline),
     invalidationKey,
   });
+}
+
+// Approximate individual stop times from the controller's remaining journey estimate.
+export function stationMinutes(model: ScreenSchedule, code: string): number | null {
+  const index = model.route.findIndex(station => station.code === code);
+  return index < 0 ? null : Math.ceil(model.snapshot.remainingMinutes * index / Math.max(1, model.route.length - 1));
 }
 
 export class VisibleScreenClock {

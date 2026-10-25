@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import type { SkinRuntimeContext } from '../../core/skins';
 import { normalizeSubwayLines, type RawLineBundle } from './lines';
-import { registerSubwaySurface, createSubwayRuntime, type SubwayRuntimeClock } from './runtime';
+import { registerSubwaySurface, createSubwayRuntime, subwaySceneState, type SubwayRuntimeClock } from './runtime';
 import type { DoorSequenceApi, LoadedSubwayAssets, RuntimeCueManifest } from './sound-pack';
 import type { SubwayAudioController } from './audio';
 
@@ -79,6 +79,35 @@ afterEach(() => {
 });
 
 describe('Subway owner runtime', () => {
+  it.each(['emergency', 'suspend'] as const)('settles a moving %s, publishes exact zero and resumes from an idle owner', async type => {
+    const clock = new FakeClock();
+    const fixture = makeContext();
+    const surface = registerSubwaySurface(true);
+    disposers.push(() => surface.dispose());
+    const handle = createSubwayRuntime(fixture.context, { clock, loadAssets: async () => assets, assetBase: 'http://localhost/subway/' });
+    disposers.push(() => handle.dispose());
+    await flush();
+    clock.advanceUntil(() => handle.getSnapshot()?.state === 'departing');
+    await flush();
+    clock.advanceBy(20);
+    const speed = handle.getSnapshot()!.speed;
+    expect(speed).toBeGreaterThan(0);
+    expect(speed).toBeLessThan(2);
+    handle.dispatch({ type });
+    await flush();
+    clock.advanceBy(3_200);
+    await flush();
+    expect(clock.pending).toBe(0);
+    expect(handle.getSnapshot()!.speed).toBe(0);
+    expect(fixture.values.get('speed')).toBe(0);
+    expect(get(subwaySceneState)?.snapshot.speed).toBe(0);
+    clock.advanceBy(20_000);
+    expect(clock.pending).toBe(0);
+    expect(handle.dispatch({ type: 'resume-service' })).toBe(true);
+    await flush();
+    expect(handle.getSnapshot()!.state).toBe('departing');
+    expect(clock.pending).toBe(1);
+  });
   it('starts automatically on the first eligible runtime surface and publishes the owner projection', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
