@@ -9,7 +9,7 @@ const get = (id: string) => Promise.all(['line', 'pack'].map(f => fetch(`/subway
 const bundles = await Promise.all(['yamanote', 'hibiya', 'sakaisuji'].map(async id => { const [line, pack] = await get(id); return { line, pack }; }));
 const yamanote = normalizeSubwayLines(bundles)[0];
 const snapshot: RunSnapshot = { line: 'yamanote', station: q.get('station') ?? 'JY20', next: q.get('next') ?? 'JY19',
-  direction: q.get('dir') ?? 'outer', state: (q.get('state') ?? 'cruising') as RunPhase, doors: 'closed', doorSide: 'left',
+  direction: q.get('dir') ?? 'outer', state: (q.get('state') ?? 'cruising') as RunPhase, doors: (q.get('doors') ?? 'closed') as RunSnapshot['doors'], doorSide: 'left',
   remainingMinutes: 60, speed: 40, progress: .4, power: 0, brake: 0, paused: false, immersion: false, generation: 1, multiplier: 1 };
 const lang = q.get('lang') ?? 'en';
 let model = scheduleScreen(snapshot, { line: yamanote, languages: [lang], clock: '12:43' }, 0);

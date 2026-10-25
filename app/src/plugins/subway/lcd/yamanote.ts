@@ -58,7 +58,7 @@ function header(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
   const landmarks = model.route.slice(1).filter(s => MAJOR.has(s.code) && s.code !== current.code).slice(0, 2);
   const termini = landmarks.map(s => s.names[model.language] ?? s.names.ja);
   ctx.fillStyle = HEADER_BG; ctx.fillRect(0, 0, 1280, 216);
-  ctx.fillStyle = C.route; ctx.fillRect(318, 0, 42, 216);
+  ctx.fillStyle = C.route; ctx.fillRect(318, 0, 42, 200);
   if (ja) {
     drawFittedText(ctx, termini.join('・') || direction?.names.ja || '', 300, 118, 280, 50, 26, C.white, 700, JAPANESE_FONT, 'right');
     drawFittedText(ctx, '方面', 300, 174, 120, 26, 18, C.white, 500, JAPANESE_FONT, 'right');
@@ -140,7 +140,7 @@ function broad(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
   ctx.strokeStyle = C.white; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   for (const [x, up] of [[88, delta === -1], [1192, delta === 1]] as const) {
     const d = up ? -1 : 1;
-    ctx.beginPath(); ctx.moveTo(x - 14, 473 - d * 8); ctx.lineTo(x, 473 + d * 8); ctx.lineTo(x + 14, 473 - d * 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 27, 473 - d * 14); ctx.lineTo(x, 473 + d * 14); ctx.lineTo(x + 27, 473 - d * 14); ctx.stroke();
   }
   drawFittedText(ctx, ja ? 'のりかえ、待ち時間は含まれません。電車により多少時間が異なります。' : 'Transfer and waiting times are not included. Times may differ by train.',
     28, 704, 1224, 16, 12, '#1d2124', 500, ja ? JAPANESE_FONT : 'Arial, sans-serif');
@@ -184,20 +184,19 @@ function nearby(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
   drawTransfers(ctx, model, 40, 330, 470);
 }
 
-/** Door illustration: grey frame, two leaves with tall windows; open leaves slide apart. */
-function doors(ctx: CanvasRenderingContext2D, cx: number, top: number, open: boolean) {
-  const w = 300, h = 300, x = cx - w / 2, gap = open ? 96 : 6;
-  ctx.fillStyle = '#c5cacd'; ctx.fillRect(x - 70, top, w + 140, h);
+/** Door illustration: two leaves with tall windows that slide behind the side walls as they open (0 closed .. 1 open). */
+function doors(ctx: CanvasRenderingContext2D, cx: number, top: number, openness: number) {
+  const w = 300, h = 300, x = cx - w / 2, leaf = w / 2, travel = (leaf - 24) * openness;
   ctx.fillStyle = '#2f3437'; ctx.fillRect(x, top, w, h);
-  ctx.fillStyle = '#6b7276';
-  ctx.fillRect(x + 6 - (open ? gap / 2 : 0), top + 6, w / 2 - 9, h - 6);
-  ctx.fillRect(x + w / 2 + 3 + (open ? gap / 2 : 0), top + 6, w / 2 - 9, h - 6);
   ctx.save(); ctx.beginPath(); ctx.rect(x, top, w, h); ctx.clip();
-  ctx.fillStyle = '#e9eef2'; ctx.strokeStyle = '#1d2124'; ctx.lineWidth = 3;
-  for (const [wx, shift] of [[x + 26, -1], [x + w / 2 + 22, 1]]) {
-    ctx.beginPath(); ctx.roundRect(wx + (open ? shift * gap / 2 : 0), top + 30, w / 2 - 48, 120, 16); ctx.fill(); ctx.stroke();
+  for (const side of [-1, 1] as const) {
+    const lx = side < 0 ? x - travel : x + leaf + travel;
+    ctx.fillStyle = '#6b7276'; ctx.fillRect(lx + (side < 0 ? 0 : 2), top + 4, leaf - 2, h - 4);
+    ctx.fillStyle = '#e9eef2'; ctx.strokeStyle = '#1d2124'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(lx + (side < 0 ? 24 : 26), top + 30, leaf - 50, 120, 16); ctx.fill(); ctx.stroke();
   }
   ctx.restore();
+  ctx.fillStyle = '#c5cacd'; ctx.fillRect(x - 70, top, 70, h); ctx.fillRect(x + w, top, 70, h);
 }
 
 function arrow(ctx: CanvasRenderingContext2D, x: number, y: number, dir: 1 | -1) {
@@ -222,8 +221,8 @@ function platform(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
     : model.sideLabel ? (opposite ? 'Doors on the opposite side will open.' : 'Doors on this side will open.') : 'Please take care around the doors.';
   ctx.fillStyle = '#e4edf8'; ctx.fillRect(0, 272, 1280, 56);
   drawFittedText(ctx, ja + ' / ' + en, 640, 300, 1220, 32, 18, '#1b4f9c', 700, JAPANESE_FONT, 'center');
-  const open = !opposite && !closing && model.snapshot.doors === 'open';
-  doors(ctx, 640, 344, open);
+  const doorPhase = opposite ? 'closed' : model.snapshot.doors;
+  doors(ctx, 640, 344, doorPhase === 'open' ? 1 : doorPhase === 'opening' || doorPhase === 'closing' ? .5 : 0);
   if (model.sideLabel && !opposite && !closing) { arrow(ctx, 360, 494, -1); arrow(ctx, 920, 494, 1); }
   ctx.fillStyle = '#f2cf3a'; ctx.fillRect(0, 656, 1280, 64);
   drawFittedText(ctx, 'ドア引込まれにご注意ください', 30, 688, 760, 30, 18, '#1d2124', 700, JAPANESE_FONT);
