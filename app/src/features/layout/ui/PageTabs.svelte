@@ -7,7 +7,7 @@
   import { Hint } from '$lib/components/ui/tooltip';
   import ContextMenu, { type MenuAction } from '../../../panel/ui/ContextMenu.svelte';
   import { MAX_PAGES } from '../pages';
-  import { sortable } from '../../../lib/sortable';
+  import { sortable } from '$lib/sortable';
   import type { Page } from '../../settings/schema';
 
   type StripPan = { pointerId: number; startX: number; startScroll: number; moved: boolean };

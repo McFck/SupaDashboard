@@ -2,7 +2,7 @@
   import type { Component } from 'svelte';
   import { onDestroy, tick } from 'svelte';
   import { projectMoveOrigin, resizeCornerGeometry, resizePreview, resizeFromCornerHysteretic, type ResizeCorner } from '../drag-geometry';
-  import { SPRING_SAMPLES, springDuration } from '../../controls/interaction';
+  import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { ControlFaceProps, TilePresentation } from '../../controls/model';
   import { commit } from '../history.svelte';
   import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, type FittedDeck, type Item, type Selection } from '../grid';

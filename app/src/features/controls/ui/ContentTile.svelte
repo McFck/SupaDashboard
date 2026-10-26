@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { effectiveVariant } from '../button-state';
-  import { pullBindingsFor, SPRING_SAMPLES, springDuration, type PullSnapshot } from '../interaction';
+  import { pullBindingsFor, type PullSnapshot } from '../interaction';
+  import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { ControlConfig } from '../model';
   import { gestures } from '../gestures';
   import { captureRuntimeTrigger, dispatchRuntimePacket, runtimeView } from '../../../app/runtime.svelte';

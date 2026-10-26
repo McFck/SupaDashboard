@@ -6,9 +6,40 @@ Tauri 2 (Rust) + Svelte 5 + TypeScript + shadcn-svelte. A customizable dashboard
 ```
 pnpm install
 pnpm tauri dev      # run the app
+pnpm check          # svelte-check + tsc
 pnpm test           # logic tests;  cd src-tauri && cargo test  (read-only audio checks)
+pnpm format:check   # Prettier (pnpm format to apply)
 pnpm tauri build    # installer in src-tauri/target/release/bundle
 ```
+
+## Source layout
+
+```text
+src/
+  main.ts          mount and start-up for both windows
+  app/             Root, the dashboard-owned runtime and its cross-window sync
+  panel/           control-panel shell: navigation, panes, shared panel widgets
+  features/
+    automation/    scenarios, runner, events, variables, expressions; editor/
+    controls/      control model, interaction, geometry; ui/ renderers, editor/
+    dashboard/     dashboard view and page swipe
+    display/       monitor and window geometry
+    layout/        grid, pages, skin placements, undo; ui/ deck grid and layout page
+    media/         content options, visibility, caches, volume
+    plugins/       contracts, registry, plugin store; ui/ plugin pages and option pickers
+    settings/      schema, migration, reactive state; settings page
+    skins/         skin definition, scene, input, host and slots
+  plugins/         bundled plugins: core, ui, spotify, subway/
+  lib/             feature-independent helpers and UI primitives ($lib)
+tests/
+  browser/         executable CDP checks (own Vite + own headless Chrome, never 9223/9224)
+  harnesses/       browser entry pages and fixtures for those checks
+```
+
+Dependency rules: `features/plugins/contracts.ts` is type-only, so plugins and models import it without starting
+the registry. `lib/` imports no feature code; features import it as `$lib/...`. Unit tests sit beside the code they
+test. Feature UI still reaches the dashboard runtime through `app/runtime.svelte.ts`; narrowing that is planned in
+[the refactor plan](docs/refactor-plan.md).
 
 ## Windows
 
@@ -41,9 +72,9 @@ hide/resume behavior needs an isolated Tauri check and is not established by bro
 
 | Piece | Where | What it is |
 |---|---|---|
-| Widgets | `src/controls/` | `button`, `slider` (pill; tall = vertical), `mixer` (several pills: master + apps) |
-| Layout | `src/core/layout.ts` | deck items with x/y/w/h, collision, drop/swap (tested) |
-| Actions | `src/core/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, `open`, `delay`, and `sequence` |
+| Widgets | `src/features/controls/ui/` | `button`, `slider` (pill; tall = vertical), `mixer` (several pills: master + apps) |
+| Layout | `src/features/layout/grid.ts` | deck items with x/y/w/h, collision, drop/swap (tested) |
+| Actions | `src/features/plugins/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, `open`, `delay`, and `sequence` |
 | Media sources | same | where media commands go: core `system` (current Windows player); plugins add more |
 | Values | same | what a slider controls: `volume {target: "system" \| process name}` |
 | Plugins | `src/plugins/` | `core`, `ui` (built-in widgets + skins), `spotify` (media source, icon, mixer icon, `spotify.open`) |

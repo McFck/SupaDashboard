@@ -6,7 +6,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import SkinHost from '../skins/SkinHost.svelte';
   import { applyDisplay, complementRectangles, getAppliedFullscreen, initDisplay, type LocalRect } from '../display/display';
-  import { SPRING_SAMPLES, springDuration } from '../controls/interaction';
+  import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import { skins } from '../plugins/registry';
   import { settings } from '../settings/state.svelte';
   import { pageById } from '../layout/pages';

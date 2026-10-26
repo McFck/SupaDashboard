@@ -1,5 +1,5 @@
 import { tick } from 'svelte';
-import { SPRING_SAMPLES } from '../features/controls/interaction';
+import { SPRING_SAMPLES } from './spring';
 
 export type SortableRect = { start: number; end: number };
 

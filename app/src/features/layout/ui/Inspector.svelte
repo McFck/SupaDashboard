@@ -15,7 +15,7 @@
   import { Switch } from '$lib/components/ui/switch';
   import Icon from '../../controls/ui/Icon.svelte';
   import { MAX_VARIANTS, moveVariant, removeVariant as removeStateVariant, type ControlConfig, type Variant } from '../../controls/model';
-  import { SPRING_SAMPLES, springDuration } from '../../controls/interaction';
+  import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { Trigger } from '../../automation/scenario';
   import { clampToGrid, firstFree, fits, type Selection } from '../grid';
   import { controlTypes } from '../../plugins/registry';
@@ -26,10 +26,10 @@
   import { newScenarioId, normalizeControl } from '../../automation/scenario';
   import { commit } from '../history.svelte';
   import { toast } from 'svelte-sonner';
-  import { splitAlpha, withAlpha } from '../../../lib/palette';
+  import { splitAlpha, withAlpha } from '$lib/palette';
   import { cloneControl } from '../layout-actions';
   import { animateRemoval } from '../removal';
-  import ColorField from '../../../lib/components/ColorField.svelte';
+  import ColorField from '$lib/components/ColorField.svelte';
   import IconPicker from '../../controls/editor/IconPicker.svelte';
   import ValueEditor from '../../controls/editor/ValueEditor.svelte';
   import GestureEditor from '../../controls/editor/GestureEditor.svelte';

@@ -11,7 +11,7 @@
   import { runtimeView } from '../../../app/runtime.svelte';
   import ButtonFace from '../ui/ButtonFace.svelte';
   import StateView from '../ui/StateView.svelte';
-  import ColorField from '../../../lib/components/ColorField.svelte';
+  import ColorField from '$lib/components/ColorField.svelte';
   import IconPicker from './IconPicker.svelte';
   import Choice from '../../plugins/ui/Choice.svelte';
 

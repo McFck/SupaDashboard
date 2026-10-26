@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { availableGestures, moveVariant, removeVariant, type ControlConfig } from './model';
 import { buttonIconSize, mixerLayout, pressRippleGeometry, sliderOrientation } from './geometry';
-import { beginPull, classify, pullBindingsFor, pullHandoffProgress, shouldAnimateSliderFill, springDuration, springProgress, SPRING_SAMPLES, updatePull } from './interaction';
+import { beginPull, classify, pullBindingsFor, pullHandoffProgress, shouldAnimateSliderFill, updatePull } from './interaction';
+import { springDuration, springProgress, SPRING_SAMPLES } from '$lib/spring';
 import { projectMoveOrigin, resizeCornerGeometry, resizeFromCorner, resizeFromCornerHysteretic, resizePreview, type ResizeCorner } from '../layout/drag-geometry';
 import { tapSequence } from './gestures';
 import { fits } from '../layout/grid';

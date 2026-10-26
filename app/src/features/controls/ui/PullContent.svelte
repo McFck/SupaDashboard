@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick, type Snippet } from 'svelte';
-  import { pullHandoffProgress, springDuration, SPRING_SAMPLES, type PullSnapshot } from '../interaction';
+  import { pullHandoffProgress, type PullSnapshot } from '../interaction';
+  import { springDuration, SPRING_SAMPLES } from '$lib/spring';
   import type { ControlConfig, Gesture, Variant } from '../model';
 
   let { control, current, pull, singleLive = false, children }: { control: ControlConfig; current: number;

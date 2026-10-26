@@ -1,7 +1,7 @@
 <script lang="ts">
   // One rounded outline of the size the widget will take. A single border keeps the contour continuous.
   import { onDestroy } from 'svelte';
-  import { SPRING_SAMPLES } from '../interaction';
+  import { SPRING_SAMPLES } from '$lib/spring';
 
   let { x = 0, y = 0, width, height, opacity = 1, invalid = false, preferredRadius = 22 }: {
     x?: number; y?: number; width: number; height: number; opacity?: number; invalid?: boolean; preferredRadius?: number;
