@@ -27,9 +27,18 @@ export type SkinHostContext = {
   resolvePresentation?: (control: ControlConfig, variantIndex: number) => TilePresentation;
   selected: Selection;
   onselect?(selection: Selection, target?: LayoutTarget): void;
-  oncontext?(selection: Exclude<Selection, null>, x: number, y: number, target?: LayoutTarget): void;
+  oncontext?(
+    selection: Exclude<Selection, null>,
+    x: number,
+    y: number,
+    target?: LayoutTarget,
+  ): void;
   setView(viewId: string): Promise<boolean>;
-  routeSceneInput(input: SceneInput, rect: SceneRect, deliver: (input: SceneInput) => void): boolean;
+  routeSceneInput(
+    input: SceneInput,
+    rect: SceneRect,
+    deliver: (input: SceneInput) => void,
+  ): boolean;
   resetSceneInput(): void;
   quickActionsOpen: boolean;
   setQuickActionsOpen(open: boolean): void;

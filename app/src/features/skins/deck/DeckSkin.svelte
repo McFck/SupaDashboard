@@ -5,6 +5,9 @@
 </script>
 
 <!-- empty background drags the window -->
-<div data-skin-page={page.id} class="grid h-full w-full place-items-center">
+<div
+  data-skin-page={page.id}
+  class="grid h-full w-full place-items-center"
+>
   <Slot id="main" />
 </div>

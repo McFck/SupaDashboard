@@ -47,15 +47,25 @@ export async function loadSettings() {
   };
 
   if (browser) {
-    const rawJson = localStorage.getItem(browserKey) ?? legacyBrowserKeys.map(key => localStorage.getItem(key)).find(Boolean);
+    const rawJson =
+      localStorage.getItem(browserKey) ??
+      legacyBrowserKeys.map((key) => localStorage.getItem(key)).find(Boolean);
     let raw: unknown = null;
     if (rawJson) {
-      try { raw = JSON.parse(rawJson); } catch { raw = null; }
+      try {
+        raw = JSON.parse(rawJson);
+      } catch {
+        raw = null;
+      }
     }
     if (!applyInitial(raw, rawJson ?? undefined)) return;
     const onStorage = (event: StorageEvent) => {
       if (event.key !== browserKey || !event.newValue) return;
-      try { applyRemote(JSON.parse(event.newValue)); } catch { /* unsupported or partial remote data is ignored */ }
+      try {
+        applyRemote(JSON.parse(event.newValue));
+      } catch {
+        /* unsupported or partial remote data is ignored */
+      }
     };
     window.addEventListener('storage', onStorage);
     $effect.root(() => {
@@ -73,23 +83,35 @@ export async function loadSettings() {
   const raw = await store.get('settings');
   if (!applyInitial(raw, raw ? JSON.stringify(raw) : undefined)) return;
   // Another window (dashboard <-> control panel) changed something: take it over.
-  await store.onKeyChange('settings', value => {
+  await store.onKeyChange('settings', (value) => {
     if (!value) return;
-    try { applyRemote(value); } catch { /* unsupported or partial remote data is ignored */ }
+    try {
+      applyRemote(value);
+    } catch {
+      /* unsupported or partial remote data is ignored */
+    }
   });
   $effect.root(() => {
     $effect(() => {
       const json = serializeSettings($state.snapshot(settings));
-      if (json !== last) { last = json; void store.set('settings', JSON.parse(json)); }
+      if (json !== last) {
+        last = json;
+        void store.set('settings', JSON.parse(json));
+      }
     });
   });
 }
 
-export const controlById = (id: string) => settings.controls.find(c => c.id === id);
+export const controlById = (id: string) => settings.controls.find((c) => c.id === id);
 
 export const newId = (prefix: string, taken: string[]) => {
-  const base = prefix.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item';
-  let id = base, n = 2;
+  const base =
+    prefix
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'item';
+  let id = base,
+    n = 2;
   while (taken.includes(id)) id = `${base}-${n++}`;
   return id;
 };

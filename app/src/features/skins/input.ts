@@ -16,9 +16,12 @@ export class SkinInputRecognizer {
   private holdTimer?: Timer;
   private deliver?: (input: SceneInput) => void;
 
-  constructor(private readonly onOpen: () => void,
-    private readonly schedule: (callback: () => void, delay: number) => Timer = (callback, delay) => setTimeout(callback, delay),
-    private readonly cancelTimer: (timer: Timer) => void = timer => clearTimeout(timer)) {}
+  constructor(
+    private readonly onOpen: () => void,
+    private readonly schedule: (callback: () => void, delay: number) => Timer = (callback, delay) =>
+      setTimeout(callback, delay),
+    private readonly cancelTimer: (timer: Timer) => void = (timer) => clearTimeout(timer),
+  ) {}
 
   setOptions(gesture: SkinGesture, corner: SkinCorner) {
     if (gesture === this.gesture && corner === this.corner) return;
@@ -29,7 +32,12 @@ export class SkinInputRecognizer {
 
   handle(input: SceneInput, rect: SceneRect, deliver: (input: SceneInput) => void) {
     this.deliver = deliver;
-    if (this.gesture === 'off' || !Number.isFinite(input.screenX) || !Number.isFinite(input.screenY)) return false;
+    if (
+      this.gesture === 'off' ||
+      !Number.isFinite(input.screenX) ||
+      !Number.isFinite(input.screenY)
+    )
+      return false;
     if (input.kind === 'down') return this.down(input, rect);
     const active = this.active;
     if (!active || active.pointerId !== input.pointerId) return false;
@@ -41,18 +49,27 @@ export class SkinInputRecognizer {
     }
     if (this.gesture === 'tripleTap') {
       if (input.kind === 'up') return this.finishTap(active, input);
-      if (input.kind === 'cancel') { this.flush(); return true; }
+      if (input.kind === 'cancel') {
+        this.flush();
+        return true;
+      }
       return true;
     }
     if (input.kind === 'up' || input.kind === 'cancel') {
-      if (active.held) { this.active = undefined; this.clearHold(); return true; }
+      if (active.held) {
+        this.active = undefined;
+        this.clearHold();
+        return true;
+      }
       this.flush();
       return true;
     }
     return true;
   }
 
-  reset() { this.flush(); }
+  reset() {
+    this.flush();
+  }
 
   dispose() {
     this.flush();
@@ -77,7 +94,11 @@ export class SkinInputRecognizer {
       }, 550);
       return true;
     }
-    if (this.pending.length && this.lastTapUp && (input.time - this.lastTapUp.time > 350 || this.distance(this.lastTapUp, input) > 24))
+    if (
+      this.pending.length &&
+      this.lastTapUp &&
+      (input.time - this.lastTapUp.time > 350 || this.distance(this.lastTapUp, input) > 24)
+    )
       this.flush();
     this.clearSequence();
     this.active = { pointerId: input.pointerId, down: input, events: [input], held: false };
@@ -104,11 +125,19 @@ export class SkinInputRecognizer {
   }
 
   private inCorner(input: SceneInput, rect: SceneRect) {
-    const x = input.screenX!, y = input.screenY!;
-    const left = x - rect.left <= 44, right = rect.left + rect.width - x <= 44;
-    const top = y - rect.top <= 44, bottom = rect.top + rect.height - y <= 44;
-    return this.corner === 'topLeft' ? left && top : this.corner === 'topRight' ? right && top
-      : this.corner === 'bottomLeft' ? left && bottom : right && bottom;
+    const x = input.screenX!,
+      y = input.screenY!;
+    const left = x - rect.left <= 44,
+      right = rect.left + rect.width - x <= 44;
+    const top = y - rect.top <= 44,
+      bottom = rect.top + rect.height - y <= 44;
+    return this.corner === 'topLeft'
+      ? left && top
+      : this.corner === 'topRight'
+        ? right && top
+        : this.corner === 'bottomLeft'
+          ? left && bottom
+          : right && bottom;
   }
 
   private distance(a: SceneInput, b: SceneInput) {

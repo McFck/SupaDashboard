@@ -16,7 +16,11 @@
   import { currentRuntime } from '../../app/runtime.svelte';
   import Row from '../../panel/ui/Row.svelte';
   import Section from '../../panel/ui/Section.svelte';
-  import { buildMonitorOptions, CURRENT_POSITION, monitorSelectOptions } from '../display/monitor-options';
+  import {
+    buildMonitorOptions,
+    CURRENT_POSITION,
+    monitorSelectOptions,
+  } from '../display/monitor-options';
 
   let screens = $state<Monitor[]>([]);
   let nativeNames = $state<unknown[]>([]);
@@ -26,38 +30,52 @@
   let refreshGeneration = 0;
 
   const monitorOptions = $derived(buildMonitorOptions(screens, nativeNames, primaryScreen));
-  const screenOptions = $derived(monitorSelectOptions(monitorOptions, settings.display.monitor).map(option => ({
-    ...option,
-    icon: option.primary ? Star : undefined,
-    iconLabel: option.primary ? 'Primary display' : undefined,
-  })));
+  const screenOptions = $derived(
+    monitorSelectOptions(monitorOptions, settings.display.monitor).map((option) => ({
+      ...option,
+      icon: option.primary ? Star : undefined,
+      iconLabel: option.primary ? 'Primary display' : undefined,
+    })),
+  );
 
   async function refreshMonitors() {
     const generation = ++refreshGeneration;
     const [monitorResult, nativeResult, primaryResult] = await Promise.allSettled([
-      monitors(), invoke<unknown[]>('monitor_names'), primaryMonitor(),
+      monitors(),
+      invoke<unknown[]>('monitor_names'),
+      primaryMonitor(),
     ]);
     if (!alive || generation !== refreshGeneration) return;
     screens = monitorResult.status === 'fulfilled' ? monitorResult.value : [];
-    nativeNames = nativeResult.status === 'fulfilled' && Array.isArray(nativeResult.value) ? nativeResult.value : [];
+    nativeNames =
+      nativeResult.status === 'fulfilled' && Array.isArray(nativeResult.value)
+        ? nativeResult.value
+        : [];
     primaryScreen = primaryResult.status === 'fulfilled' ? primaryResult.value : null;
   }
 
   onMount(() => {
     alive = true;
     void refreshMonitors();
-    return () => { alive = false; refreshGeneration++; };
+    return () => {
+      alive = false;
+      refreshGeneration++;
+    };
   });
 
   async function reset() {
     if (resetting) return;
     resetting = true;
     try {
-      if (!await confirm({ title: 'Reset everything?', action: 'Reset', destructive: true })) return;
+      if (!(await confirm({ title: 'Reset everything?', action: 'Reset', destructive: true })))
+        return;
       commit('Reset everything');
       Object.assign(settings, structuredClone(DEFAULTS));
-      for (const skin of skins.values()) currentRuntime()?.updateSkinConfig(skin.id, settings.skinSettings[skin.id] ?? {});
-    } finally { resetting = false; }
+      for (const skin of skins.values())
+        currentRuntime()?.updateSkinConfig(skin.id, settings.skinSettings[skin.id] ?? {});
+    } finally {
+      resetting = false;
+    }
   }
 </script>
 
@@ -65,26 +83,72 @@
   <h1 class="text-xl font-semibold tracking-tight">Settings</h1>
 
   <Section title="General">
-    <Row label="Skin" for="skin-choice">
-      <Choice id="skin-choice" class="w-56 min-w-0 max-w-full" value={settings.skin} onchange={v => (settings.skin = v)}
-        options={[...skins.values()].map(s => ({ value: s.id, label: s.title, plugin: s.plugin,
+    <Row
+      label="Skin"
+      for="skin-choice"
+    >
+      <Choice
+        id="skin-choice"
+        class="w-56 min-w-0 max-w-full"
+        value={settings.skin}
+        onchange={(v) => (settings.skin = v)}
+        options={[...skins.values()].map((s) => ({
+          value: s.id,
+          label: s.title,
+          plugin: s.plugin,
           icon: s.alters?.includes('layout') ? PanelsTopLeft : undefined,
-          iconHint: s.alters?.includes('layout') ? 'Changes layout' : undefined }))} />
+          iconHint: s.alters?.includes('layout') ? 'Changes layout' : undefined,
+        }))}
+      />
     </Row>
   </Section>
 
   <Section title="Dashboard">
-    <Row label="Monitor" for="monitor-choice">
-      <Choice id="monitor-choice" class="w-56 min-w-0 max-w-full" value={settings.display.monitor ?? CURRENT_POSITION}
-        onchange={v => { settings.display.monitor = v === CURRENT_POSITION ? null : v; }} onopen={() => { void refreshMonitors(); }} options={screenOptions} />
+    <Row
+      label="Monitor"
+      for="monitor-choice"
+    >
+      <Choice
+        id="monitor-choice"
+        class="w-56 min-w-0 max-w-full"
+        value={settings.display.monitor ?? CURRENT_POSITION}
+        onchange={(v) => {
+          settings.display.monitor = v === CURRENT_POSITION ? null : v;
+        }}
+        onopen={() => {
+          void refreshMonitors();
+        }}
+        options={screenOptions}
+      />
     </Row>
-    <Row label="Fullscreen" for="fs"><Switch id="fs" bind:checked={settings.display.fullscreen} /></Row>
-    <Row label="Always on top" for="always-on-top"><Switch id="always-on-top" bind:checked={settings.display.alwaysOnTop} /></Row>
+    <Row
+      label="Fullscreen"
+      for="fs"
+      ><Switch
+        id="fs"
+        bind:checked={settings.display.fullscreen}
+      /></Row
+    >
+    <Row
+      label="Always on top"
+      for="always-on-top"
+      ><Switch
+        id="always-on-top"
+        bind:checked={settings.display.alwaysOnTop}
+      /></Row
+    >
   </Section>
 
   <Section title="Advanced">
     <Row label="Reset everything">
-      <Button variant="destructive" size="sm" disabled={resetting} onclick={() => { void reset(); }}>Reset</Button>
+      <Button
+        variant="destructive"
+        size="sm"
+        disabled={resetting}
+        onclick={() => {
+          void reset();
+        }}>Reset</Button
+      >
     </Row>
   </Section>
 </div>

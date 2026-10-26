@@ -26,13 +26,28 @@ export type ActionContext = {
   setVariable(id: string, value: VariableValue, ancestry?: EventAncestry): Promise<boolean>;
   getVariant(controlId: string): string | undefined;
   setVariant(controlId: string, stateId: string): Promise<void> | void;
-  emitEvent(id: string, parameter?: string, payload?: unknown, ancestry?: EventAncestry): Promise<void>;
+  emitEvent(
+    id: string,
+    parameter?: string,
+    payload?: unknown,
+    ancestry?: EventAncestry,
+  ): Promise<void>;
   runSteps(steps: ActionStep[]): Promise<void>;
 };
 
-export type EventDef = { plugin?: string; id: string; title: string; parameterSuggestions?: Option[] | (() => Option[]) };
+export type EventDef = {
+  plugin?: string;
+  id: string;
+  title: string;
+  parameterSuggestions?: Option[] | (() => Option[]);
+};
 export type PluginVariableDef = Omit<VariableDefinition, 'owner' | 'available'>;
-export type VariableChange = { id: string; oldValue: VariableValue | undefined; value: VariableValue; type: VariableDefinition['type'] };
+export type VariableChange = {
+  id: string;
+  oldValue: VariableValue | undefined;
+  value: VariableValue;
+  type: VariableDefinition['type'];
+};
 
 /** Describes one argument so the editor can render a form for any action, including plugin ones. */
 export type Param = {

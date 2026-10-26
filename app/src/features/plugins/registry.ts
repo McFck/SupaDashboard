@@ -1,7 +1,21 @@
 // Host registry: the registered extension points, plugin installation and persistence.
 import { get, writable } from 'svelte/store';
 import { load } from '@tauri-apps/plugin-store';
-import type { ActionContext, ActionDef, ActionRef, ControlTypeDef, EventAncestry, EventDef, MediaSource, Param, Plugin, PluginApi, PluginVariableDef, ValueDef, ValueRef } from './contracts';
+import type {
+  ActionContext,
+  ActionDef,
+  ActionRef,
+  ControlTypeDef,
+  EventAncestry,
+  EventDef,
+  MediaSource,
+  Param,
+  Plugin,
+  PluginApi,
+  PluginVariableDef,
+  ValueDef,
+  ValueRef,
+} from './contracts';
 import { settings } from '../settings/state.svelte';
 import type { VariableRecord, VariableStore } from '../automation/variables';
 import { normalizePluginState, type PluginState } from './plugin-store';
@@ -23,41 +37,82 @@ export const pluginState = writable<PluginState>(normalizePluginState(null));
 const variableDefinitions = new Map<string, { owner: string; definition: PluginVariableDef }>();
 const eventDefinitions = new Map<string, EventDef>();
 const skinVariableIds = new Map<string, string>();
-export function registeredEvents(variables: readonly VariableRecord[] = variableMirror ?? []): EventDef[] {
-  const core: EventDef = { id: 'variables.changed', title: 'Variable changed', parameterSuggestions: () => variables.map(record => ({
-    value: record.definition.id,
-    label: `${record.definition.available === false ? 'Unavailable · ' : ''}${record.definition.name}`,
-    plugin: record.definition.owner,
-  })) };
-  const pageChanged: EventDef = { id: 'page.changed', title: 'Page changed', parameterSuggestions: () => settings.deck.pages.map(page => ({
-    value: page.id, label: page.name,
-  })) };
-  return [core, pageChanged, ...[...eventDefinitions.values()].filter(event => event.id !== core.id && event.id !== pageChanged.id)].map(event => ({ ...event,
-    ...(Array.isArray(event.parameterSuggestions) ? { parameterSuggestions: structuredClone(event.parameterSuggestions) } : {}) }));
+export function registeredEvents(
+  variables: readonly VariableRecord[] = variableMirror ?? [],
+): EventDef[] {
+  const core: EventDef = {
+    id: 'variables.changed',
+    title: 'Variable changed',
+    parameterSuggestions: () =>
+      variables.map((record) => ({
+        value: record.definition.id,
+        label: `${record.definition.available === false ? 'Unavailable · ' : ''}${record.definition.name}`,
+        plugin: record.definition.owner,
+      })),
+  };
+  const pageChanged: EventDef = {
+    id: 'page.changed',
+    title: 'Page changed',
+    parameterSuggestions: () =>
+      settings.deck.pages.map((page) => ({
+        value: page.id,
+        label: page.name,
+      })),
+  };
+  return [
+    core,
+    pageChanged,
+    ...[...eventDefinitions.values()].filter(
+      (event) => event.id !== core.id && event.id !== pageChanged.id,
+    ),
+  ].map((event) => ({
+    ...event,
+    ...(Array.isArray(event.parameterSuggestions)
+      ? { parameterSuggestions: structuredClone(event.parameterSuggestions) }
+      : {}),
+  }));
 }
 export type RegistryRuntime = {
   variables: VariableStore;
   registerEvent(definition: EventDef): void;
-  emitEvent(id: string, parameter?: string, payload?: unknown, ancestry?: EventAncestry): Promise<void>;
+  emitEvent(
+    id: string,
+    parameter?: string,
+    payload?: unknown,
+    ancestry?: EventAncestry,
+  ): Promise<void>;
 };
 let registryRuntime: RegistryRuntime | undefined;
 let variableMirror: VariableRecord[] | undefined;
 
 export function setVariableMirror(records: readonly VariableRecord[] | undefined) {
-  variableMirror = records ? records.map(record => structuredClone(record)) : undefined;
+  variableMirror = records ? records.map((record) => structuredClone(record)) : undefined;
 }
 
 function createApi(owner: string): PluginApi {
   return {
-    registerAction: d => void actions.set(d.id, { ...d, plugin: owner }),
-    registerValue: d => void values.set(d.id, { ...d, plugin: owner }),
-    registerControl: d => void controlTypes.set(d.type, { ...d, plugin: owner }),
-    registerSkin: d => {
+    registerAction: (d) => void actions.set(d.id, { ...d, plugin: owner }),
+    registerValue: (d) => void values.set(d.id, { ...d, plugin: owner }),
+    registerControl: (d) => void controlTypes.set(d.type, { ...d, plugin: owner }),
+    registerSkin: (d) => {
       validateSkinDefinition(d);
       const stateVariables: PluginVariableDef[] = [
-        { id: `${d.id}.view`, name: `${d.title} view`, type: 'string', initialValue: d.defaultView, persistent: false, readOnly: true },
-        ...(d.state ?? []).map(field => ({ id: `${d.id}.${field.key}`, name: `${d.title} ${field.key}`,
-          type: field.type, initialValue: field.initialValue, persistent: field.persistent ?? false, readOnly: true })),
+        {
+          id: `${d.id}.view`,
+          name: `${d.title} view`,
+          type: 'string',
+          initialValue: d.defaultView,
+          persistent: false,
+          readOnly: true,
+        },
+        ...(d.state ?? []).map((field) => ({
+          id: `${d.id}.${field.key}`,
+          name: `${d.title} ${field.key}`,
+          type: field.type,
+          initialValue: field.initialValue,
+          persistent: field.persistent ?? false,
+          readOnly: true,
+        })),
       ];
       for (const definition of stateVariables) {
         const id = definition.id;
@@ -65,16 +120,22 @@ function createApi(owner: string): PluginApi {
         if (current && (current.owner !== owner || skinVariableIds.get(id) !== d.id))
           throw new Error(`Skin variable "${id}" is already registered`);
         const runtimeRecord = registryRuntime?.variables.get(id);
-        if (runtimeRecord && runtimeRecord.definition.owner !== owner) throw new Error(`Skin variable "${id}" belongs to another plugin`);
+        if (runtimeRecord && runtimeRecord.definition.owner !== owner)
+          throw new Error(`Skin variable "${id}" belongs to another plugin`);
       }
       const names = new Set<string>();
-      const incomingIds = new Set(stateVariables.map(definition => definition.id));
-      const existingRecords = registryRuntime ? Object.values(registryRuntime.variables.snapshot().records) : [];
-      const occupiedNames = [...[...variableDefinitions.entries()].filter(([id]) => !incomingIds.has(id)).flatMap(([, entry]) => [
-        entry.definition.name, ...(entry.definition.aliases ?? []),
-      ]), ...existingRecords.filter(record => !incomingIds.has(record.definition.id)).flatMap(record => [
-        record.definition.name, ...(record.definition.aliases ?? []),
-      ])].map(name => name.trim().toLocaleLowerCase());
+      const incomingIds = new Set(stateVariables.map((definition) => definition.id));
+      const existingRecords = registryRuntime
+        ? Object.values(registryRuntime.variables.snapshot().records)
+        : [];
+      const occupiedNames = [
+        ...[...variableDefinitions.entries()]
+          .filter(([id]) => !incomingIds.has(id))
+          .flatMap(([, entry]) => [entry.definition.name, ...(entry.definition.aliases ?? [])]),
+        ...existingRecords
+          .filter((record) => !incomingIds.has(record.definition.id))
+          .flatMap((record) => [record.definition.name, ...(record.definition.aliases ?? [])]),
+      ].map((name) => name.trim().toLocaleLowerCase());
       for (const definition of stateVariables) {
         const name = definition.name.trim().toLocaleLowerCase();
         if (names.has(name) || occupiedNames.includes(name))
@@ -83,10 +144,12 @@ function createApi(owner: string): PluginApi {
       }
       for (const event of d.events ?? []) {
         const current = eventDefinitions.get(event.id);
-        if (current && current.plugin !== owner) throw new Error(`Skin event "${event.id}" belongs to another plugin`);
+        if (current && current.plugin !== owner)
+          throw new Error(`Skin event "${event.id}" belongs to another plugin`);
       }
       const existing = skins.get(d.id);
-      if (existing && existing.plugin !== owner) throw new Error(`Skin "${d.id}" belongs to another plugin`);
+      if (existing && existing.plugin !== owner)
+        throw new Error(`Skin "${d.id}" belongs to another plugin`);
       for (const definition of stateVariables) {
         const entry = { owner, definition: structuredClone(definition) };
         variableDefinitions.set(definition.id, entry);
@@ -94,26 +157,42 @@ function createApi(owner: string): PluginApi {
         registryRuntime?.variables.define({ ...entry.definition, owner }, owner);
       }
       for (const definition of d.events ?? []) {
-        const event = { ...definition,
-          ...(Array.isArray(definition.parameterSuggestions) ? { parameterSuggestions: structuredClone(definition.parameterSuggestions) } : {}),
-          plugin: owner };
+        const event = {
+          ...definition,
+          ...(Array.isArray(definition.parameterSuggestions)
+            ? { parameterSuggestions: structuredClone(definition.parameterSuggestions) }
+            : {}),
+          plugin: owner,
+        };
         eventDefinitions.set(event.id, event);
         registryRuntime?.registerEvent(event);
       }
       skins.set(d.id, { ...d, plugin: owner });
     },
-    registerMediaSource: d => void mediaSources.set(d.id, { ...d, plugin: owner }),
-    registerVariable: definition => {
+    registerMediaSource: (d) => void mediaSources.set(d.id, { ...d, plugin: owner }),
+    registerVariable: (definition) => {
       const entry = { owner, definition: structuredClone(definition) };
       variableDefinitions.set(definition.id, entry);
       if (registryRuntime) registryRuntime.variables.define({ ...entry.definition, owner }, owner);
     },
-    getVariable: id => registryRuntime?.variables.getValue(id) ?? variableMirror?.find(record => record.definition.id === id)?.value,
-    listVariables: () => registryRuntime ? Object.values(registryRuntime.variables.snapshot().records)
-      .map(record => structuredClone(record)) : variableMirror ? variableMirror.map(record => structuredClone(record)) : [...variableDefinitions.values()].map(entry => ({
-        definition: { ...structuredClone(entry.definition), owner: entry.owner, available: true },
-        value: structuredClone(entry.definition.initialValue),
-      })),
+    getVariable: (id) =>
+      registryRuntime?.variables.getValue(id) ??
+      variableMirror?.find((record) => record.definition.id === id)?.value,
+    listVariables: () =>
+      registryRuntime
+        ? Object.values(registryRuntime.variables.snapshot().records).map((record) =>
+            structuredClone(record),
+          )
+        : variableMirror
+          ? variableMirror.map((record) => structuredClone(record))
+          : [...variableDefinitions.values()].map((entry) => ({
+              definition: {
+                ...structuredClone(entry.definition),
+                owner: entry.owner,
+                available: true,
+              },
+              value: structuredClone(entry.definition.initialValue),
+            })),
     setVariable: async (id, value) => {
       if (!registryRuntime) throw new Error('Variable runtime is unavailable');
       return registryRuntime.variables.set(id, value, owner);
@@ -121,7 +200,7 @@ function createApi(owner: string): PluginApi {
     subscribeVariable: (id, listener) => {
       if (!registryRuntime) return () => {};
       let previous = registryRuntime.variables.getValue(id);
-      return registryRuntime.variables.subscribe(snapshot => {
+      return registryRuntime.variables.subscribe((snapshot) => {
         const record = snapshot.records[id];
         if (!record || record.value === previous) return;
         const oldValue = previous;
@@ -129,7 +208,7 @@ function createApi(owner: string): PluginApi {
         listener({ id, oldValue, value: record.value, type: record.definition.type });
       });
     },
-    registerEvent: definition => {
+    registerEvent: (definition) => {
       const event = { ...structuredClone(definition), plugin: owner };
       eventDefinitions.set(event.id, event);
       registryRuntime?.registerEvent(event);
@@ -138,30 +217,43 @@ function createApi(owner: string): PluginApi {
       if (!registryRuntime) throw new Error('Event runtime is unavailable');
       return registryRuntime.emitEvent(id, parameter, payload);
     },
-    registerIcon: (name, path) => { customIcons.set(name, path); customIconOwners.set(name, owner); },
-    registerAppIcon: (app, icon) => { appIcons.set(app.toLowerCase(), icon); appOwners.set(app.toLowerCase(), owner); },
+    registerIcon: (name, path) => {
+      customIcons.set(name, path);
+      customIconOwners.set(name, owner);
+    },
+    registerAppIcon: (app, icon) => {
+      appIcons.set(app.toLowerCase(), icon);
+      appOwners.set(app.toLowerCase(), owner);
+    },
   };
 }
 
 /** Attach the main runtime after plugin/settings setup; declarations stay inert in the panel webview. */
 export function setRegistryRuntime(runtime: RegistryRuntime) {
   registryRuntime = runtime;
-  for (const entry of variableDefinitions.values()) runtime.variables.define({ ...entry.definition, owner: entry.owner }, entry.owner);
+  for (const entry of variableDefinitions.values())
+    runtime.variables.define({ ...entry.definition, owner: entry.owner }, entry.owner);
   for (const event of eventDefinitions.values()) runtime.registerEvent(event);
-  return () => { if (registryRuntime === runtime) registryRuntime = undefined; };
+  return () => {
+    if (registryRuntime === runtime) registryRuntime = undefined;
+  };
 }
 
 export function install(...list: Plugin[]) {
   for (const p of list) {
-    if (plugins.some(x => x.id === p.id)) continue;
+    if (plugins.some((x) => x.id === p.id)) continue;
     p.setup(createApi(p.id));
     plugins.push(p);
   }
 }
 
-export const actionsByPlugin = () => plugins.map(plugin => ({ plugin,
-  actions: [...actions.values()].filter(action => action.plugin === plugin.id),
-})).filter(group => group.actions.length);
+export const actionsByPlugin = () =>
+  plugins
+    .map((plugin) => ({
+      plugin,
+      actions: [...actions.values()].filter((action) => action.plugin === plugin.id),
+    }))
+    .filter((group) => group.actions.length);
 
 let pluginStore: Awaited<ReturnType<typeof load>> | undefined;
 let lastPluginState = '';
@@ -169,8 +261,10 @@ const browserPluginKey = 'plugin-store';
 
 async function persistPlugins(state: PluginState) {
   lastPluginState = JSON.stringify(state);
-  if (pluginStore) { await pluginStore.set('plugin-store', state); await pluginStore.save(); }
-  else localStorage.setItem(browserPluginKey, lastPluginState);
+  if (pluginStore) {
+    await pluginStore.set('plugin-store', state);
+    await pluginStore.save();
+  } else localStorage.setItem(browserPluginKey, lastPluginState);
   pluginState.set(state);
 }
 
@@ -182,26 +276,39 @@ export async function installEnabled(...list: Plugin[]) {
     pluginStore = await load('plugins.json', { defaults: {}, autoSave: false });
     saved = await pluginStore.get('plugin-store');
   } catch {
-    try { saved = JSON.parse(localStorage.getItem(browserPluginKey) ?? 'null'); } catch { saved = null; }
+    try {
+      saved = JSON.parse(localStorage.getItem(browserPluginKey) ?? 'null');
+    } catch {
+      saved = null;
+    }
   }
   const state = normalizePluginState(saved);
-  for (const plugin of list) if (!state.installed[plugin.id]) state.installed[plugin.id] = new Date().toISOString();
+  for (const plugin of list)
+    if (!state.installed[plugin.id]) state.installed[plugin.id] = new Date().toISOString();
   await persistPlugins(state);
-  install(...list.filter(plugin => plugin.builtin || plugin.default || !state.uninstalled.includes(plugin.id)));
-  if (pluginStore) await pluginStore.onKeyChange('plugin-store', raw => {
-    if (JSON.stringify(normalizePluginState(raw)) !== lastPluginState) {
-      // Reload both windows so bundled registrations are applied consistently.
-      setTimeout(() => location.reload(), 250);
-    }
-  });
-  else window.addEventListener('storage', event => { if (event.key === browserPluginKey) location.reload(); });
+  install(
+    ...list.filter(
+      (plugin) => plugin.builtin || plugin.default || !state.uninstalled.includes(plugin.id),
+    ),
+  );
+  if (pluginStore)
+    await pluginStore.onKeyChange('plugin-store', (raw) => {
+      if (JSON.stringify(normalizePluginState(raw)) !== lastPluginState) {
+        // Reload both windows so bundled registrations are applied consistently.
+        setTimeout(() => location.reload(), 250);
+      }
+    });
+  else
+    window.addEventListener('storage', (event) => {
+      if (event.key === browserPluginKey) location.reload();
+    });
 }
 
 export async function setPluginEnabled(id: string, enabled: boolean) {
-  const plugin = bundledPlugins.find(p => p.id === id);
+  const plugin = bundledPlugins.find((p) => p.id === id);
   if (!plugin || (!enabled && (plugin.builtin || plugin.default))) return;
   const state = structuredClone(get(pluginState));
-  state.uninstalled = state.uninstalled.filter(entry => entry !== id);
+  state.uninstalled = state.uninstalled.filter((entry) => entry !== id);
   if (!enabled) state.uninstalled.push(id);
   state.installed[id] ??= new Date().toISOString();
   await persistPlugins(state);
@@ -210,12 +317,13 @@ export async function setPluginEnabled(id: string, enabled: boolean) {
 
 export async function setCatalogUrl(url: string) {
   const next = url.trim();
-  if (next && !['https:', 'http:'].includes(new URL(next).protocol)) throw new Error('Use an HTTP or HTTPS URL');
+  if (next && !['https:', 'http:'].includes(new URL(next).protocol))
+    throw new Error('Use an HTTP or HTTPS URL');
   await persistPlugins({ ...get(pluginState), catalogUrl: next });
 }
 
 export const suggestionsOf = (p: Param, args?: Record<string, unknown>) =>
-  (typeof p.suggestions === 'function' ? p.suggestions(args) : p.suggestions);
+  typeof p.suggestions === 'function' ? p.suggestions(args) : p.suggestions;
 
 export async function runAction(ref: ActionRef, context?: ActionContext) {
   const def = actions.get(ref.id);
