@@ -70,15 +70,15 @@ hide/resume behavior needs an isolated Tauri check and is not established by bro
 
 ## Pieces
 
-| Piece | Where | What it is |
-|---|---|---|
-| Widgets | `src/features/controls/ui/` | `button`, `slider` (pill; tall = vertical), `mixer` (several pills: master + apps) |
-| Layout | `src/features/layout/grid.ts` | deck items with x/y/w/h, collision, drop/swap (tested) |
-| Actions | `src/features/plugins/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, `open`, `delay`, and `sequence` |
-| Media sources | same | where media commands go: core `system` (current Windows player); plugins add more |
-| Values | same | what a slider controls: `volume {target: "system" \| process name}` |
-| Plugins | `src/plugins/` | `core`, `ui` (built-in widgets + skins), `spotify` (media source, icon, mixer icon, `spotify.open`) |
-| Native | `src-tauri/src/` | `media.rs` (Windows media sessions), `volume.rs` (master + per-app volume, mute, mixer list), tray + windows in `lib.rs` |
+| Piece         | Where                              | What it is                                                                                                                                                                                                                                                 |
+| ------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Widgets       | `src/features/controls/ui/`        | `button`, `slider` (pill; tall = vertical), `mixer` (several pills: master + apps)                                                                                                                                                                         |
+| Layout        | `src/features/layout/grid.ts`      | deck items with x/y/w/h, collision, drop/swap (tested)                                                                                                                                                                                                     |
+| Actions       | `src/features/plugins/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, `open`, `delay`, and `sequence` |
+| Media sources | same                               | where media commands go: core `system` (current Windows player); plugins add more                                                                                                                                                                          |
+| Values        | same                               | what a slider controls: `volume {target: "system" \| process name}`                                                                                                                                                                                        |
+| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets + skins), `spotify` (media source, icon, mixer icon, `spotify.open`)                                                                                                                                                        |
+| Native        | `src-tauri/src/`                   | `media.rs` (Windows media sessions), `volume.rs` (master + per-app volume, mute, mixer list), tray + windows in `lib.rs`                                                                                                                                   |
 
 Deck settings: `%APPDATA%\dev.supadashboard.app\settings.json` (version 5; older versions migrate on load). Pages share controls and scenario definitions; page selection is runtime state for the current dashboard launch. Persistent variables are stored separately in `variables.json`.
 
@@ -90,6 +90,7 @@ through empty-gap swipes, the bottom dots, `page.next`/`page.prev`/`page.goto` a
 Navigation is owned by the dashboard runtime and resets to the first page on a fresh launch.
 
 ### Media and Web widgets
+
 Media widgets show URL or picked image, GIF, and video sources. Fit, mute, loop, and auto-advance interval are
 per-widget settings; interval `0` disables auto-advance. The `media.next`, `media.prev`, and `media.goto` actions
 can target this widget or another placed Media widget across pages. Picked files keep their selected paths and
@@ -102,6 +103,7 @@ scripts, forms, and popups sandboxed and does not allow top-level navigation. `w
 placed Web widget. Failed or blocked frames show `Unavailable`; page-hidden refresh timers pause.
 
 ### Subway skin
+
 The Subway skin displays the Yamanote, Hibiya, and Sakaisuji line information screens, a route overview, and a
 deterministic simulated run. Immersion audio uses the bundled motion profiles and compatible sound-pack cues; it
 creates audio only in the visible dashboard owner. The shared mixer exposes it as **Subway**, independently of
@@ -110,6 +112,7 @@ announcement-volume setting affects voice cues only. The Sakaisuji motion profil
 not a Hankyu recording. See [Subway assets](docs/subway-assets.md) for the content and timing limits.
 
 ### Gestures
+
 Buttons have separate ordered scenarios for Press, Release, Long press, Long press release, Double tap, Pull up,
 Pull down, Pull left, Pull right, and filtered Events. A short tap runs Press followed by Release. A held pointer
 runs Long press when the hold threshold is reached and Long press release on pointer-up. Slider value-axis input
@@ -117,6 +120,7 @@ remains reserved for the slider; only cross-axis pulls enter its scenario runner
 after it arms.
 
 ### Scenarios, views, and variables
+
 Select a button and choose **Edit scenario** to edit each trigger in one draft. Lists can contain registered actions,
 Wait steps, and nested If/Else branches. Each trigger may also have a state-specific override. Save commits the draft
 as one settings change; Cancel discards it. Existing legacy action bindings migrate into editable scenario steps.
@@ -132,13 +136,28 @@ The Variables panel manages typed user values and persistence. Core also publish
 the dashboard runtime. The panel requests changes from that owner, including when it is a separate webview.
 
 ### Writing a plugin
+
 ```ts
-export const myPlugin: Plugin = { id: 'my', title: 'My plugin', setup(api) {
-  api.registerMediaSource({ id: 'foobar', title: 'foobar2000', command: c => invoke('media_command', { target: 'foobar', command: c }) });
-  api.registerAction({ id: 'my.hello', title: 'Hello', params: [{ key: 'who', label: 'Who', type: 'text' }], run: a => console.log(a.who) });
-  api.registerAppIcon('foobar2000', 'Music');
-} };
+export const myPlugin: Plugin = {
+  id: 'my',
+  title: 'My plugin',
+  setup(api) {
+    api.registerMediaSource({
+      id: 'foobar',
+      title: 'foobar2000',
+      command: (c) => invoke('media_command', { target: 'foobar', command: c }),
+    });
+    api.registerAction({
+      id: 'my.hello',
+      title: 'Hello',
+      params: [{ key: 'who', label: 'Who', type: 'text' }],
+      run: (a) => console.log(a.who),
+    });
+    api.registerAppIcon('foobar2000', 'Music');
+  },
+};
 ```
+
 Add it to `install(...)` in `src/main.ts`. Declared `params` give the action an editor form automatically.
 Actions receive an `ActionContext` with the control/item, trigger, abort signal, state and variable access, and event
 emission. Plugins may also register typed variables and events, provide parameter suggestions, and mark an action's
