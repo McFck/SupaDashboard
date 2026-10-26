@@ -11,6 +11,11 @@ describe('built-in media control defaults', () => {
       registerSkin: () => {},
     } as unknown as PluginApi);
 
-    expect(controls.get('media')?.create().options).toEqual({ sources: [], interval: 0, loop: true, muted: true });
+    expect(controls.get('media')?.create().options).toEqual({
+      sources: [],
+      interval: 0,
+      loop: true,
+      muted: true,
+    });
   });
 });

@@ -17,14 +17,21 @@ export const spotifyPlugin: Plugin = {
   source: 'bundled',
   size: 1354,
   setup(api) {
-    api.registerIcon('spotify',
-      'M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20zM7 9.5c3.5-1 7.5-.6 10.5 1M7.5 12.6c3-.8 6.3-.4 8.8 1M8 15.6c2.5-.6 5-.3 7 .8');
+    api.registerIcon(
+      'spotify',
+      'M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20zM7 9.5c3.5-1 7.5-.6 10.5 1M7.5 12.6c3-.8 6.3-.4 8.8 1M8 15.6c2.5-.6 5-.3 7 .8',
+    );
     api.registerAppIcon('spotify', 'spotify');
     api.registerMediaSource({
-      id: 'spotify', title: 'Spotify',
+      id: 'spotify',
+      title: 'Spotify',
       // The native side matches Windows media sessions by app id; "spotify" picks the desktop app.
-      command: command => invoke('media_command', { target: 'spotify', command }),
+      command: (command) => invoke('media_command', { target: 'spotify', command }),
     });
-    api.registerAction({ id: 'spotify.open', title: 'Open Spotify', run: () => openUrl('spotify:') });
+    api.registerAction({
+      id: 'spotify.open',
+      title: 'Open Spotify',
+      run: () => openUrl('spotify:'),
+    });
   },
 };
