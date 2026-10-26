@@ -38,8 +38,16 @@ tests/
 
 Dependency rules: `features/plugins/contracts.ts` is type-only, so plugins and models import it without starting
 the registry. `lib/` imports no feature code; features import it as `$lib/...`. Unit tests sit beside the code they
-test. Feature UI still reaches the dashboard runtime through `app/runtime.svelte.ts`; narrowing that is planned in
-[the refactor plan](docs/refactor-plan.md).
+test. The application runtime lives in `app/runtime/`. UI that only reads snapshots imports its `state.ts`.
+`client.ts` handles the panel connection and remote requests; `variable-persistence.ts` loads and saves variables.
+`features/automation/execution-engine.ts` owns queue lanes, cancellation, queue limits, and busy counts. It uses
+an injected executor and control-fingerprint lookup, with no Svelte, settings, registry, or storage imports.
+`app/runtime/session.svelte.ts` owns settings observation, variables, events, persistence, and disposal. It
+composes the engine, page/content/skin controllers, and clock service. `lifecycle.ts` coordinates asynchronous
+startup and shutdown, including retries and stopping during startup. `commands.ts` handles UI commands and
+local/remote routing. Bootstrap provides these commands through Svelte context; UI components use the typed
+helper in `context.ts` rather than accessing the session. The standalone media harness supplies the same context.
+`app/runtime.svelte.ts` keeps the previous exports for compatibility, including the `AutomationRuntime` name.
 
 ## Windows
 

@@ -26,7 +26,7 @@
   import { controlById, settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
   import type { EffectiveSize, LayoutTarget } from '../skin-layouts';
-  import { runtimeView } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import { animateRemoval, registerRemovalNode } from '../removal';
   import { DropPreviewWorker } from '../drop-worker';
   import ResizeFrame from '../../controls/ui/ResizeFrame.svelte';

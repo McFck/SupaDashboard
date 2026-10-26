@@ -10,11 +10,7 @@
   } from '../model';
   import { gestures } from '../gestures';
   import { effectiveVariant, stateIdAt } from '../button-state';
-  import {
-    captureRuntimeTrigger,
-    dispatchRuntimePacket,
-    runtimeView,
-  } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import type { TriggerPacket } from '../../automation/scenario-runner';
   import { settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
@@ -23,6 +19,9 @@
   import PressFeedback from './PressFeedback.svelte';
   import StateView from './StateView.svelte';
   import { buttonLabelVisible } from '../face-layout';
+  import { getRuntimeCommands } from '../../../app/runtime/context';
+
+  const { captureRuntimeTrigger, dispatchRuntimePacket } = getRuntimeCommands();
 
   let {
     control,

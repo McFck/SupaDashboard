@@ -3,7 +3,7 @@
   import { convertFileSrc } from '@tauri-apps/api/core';
   import type { ControlConfig } from '../model';
   import type { Trigger } from '../../automation/scenario';
-  import { currentRuntime, runtimeView } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import {
     canRunContent,
     mediaContentPages,
@@ -22,6 +22,9 @@
   import { preloadNextMedia } from '../../media/media-cache';
   import ContentTile from './ContentTile.svelte';
   import MediaFrame from './MediaFrame.svelte';
+  import { getRuntimeCommands } from '../../../app/runtime/context';
+
+  const { contentCommand, rememberVideoPosition, videoPosition } = getRuntimeCommands();
 
   type MediaLayer = {
     key: string;
@@ -173,7 +176,7 @@
     const timer = setTimeout(() => {
       if (currentGeneration !== generation) return;
       try {
-        currentRuntime()?.contentCommand(control.id, 'next');
+        contentCommand(control.id, 'next');
       } catch {
         /* the control may have been deleted */
       }
@@ -202,7 +205,7 @@
   }
 
   function rememberPosition(key: string, time: number) {
-    if ($runtimeView.owner && key) currentRuntime()?.rememberVideoPosition(control.id, key, time);
+    if ($runtimeView.owner && key) rememberVideoPosition(control.id, key, time);
   }
 
   function onCommitted(trigger: Trigger) {
@@ -271,7 +274,7 @@
               opacity={layerOpacity(previousLayer)}
               {resourceVisible}
               playbackAllowed={false}
-              resumeAt={currentRuntime()?.videoPosition(control.id, previousLayer.key)}
+              resumeAt={videoPosition(control.id, previousLayer.key)}
               onready={() => {}}
               onmetadata={() => {}}
               onposition={(time) => rememberPosition(previousLayer.key, time)}
@@ -295,7 +298,7 @@
               {resourceVisible}
               playbackAllowed={canPrimeVideo ||
                 (canRun && (sourceCandidate.muted || userPlaybackRequested))}
-              resumeAt={currentRuntime()?.videoPosition(control.id, targetLayer.key)}
+              resumeAt={videoPosition(control.id, targetLayer.key)}
               onready={(success) => frameReady(targetLayer.token, success)}
               onmetadata={() => {}}
               onposition={(time) => rememberPosition(targetLayer.key, time)}

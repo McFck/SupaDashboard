@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
-  import { runtimeView } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import { settings } from '../../settings/state.svelte';
   import type { Operand, Predicate, Scalar } from '../scenario';
   import Choice from '../../plugins/ui/Choice.svelte';

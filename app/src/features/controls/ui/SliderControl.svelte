@@ -12,11 +12,7 @@
     Variant,
   } from '../model';
   import { effectiveVariant, stateIdAt } from '../button-state';
-  import {
-    captureRuntimeTrigger,
-    dispatchRuntimePacket,
-    runtimeView,
-  } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import type { Trigger } from '../../automation/scenario';
   import type { TriggerPacket } from '../../automation/scenario-runner';
   import { onDestroy } from 'svelte';
@@ -27,6 +23,9 @@
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
+  import { getRuntimeCommands } from '../../../app/runtime/context';
+
+  const { captureRuntimeTrigger, dispatchRuntimePacket } = getRuntimeCommands();
 
   let {
     control,

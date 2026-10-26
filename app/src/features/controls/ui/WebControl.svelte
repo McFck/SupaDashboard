@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import type { ControlConfig } from '../model';
-  import { runtimeView } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import { readWebOptions, webUrl } from '../../media/content';
   import { watchDashboardVisibility, watchIntersection } from '../../media/content-visibility';
   import {

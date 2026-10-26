@@ -17,12 +17,13 @@ const runtimeMock = vi.hoisted(() => ({
   request: vi.fn(async (..._args: unknown[]) => undefined),
 }));
 
-vi.mock('../../../app/runtime.svelte', async () => {
+vi.mock('../../../app/runtime/state', async () => {
   const { writable } = await import('svelte/store');
   const runtimeView = writable(runtimeMock.snapshot);
   runtimeMock.store = runtimeView as unknown as typeof runtimeMock.store;
-  return { runtimeView, requestRuntime: runtimeMock.request };
+  return { runtimeView };
 });
+vi.mock('../../../app/runtime/client', () => ({ requestRuntime: runtimeMock.request }));
 
 function snapshot(owner: boolean, volume: number, muted: boolean) {
   const records = {
@@ -52,7 +53,7 @@ async function loadBridge(owner: boolean, volume = 0.75, muted = false) {
   runtimeMock.request.mockReset();
   runtimeMock.request.mockImplementation(async (_request: unknown) => undefined);
   const [runtimeModule, volumeModule, bridge] = await Promise.all([
-    import('../../../app/runtime.svelte'),
+    import('../../../app/runtime/state'),
     import('../../../features/media/volume'),
     import('./audio-volume'),
   ]);

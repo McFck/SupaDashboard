@@ -6,7 +6,7 @@
   import { Label } from '$lib/components/ui/label';
   import type { Variant } from '../model';
   import type { Scalar, StateBinding } from '../../automation/scenario';
-  import { runtimeView } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import type { VariableType } from '../../automation/variables';
   import Choice from '../../plugins/ui/Choice.svelte';
 

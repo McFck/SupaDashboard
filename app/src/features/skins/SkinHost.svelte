@@ -5,11 +5,14 @@
   import { fitSkinDesign, resolveSkinConfig, type SkinDef } from './definition';
   import { SkinInputRecognizer, type SkinCorner, type SkinGesture } from './input';
   import type { SceneInput, SceneRect } from './scene';
-  import { currentRuntime, requestPageChange, runtimeView } from '../../app/runtime.svelte';
+  import { runtimeView } from '../../app/runtime/state';
   import { settings } from '../settings/state.svelte';
   import type { Page } from '../settings/schema';
   import { SKIN_HOST_CONTEXT, type SkinHostContext } from './context';
   import type { VariableValue } from '../automation/variables';
+  import { getRuntimeCommands } from '../../app/runtime/context';
+
+  const { requestPageChange, setSkinView } = getRuntimeCommands();
 
   let {
     skin,
@@ -71,9 +74,8 @@
       previewViewId = next;
       return true;
     }
-    const runtime = currentRuntime();
-    if (!runtime?.isOwner || !runtimeOwner) return false;
-    return runtime.setSkinView(skin.id, next);
+    if (!runtimeOwner) return false;
+    return setSkinView(skin.id, next);
   }
   function setQuickActionsOpen(open: boolean) {
     quickActionsOpen = mode === 'runtime' && runtimeOwner && open;

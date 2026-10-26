@@ -17,7 +17,7 @@
     type Variant,
   } from '../../controls/model';
   import { stateIdAt, validateStateConfiguration } from '../../controls/button-state';
-  import { runtimeView } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import { registeredEvents } from '../../plugins/registry';
   import { controlById, settings } from '../../settings/state.svelte';
   import { placementById } from '../../layout/skin-layouts';

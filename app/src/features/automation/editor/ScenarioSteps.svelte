@@ -11,7 +11,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { actions } from '../../plugins/registry';
-  import { runtimeView } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import { newScenarioId, type ActionStep, type Predicate } from '../scenario';
   import ConditionEditor from './ConditionEditor.svelte';
   import ScenarioSteps from './ScenarioSteps.svelte';

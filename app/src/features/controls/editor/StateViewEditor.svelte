@@ -8,7 +8,7 @@
   import { Label } from '$lib/components/ui/label';
   import { MAX_VARIANTS, type TileAppearance, type Variant } from '../model';
   import { renderTemplate } from '../../automation/templates';
-  import { runtimeView } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import ButtonFace from '../ui/ButtonFace.svelte';
   import StateView from '../ui/StateView.svelte';
   import ColorField from '$lib/components/ColorField.svelte';

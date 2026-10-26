@@ -10,9 +10,12 @@
   import Switch from '$lib/components/ui/switch/switch.svelte';
   import Choice from '../../plugins/ui/Choice.svelte';
   import PluginMark from '../../plugins/ui/PluginMark.svelte';
-  import { runtimeView, requestRuntime } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import { parseVariableText, type VariableType, type VariableRecord } from '../variables';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
+  import { getRuntimeCommands } from '../../../app/runtime/context';
+
+  const { requestRuntime } = getRuntimeCommands();
 
   let { open = $bindable(false), inline = false }: { open?: boolean; inline?: boolean } = $props();
   let query = $state('');

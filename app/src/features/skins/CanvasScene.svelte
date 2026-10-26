@@ -8,7 +8,7 @@
     SceneRect,
   } from './scene';
   import { mapScenePoint, SceneScheduler } from './scene';
-  import { runtimeView } from '../../app/runtime.svelte';
+  import { runtimeView } from '../../app/runtime/state';
   import { watchDashboardVisibility, watchIntersection } from '../media/content-visibility';
   import { getSkinHostContext } from './context';
 

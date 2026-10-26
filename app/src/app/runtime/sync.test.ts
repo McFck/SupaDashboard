@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  RuntimeSync,
-  validPageChangePayload,
-  type SyncAdapter,
-  type SyncMessage,
-} from './runtime-sync';
+import { RuntimeSync, validPageChangePayload, type SyncAdapter, type SyncMessage } from './sync';
 
 function pair() {
   const receivers = new Map<string, (message: SyncMessage) => void>();

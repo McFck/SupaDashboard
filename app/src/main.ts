@@ -11,19 +11,21 @@ import { initVolumeSync } from './features/media/volume';
 import { followRemovals } from './features/layout/removal';
 import {
   attachRuntimeConnection,
-  bootRuntime,
   receiveRuntimeSnapshot,
-  runtimeView,
   setRuntimeSync,
-  type AutomationRuntime,
-} from './app/runtime.svelte';
+} from './app/runtime/client';
+import { bootRuntime, stopRuntime } from './app/runtime/lifecycle';
+import { runtimeCommands } from './app/runtime/commands';
+import { RUNTIME_COMMANDS } from './app/runtime/context';
+import type { RuntimeSession } from './app/runtime/session.svelte';
+import { runtimeView } from './app/runtime/state';
 import {
   browserRuntimeLease,
   openRuntimeSync,
   validPageChangePayload,
   type RuntimeRequest,
   type RuntimeSync,
-} from './app/runtime-sync';
+} from './app/runtime/sync';
 import { TRIGGERS, type Trigger } from './features/automation/scenario';
 import type { VariableType, VariableValue } from './features/automation/variables';
 import { corePlugin } from './plugins/core';
@@ -70,7 +72,7 @@ function validRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-async function handleRuntimeRequest(runtime: AutomationRuntime, request: RuntimeRequest) {
+async function handleRuntimeRequest(runtime: RuntimeSession, request: RuntimeRequest) {
   const payload = validRecord(request.payload) ? request.payload : {};
   if (request.type === 'snapshot') return get(runtime.snapshots);
   if (request.type === 'changePage') {
@@ -161,6 +163,9 @@ async function handleRuntimeRequest(runtime: AutomationRuntime, request: Runtime
 }
 
 async function startOwner(syncClient: RuntimeSync) {
+  if (bootDisposed) {
+    return async () => {};
+  }
   const { runtime, dispose } = await bootRuntime({
     owner: true,
     onFailure: reportRuntimeFailure,
@@ -169,6 +174,10 @@ async function startOwner(syncClient: RuntimeSync) {
         `${settings.controls.find((item) => item.id === controlId)?.name ?? 'Automation'} · ${trigger} queue is full`,
       ),
   });
+  if (bootDisposed) {
+    await dispose();
+    return async () => {};
+  }
   syncClient.becomeOwner((request) => handleRuntimeRequest(runtime, request));
   const unsubscribe = runtime.snapshots.subscribe((snapshot) => syncClient.publish(snapshot));
   return async () => {
@@ -186,10 +195,19 @@ async function startRuntimeServices() {
       if (!online) runtimeView.set({ ...get(runtimeView), online: false });
     },
   });
+  if (bootDisposed) {
+    sync.close();
+    sync = undefined;
+    return;
+  }
   if (view === 'panel') {
     void attachRuntimeConnection(sync)
       .then((disconnect) => {
-        releaseClient = disconnect;
+        if (bootDisposed) {
+          disconnect();
+        } else {
+          releaseClient = disconnect;
+        }
       })
       .catch(() => {});
     return;
@@ -214,13 +232,20 @@ async function startRuntimeServices() {
 function cleanup() {
   if (cleanupPromise) return cleanupPromise;
   cleanupPromise = (async () => {
-    await stopLease?.();
-    await disposeOwner?.();
-    disposeOwner = undefined;
-    releaseClient?.();
-    releaseClient = undefined;
-    sync?.close();
-    sync = undefined;
+    try {
+      await stopLease?.();
+      await disposeOwner?.();
+    } finally {
+      disposeOwner = undefined;
+      try {
+        await stopRuntime();
+      } finally {
+        releaseClient?.();
+        releaseClient = undefined;
+        sync?.close();
+        sync = undefined;
+      }
+    }
   })();
   return cleanupPromise;
 }
@@ -293,7 +318,11 @@ async function boot() {
     });
   }
   followRemovals();
-  mount(Root, { target: document.getElementById('app')!, props: { view } });
+  mount(Root, {
+    target: document.getElementById('app')!,
+    props: { view },
+    context: new Map([[RUNTIME_COMMANDS, runtimeCommands]]),
+  });
   await tick();
   if (!bootDisposed && native && view === 'panel' && panelGeneration !== undefined) {
     try {

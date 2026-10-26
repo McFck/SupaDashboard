@@ -9,11 +9,13 @@
   import type { Param, Plugin } from '../contracts';
   import ParamField from './ParamField.svelte';
   import { commit } from '../../layout/history.svelte';
-  import { currentRuntime } from '../../../app/runtime.svelte';
   import { resolveSkinConfig, validSkinParam } from '../../skins/definition';
   import { settings } from '../../settings/state.svelte';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
+  import { getRuntimeCommands } from '../../../app/runtime/context';
+
+  const { updateSkinConfig } = getRuntimeCommands();
   let { plugin, onback }: { plugin: Plugin; onback: () => void } = $props();
   const pluginSkins = $derived([...skins.values()].filter((skin) => skin.plugin === plugin.id));
   let removing = $state(false);
@@ -48,7 +50,7 @@
       return;
     commit(`Change ${skin.title} ${param.label}`);
     settings.skinSettings = { ...settings.skinSettings, [skin.id]: next };
-    currentRuntime()?.updateSkinConfig(skin.id, settings.skinSettings[skin.id]);
+    updateSkinConfig(skin.id, settings.skinSettings[skin.id]);
   }
   function date(value?: string) {
     return value && Number.isFinite(Date.parse(value))

@@ -13,7 +13,6 @@
   import { DEFAULTS } from './schema';
   import { commit } from '../layout/history.svelte';
   import Choice from '../plugins/ui/Choice.svelte';
-  import { currentRuntime } from '../../app/runtime.svelte';
   import Row from '../../panel/ui/Row.svelte';
   import Section from '../../panel/ui/Section.svelte';
   import {
@@ -21,6 +20,9 @@
     CURRENT_POSITION,
     monitorSelectOptions,
   } from '../display/monitor-options';
+  import { getRuntimeCommands } from '../../app/runtime/context';
+
+  const { updateSkinConfig } = getRuntimeCommands();
 
   let screens = $state<Monitor[]>([]);
   let nativeNames = $state<unknown[]>([]);
@@ -72,7 +74,7 @@
       commit('Reset everything');
       Object.assign(settings, structuredClone(DEFAULTS));
       for (const skin of skins.values())
-        currentRuntime()?.updateSkinConfig(skin.id, settings.skinSettings[skin.id] ?? {});
+        updateSkinConfig(skin.id, settings.skinSettings[skin.id] ?? {});
     } finally {
       resetting = false;
     }

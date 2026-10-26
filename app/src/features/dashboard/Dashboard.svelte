@@ -16,9 +16,12 @@
   import { skins } from '../plugins/registry';
   import { settings } from '../settings/state.svelte';
   import { pageById } from '../layout/pages';
-  import { requestPageChange, runtimeView } from '../../app/runtime.svelte';
+  import { runtimeView } from '../../app/runtime/state';
   import { pageSwipeIntent, pageSwipeOffset, pageSwipeTarget } from './page-swipe';
   import { setMediaContentPages } from '../media/content-visibility';
+  import { getRuntimeCommands } from '../../app/runtime/context';
+
+  const { requestPageChange } = getRuntimeCommands();
 
   type DisplayRequest = { monitor: string | null; fullscreen: boolean; alwaysOnTop: boolean };
   type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };

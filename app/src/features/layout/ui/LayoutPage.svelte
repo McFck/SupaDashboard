@@ -12,12 +12,7 @@
   import { animateRemoval } from '../removal';
   import { history, undo, redo, commit } from '../history.svelte';
   import { TRIGGERS, type Trigger } from '../../automation/scenario';
-  import {
-    dispatchRuntimeTrigger,
-    runtimeView,
-    simulateRuntimeEvent,
-    stopRuntimeControl,
-  } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import { firstFree, fits, type Selection } from '../grid';
   import { registeredEvents, skins } from '../../plugins/registry';
   import { controlById, settings } from '../../settings/state.svelte';
@@ -55,6 +50,9 @@
   } from '../../../panel/ui/preferences.svelte';
   import { cloneControl, pasteWidget, type WidgetCopy } from '../layout-actions';
   import { clipboard } from '../widget-clipboard.svelte';
+  import { getRuntimeCommands } from '../../../app/runtime/context';
+
+  const { dispatchRuntimeTrigger, simulateRuntimeEvent, stopRuntimeControl } = getRuntimeCommands();
 
   let { active = true }: { active?: boolean } = $props();
   let selection = $state<Selection>(null);

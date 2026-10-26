@@ -5,16 +5,15 @@
   import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { ControlConfig } from '../model';
   import { gestures } from '../gestures';
-  import {
-    captureRuntimeTrigger,
-    dispatchRuntimePacket,
-    runtimeView,
-  } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import type { TriggerPacket } from '../../automation/scenario-runner';
   import type { Trigger } from '../../automation/scenario';
   import { settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
   import PressFeedback from './PressFeedback.svelte';
+  import { getRuntimeCommands } from '../../../app/runtime/context';
+
+  const { captureRuntimeTrigger, dispatchRuntimePacket } = getRuntimeCommands();
 
   let {
     control,

@@ -1,0 +1,28 @@
+import type { VariableStore } from './variables';
+
+export function startClock(variables: VariableStore) {
+  const update = () => {
+    const now = new Date();
+    const values: Record<string, string> = {
+      'clock.time': new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(now),
+      'clock.date': new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(now),
+      'clock.day': new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(now),
+    };
+    for (const [id, value] of Object.entries(values)) {
+      if (variables.getValue(id) !== undefined && variables.getValue(id) !== value) {
+        variables.set(id, value, 'core');
+      }
+    }
+  };
+  update();
+  const timer = setInterval(update, 1000);
+  return () => clearInterval(timer);
+}

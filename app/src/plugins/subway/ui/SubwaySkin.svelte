@@ -8,7 +8,7 @@
     watchDashboardVisibility,
     watchIntersection,
   } from '../../../features/media/content-visibility';
-  import { runtimeView } from '../../../app/runtime.svelte';
+  import { runtimeView } from '../../../app/runtime/state';
   import { getSkinHostContext } from '../../../features/skins/context';
   import Slot from '../../../features/skins/Slot.svelte';
   import CanvasScene from '../../../features/skins/CanvasScene.svelte';

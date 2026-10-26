@@ -1,21 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import { get } from 'svelte/store';
-import { actions, install, skins } from '../features/plugins/registry';
-import type { ActionContext } from '../features/plugins/contracts';
-import { settings, serializeSettings } from '../features/settings/state.svelte';
-import type { Page } from '../features/settings/schema';
-import { captureTrigger } from '../features/automation/scenario-runner';
-import { mediaSourceKey } from '../features/media/content';
+import { actions, install, skins } from '../../features/plugins/registry';
+import type { ActionContext } from '../../features/plugins/contracts';
+import { settings, serializeSettings } from '../../features/settings/state.svelte';
+import type { Page } from '../../features/settings/schema';
+import { captureTrigger } from '../../features/automation/scenario-runner';
+import { mediaSourceKey } from '../../features/media/content';
+import { VariableStore } from '../../features/automation/variables';
 import {
   acceptRuntimeSnapshot,
   AutomationRuntime,
   bootRuntime,
   runtimeView,
   stopRuntime,
-} from './runtime.svelte';
-import type { ControlConfig } from '../features/controls/model';
-import type { Trigger } from '../features/automation/scenario';
+} from '../runtime.svelte';
+import type { ControlConfig } from '../../features/controls/model';
+import type { Trigger } from '../../features/automation/scenario';
 
 const priorSettings = structuredClone(settings);
 const page = (id: string): Page => ({
@@ -60,6 +61,84 @@ afterEach(async () => {
 });
 
 describe('automation runtime', () => {
+  it('cleans up started skins when a later skin fails so a retry has only one live instance', async () => {
+    let live = 0;
+    let fail = true;
+    const ids = ['startup-first', 'startup-failing'];
+    install({
+      id: 'startup-cleanup-fixture',
+      title: 'Startup cleanup fixture',
+      setup: (api) => {
+        for (const id of ids) {
+          api.registerSkin({
+            id,
+            title: id,
+            component: {} as import('svelte').Component,
+            slots: [],
+            views: [{ id: 'display', title: 'Display', slots: [] }],
+            defaultView: 'display',
+            runtime: () => {
+              if (id === ids[1]) {
+                if (fail) {
+                  throw new Error('skin startup failed');
+                }
+                return;
+              }
+              live++;
+              return () => {
+                live--;
+              };
+            },
+          });
+        }
+      },
+    });
+    try {
+      expect(() => new AutomationRuntime()).toThrow('skin startup failed');
+      expect(live).toBe(0);
+      fail = false;
+      runtime = new AutomationRuntime();
+      expect(live).toBe(1);
+      await runtime.dispose();
+      expect(live).toBe(0);
+    } finally {
+      await runtime?.dispose();
+      for (const id of ids) skins.delete(id);
+    }
+  });
+
+  it('keeps the clock inactive in followers and stops publishing after owner disposal', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-26T12:00:00Z'));
+    const variables = new VariableStore();
+    variables.define(
+      {
+        id: 'clock.time',
+        name: 'clock.time',
+        type: 'string',
+        owner: 'core',
+        persistent: false,
+        readOnly: true,
+        initialValue: 'not-started',
+      },
+      'core',
+    );
+    runtime = new AutomationRuntime({ variables, owner: false });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(variables.getValue('clock.time')).toBe('not-started');
+    await runtime.dispose();
+
+    runtime = new AutomationRuntime({ variables });
+    const initial = variables.getValue('clock.time');
+    expect(initial).not.toBe('not-started');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(variables.getValue('clock.time')).not.toBe(initial);
+    await runtime.dispose();
+    const stopped = variables.snapshot();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(variables.snapshot()).toEqual(stopped);
+  });
+
   it('steps relative states for migrated next/prev pulls', async () => {
     const config = control();
     config.variants = [
@@ -202,65 +281,6 @@ describe('automation runtime', () => {
     expect(failures).toEqual([]);
   });
 
-  it('serializes each control and trigger lane while independent releases continue', async () => {
-    const config = control();
-    settings.controls = [config];
-    const trace: string[] = [];
-    let unblock!: () => void;
-    const blocked = new Promise<void>((resolve) => {
-      unblock = resolve;
-    });
-    actions.set('test.action', {
-      id: 'test.action',
-      title: 'Test',
-      run: async (args) => {
-        trace.push(String(args.id));
-        if (args.id === 'first') await blocked;
-      },
-    });
-    actions.set('test.release', {
-      id: 'test.release',
-      title: 'Release',
-      run: () => {
-        trace.push('release');
-      },
-    });
-    config.scenario!.triggers.press!.steps = [
-      { id: 'first', kind: 'action', action: { id: 'test.action', args: { id: 'first' } } },
-      { id: 'second', kind: 'action', action: { id: 'test.action', args: { id: 'second' } } },
-    ];
-    runtime = new AutomationRuntime();
-    const first = runtime.dispatch(packet(config));
-    const second = runtime.dispatch(packet(config));
-    const release = runtime.dispatch(packet(config, 'release'));
-    await Promise.resolve();
-    expect(trace).toEqual(['first', 'release']);
-    unblock();
-    await Promise.all([first, second, release]);
-    expect(trace).toEqual(['first', 'release', 'second', 'first', 'second']);
-    expect(get(runtime.snapshots).busy).toEqual({});
-  });
-
-  it('limits pending work to 32 per lane and stop resolves pending packets', async () => {
-    const config = control();
-    settings.controls = [config];
-    let unblock!: () => void;
-    const blocked = new Promise<void>((resolve) => {
-      unblock = resolve;
-    });
-    actions.set('test.action', { id: 'test.action', title: 'Test', run: () => blocked });
-    runtime = new AutomationRuntime();
-    const running = runtime.dispatch(packet(config));
-    const queued = Array.from({ length: 32 }, () => runtime!.dispatch(packet(config)));
-    const excess = await runtime.dispatch(packet(config));
-    expect(excess.status).toBe('rejected');
-    const stopped = runtime.stopControl(config.id);
-    expect((await Promise.all(queued)).every((result) => result.status === 'cancelled')).toBe(true);
-    unblock();
-    await Promise.all([running, stopped]);
-    expect(get(runtime.snapshots).busy).toEqual({});
-  });
-
   it('only cancels for executable config changes and cancels removed controls', async () => {
     const config = control();
     settings.controls = [config];
@@ -374,9 +394,9 @@ describe('automation runtime', () => {
   });
 
   it('runs next, previous and goto only through a live owner and rejects invalid requests', async () => {
-    const { corePlugin } = await import('../plugins/core');
-    const { suggestionsOf } = await import('../features/plugins/registry');
-    const { VariableStore } = await import('../features/automation/variables');
+    const { corePlugin } = await import('../../plugins/core');
+    const { suggestionsOf } = await import('../../features/plugins/registry');
+    const { VariableStore } = await import('../../features/automation/variables');
     install(corePlugin);
     settings.deck.pages = [page('page-1'), page('page-2'), page('page-3')];
     settings.deck.activePage = 'page-1';
@@ -476,7 +496,7 @@ describe('automation runtime', () => {
     const skinId = 'runtime-skin';
     const observed: unknown[] = [];
     const cleanup = vi.fn();
-    let hookContext!: import('../features/skins/definition').SkinRuntimeContext;
+    let hookContext!: import('../../features/skins/definition').SkinRuntimeContext;
     install({
       id: 'runtime-skin-plugin',
       title: 'Runtime skin fixture',
@@ -551,6 +571,8 @@ describe('automation runtime', () => {
 
     await runtime.dispose();
     expect(cleanup).toHaveBeenCalledOnce();
+    expect(() => hookContext.setView('display')).toThrow('Skin runtime is unavailable');
+    expect(() => hookContext.setState('configured', false)).toThrow('Skin runtime is unavailable');
     const variables = runtime.variables;
     skins.set(skinId, { ...skins.get(skinId)!, runtime: undefined });
     variables.set(`${skinId}.view`, 'missing-view', 'runtime-skin-plugin');
