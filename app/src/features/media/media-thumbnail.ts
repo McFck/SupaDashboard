@@ -27,7 +27,10 @@ export function clearVideoThumbnail(key: string) {
   cache.delete(key);
 }
 
-export function captureVideoThumbnail(key: string, url: string): Promise<VideoThumbnail | undefined> {
+export function captureVideoThumbnail(
+  key: string,
+  url: string,
+): Promise<VideoThumbnail | undefined> {
   const cached = cache.get(key);
   if (cached) return Promise.resolve(cached);
   const existing = pending.get(key);
@@ -40,12 +43,20 @@ export function captureVideoThumbnail(key: string, url: string): Promise<VideoTh
   video.muted = true;
   video.playsInline = true;
   video.crossOrigin = 'anonymous';
-  Object.assign(video.style, { position: 'fixed', left: '-10000px', top: '0', width: '160px', height: 'auto', opacity: '0', pointerEvents: 'none' });
+  Object.assign(video.style, {
+    position: 'fixed',
+    left: '-10000px',
+    top: '0',
+    width: '160px',
+    height: 'auto',
+    opacity: '0',
+    pointerEvents: 'none',
+  });
   video.setAttribute('aria-hidden', 'true');
   video.tabIndex = -1;
   document.body.append(video);
 
-  const result = new Promise<VideoThumbnail | undefined>(resolve => {
+  const result = new Promise<VideoThumbnail | undefined>((resolve) => {
     let finished = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const clean = () => {
@@ -67,29 +78,46 @@ export function captureVideoThumbnail(key: string, url: string): Promise<VideoTh
     };
     const onError = () => finish();
     const onMetadata = () => {
-      if (!Number.isFinite(video.duration) || video.duration <= 0 || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      if (
+        !Number.isFinite(video.duration) ||
+        video.duration <= 0 ||
+        video.videoWidth <= 0 ||
+        video.videoHeight <= 0
+      ) {
         finish();
         return;
       }
-      try { video.currentTime = Math.min(1, video.duration * 0.1); }
-      catch { finish(); }
+      try {
+        video.currentTime = Math.min(1, video.duration * 0.1);
+      } catch {
+        finish();
+      }
     };
     const onSeeked = () => {
-      if (!video.videoWidth || !video.videoHeight) { finish(); return; }
+      if (!video.videoWidth || !video.videoHeight) {
+        finish();
+        return;
+      }
       try {
         const canvas = document.createElement('canvas');
         let best: VideoThumbnail | undefined;
         for (const width of [160, 128, 96, 64, 48]) {
           canvas.width = width;
-          canvas.height = Math.max(1, Math.round(width * video.videoHeight / video.videoWidth));
+          canvas.height = Math.max(1, Math.round((width * video.videoHeight) / video.videoWidth));
           const context = canvas.getContext('2d');
-          if (!context) { finish(); return; }
+          if (!context) {
+            finish();
+            return;
+          }
           context.drawImage(video, 0, 0, canvas.width, canvas.height);
           for (const quality of [0.6, 0.42, 0.28]) {
             const dataUrl = canvas.toDataURL('image/jpeg', quality);
             const candidate = { dataUrl, persist: dataUrl.length <= MAX_STORED_THUMBNAIL };
             if (!best || dataUrl.length < best.dataUrl.length) best = candidate;
-            if (candidate.persist) { finish(candidate); return; }
+            if (candidate.persist) {
+              finish(candidate);
+              return;
+            }
           }
         }
         finish(best);
@@ -105,6 +133,8 @@ export function captureVideoThumbnail(key: string, url: string): Promise<VideoTh
     video.load();
   });
   pending.set(key, result);
-  void result.finally(() => { if (pending.get(key) === result) pending.delete(key); });
+  void result.finally(() => {
+    if (pending.get(key) === result) pending.delete(key);
+  });
   return result;
 }

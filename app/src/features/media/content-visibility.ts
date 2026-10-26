@@ -23,18 +23,28 @@ export type DashboardVisibilityBridge = {
 };
 
 export function canRunContent(value: ContentVisibility) {
-  return value.runtimeOwner && !value.editing && value.pageVisible && value.intersecting &&
-    value.documentVisible && value.dashboardVisible;
+  return (
+    value.runtimeOwner &&
+    !value.editing &&
+    value.pageVisible &&
+    value.intersecting &&
+    value.documentVisible &&
+    value.dashboardVisible
+  );
 }
 
-export function watchIntersection(node: Element, onChange: (intersecting: boolean) => void,
-  createObserver?: (callback: IntersectionObserverCallback) => IntersectionObserver) {
+export function watchIntersection(
+  node: Element,
+  onChange: (intersecting: boolean) => void,
+  createObserver?: (callback: IntersectionObserverCallback) => IntersectionObserver,
+) {
   if (!createObserver && typeof IntersectionObserver === 'undefined') {
     onChange(true);
     return () => {};
   }
-  const observer = (createObserver ?? (callback => new IntersectionObserver(callback, { threshold: 0 })))(
-    entries => onChange(!!entries[0]?.isIntersecting));
+  const observer = (
+    createObserver ?? ((callback) => new IntersectionObserver(callback, { threshold: 0 }))
+  )((entries) => onChange(!!entries[0]?.isIntersecting));
   observer.observe(node);
   return () => observer.disconnect();
 }
@@ -42,13 +52,18 @@ export function watchIntersection(node: Element, onChange: (intersecting: boolea
 function tauriBridge(): DashboardVisibilityBridge {
   const window = getCurrentWindow();
   return {
-    listen: callback => window.listen<{ visible: boolean }>('dashboard-visibility', event => callback(event.payload.visible)),
+    listen: (callback) =>
+      window.listen<{ visible: boolean }>('dashboard-visibility', (event) =>
+        callback(event.payload.visible),
+      ),
     isVisible: () => window.isVisible(),
   };
 }
 
-export async function watchDashboardVisibility(onChange: (visible: boolean) => void,
-  bridge?: DashboardVisibilityBridge) {
+export async function watchDashboardVisibility(
+  onChange: (visible: boolean) => void,
+  bridge?: DashboardVisibilityBridge,
+) {
   if (!bridge && !isTauri()) {
     onChange(true);
     return () => {};
@@ -56,7 +71,7 @@ export async function watchDashboardVisibility(onChange: (visible: boolean) => v
   const source = bridge ?? tauriBridge();
   let active = true;
   let eventRevision = 0;
-  const unlisten = await source.listen(visible => {
+  const unlisten = await source.listen((visible) => {
     eventRevision++;
     if (active) onChange(visible);
   });

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { pageSwipeIntent, pageSwipeOffset, pageSwipeTarget, pageSwipeThreshold } from './page-swipe';
+import {
+  pageSwipeIntent,
+  pageSwipeOffset,
+  pageSwipeTarget,
+  pageSwipeThreshold,
+} from './page-swipe';
 
 describe('page swipe intent', () => {
   it('waits for the slop and locks the dominant axis at 1.25:1', () => {
@@ -31,7 +36,7 @@ describe('page swipe intent', () => {
 
   it('rubber-bands outward at either edge, monotonically to the configured limit', () => {
     const limit = 96;
-    const offsets = [0, 40, 80, 160, 8000].map(dx => pageSwipeOffset(dx, 800, 0, 3));
+    const offsets = [0, 40, 80, 160, 8000].map((dx) => pageSwipeOffset(dx, 800, 0, 3));
     expect(offsets[0]).toBe(0);
     expect(offsets).toEqual([...offsets].sort((a, b) => a - b));
     expect(offsets.at(-1)).toBeLessThan(limit);

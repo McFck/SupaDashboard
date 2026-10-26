@@ -5,7 +5,13 @@
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import SkinHost from '../skins/SkinHost.svelte';
-  import { applyDisplay, complementRectangles, getAppliedFullscreen, initDisplay, type LocalRect } from '../display/display';
+  import {
+    applyDisplay,
+    complementRectangles,
+    getAppliedFullscreen,
+    initDisplay,
+    type LocalRect,
+  } from '../display/display';
   import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import { skins } from '../plugins/registry';
   import { settings } from '../settings/state.svelte';
@@ -18,13 +24,28 @@
   type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
   type PagerFrame = { id: string; offset: number; active: boolean; mediaVisible: boolean };
   type PagerSession = {
-    pointerId: number; startX: number; startY: number; latestX: number; latestY: number;
-    sourceId: string; sourceIndex: number; order: string[]; orderKey: string; width: number;
-    source: 'gap' | 'skin-input'; mode: 'pending' | 'horizontal' | 'vertical'; side: number; neighborId?: string;
-    hold?: ReturnType<typeof setTimeout>; frame: number | null; generation: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    latestX: number;
+    latestY: number;
+    sourceId: string;
+    sourceIndex: number;
+    order: string[];
+    orderKey: string;
+    width: number;
+    source: 'gap' | 'skin-input';
+    mode: 'pending' | 'horizontal' | 'vertical';
+    side: number;
+    neighborId?: string;
+    hold?: ReturnType<typeof setTimeout>;
+    frame: number | null;
+    generation: number;
   };
   const skin = $derived(skins.get(settings.skin) ?? skins.get('deck')!);
-  const page = $derived(pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!);
+  const page = $derived(
+    pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!,
+  );
   const bg = $derived(settings.display.background);
   let shell: HTMLDivElement;
   let pageHost: HTMLDivElement;
@@ -34,7 +55,12 @@
   let pagerSession: PagerSession | null = null;
   let pagerAnimations: Animation[] = [];
   let pagerGeneration = 0;
-  let pagerExpected: { pageId: string; orderKey: string; skin: string; fullscreen: boolean } | null = null;
+  let pagerExpected: {
+    pageId: string;
+    orderKey: string;
+    skin: string;
+    fullscreen: boolean;
+  } | null = null;
   let pageNodes = new Map<string, HTMLDivElement>();
   let trackedPageId = '';
   let trackedOrderKey = '';
@@ -58,7 +84,11 @@
   let cleanupResized: (() => void) | undefined;
   let cleanupResize: (() => void) | undefined;
   const hovered = $derived(domHovered || nativeHovered);
-  $effect(() => setMediaContentPages(pagerFrames.filter(frame => frame.mediaVisible).map(frame => frame.id)));
+  $effect(() =>
+    setMediaContentPages(
+      pagerFrames.filter((frame) => frame.mediaVisible).map((frame) => frame.id),
+    ),
+  );
   // Native resize loops swallow pointer hover, so keep the edge cues up until resize events go quiet.
   let windowResizing = $state(false);
   let nativeResizing = $state(false);
@@ -66,10 +96,15 @@
   function showResizeCues() {
     windowResizing = true;
     clearTimeout(resizeQuiet);
-    resizeQuiet = setTimeout(() => { windowResizing = false; }, 400);
+    resizeQuiet = setTimeout(() => {
+      windowResizing = false;
+    }, 400);
   }
   const sameRequest = (a: DisplayRequest | null, b: DisplayRequest) =>
-    !!a && a.monitor === b.monitor && a.fullscreen === b.fullscreen && a.alwaysOnTop === b.alwaysOnTop;
+    !!a &&
+    a.monitor === b.monitor &&
+    a.fullscreen === b.fullscreen &&
+    a.alwaysOnTop === b.alwaysOnTop;
   const currentRequest = (): DisplayRequest => ({
     monitor: settings.display.monitor,
     fullscreen: settings.display.fullscreen,
@@ -101,23 +136,56 @@
     const add = (node: Element) => {
       if (node.closest('[data-skin-input="ui"][aria-hidden="true"]')) return;
       // Opening overlays start their opacity transition at zero; their logical state already owns pointer input.
-      const skinSurface = node.matches('[data-skin-input="scene"], [data-skin-input="slot"], [data-skin-input="ui"][aria-hidden="false"]');
-      for (let current: Element | null = node; current && current !== skinRoot.parentElement; current = current.parentElement) {
+      const skinSurface = node.matches(
+        '[data-skin-input="scene"], [data-skin-input="slot"], [data-skin-input="ui"][aria-hidden="false"]',
+      );
+      for (
+        let current: Element | null = node;
+        current && current !== skinRoot.parentElement;
+        current = current.parentElement
+      ) {
         const style = getComputedStyle(current);
-        if (style.display === 'none' || style.visibility === 'hidden' || (!skinSurface && Number(style.opacity) === 0)) return;
+        if (
+          style.display === 'none' ||
+          style.visibility === 'hidden' ||
+          (!skinSurface && Number(style.opacity) === 0)
+        )
+          return;
       }
       const bounds = node.getBoundingClientRect();
       if (bounds.width <= 0 || bounds.height <= 0) return;
-      const rect = { x: bounds.left - surface.left, y: bounds.top - surface.top, width: bounds.width, height: bounds.height };
-      if (excluded.some(outer => rect.x >= outer.x && rect.y >= outer.y &&
-        rect.x + rect.width <= outer.x + outer.width && rect.y + rect.height <= outer.y + outer.height)) return;
+      const rect = {
+        x: bounds.left - surface.left,
+        y: bounds.top - surface.top,
+        width: bounds.width,
+        height: bounds.height,
+      };
+      if (
+        excluded.some(
+          (outer) =>
+            rect.x >= outer.x &&
+            rect.y >= outer.y &&
+            rect.x + rect.width <= outer.x + outer.width &&
+            rect.y + rect.height <= outer.y + outer.height,
+        )
+      )
+        return;
       excluded.push(rect);
     };
     skinRoot.querySelectorAll('[data-dashboard-tile]').forEach(add);
-    skinRoot.querySelectorAll('[data-skin-input], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]').forEach(add);
+    skinRoot
+      .querySelectorAll(
+        '[data-skin-input], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]',
+      )
+      .forEach(add);
     shell.querySelectorAll('.dashboard-page-dots, .dashboard-page-dots button').forEach(add);
     shell.querySelectorAll('[data-resize-handle]').forEach(add);
-    dragGaps = complementRectangles(surface.width, surface.height, excluded, window.devicePixelRatio || 1);
+    dragGaps = complementRectangles(
+      surface.width,
+      surface.height,
+      excluded,
+      window.devicePixelRatio || 1,
+    );
   }
 
   function scheduleDragGapMeasure() {
@@ -131,9 +199,17 @@
   function observeGapNodes() {
     if (!gapResizeObserver || !pageHost) return;
     const skinRoot = visibleSkinRoot();
-    const next = new Set<Element>([...(skinRoot ? [skinRoot] : []), ...shell.querySelectorAll('.dashboard-page-dots, .dashboard-page-dots button, [data-resize-handle]')]);
-    skinRoot?.querySelectorAll('[data-skin-input], [data-dashboard-tile], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]')
-      .forEach(node => next.add(node));
+    const next = new Set<Element>([
+      ...(skinRoot ? [skinRoot] : []),
+      ...shell.querySelectorAll(
+        '.dashboard-page-dots, .dashboard-page-dots button, [data-resize-handle]',
+      ),
+    ]);
+    skinRoot
+      ?.querySelectorAll(
+        '[data-skin-input], [data-dashboard-tile], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]',
+      )
+      .forEach((node) => next.add(node));
     for (const node of observedGapNodes) if (!next.has(node)) gapResizeObserver.unobserve(node);
     for (const node of next) if (!observedGapNodes.has(node)) gapResizeObserver.observe(node);
     observedGapNodes = next;
@@ -141,14 +217,25 @@
 
   function registerPage(node: HTMLDivElement, id: string) {
     pageNodes.set(id, node);
-    return { destroy() { if (pageNodes.get(id) === node) pageNodes.delete(id); } };
+    return {
+      destroy() {
+        if (pageNodes.get(id) === node) pageNodes.delete(id);
+      },
+    };
   }
 
   function activeFrames(pageId = page.id): PagerFrame[] {
-    const pages = settings.deck.pages, index = pages.findIndex(candidate => candidate.id === pageId);
+    const pages = settings.deck.pages,
+      index = pages.findIndex((candidate) => candidate.id === pageId);
     const width = shell?.getBoundingClientRect().width ?? 0;
     const frames: PagerFrame[] = [{ id: pageId, offset: 0, active: true, mediaVisible: true }];
-    if (index > 0) frames.unshift({ id: pages[index - 1].id, offset: -width, active: false, mediaVisible: false });
+    if (index > 0)
+      frames.unshift({
+        id: pages[index - 1].id,
+        offset: -width,
+        active: false,
+        mediaVisible: false,
+      });
     if (index >= 0 && index + 1 < pages.length)
       frames.push({ id: pages[index + 1].id, offset: width, active: false, mediaVisible: false });
     return frames;
@@ -170,8 +257,11 @@
 
   function releasePagerPointer(session: PagerSession) {
     try {
-      if (shell?.hasPointerCapture(session.pointerId)) shell.releasePointerCapture(session.pointerId);
-    } catch { /* The window listeners also cover engines without pointer capture. */ }
+      if (shell?.hasPointerCapture(session.pointerId))
+        shell.releasePointerCapture(session.pointerId);
+    } catch {
+      /* The window listeners also cover engines without pointer capture. */
+    }
   }
 
   function cancelPagerToCurrent(pageId = page.id) {
@@ -202,7 +292,12 @@
     pagerFrames = session.neighborId
       ? [
           { id: session.sourceId, offset, active: true, mediaVisible: true },
-          { id: session.neighborId, offset: (session.side * session.width) + dx, active: false, mediaVisible: true },
+          {
+            id: session.neighborId,
+            offset: session.side * session.width + dx,
+            active: false,
+            mediaVisible: true,
+          },
         ]
       : [{ id: session.sourceId, offset, active: true, mediaVisible: true }];
   }
@@ -216,7 +311,7 @@
   }
 
   function springKeyframes(from: number, to: number) {
-    return SPRING_SAMPLES.map(sample => ({
+    return SPRING_SAMPLES.map((sample) => ({
       transform: pageOffset(from + (to - from) * sample.progress),
       offset: sample.offset,
     }));
@@ -224,16 +319,27 @@
 
   async function animatePager(session: PagerSession, targetId: string) {
     if (pagerGeneration !== session.generation) return;
-    const targetIndex = settings.deck.pages.findIndex(candidate => candidate.id === targetId);
-    const sourceIndex = settings.deck.pages.findIndex(candidate => candidate.id === session.sourceId);
+    const targetIndex = settings.deck.pages.findIndex((candidate) => candidate.id === targetId);
+    const sourceIndex = settings.deck.pages.findIndex(
+      (candidate) => candidate.id === session.sourceId,
+    );
     if (targetIndex < 0 || sourceIndex < 0 || Math.abs(targetIndex - sourceIndex) > 1) {
       cancelPagerToCurrent();
       return;
     }
     const side = targetIndex > sourceIndex ? 1 : targetIndex < sourceIndex ? -1 : session.side;
-    const frames = pagerFrames.map(frame => ({ ...frame, active: frame.id === targetId,
-      mediaVisible: frame.id === targetId || frame.id === session.sourceId }));
-    if (!frames.some(frame => frame.id === targetId)) frames.push({ id: targetId, offset: side * session.width, active: false, mediaVisible: true });
+    const frames = pagerFrames.map((frame) => ({
+      ...frame,
+      active: frame.id === targetId,
+      mediaVisible: frame.id === targetId || frame.id === session.sourceId,
+    }));
+    if (!frames.some((frame) => frame.id === targetId))
+      frames.push({
+        id: targetId,
+        offset: side * session.width,
+        active: false,
+        mediaVisible: true,
+      });
     pagerFrames = frames;
     await tick();
     if (pagerGeneration !== session.generation) return;
@@ -253,16 +359,22 @@
     for (const frame of frames) {
       const node = pageNodes.get(frame.id);
       if (!node) continue;
-      const destination = frame.id === targetId ? 0 : frame.id === session.sourceId ? -side * session.width : frame.offset;
+      const destination =
+        frame.id === targetId
+          ? 0
+          : frame.id === session.sourceId
+            ? -side * session.width
+            : frame.offset;
       const distance = Math.abs(destination - frame.offset);
       if (distance < 0.5) continue;
       const animation = node.animate(springKeyframes(frame.offset, destination), {
-        duration: springDuration(distance), fill: 'both',
+        duration: springDuration(distance),
+        fill: 'both',
       });
       animations.push(animation);
     }
     pagerAnimations = animations;
-    await Promise.all(animations.map(animation => animation.finished.catch(() => undefined)));
+    await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
     if (pagerGeneration !== session.generation) return;
     pagerFrames = activeFrames(targetId);
     await tick();
@@ -291,7 +403,9 @@
     pagerFrames = activeFrames(session.sourceId);
     pagerBusy = false;
     scheduleDragGapMeasure();
-    getCurrentWindow().startDragging().catch(error => console.warn('drag', error));
+    getCurrentWindow()
+      .startDragging()
+      .catch((error) => console.warn('drag', error));
   }
 
   function lockPagerIntent(session: PagerSession, mode: 'horizontal' | 'vertical') {
@@ -313,8 +427,11 @@
       return;
     }
     if (session.source === 'skin-input') {
-      try { shell.setPointerCapture(session.pointerId); }
-      catch { /* Window capture listeners still track the horizontal swipe. */ }
+      try {
+        shell.setPointerCapture(session.pointerId);
+      } catch {
+        /* Window capture listeners still track the horizontal swipe. */
+      }
     }
     const dx = session.latestX - session.startX;
     session.side = dx < 0 ? 1 : -1;
@@ -357,22 +474,41 @@
     session.frame = null;
     if (!cancelled && session.mode === 'horizontal') paintPager(session);
     if (!clearPagerSession(session)) return;
-    const orderKey = settings.deck.pages.map(candidate => candidate.id).join('\u0000');
-    const valid = !cancelled && session.mode === 'horizontal' && orderKey === session.orderKey &&
-      settings.skin === trackedSkin && appliedFullscreen === trackedFullscreen && page.id === session.sourceId &&
+    const orderKey = settings.deck.pages.map((candidate) => candidate.id).join('\u0000');
+    const valid =
+      !cancelled &&
+      session.mode === 'horizontal' &&
+      orderKey === session.orderKey &&
+      settings.skin === trackedSkin &&
+      appliedFullscreen === trackedFullscreen &&
+      page.id === session.sourceId &&
       pagerGeneration === session.generation;
     if (!valid) {
       if (pagerGeneration === session.generation) void animatePager(session, session.sourceId);
       return;
     }
     const dx = session.latestX - session.startX;
-    const targetIndex = pageSwipeTarget(dx, session.width, session.sourceIndex, session.order.length);
+    const targetIndex = pageSwipeTarget(
+      dx,
+      session.width,
+      session.sourceIndex,
+      session.order.length,
+    );
     const targetId = session.order[targetIndex] ?? session.sourceId;
-    if (targetId !== session.sourceId) pagerExpected = { pageId: targetId, orderKey, skin: settings.skin, fullscreen: appliedFullscreen };
+    if (targetId !== session.sourceId)
+      pagerExpected = {
+        pageId: targetId,
+        orderKey,
+        skin: settings.skin,
+        fullscreen: appliedFullscreen,
+      };
     let accepted = targetId === session.sourceId;
     if (!accepted) {
-      try { accepted = await requestPageChange({ page: targetId }, 'swipe'); }
-      catch { accepted = false; }
+      try {
+        accepted = await requestPageChange({ page: targetId }, 'swipe');
+      } catch {
+        accepted = false;
+      }
     }
     await tick();
     if (pagerGeneration !== session.generation) return;
@@ -404,7 +540,9 @@
     if (session?.pointerId === event.pointerId) void finishPager(session, true);
   }
 
-  function onPagerBlur() { cancelPagerToCurrent(); }
+  function onPagerBlur() {
+    cancelPagerToCurrent();
+  }
   function onPagerNewPointerDown(event: PointerEvent) {
     if (pagerSession && pagerSession.pointerId !== event.pointerId) cancelPagerToCurrent();
   }
@@ -413,17 +551,23 @@
     const target = event.target;
     if (!(target instanceof Element) || !event.isPrimary || event.button !== 0) return;
     const gap = target.closest('.dashboard-drag-gap');
-    const skinInput = target.closest<HTMLElement>('[data-skin-input="scene"], [data-skin-input="slot"]');
-    const interactive = target.closest('[data-dashboard-tile], button, input, select, textarea, a, [contenteditable], [role="slider"]');
+    const skinInput = target.closest<HTMLElement>(
+      '[data-skin-input="scene"], [data-skin-input="slot"]',
+    );
+    const interactive = target.closest(
+      '[data-dashboard-tile], button, input, select, textarea, a, [contenteditable], [role="slider"]',
+    );
     if (!gap && (!skinInput || interactive)) return;
     const source = gap ? 'gap' : 'skin-input';
     const pages = settings.deck.pages;
-    const sourceIndex = pages.findIndex(candidate => candidate.id === page.id);
+    const sourceIndex = pages.findIndex((candidate) => candidate.id === page.id);
     if (sourceIndex < 0) return;
     if (pages.length <= 1) {
       if (source === 'gap' && isTauri() && !appliedFullscreen) {
         event.preventDefault();
-        getCurrentWindow().startDragging().catch(error => console.warn('drag', error));
+        getCurrentWindow()
+          .startDragging()
+          .catch((error) => console.warn('drag', error));
       }
       return;
     }
@@ -432,19 +576,30 @@
     if (pagerSession) cancelPagerToCurrent();
     cancelPagerAnimations();
     const rect = shell.getBoundingClientRect();
-    const order = pages.map(candidate => candidate.id);
+    const order = pages.map((candidate) => candidate.id);
     const session: PagerSession = {
-      pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
-      latestX: event.clientX, latestY: event.clientY, sourceId: page.id, sourceIndex,
-      order, orderKey: order.join('\u0000'), width: rect.width, mode: 'pending', side: 0,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      latestX: event.clientX,
+      latestY: event.clientY,
+      sourceId: page.id,
+      sourceIndex,
+      order,
+      orderKey: order.join('\u0000'),
+      width: rect.width,
+      mode: 'pending',
+      side: 0,
       source,
-      frame: null, generation: ++pagerGeneration,
+      frame: null,
+      generation: ++pagerGeneration,
     };
     pagerSession = session;
     pagerBusy = true;
-    session.hold = source === 'gap' && isTauri() && !appliedFullscreen
-      ? setTimeout(() => startNativeGapDrag(session), 250)
-      : undefined;
+    session.hold =
+      source === 'gap' && isTauri() && !appliedFullscreen
+        ? setTimeout(() => startNativeGapDrag(session), 250)
+        : undefined;
     window.addEventListener('pointermove', onPagerMove, true);
     window.addEventListener('pointerup', onPagerUp, true);
     window.addEventListener('pointercancel', onPagerCancel, true);
@@ -452,8 +607,11 @@
     window.addEventListener('blur', onPagerBlur);
     shell.addEventListener('lostpointercapture', onPagerLostCapture);
     if (source === 'gap') {
-      try { shell.setPointerCapture(event.pointerId); }
-      catch { /* The window capture listeners also complete the pointer session. */ }
+      try {
+        shell.setPointerCapture(event.pointerId);
+      } catch {
+        /* The window capture listeners also complete the pointer session. */
+      }
     }
   }
 
@@ -469,10 +627,18 @@
     try {
       while (!disposed) {
         const display = $state.snapshot(settings.display);
-        const request = { monitor: display.monitor, fullscreen: display.fullscreen, alwaysOnTop: display.alwaysOnTop };
-        if (sameRequest(lastSuccessfulRequest, request) || sameRequest(lastFailedRequest, request)) break;
+        const request = {
+          monitor: display.monitor,
+          fullscreen: display.fullscreen,
+          alwaysOnTop: display.alwaysOnTop,
+        };
+        if (sameRequest(lastSuccessfulRequest, request) || sameRequest(lastFailedRequest, request))
+          break;
         try {
-          const fullscreen = await applyDisplay(display, lastSuccessfulRequest?.monitor !== request.monitor);
+          const fullscreen = await applyDisplay(
+            display,
+            lastSuccessfulRequest?.monitor !== request.monitor,
+          );
           if (disposed) break;
           appliedFullscreen = fullscreen;
           lastSuccessfulRequest = request;
@@ -487,7 +653,12 @@
     } finally {
       draining = false;
       const latest = currentRequest();
-      if (!disposed && ready && !sameRequest(lastSuccessfulRequest, latest) && !sameRequest(lastFailedRequest, latest)) {
+      if (
+        !disposed &&
+        ready &&
+        !sameRequest(lastSuccessfulRequest, latest) &&
+        !sameRequest(lastFailedRequest, latest)
+      ) {
         queueMicrotask(() => void drainDisplay());
       }
     }
@@ -497,7 +668,7 @@
     disposed = false;
     pagerFrames = activeFrames(page.id);
     trackedPageId = page.id;
-    trackedOrderKey = settings.deck.pages.map(entry => entry.id).join('\u0000');
+    trackedOrderKey = settings.deck.pages.map((entry) => entry.id).join('\u0000');
     trackedSkin = settings.skin;
     trackedFullscreen = appliedFullscreen;
     const resize = () => onPagerResize();
@@ -510,8 +681,12 @@
       observeGapNodes();
       scheduleDragGapMeasure();
     });
-    gapMutationObserver.observe(pageHost, { childList: true, subtree: true, attributes: true,
-      attributeFilter: ['data-visible-page', 'data-skin-input', 'aria-hidden', 'inert', 'style'] });
+    gapMutationObserver.observe(pageHost, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-visible-page', 'data-skin-input', 'aria-hidden', 'inert', 'style'],
+    });
     scheduleDragGapMeasure();
     const initialDisplay = $state.snapshot(settings.display);
     let cleanup: (() => void) | undefined;
@@ -530,14 +705,19 @@
             if (ready && !appliedFullscreen) showResizeCues();
           });
           cleanupResized = stopResized;
-          cleanupHover = await listen<HoverEvent>('dashboard-hover', event => {
+          cleanupHover = await listen<HoverEvent>('dashboard-hover', (event) => {
             const payload = event.payload;
-            if (disposed || !Number.isSafeInteger(payload.revision) || payload.revision <= nativeHoverRevision) return;
+            if (
+              disposed ||
+              !Number.isSafeInteger(payload.revision) ||
+              payload.revision <= nativeHoverRevision
+            )
+              return;
             nativeHoverRevision = payload.revision;
             nativeHovered = payload.hovered === true;
             if (payload.clearClient) domHovered = false;
           });
-          cleanupResize = await listen<boolean>('dashboard-resize', event => {
+          cleanupResize = await listen<boolean>('dashboard-resize', (event) => {
             nativeResizing = event.payload;
             clearTimeout(resizeQuiet);
             resizeQuiet = undefined;
@@ -554,12 +734,20 @@
           return;
         }
         appliedFullscreen = getAppliedFullscreen();
-        lastSuccessfulRequest = { monitor: initialDisplay.monitor, fullscreen: appliedFullscreen, alwaysOnTop: initialDisplay.alwaysOnTop };
+        lastSuccessfulRequest = {
+          monitor: initialDisplay.monitor,
+          fullscreen: appliedFullscreen,
+          alwaysOnTop: initialDisplay.alwaysOnTop,
+        };
       } catch (error) {
         if (disposed) return;
         console.warn('display initialization failed; showing the safe dashboard window', error);
         appliedFullscreen = false;
-        lastFailedRequest = { monitor: initialDisplay.monitor, fullscreen: initialDisplay.fullscreen, alwaysOnTop: initialDisplay.alwaysOnTop };
+        lastFailedRequest = {
+          monitor: initialDisplay.monitor,
+          fullscreen: initialDisplay.fullscreen,
+          alwaysOnTop: initialDisplay.alwaysOnTop,
+        };
       }
       if (disposed) {
         cleanup?.();
@@ -571,7 +759,7 @@
       cleanupDisplay = cleanup;
       await reveal();
       void drainDisplay();
-    })().catch(error => console.warn('dashboard reveal failed', error));
+    })().catch((error) => console.warn('dashboard reveal failed', error));
 
     return () => {
       disposed = true;
@@ -598,66 +786,131 @@
   $effect(() => {
     const active = page;
     const activeId = active.id;
-    const orderKey = settings.deck.pages.map(entry => entry.id).join('\u0000');
+    const orderKey = settings.deck.pages.map((entry) => entry.id).join('\u0000');
     const skin = settings.skin;
     const fullscreen = appliedFullscreen;
     const expected = pagerExpected;
-    if (expected && expected.pageId === activeId && expected.orderKey === orderKey &&
-      expected.skin === skin && expected.fullscreen === fullscreen) {
+    if (
+      expected &&
+      expected.pageId === activeId &&
+      expected.orderKey === orderKey &&
+      expected.skin === skin &&
+      expected.fullscreen === fullscreen
+    ) {
       trackedPageId = activeId;
       trackedOrderKey = orderKey;
       trackedSkin = skin;
       trackedFullscreen = fullscreen;
       pagerExpected = null;
-    } else if (activeId !== trackedPageId || orderKey !== trackedOrderKey || skin !== trackedSkin || fullscreen !== trackedFullscreen) {
+    } else if (
+      activeId !== trackedPageId ||
+      orderKey !== trackedOrderKey ||
+      skin !== trackedSkin ||
+      fullscreen !== trackedFullscreen
+    ) {
       trackedPageId = activeId;
       trackedOrderKey = orderKey;
       trackedSkin = skin;
       trackedFullscreen = fullscreen;
       cancelPagerToCurrent(activeId);
     }
-    active.id; active.cols; active.rows; active.size; active.gap; active.sizing;
-    for (const item of active.items) { item.x; item.y; item.w; item.h; }
+    active.id;
+    active.cols;
+    active.rows;
+    active.size;
+    active.gap;
+    active.sizing;
+    for (const item of active.items) {
+      item.x;
+      item.y;
+      item.w;
+      item.h;
+    }
     if (gapResizeObserver) void tick().then(scheduleDragGapMeasure);
   });
 
   // Display policy changes are serialized; backdrop edits stay outside native window effects.
   $effect(() => {
     const request = currentRequest();
-    if (ready && !sameRequest(lastSuccessfulRequest, request) && !sameRequest(lastFailedRequest, request)) {
+    if (
+      ready &&
+      !sameRequest(lastSuccessfulRequest, request) &&
+      !sameRequest(lastFailedRequest, request)
+    ) {
       void drainDisplay();
     }
   });
 </script>
 
-<div role="region" aria-label="Dashboard" class="dashboard-shell relative h-full w-full overflow-hidden" data-fullscreen={appliedFullscreen}
+<div
+  role="region"
+  aria-label="Dashboard"
+  class="dashboard-shell relative h-full w-full overflow-hidden"
+  data-fullscreen={appliedFullscreen}
   data-hovered={hovered || windowResizing || nativeResizing}
   style:border-radius="{appliedFullscreen ? 0 : bg.radius}px"
-  bind:this={shell} onpointerdowncapture={onPagerPointerDown}
-  onpointerenter={() => { domHovered = true; }} onpointerleave={() => { domHovered = false; }}>
-  <div aria-hidden="true" class="dashboard-backdrop" style:background={bg.color}
-    style:opacity={Number.isFinite(bg.opacity) ? Math.max(0, Math.min(1, bg.opacity)) : 0}></div>
-  <div class="dashboard-skin" data-has-pages={settings.deck.pages.length > 1 && skin.pageNavigation !== 'skin'} bind:this={pageHost}>
+  bind:this={shell}
+  onpointerdowncapture={onPagerPointerDown}
+  onpointerenter={() => {
+    domHovered = true;
+  }}
+  onpointerleave={() => {
+    domHovered = false;
+  }}
+>
+  <div
+    aria-hidden="true"
+    class="dashboard-backdrop"
+    style:background={bg.color}
+    style:opacity={Number.isFinite(bg.opacity) ? Math.max(0, Math.min(1, bg.opacity)) : 0}
+  ></div>
+  <div
+    class="dashboard-skin"
+    data-has-pages={settings.deck.pages.length > 1 && skin.pageNavigation !== 'skin'}
+    bind:this={pageHost}
+  >
     <div class="dashboard-pages">
       {#each pagerFrames as frame (frame.id)}
-        {@const framePage = settings.deck.pages.find(candidate => candidate.id === frame.id)}
+        {@const framePage = settings.deck.pages.find((candidate) => candidate.id === frame.id)}
         {#if framePage}
-          <div class="dashboard-page-frame" class:dashboard-page-inactive={!frame.active}
-            data-visible-page={frame.active ? 'true' : undefined} aria-hidden={!frame.active} inert={!frame.active}
-            style:transform={pageOffset(frame.offset)} use:registerPage={frame.id}>
-            <SkinHost {skin} page={framePage} visible={frame.active} pageRenderVisible={true} />
+          <div
+            class="dashboard-page-frame"
+            class:dashboard-page-inactive={!frame.active}
+            data-visible-page={frame.active ? 'true' : undefined}
+            aria-hidden={!frame.active}
+            inert={!frame.active}
+            style:transform={pageOffset(frame.offset)}
+            use:registerPage={frame.id}
+          >
+            <SkinHost
+              {skin}
+              page={framePage}
+              visible={frame.active}
+              pageRenderVisible={true}
+            />
           </div>
         {/if}
       {/each}
     </div>
   </div>
   {#if settings.deck.pages.length > 1 && skin.pageNavigation !== 'skin'}
-    <nav class="dashboard-page-dots" aria-label="Pages">
+    <nav
+      class="dashboard-page-dots"
+      aria-label="Pages"
+    >
       {#each settings.deck.pages as dotPage (dotPage.id)}
-        <button type="button" aria-label="Go to {dotPage.name}" aria-current={page.id === dotPage.id ? 'page' : undefined}
+        <button
+          type="button"
+          aria-label="Go to {dotPage.name}"
+          aria-current={page.id === dotPage.id ? 'page' : undefined}
           class:dashboard-page-dot-active={page.id === dotPage.id}
-          onpointerdown={event => event.preventDefault()}
-          onclick={() => { void requestPageChange({ page: dotPage.id }, 'dot').catch(error => console.warn('page navigation', error)); }}>
+          onpointerdown={(event) => event.preventDefault()}
+          onclick={() => {
+            void requestPageChange({ page: dotPage.id }, 'dot').catch((error) =>
+              console.warn('page navigation', error),
+            );
+          }}
+        >
           <span aria-hidden="true"></span>
         </button>
       {/each}
@@ -665,23 +918,38 @@
   {/if}
   {#if !pagerBusy}
     {#each dragGaps as gap}
-      <div aria-hidden="true" class="dashboard-drag-gap" style:left="{gap.x}px" style:top="{gap.y}px"
-        style:width="{gap.width}px" style:height="{gap.height}px"></div>
+      <div
+        aria-hidden="true"
+        class="dashboard-drag-gap"
+        style:left="{gap.x}px"
+        style:top="{gap.y}px"
+        style:width="{gap.width}px"
+        style:height="{gap.height}px"
+      ></div>
     {/each}
   {/if}
   {#if !appliedFullscreen}
-    <div aria-hidden="true" class="resize-cues"></div>
+    <div
+      aria-hidden="true"
+      class="resize-cues"
+    ></div>
     {#each grips as grip}
-      <button type="button" data-resize-handle={grip.direction} aria-label="Resize window {grip.direction}"
+      <button
+        type="button"
+        data-resize-handle={grip.direction}
+        aria-label="Resize window {grip.direction}"
         aria-roledescription="Window resize handle"
         class="absolute z-50 m-0 touch-none border-0 bg-transparent p-0 {grip.position} {grip.cursor}"
-        onpointerdown={e => {
+        onpointerdown={(e) => {
           if (!isTauri() || e.button !== 0 || !e.isPrimary || appliedFullscreen) return;
           e.preventDefault();
           e.stopPropagation();
           showResizeCues();
-          getCurrentWindow().startResizeDragging(grip.direction).catch(err => console.warn('resize', err));
-        }}></button>
+          getCurrentWindow()
+            .startResizeDragging(grip.direction)
+            .catch((err) => console.warn('resize', err));
+        }}
+      ></button>
     {/each}
   {/if}
 </div>
@@ -694,7 +962,7 @@
 
   :global(.dashboard-shell) {
     isolation: isolate;
-    --resize-ink: rgba(255, 255, 255, .15);
+    --resize-ink: rgba(255, 255, 255, 0.15);
   }
 
   /* Dragged through startDragging: WebView2's app-region never moved this no-activate window and swallowed the press. */
@@ -779,9 +1047,14 @@
     transition: opacity 120ms ease-out;
   }
 
-  :global(.dashboard-shell[data-hovered='true'] .dashboard-page-dots) { opacity: 1; pointer-events: auto; }
+  :global(.dashboard-shell[data-hovered='true'] .dashboard-page-dots) {
+    opacity: 1;
+    pointer-events: auto;
+  }
 
-  :global(.dashboard-shell .dashboard-page-dots::-webkit-scrollbar) { display: none; }
+  :global(.dashboard-shell .dashboard-page-dots::-webkit-scrollbar) {
+    display: none;
+  }
 
   :global(.dashboard-shell .dashboard-page-dots button) {
     display: grid;
@@ -800,30 +1073,36 @@
     width: 6px;
     height: 6px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, .42);
-    opacity: .72;
+    background: rgba(255, 255, 255, 0.42);
+    opacity: 0.72;
     transition: opacity 120ms ease-out;
   }
 
   :global(.dashboard-shell .dashboard-page-dots .dashboard-page-dot-active span) {
-    background: rgba(255, 255, 255, .95);
+    background: rgba(255, 255, 255, 0.95);
     opacity: 1;
   }
 
   :global(.dashboard-shell[data-hovered='true'] .resize-cues) {
-    --resize-ink: rgba(255, 255, 255, .32);
+    --resize-ink: rgba(255, 255, 255, 0.32);
     opacity: 1;
     transition-duration: 120ms;
   }
 
-
   @media (prefers-reduced-motion: reduce) {
     :global(.dashboard-shell .resize-cues),
-    :global(.dashboard-shell[data-hovered='true'] .resize-cues) { transition-duration: 0ms; }
+    :global(.dashboard-shell[data-hovered='true'] .resize-cues) {
+      transition-duration: 0ms;
+    }
   }
 
   @media (pointer: coarse) {
-    :global(.dashboard-shell .resize-cues) { --resize-ink: rgba(255, 255, 255, .08); }
-    :global(.dashboard-shell .dashboard-page-dots) { opacity: 1; pointer-events: auto; }
+    :global(.dashboard-shell .resize-cues) {
+      --resize-ink: rgba(255, 255, 255, 0.08);
+    }
+    :global(.dashboard-shell .dashboard-page-dots) {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
 </style>

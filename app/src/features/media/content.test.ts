@@ -1,24 +1,62 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MEDIA_OPTIONS, DEFAULT_WEB_OPTIONS, hasMediaExtension, isVideoSource, mediaUrl,
-  mediaFileUrl, mediaSourceKey, readMediaOptions, readWebOptions, stepSlide, webUrl } from './content';
+import {
+  DEFAULT_MEDIA_OPTIONS,
+  DEFAULT_WEB_OPTIONS,
+  hasMediaExtension,
+  isVideoSource,
+  mediaUrl,
+  mediaFileUrl,
+  mediaSourceKey,
+  readMediaOptions,
+  readWebOptions,
+  stepSlide,
+  webUrl,
+} from './content';
 
 describe('media content options', () => {
   it('returns safe defaults without modifying malformed input', () => {
-    const saved = { sources: 'bad', fit: 'stretch', interval: Infinity, loop: 1, muted: null, future: 7 };
+    const saved = {
+      sources: 'bad',
+      fit: 'stretch',
+      interval: Infinity,
+      loop: 1,
+      muted: null,
+      future: 7,
+    };
     expect(readMediaOptions(saved)).toEqual(DEFAULT_MEDIA_OPTIONS);
     expect(saved.future).toBe(7);
   });
 
   it('keeps only well-shaped source entries and accepts finite intervals in range', () => {
-    expect(readMediaOptions({ sources: [
-      { kind: 'url', value: 'https://example.test/a.png' }, { kind: 'file', value: 'C:/a.gif' },
-      { kind: 'url', value: 3 }, { kind: 'other', value: 'x' }, { kind: 'file', value: '' }, null,
-    ], fit: 'contain', interval: 86400, loop: false, muted: false })).toEqual({
+    expect(
+      readMediaOptions({
+        sources: [
+          { kind: 'url', value: 'https://example.test/a.png' },
+          { kind: 'file', value: 'C:/a.gif' },
+          { kind: 'url', value: 3 },
+          { kind: 'other', value: 'x' },
+          { kind: 'file', value: '' },
+          null,
+        ],
+        fit: 'contain',
+        interval: 86400,
+        loop: false,
+        muted: false,
+      }),
+    ).toEqual({
       sources: [
-        { kind: 'url', value: 'https://example.test/a.png', fit: 'contain', loop: true, muted: true },
+        {
+          kind: 'url',
+          value: 'https://example.test/a.png',
+          fit: 'contain',
+          loop: true,
+          muted: true,
+        },
         { kind: 'file', value: 'C:/a.gif', fit: 'contain', loop: true, muted: true },
       ],
-      interval: 86400, loop: false, muted: false,
+      interval: 86400,
+      loop: false,
+      muted: false,
     });
     expect(readMediaOptions({ interval: 0 }).interval).toBe(0);
     expect(DEFAULT_MEDIA_OPTIONS.interval).toBe(0);
@@ -26,32 +64,76 @@ describe('media content options', () => {
   });
 
   it('keeps fit and video loop/mute preferences on each source', () => {
-    expect(readMediaOptions({ sources: [
-      { id: 'image', kind: 'file', value: 'C:/a.png', fit: 'contain' },
-      { id: 'video', kind: 'url', value: 'https://example.test/a.mp4?x=1', loop: false, muted: false },
-    ] }).sources).toEqual([
+    expect(
+      readMediaOptions({
+        sources: [
+          { id: 'image', kind: 'file', value: 'C:/a.png', fit: 'contain' },
+          {
+            id: 'video',
+            kind: 'url',
+            value: 'https://example.test/a.mp4?x=1',
+            loop: false,
+            muted: false,
+          },
+        ],
+      }).sources,
+    ).toEqual([
       { id: 'image', kind: 'file', value: 'C:/a.png', fit: 'contain', loop: true, muted: true },
-      { id: 'video', kind: 'url', value: 'https://example.test/a.mp4?x=1', fit: 'cover', loop: false, muted: false },
+      {
+        id: 'video',
+        kind: 'url',
+        value: 'https://example.test/a.mp4?x=1',
+        fit: 'cover',
+        loop: false,
+        muted: false,
+      },
     ]);
-    expect(readMediaOptions({ sources: [{ kind: 'url', value: 'https://example.test/default.mp4' }] }).sources[0])
-      .toEqual({ kind: 'url', value: 'https://example.test/default.mp4', fit: 'cover', loop: true, muted: true });
+    expect(
+      readMediaOptions({ sources: [{ kind: 'url', value: 'https://example.test/default.mp4' }] })
+        .sources[0],
+    ).toEqual({
+      kind: 'url',
+      value: 'https://example.test/default.mp4',
+      fit: 'cover',
+      loop: true,
+      muted: true,
+    });
   });
 
   it('keeps only small safe data URL thumbnails and excludes them from source identity', () => {
     const thumbnail = 'data:image/jpeg;base64,AA==';
-    const [source] = readMediaOptions({ sources: [{ id: 'video', kind: 'file', value: 'C:/a.mp4', thumbnail }] }).sources;
+    const [source] = readMediaOptions({
+      sources: [{ id: 'video', kind: 'file', value: 'C:/a.mp4', thumbnail }],
+    }).sources;
     expect(source.thumbnail).toBe(thumbnail);
     expect(mediaSourceKey(source)).toBe(mediaSourceKey({ ...source, thumbnail: undefined }));
-    expect(readMediaOptions({ sources: [{ kind: 'file', value: 'C:/a.mp4', thumbnail: 'data:text/html;base64,AA==' }] })
-      .sources[0].thumbnail).toBeUndefined();
-    expect(readMediaOptions({ sources: [{ kind: 'file', value: 'C:/a.mp4', thumbnail: `data:image/jpeg;base64,${'A'.repeat(4100)}` }] })
-      .sources[0].thumbnail).toBeUndefined();
+    expect(
+      readMediaOptions({
+        sources: [{ kind: 'file', value: 'C:/a.mp4', thumbnail: 'data:text/html;base64,AA==' }],
+      }).sources[0].thumbnail,
+    ).toBeUndefined();
+    expect(
+      readMediaOptions({
+        sources: [
+          {
+            kind: 'file',
+            value: 'C:/a.mp4',
+            thumbnail: `data:image/jpeg;base64,${'A'.repeat(4100)}`,
+          },
+        ],
+      }).sources[0].thumbnail,
+    ).toBeUndefined();
   });
 
   it('accepts absolute HTTP(S) URLs without credentials and rejects other schemes', () => {
     expect(mediaUrl('https://example.test/a')).toBe('https://example.test/a');
     expect(mediaUrl('http://localhost:5186/image')).toBe('http://localhost:5186/image');
-    for (const value of ['file:///secret.png', 'data:image/png,x', 'https://user:pass@example.test/x', '/relative.png'])
+    for (const value of [
+      'file:///secret.png',
+      'data:image/png,x',
+      'https://user:pass@example.test/x',
+      '/relative.png',
+    ])
       expect(mediaUrl(value)).toBeUndefined();
   });
 
@@ -59,16 +141,26 @@ describe('media content options', () => {
     const convert = (path: string) => `asset://localhost/${encodeURIComponent(path)}`;
     const source = { kind: 'file' as const, value: 'C:/Pictures/photo.jpg' };
     expect(mediaFileUrl(source, convert)).toBe('asset://localhost/C%3A%2FPictures%2Fphoto.jpg');
-    expect(mediaFileUrl({ kind: 'url', value: 'https://example.test/photo.jpg' }, convert)).toBeUndefined();
-    expect(mediaFileUrl(source, () => { throw new Error('not running in Tauri'); })).toBeUndefined();
+    expect(
+      mediaFileUrl({ kind: 'url', value: 'https://example.test/photo.jpg' }, convert),
+    ).toBeUndefined();
+    expect(
+      mediaFileUrl(source, () => {
+        throw new Error('not running in Tauri');
+      }),
+    ).toBeUndefined();
   });
 
   it('classifies video by URL pathname, ignoring query, hash and case', () => {
-    expect(isVideoSource({ kind: 'url', value: 'https://example.test/Clip.MP4?token=1#top' })).toBe(true);
+    expect(isVideoSource({ kind: 'url', value: 'https://example.test/Clip.MP4?token=1#top' })).toBe(
+      true,
+    );
     expect(isVideoSource({ kind: 'url', value: 'https://example.test/video' })).toBe(false);
     expect(isVideoSource({ kind: 'file', value: 'clip.mp4' })).toBe(true);
     expect(isVideoSource({ kind: 'file', value: 'C:/Videos/Clip.MP4' })).toBe(true);
-    expect(hasMediaExtension({ kind: 'url', value: 'https://example.test/image.PNG?token=1' })).toBe(true);
+    expect(
+      hasMediaExtension({ kind: 'url', value: 'https://example.test/image.PNG?token=1' }),
+    ).toBe(true);
     expect(hasMediaExtension({ kind: 'url', value: 'https://example.test/content' })).toBe(false);
   });
 
@@ -80,28 +172,53 @@ describe('media content options', () => {
     expect(stepSlide(20, 3, -1, false)).toBe(1);
     expect(stepSlide(0, 0, 1, true)).toBe(0);
   });
-
 });
 
 describe('web content options', () => {
   it('normalizes zoom and refresh without rewriting unrelated options', () => {
-    const saved = { url: 'https://example.test', zoom: 250, refresh: 0, interactive: true, future: 'kept' };
-    expect(readWebOptions(saved)).toEqual({ url: saved.url, zoom: 200, refresh: 0, interactive: true });
+    const saved = {
+      url: 'https://example.test',
+      zoom: 250,
+      refresh: 0,
+      interactive: true,
+      future: 'kept',
+    };
+    expect(readWebOptions(saved)).toEqual({
+      url: saved.url,
+      zoom: 200,
+      refresh: 0,
+      interactive: true,
+    });
     expect(saved.future).toBe('kept');
     expect(readWebOptions({ zoom: Number.NaN, refresh: Infinity })).toEqual(DEFAULT_WEB_OPTIONS);
-    expect(readWebOptions({ zoom: 50, refresh: 1 })).toEqual({ ...DEFAULT_WEB_OPTIONS, zoom: 50, refresh: 1 });
+    expect(readWebOptions({ zoom: 50, refresh: 1 })).toEqual({
+      ...DEFAULT_WEB_OPTIONS,
+      zoom: 50,
+      refresh: 1,
+    });
     expect(readWebOptions({ zoom: 150, refresh: 86400 }).refresh).toBe(86400);
     expect(readWebOptions({ zoom: 100, refresh: 86401 }).refresh).toBe(0);
   });
 
   it('accepts HTTPS and exact localhost HTTP while rejecting internal, credentialed, and app origins', () => {
-    expect(webUrl('https://example.test/embed', 'http://localhost:5181')).toBe('https://example.test/embed');
-    expect(webUrl('http://localhost:5186/embed', 'http://localhost:5181')).toBe('http://localhost:5186/embed');
+    expect(webUrl('https://example.test/embed', 'http://localhost:5181')).toBe(
+      'https://example.test/embed',
+    );
+    expect(webUrl('http://localhost:5186/embed', 'http://localhost:5181')).toBe(
+      'http://localhost:5186/embed',
+    );
     for (const value of [
-      'http://127.0.0.1/embed', 'http://localhost.evil.test/', 'ftp://example.test/', 'file:///secret',
-      'https://user:pass@example.test/', 'http://tauri.localhost/', 'http://asset.localhost/',
-      'https://tauri.localhost/', 'https://example.test/',
-    ]) expect(webUrl(value, 'https://example.test')).toBeUndefined();
+      'http://127.0.0.1/embed',
+      'http://localhost.evil.test/',
+      'ftp://example.test/',
+      'file:///secret',
+      'https://user:pass@example.test/',
+      'http://tauri.localhost/',
+      'http://asset.localhost/',
+      'https://tauri.localhost/',
+      'https://example.test/',
+    ])
+      expect(webUrl(value, 'https://example.test')).toBeUndefined();
     expect(webUrl('http://localhost:5181/embed', 'http://localhost:5181')).toBeUndefined();
   });
 });

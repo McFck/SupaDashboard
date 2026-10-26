@@ -2,7 +2,13 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { get, readonly, writable, type Readable } from 'svelte/store';
 
-export type Channel = { target: string; volume: number; muted: boolean; label?: string; icon?: string };
+export type Channel = {
+  target: string;
+  volume: number;
+  muted: boolean;
+  label?: string;
+  icon?: string;
+};
 export type LocalVolumeAdapter = {
   label?: string;
   icon?: string;
@@ -44,33 +50,57 @@ function normalizeTarget(target: string) {
 export function findVolumeChannel(channels: Channel[], target: string): Channel | null {
   const normalized = normalizeTarget(target);
   if (!normalized) return null;
-  const exact = channels.find(channel => normalizeTarget(channel.target) === normalized);
+  const exact = channels.find((channel) => normalizeTarget(channel.target) === normalized);
   if (exact) return exact;
-  return channels.find(channel => {
-    const channelTarget = normalizeTarget(channel.target);
-    return !localChannels.has(channelTarget) && (normalized === 'system'
-      ? channelTarget === 'system' : channelTarget.includes(normalized));
-  }) ?? null;
+  return (
+    channels.find((channel) => {
+      const channelTarget = normalizeTarget(channel.target);
+      return (
+        !localChannels.has(channelTarget) &&
+        (normalized === 'system' ? channelTarget === 'system' : channelTarget.includes(normalized))
+      );
+    }) ?? null
+  );
 }
 
 function canonicalize(snapshot: unknown): Snapshot | null {
   if (!snapshot || typeof snapshot !== 'object') return null;
   const raw = snapshot as Partial<Snapshot>;
-  if (!Number.isSafeInteger(raw.revision) || (raw.revision ?? -1) < 0 ||
+  if (
+    !Number.isSafeInteger(raw.revision) ||
+    (raw.revision ?? -1) < 0 ||
     !(raw.deviceId === null || (typeof raw.deviceId === 'string' && raw.deviceId.length > 0)) ||
-    !Array.isArray(raw.channels)) return null;
+    !Array.isArray(raw.channels)
+  )
+    return null;
   const channels: Channel[] = [];
   for (const channel of raw.channels) {
     if (!channel || typeof channel !== 'object') return null;
     const item = channel as Partial<Channel>;
-    if (typeof item.target !== 'string' || !normalizeTarget(item.target) ||
-      typeof item.volume !== 'number' || !Number.isFinite(item.volume) || item.volume < 0 || item.volume > 1 ||
-      typeof item.muted !== 'boolean') return null;
+    if (
+      typeof item.target !== 'string' ||
+      !normalizeTarget(item.target) ||
+      typeof item.volume !== 'number' ||
+      !Number.isFinite(item.volume) ||
+      item.volume < 0 ||
+      item.volume > 1 ||
+      typeof item.muted !== 'boolean'
+    )
+      return null;
     channels.push({ target: normalizeTarget(item.target), volume: item.volume, muted: item.muted });
   }
-  channels.sort((a, b) => a.target === b.target ? 0 : a.target === 'system' ? -1
-    : b.target === 'system' ? 1 : a.target.localeCompare(b.target));
-  const unique = channels.filter((channel, index) => index === 0 || channels[index - 1].target !== channel.target);
+  channels.sort((a, b) =>
+    a.target === b.target
+      ? 0
+      : a.target === 'system'
+        ? -1
+        : b.target === 'system'
+          ? 1
+          : a.target.localeCompare(b.target),
+  );
+  const unique = channels.filter(
+    (channel, index) => index === 0 || channels[index - 1].target !== channel.target,
+  );
   if (raw.deviceId === null && unique.length) return null;
   return { revision: raw.revision!, deviceId: raw.deviceId!, channels: unique };
 }
@@ -83,38 +113,58 @@ function settle(waiter: Waiter, error?: Error) {
 }
 
 function publish() {
-  const native = canonical?.channels.map(channel => {
-    const updates = [...optimistic.entries()].sort((a, b) => a[1].generation - b[1].generation);
-    let visible = channel;
-    for (const [target, update] of updates) {
-      if (findVolumeChannel(canonical!.channels, target)?.target === channel.target) {
-        visible = {
-          ...visible,
-          ...(update.patch.value === undefined ? {} : { volume: update.patch.value }),
-          ...(update.patch.muted === undefined ? {} : { muted: update.patch.muted }),
-        };
+  const native =
+    canonical?.channels.map((channel) => {
+      const updates = [...optimistic.entries()].sort((a, b) => a[1].generation - b[1].generation);
+      let visible = channel;
+      for (const [target, update] of updates) {
+        if (findVolumeChannel(canonical!.channels, target)?.target === channel.target) {
+          visible = {
+            ...visible,
+            ...(update.patch.value === undefined ? {} : { volume: update.patch.value }),
+            ...(update.patch.muted === undefined ? {} : { muted: update.patch.muted }),
+          };
+        }
       }
-    }
-    return visible;
-  }) ?? [];
+      return visible;
+    }) ?? [];
   const local = [...localChannels].flatMap(([target, entry]) => {
     let snapshot: ReturnType<LocalVolumeAdapter['read']>;
-    try { snapshot = entry.adapter.read(); } catch { snapshot = null; }
-    if (!snapshot || !Number.isFinite(snapshot.volume) || typeof snapshot.muted !== 'boolean' ||
-      native.some(channel => normalizeTarget(channel.target) === target)) return [];
-    return [{ target, volume: Math.max(0, Math.min(1, snapshot.volume)), muted: snapshot.muted,
-      ...(entry.adapter.label ? { label: entry.adapter.label } : {}),
-      ...(entry.adapter.icon ? { icon: entry.adapter.icon } : {}) }];
+    try {
+      snapshot = entry.adapter.read();
+    } catch {
+      snapshot = null;
+    }
+    if (
+      !snapshot ||
+      !Number.isFinite(snapshot.volume) ||
+      typeof snapshot.muted !== 'boolean' ||
+      native.some((channel) => normalizeTarget(channel.target) === target)
+    )
+      return [];
+    return [
+      {
+        target,
+        volume: Math.max(0, Math.min(1, snapshot.volume)),
+        muted: snapshot.muted,
+        ...(entry.adapter.label ? { label: entry.adapter.label } : {}),
+        ...(entry.adapter.icon ? { icon: entry.adapter.icon } : {}),
+      },
+    ];
   });
   state.set([...native, ...local]);
 }
 
 /** Register an in-process mixer row. Local writes never initialize or invoke native audio. */
-export function registerLocalVolumeChannel(target: string, adapter: LocalVolumeAdapter): () => void {
+export function registerLocalVolumeChannel(
+  target: string,
+  adapter: LocalVolumeAdapter,
+): () => void {
   const normalized = normalizeTarget(target);
   if (!normalized) throw new Error('Volume target cannot be empty');
-  if (localChannels.has(normalized)) throw new Error(`Local volume target "${normalized}" is already registered`);
-  if (canonical?.channels.some(channel => normalizeTarget(channel.target) === normalized))
+  if (localChannels.has(normalized))
+    throw new Error(`Local volume target "${normalized}" is already registered`);
+  if (canonical?.channels.some((channel) => normalizeTarget(channel.target) === normalized))
     throw new Error(`Volume target "${normalized}" is already provided by the system`);
   const entry: { adapter: LocalVolumeAdapter; stop?: () => void } = { adapter };
   localChannels.set(normalized, entry);
@@ -156,7 +206,8 @@ function ingestSnapshot(raw: unknown, epoch = lifecycle) {
   if (deviceChanged) cancelAll('Audio device changed before the volume update was applied');
   else {
     for (const [target, queue] of [...queues]) {
-      if (!findVolumeChannel(next.channels, target)) cancelQueue(target, queue, 'Volume target is no longer available');
+      if (!findVolumeChannel(next.channels, target))
+        cancelQueue(target, queue, 'Volume target is no longer available');
     }
     publish();
   }
@@ -169,7 +220,9 @@ export function initVolumeSync(): Promise<void> {
   const initializing = (async () => {
     if (!isTauri()) return;
     try {
-      const stop = await listen<unknown>('audio-state', event => ingestSnapshot(event.payload, epoch));
+      const stop = await listen<unknown>('audio-state', (event) =>
+        ingestSnapshot(event.payload, epoch),
+      );
       if (disposed || epoch !== lifecycle) {
         stop();
         return;
@@ -197,8 +250,12 @@ export async function readVolume(target: string): Promise<number | null> {
   if (local) {
     try {
       const snapshot = local.adapter.read();
-      return snapshot && Number.isFinite(snapshot.volume) ? Math.max(0, Math.min(1, snapshot.volume)) : null;
-    } catch { return null; }
+      return snapshot && Number.isFinite(snapshot.volume)
+        ? Math.max(0, Math.min(1, snapshot.volume))
+        : null;
+    } catch {
+      return null;
+    }
   }
   await initVolumeSync();
   return findVolumeChannel(get(state), target)?.volume ?? null;
@@ -239,7 +296,8 @@ async function flush(target: string, queue: Queue) {
     if (queues.get(target) !== queue) return;
     if (!result.applied) {
       if (optimistic.get(target)?.generation === job.generation) optimistic.delete(target);
-      for (const waiter of job.waiters) settle(waiter, new Error('Volume target is no longer available'));
+      for (const waiter of job.waiters)
+        settle(waiter, new Error('Volume target is no longer available'));
       publish();
     } else {
       if (optimistic.get(target)?.generation === job.generation) {
@@ -254,7 +312,8 @@ async function flush(target: string, queue: Queue) {
       optimistic.delete(target);
       publish();
     }
-    for (const waiter of job.waiters) settle(waiter, error instanceof Error ? error : new Error(String(error)));
+    for (const waiter of job.waiters)
+      settle(waiter, error instanceof Error ? error : new Error(String(error)));
   } finally {
     if (queues.get(target) === queue) {
       queue.inFlight = null;
@@ -266,7 +325,8 @@ async function flush(target: string, queue: Queue) {
 async function update(target: string, patch: Patch): Promise<void> {
   const normalized = normalizeTarget(target);
   if (!normalized) throw new Error('Volume target cannot be empty');
-  if (patch.value !== undefined && !Number.isFinite(patch.value)) throw new Error('Volume must be finite');
+  if (patch.value !== undefined && !Number.isFinite(patch.value))
+    throw new Error('Volume must be finite');
   if (patch.value !== undefined) patch.value = Math.max(0, Math.min(1, patch.value));
   const local = localChannels.get(normalized);
   if (local) {
@@ -282,7 +342,13 @@ async function update(target: string, patch: Patch): Promise<void> {
 
   let queue = queues.get(normalized);
   if (!queue) {
-    queue = { generation: 0, pending: null, inFlight: null, timer: null, lastSentAt: Number.NEGATIVE_INFINITY };
+    queue = {
+      generation: 0,
+      pending: null,
+      inFlight: null,
+      timer: null,
+      lastSentAt: Number.NEGATIVE_INFINITY,
+    };
     queues.set(normalized, queue);
   }
   const nextGeneration = ++generation;
@@ -295,7 +361,13 @@ async function update(target: string, patch: Patch): Promise<void> {
   const pending = queue.pending;
   const merged: Patch = { ...(pending?.patch ?? {}), ...patch };
   const waiters = [...(pending?.waiters ?? []), waiter];
-  queue.pending = { patch: merged, generation: nextGeneration, deviceId, waiters, epoch: lifecycle };
+  queue.pending = {
+    patch: merged,
+    generation: nextGeneration,
+    deviceId,
+    waiters,
+    epoch: lifecycle,
+  };
   optimistic.set(normalized, {
     patch: { ...(optimistic.get(normalized)?.patch ?? {}), ...patch },
     generation: nextGeneration,
