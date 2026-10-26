@@ -1,7 +1,8 @@
 <script lang="ts">
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
-  import { actions, runAction, type ActionDef, type ActionRef } from '../core/registry';
+  import { actions, runAction } from '../core/registry';
+  import type { ActionDef, ActionRef } from '../features/plugins/contracts';
   import { resolveQuickActions, validSkinParam } from '../core/skins';
   import ParamField from '../editor/ParamField.svelte';
   import { getSkinHostContext } from './context';

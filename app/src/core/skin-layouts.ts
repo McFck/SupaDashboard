@@ -1,7 +1,7 @@
 import type { ControlConfig } from './controls';
 import { firstFree, fits, type Grid, type Item } from './layout';
 import { controlTypes, skins } from './registry';
-import type { Page, Settings } from './settings.svelte';
+import type { Page, Settings } from '../features/settings/schema';
 import type { SkinSlot } from './skins';
 
 export type LayoutTarget = { skinId: string; pageId: string; slotId: string };

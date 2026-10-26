@@ -10,7 +10,8 @@
   import type { TriggerPacket } from '../core/scenario-runner';
   import { onDestroy } from 'svelte';
   import { value as valueOf } from '../core/registry';
-  import { settings, type Page } from '../core/settings.svelte';
+  import { settings } from '../core/settings.svelte';
+  import type { Page } from '../features/settings/schema';
   import { findVolumeChannel, setVolume, volumeChannels } from '../core/volume';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';

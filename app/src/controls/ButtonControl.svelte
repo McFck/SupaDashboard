@@ -6,7 +6,8 @@
   import { effectiveVariant, stateIdAt } from '../core/button-state';
   import { captureRuntimeTrigger, dispatchRuntimePacket, runtimeView } from '../core/runtime.svelte';
   import type { TriggerPacket } from '../core/scenario-runner';
-  import { settings, type Page } from '../core/settings.svelte';
+  import { settings } from '../core/settings.svelte';
+  import type { Page } from '../features/settings/schema';
   import ButtonFace from './ButtonFace.svelte';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';

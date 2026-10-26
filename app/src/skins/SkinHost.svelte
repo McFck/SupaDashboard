@@ -6,7 +6,8 @@
   import { SkinInputRecognizer, type SkinCorner, type SkinGesture } from '../core/skin-input';
   import type { SceneInput, SceneRect } from '../core/skin-scene';
   import { currentRuntime, requestPageChange, runtimeView } from '../core/runtime.svelte';
-  import { settings, type Page } from '../core/settings.svelte';
+  import { settings } from '../core/settings.svelte';
+  import type { Page } from '../features/settings/schema';
   import { SKIN_HOST_CONTEXT, type SkinHostContext } from './context';
   import type { VariableValue } from '../core/variables';
 

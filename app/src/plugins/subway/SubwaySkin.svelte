@@ -3,7 +3,7 @@
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import ArrowRight from '@lucide/svelte/icons/arrow-right';
   import { Button } from '$lib/components/ui/button';
-  import type { Page } from '../../core/settings.svelte';
+  import type { Page } from '../../features/settings/schema';
   import { watchDashboardVisibility, watchIntersection } from '../../core/content-visibility';
   import { runtimeView } from '../../core/runtime.svelte';
   import { getSkinHostContext } from '../../skins/context';

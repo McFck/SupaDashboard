@@ -12,9 +12,9 @@ describe('plugin bookkeeping', () => {
   it('skips removed plugins, preserves first-seen dates, protects defaults and records attribution', async () => {
     const registry = await import('./registry');
     const setup = vi.fn();
-    let ownerApi!: import('./registry').PluginApi;
+    let ownerApi!: import('../features/plugins/contracts').PluginApi;
     store.get.mockResolvedValue({ uninstalled: ['subway', 'spotify'], installed: { spotify: '2025-01-01T00:00:00.000Z' }, catalogUrl: '' });
-    const spotify = { id: 'spotify', title: 'Spotify', default: true, setup: (api: import('./registry').PluginApi) => {
+    const spotify = { id: 'spotify', title: 'Spotify', default: true, setup: (api: import('../features/plugins/contracts').PluginApi) => {
       ownerApi = api;
       api.registerAction({ id: 'test.play', title: 'Play', run: () => {} });
       api.registerValue({ id: 'test.volume', title: 'Volume', get: async () => 1, set: async () => {} });
@@ -84,14 +84,14 @@ describe('plugin bookkeeping', () => {
     const registry = await import('./registry');
     const { VariableStore } = await import('./variables');
     const variables = new VariableStore();
-    const registeredEvents: import('./registry').EventDef[] = [];
+    const registeredEvents: import('../features/plugins/contracts').EventDef[] = [];
     const emitted: unknown[][] = [];
     const stopRuntime = registry.setRegistryRuntime({ variables,
       registerEvent: event => registeredEvents.push(event),
       emitEvent: async (...args) => { emitted.push(args); },
     });
-    let api!: import('./registry').PluginApi;
-    const actionContexts: (import('./registry').ActionContext | undefined)[] = [];
+    let api!: import('../features/plugins/contracts').PluginApi;
+    const actionContexts: (import('../features/plugins/contracts').ActionContext | undefined)[] = [];
     registry.install({ id: 'counter', title: 'Counter', setup: pluginApi => {
       api = pluginApi;
       api.registerVariable({ id: 'counter.value', name: 'count', type: 'integer', initialValue: 0,
@@ -139,7 +139,8 @@ describe('plugin bookkeeping', () => {
   it('passes media-source and variable owners through core parameter suggestions', async () => {
     const registry = await import('./registry');
     const { corePlugin } = await import('../plugins/core');
-    const { settings, DEFAULTS } = await import('./settings.svelte');
+    const { settings } = await import('./settings.svelte');
+    const { DEFAULTS } = await import('../features/settings/schema');
     registry.install(corePlugin);
     registry.install({ id: 'fixture-provider', title: 'Fixture Provider', setup: api => {
       api.registerMediaSource({ id: 'fixture-provider.media', title: 'Fixture media', command: async () => {} });

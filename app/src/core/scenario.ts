@@ -1,4 +1,4 @@
-import type { ActionRef } from './registry';
+import type { ActionRef } from '../features/plugins/contracts';
 import type { ControlConfig } from './controls';
 import { compileExpression } from './templates';
 

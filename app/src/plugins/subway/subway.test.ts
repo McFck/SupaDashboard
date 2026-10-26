@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ActionDef, PluginApi } from '../../core/registry';
+import type { ActionDef, PluginApi } from '../../features/plugins/contracts';
 import { validateSkinDefinition, type SkinDef } from '../../core/skins';
 import { subwayPlugin } from './index';
 

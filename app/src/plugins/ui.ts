@@ -1,5 +1,5 @@
 // Built-in widgets and skins, registered through the plugin API like any other plugin.
-import type { Plugin } from '../core/registry';
+import type { Plugin } from '../features/plugins/contracts';
 import ButtonControl from '../controls/ButtonControl.svelte';
 import ButtonFace from '../controls/ButtonFace.svelte';
 import MediaControl from '../controls/MediaControl.svelte';

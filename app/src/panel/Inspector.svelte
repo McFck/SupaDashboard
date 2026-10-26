@@ -18,7 +18,8 @@
   import type { Trigger } from '../core/scenario';
   import { clampToGrid, firstFree, fits, type Selection } from '../core/layout';
   import { controlTypes } from '../core/registry';
-  import { controlById, newId, settings, type Page } from '../core/settings.svelte';
+  import { controlById, newId, settings } from '../core/settings.svelte';
+  import type { Page } from '../features/settings/schema';
   import { pageItems, removePlacement } from '../core/pages';
   import { allPlacements, canSetLayoutItems, effectiveSize, layoutFor, setLayoutItems, type LayoutTarget } from '../core/skin-layouts';
   import { newScenarioId, normalizeControl } from '../core/scenario';

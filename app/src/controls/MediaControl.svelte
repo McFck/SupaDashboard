@@ -12,7 +12,7 @@
 
   type MediaLayer = { key: string; url?: string; video: boolean; fit: 'cover' | 'contain'; loop: boolean; muted: boolean; token: number };
   let { control, page, pageId, pageVisible = true, pageRendered = true, itemId, pressFeedbackDisabled = false }:
-    { control: ControlConfig; page?: import('../core/settings.svelte').Page; pageId?: string;
+    { control: ControlConfig; page?: import('../features/settings/schema').Page; pageId?: string;
       pageVisible?: boolean; pageRendered?: boolean; itemId?: string; pressFeedbackDisabled?: boolean } = $props();
   const options = $derived(readMediaOptions(control.options));
   const slide = $derived($runtimeView.content[control.id]?.slide ?? 0);

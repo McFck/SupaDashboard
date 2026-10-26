@@ -1,5 +1,5 @@
 import type { ControlConfig } from './controls';
-import type { EventAncestry, EventDef } from './registry';
+import type { EventAncestry, EventDef } from '../features/plugins/contracts';
 import type { EventList } from './scenario';
 
 export type EventTarget = { control: ControlConfig; listener: EventList };

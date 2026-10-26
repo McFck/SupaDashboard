@@ -3,7 +3,7 @@
   import { Combobox } from 'bits-ui';
   import { Input } from '$lib/components/ui/input';
   import PluginMark from './PluginMark.svelte';
-  import type { Option } from '../core/registry';
+  import type { Option } from '../features/plugins/contracts';
 
   let { value, suggestions, provider, onchange, onrefresh }: {
     value: string; suggestions: Option[]; provider?: string; onchange: (value: string) => void; onrefresh?: () => void;

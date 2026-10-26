@@ -1,6 +1,7 @@
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import { get } from 'svelte/store';
-import { DEFAULTS, serializeSettings, settings } from '../../core/settings.svelte';
+import { serializeSettings, settings } from '../../core/settings.svelte';
+import { DEFAULTS } from '../../features/settings/schema';
 import { normalizeControl } from '../../core/scenario';
 import { actions } from '../../core/registry';
 import { announcementLanguages, normalizeSubwayConfig } from './config';

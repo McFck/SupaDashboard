@@ -3,7 +3,7 @@ import { load } from '@tauri-apps/plugin-store';
 import {
   availableMonitors, currentMonitor, getCurrentWindow, primaryMonitor,
 } from '@tauri-apps/api/window';
-import type { Page, Settings } from './settings.svelte';
+import type { Page, Settings } from '../features/settings/schema';
 
 export type Geometry = { x: number; y: number; width: number; height: number };
 export type LocalRect = { x: number; y: number; width: number; height: number };

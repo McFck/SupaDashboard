@@ -6,7 +6,8 @@ import { settings } from '../core/settings.svelte';
 import { pageItems } from '../core/pages';
 import { hasPlacement } from '../core/skin-layouts';
 import { currentRuntime } from '../core/runtime.svelte';
-import { appOwners, mediaSources, runAction, type ActionRef, type Param, type Plugin } from '../core/registry';
+import { appOwners, mediaSources, runAction } from '../core/registry';
+import type { ActionRef, Param, Plugin } from '../features/plugins/contracts';
 import { parseVariableText } from '../core/variables';
 import { findVolumeChannel, initVolumeSync, readVolume, setMuted, setVolume, volumeChannels, type Channel } from '../core/volume';
 
@@ -78,7 +79,7 @@ const media = (command: Command) => async (a: Record<string, unknown>) => {
   if (!source) throw new Error(`Media source "${id}" isn't available (plugin missing?)`);
   return source.command(command);
 };
-const mediaOrSlide = (command: 'prev' | 'next') => async (args: Record<string, unknown>, context?: import('../core/registry').ActionContext) => {
+const mediaOrSlide = (command: 'prev' | 'next') => async (args: Record<string, unknown>, context?: import('../features/plugins/contracts').ActionContext) => {
   if (typeof args.target === 'string') {
     if (!context) throw new Error('Media action context is unavailable');
     if (context.signal.aborted) return;
@@ -117,7 +118,7 @@ export const corePlugin: Plugin = {
       if (!record) throw new Error('Variable is unavailable');
       return record;
     };
-    const setStateRole = (role: 'off' | 'on') => async (args: Record<string, unknown>, context?: import('../core/registry').ActionContext) => {
+    const setStateRole = (role: 'off' | 'on') => async (args: Record<string, unknown>, context?: import('../features/plugins/contracts').ActionContext) => {
       if (!context) throw new Error('Button state runtime is unavailable');
       const target = String(args.target ?? 'self');
       const controlId = target === 'self' ? context.controlId : target;

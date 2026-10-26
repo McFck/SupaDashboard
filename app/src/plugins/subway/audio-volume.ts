@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import type { PluginApi } from '../../core/registry';
+import type { PluginApi } from '../../features/plugins/contracts';
 import { requestRuntime, runtimeView, type RuntimeSnapshot } from '../../core/runtime.svelte';
 import { registerLocalVolumeChannel } from '../../core/volume';
 

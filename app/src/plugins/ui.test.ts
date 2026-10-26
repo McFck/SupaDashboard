@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { uiPlugin } from './ui';
-import type { ControlTypeDef, PluginApi } from '../core/registry';
+import type { ControlTypeDef, PluginApi } from '../features/plugins/contracts';
 
 describe('built-in media control defaults', () => {
   it('creates a manual slideshow with wrapping enabled', () => {

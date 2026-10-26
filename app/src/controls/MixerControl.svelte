@@ -5,7 +5,8 @@
   import { mixerLayout, type ControlConfig } from '../core/controls';
   import { findVolumeChannel, setMuted, setVolume, volumeChannels } from '../core/volume';
   import { appIcons } from '../core/registry';
-  import { settings, type Page } from '../core/settings.svelte';
+  import { settings } from '../core/settings.svelte';
+  import type { Page } from '../features/settings/schema';
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
 

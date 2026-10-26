@@ -9,7 +9,8 @@
   import { Switch } from '$lib/components/ui/switch';
   import { monitors } from '../core/display';
   import { skins } from '../core/registry';
-  import { DEFAULTS, settings } from '../core/settings.svelte';
+  import { settings } from '../core/settings.svelte';
+  import { DEFAULTS } from '../features/settings/schema';
   import { commit } from '../core/history.svelte';
   import Choice from '../editor/Choice.svelte';
   import { currentRuntime } from '../core/runtime.svelte';

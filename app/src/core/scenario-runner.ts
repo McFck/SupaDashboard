@@ -1,4 +1,4 @@
-import type { ActionContext, ActionRef, EventAncestry } from './registry';
+import type { ActionContext, ActionRef, EventAncestry } from '../features/plugins/contracts';
 import type { ControlConfig } from './controls';
 import type { ActionStep, EventList, Predicate, Trigger, TriggerList } from './scenario';
 import { MAX_DELAY_MS, MAX_SCENARIO_DEPTH, MAX_SCENARIO_NODES, selectTriggerSteps, validateScenario } from './scenario';

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import { get } from 'svelte/store';
-import { actions, install, skins, type ActionContext } from './registry';
-import { settings, serializeSettings, type Page } from './settings.svelte';
+import { actions, install, skins } from './registry';
+import type { ActionContext } from '../features/plugins/contracts';
+import { settings, serializeSettings } from './settings.svelte';
+import type { Page } from '../features/settings/schema';
 import { captureTrigger } from './scenario-runner';
 import { mediaSourceKey } from './content';
 import { acceptRuntimeSnapshot, AutomationRuntime, bootRuntime, runtimeView, stopRuntime } from './runtime.svelte';

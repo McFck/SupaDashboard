@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
-import type { PluginApi } from '../../core/registry';
+import type { PluginApi } from '../../features/plugins/contracts';
 
 const runtimeMock = vi.hoisted(() => ({
   snapshot: { online: false, owner: false, revision: 0, activePage: 'page-1', variables: { revision: 0, records: {} }, busy: {}, content: {} },

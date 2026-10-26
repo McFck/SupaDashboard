@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { controlTypes, skins } from './registry';
-import { DEFAULTS } from './settings.svelte';
+import { DEFAULTS } from '../features/settings/schema';
 import { allPlacements, canSetLayoutItems, layoutFor, movePlacementToSlot, placementById, setLayoutItems, validSlotItems, effectiveSize } from './skin-layouts';
 import type { SkinDef } from './skins';
 

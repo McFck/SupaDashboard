@@ -1,7 +1,7 @@
 import type { Item } from './layout';
 import { firstFree, fits } from './layout';
 import type { ControlConfig } from './controls';
-import type { Page, Settings } from './settings.svelte';
+import type { Page, Settings } from '../features/settings/schema';
 import { allPlacements } from './skin-layouts';
 
 export const MAX_PAGES = 10;

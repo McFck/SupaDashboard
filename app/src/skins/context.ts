@@ -1,7 +1,7 @@
 import { getContext } from 'svelte';
 import type { ControlConfig, TilePresentation } from '../core/controls';
 import type { SkinConfig, SkinDef } from '../core/skins';
-import type { Page } from '../core/settings.svelte';
+import type { Page } from '../features/settings/schema';
 import type { VariableValue } from '../core/variables';
 import type { SceneInput, SceneRect } from '../core/skin-scene';
 import type { Selection } from '../core/layout';

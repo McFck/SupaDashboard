@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Page } from '../../core/settings.svelte';
+  import type { Page } from '../../features/settings/schema';
   import Slot from '../Slot.svelte';
   let { page }: { page: Page } = $props();
 </script>

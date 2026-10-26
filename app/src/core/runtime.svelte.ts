@@ -1,13 +1,14 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { load } from '@tauri-apps/plugin-store';
 import { get, writable, type Readable, type Writable } from 'svelte/store';
-import { settings, onRemoteSettings, type Settings } from './settings.svelte';
+import { settings, onRemoteSettings } from './settings.svelte';
+import type { Settings } from '../features/settings/schema';
 import { controlById } from './settings.svelte';
 import { effectiveVariant, stateIdAt } from './button-state';
 import { EventRegistry, listenerKey, type EventTarget } from './events';
 import { runAction, setRegistryRuntime, setVariableMirror, skins as registeredSkins } from './registry';
 import { captureEvent, captureTrigger, ScenarioRunner, type RunResult, type ScenarioFailure, type TriggerPacket } from './scenario-runner';
-import type { EventAncestry } from './registry';
+import type { EventAncestry } from '../features/plugins/contracts';
 import { VariableStore, type VariableSnapshot, type VariableValue } from './variables';
 import type { Trigger } from './scenario';
 import type { PageChangePayload, RuntimeSync, RuntimeRequest } from './runtime-sync';

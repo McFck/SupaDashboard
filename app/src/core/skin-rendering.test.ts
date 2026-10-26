@@ -10,7 +10,7 @@ const skinId = 'skin-rendering-test';
 const defaultFace = {} as Component<ControlFaceProps>;
 const customFace = {} as Component<ControlFaceProps>;
 const skin: SkinDef = {
-  id: skinId, title: 'Rendering test', component: {} as Component<{ page: import('./settings.svelte').Page }>,
+  id: skinId, title: 'Rendering test', component: {} as Component<{ page: import('../features/settings/schema').Page }>,
   slots: [{ id: 'main', style: 'region', kind: 'grid', grid: { rows: 1, cols: 2, size: 80, gap: 8, sizing: 'auto' } }],
   views: [{ id: 'default', title: 'Default', slots: ['main'] }], defaultView: 'default',
   controlSkins: { [typeId]: { component: customFace, sizes: { main: { min: { w: 1, h: 1 }, default: { w: 2, h: 1 }, max: { w: 3, h: 2 } } } } },

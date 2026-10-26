@@ -8,7 +8,8 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { Switch } from '$lib/components/ui/switch';
-  import { suggestionsOf, type ActionRef, type Option, type Param } from '../core/registry';
+  import { suggestionsOf } from '../core/registry';
+  import type { ActionRef, Option, Param } from '../features/plugins/contracts';
   import ActionEditor from './ActionEditor.svelte';
   import Choice from './Choice.svelte';
   import PluginMark, { pluginTitle } from './PluginMark.svelte';

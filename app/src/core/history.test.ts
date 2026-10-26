@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyEditableSettings, editableChanged, editableSnapshot, SnapshotHistory } from './history.svelte';
-import { DEFAULTS, settings } from './settings.svelte';
+import { settings } from './settings.svelte';
+import { DEFAULTS } from '../features/settings/schema';
 import { addPage, deletePage, duplicatePage, movePlacement, renamePage, reorderPage } from './pages';
 import type { ControlConfig } from './controls';
 

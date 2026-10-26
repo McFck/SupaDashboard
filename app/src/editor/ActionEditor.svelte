@@ -1,6 +1,7 @@
 <script lang="ts">
   // Pick any registered action (built-in or plugin) and fill in its arguments.
-  import { actions, type ActionRef } from '../core/registry';
+  import { actions } from '../core/registry';
+  import type { ActionRef } from '../features/plugins/contracts';
   import ActionPicker from './ActionPicker.svelte';
   import ParamField from './ParamField.svelte';
 

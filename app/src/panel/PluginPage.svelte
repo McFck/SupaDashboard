@@ -5,7 +5,8 @@
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Badge } from '$lib/components/ui/badge';
   import Icon from '../controls/Icon.svelte';
-  import { pluginState, setPluginEnabled, skins, suggestionsOf, type Param, type Plugin } from '../core/registry';
+  import { pluginState, setPluginEnabled, skins, suggestionsOf } from '../core/registry';
+  import type { Param, Plugin } from '../features/plugins/contracts';
   import ParamField from '../editor/ParamField.svelte';
   import { commit } from '../core/history.svelte';
   import { currentRuntime } from '../core/runtime.svelte';

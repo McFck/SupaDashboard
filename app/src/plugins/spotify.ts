@@ -3,7 +3,7 @@
 // (now playing, like, shuffle…) can be added here later without touching the core.
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import type { Plugin } from '../core/registry';
+import type { Plugin } from '../features/plugins/contracts';
 
 export const spotifyPlugin: Plugin = {
   id: 'spotify',

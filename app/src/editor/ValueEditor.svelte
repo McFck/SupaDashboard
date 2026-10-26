@@ -1,6 +1,7 @@
 <script lang="ts">
   // Pick what a slider controls (system volume, an app's volume, or a plugin's value) and its arguments.
-  import { values, type ValueRef } from '../core/registry';
+  import { values } from '../core/registry';
+  import type { ValueRef } from '../features/plugins/contracts';
   import Choice from './Choice.svelte';
   import ParamField from './ParamField.svelte';
 

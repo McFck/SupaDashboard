@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULTS, migrate, serializeSettings } from './settings.svelte';
+import { serializeSettings } from './settings.svelte';
+import { DEFAULTS } from '../features/settings/schema';
+import { migrate } from '../features/settings/migrate';
 
 describe('settings migration', () => {
   it('upgrades v1 settings, keeping the user controls and mapping old icon names', () => {

@@ -6,7 +6,8 @@
   import { commit } from '../core/history.svelte';
   import { clampResizeRect, fits, fitDeck, inside, previewDrop, type DropPreview, type FittedDeck, type Item, type Selection } from '../core/layout';
   import { controlTypes } from '../core/registry';
-  import { controlById, settings, type Page } from '../core/settings.svelte';
+  import { controlById, settings } from '../core/settings.svelte';
+  import type { Page } from '../features/settings/schema';
   import type { EffectiveSize, LayoutTarget } from '../core/skin-layouts';
   import { runtimeView } from '../core/runtime.svelte';
   import { animateRemoval, registerRemovalNode } from './removal';

@@ -1,5 +1,5 @@
 import { get, writable, type Readable } from 'svelte/store';
-import type { EventAncestry } from '../../core/registry';
+import type { EventAncestry } from '../../features/plugins/contracts';
 import type { SkinRuntimeContext } from '../../core/skins';
 import { normalizeSubwayLines, stepStation, type LineDefinition } from './lines';
 import { announcementLanguages, firstStationForDirection, normalizeSubwayConfig, type SubwayLineId } from './config';

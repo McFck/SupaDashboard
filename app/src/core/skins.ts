@@ -1,8 +1,8 @@
 import type { Component } from 'svelte';
 import type { Readable } from 'svelte/store';
-import type { ActionDef, ActionRef, EventDef, Param } from './registry';
+import type { ActionDef, ActionRef, EventDef, Param } from '../features/plugins/contracts';
 import type { ControlConfig, ControlFaceProps } from './controls';
-import type { Page } from './settings.svelte';
+import type { Page } from '../features/settings/schema';
 import type { VariableType, VariableValue } from './variables';
 
 export type SkinRect = { x: number; y: number; w: number; h: number };

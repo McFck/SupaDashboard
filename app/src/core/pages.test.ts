@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ControlConfig } from './controls';
-import { DEFAULTS, type Settings } from './settings.svelte';
+import { DEFAULTS, type Settings } from '../features/settings/schema';
 import { addPage, deletePage, duplicatePage, hasPlacement, MAX_PAGES, movePlacement, pageAfterRemoval, pageById, pageItems,
   placementById, removePlacement, renamePage, reorderPage } from './pages';
 

@@ -8,7 +8,7 @@
   import ContextMenu, { type MenuAction } from './ContextMenu.svelte';
   import { MAX_PAGES } from '../core/pages';
   import { sortable } from '../lib/sortable';
-  import type { Page } from '../core/settings.svelte';
+  import type { Page } from '../features/settings/schema';
 
   type StripPan = { pointerId: number; startX: number; startScroll: number; moved: boolean };
 

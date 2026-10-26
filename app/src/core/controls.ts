@@ -1,5 +1,5 @@
 // Controls are configured in settings; this file is pure logic so it can be unit-tested.
-import type { ActionRef, ValueRef } from './registry';
+import type { ActionRef, ValueRef } from '../features/plugins/contracts';
 import { selectTriggerSteps, type ActionStep, type Scenario, type StateBinding, type StateRoles, type Trigger } from './scenario';
 
 /** Legacy trigger names accepted only while migrating older saved controls. */

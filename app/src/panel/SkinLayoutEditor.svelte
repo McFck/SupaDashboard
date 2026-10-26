@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ControlConfig, TilePresentation } from '../core/controls';
   import type { SkinDef } from '../core/skins';
-  import type { Page } from '../core/settings.svelte';
+  import type { Page } from '../features/settings/schema';
   import type { Selection } from '../core/layout';
   import type { LayoutTarget } from '../core/skin-layouts';
   import SkinHost from '../skins/SkinHost.svelte';

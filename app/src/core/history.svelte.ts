@@ -1,5 +1,6 @@
 import { toast } from 'svelte-sonner';
-import { onRemoteSettings, settings, type Deck, type Settings } from './settings.svelte';
+import { onRemoteSettings, settings } from './settings.svelte';
+import type { Deck, Settings } from '../features/settings/schema';
 
 type Status = { canUndo: boolean; canRedo: boolean; undoLabel: string; redoLabel: string };
 type EditableSettings = Omit<Settings, 'variants' | 'deck'> & { deck: Omit<Deck, 'activePage'> };

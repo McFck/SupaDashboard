@@ -1,4 +1,4 @@
-import type { Option, Param, Plugin } from '../../core/registry';
+import type { Option, Param, Plugin } from '../../features/plugins/contracts';
 import type { SkinStateField } from '../../core/skins';
 import SubwayButton from './SubwayButton.svelte';
 import SubwaySlider from './SubwaySlider.svelte';

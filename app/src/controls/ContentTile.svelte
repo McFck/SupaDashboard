@@ -6,7 +6,8 @@
   import { captureRuntimeTrigger, dispatchRuntimePacket, runtimeView } from '../core/runtime.svelte';
   import type { TriggerPacket } from '../core/scenario-runner';
   import type { Trigger } from '../core/scenario';
-  import { settings, type Page } from '../core/settings.svelte';
+  import { settings } from '../core/settings.svelte';
+  import type { Page } from '../features/settings/schema';
   import PressFeedback from './PressFeedback.svelte';
 
   let { control, page, pageId, pageVisible = true, w = 1, h = 1, itemId, pressFeedbackDisabled = false,
