@@ -14,30 +14,60 @@ class FakeWorker {
     if (this.failOnPost) throw new Error('post failed');
     this.messages.push(structuredClone(message));
   }
-  terminate() { this.terminated = true; }
+  terminate() {
+    this.terminated = true;
+  }
   reply(job = this.messages[0]) {
-    const data: DropReply = { ...job, preview: previewDrop(job.items, job.id, job.x, job.y, job.grid) };
+    const data: DropReply = {
+      ...job,
+      preview: previewDrop(job.items, job.id, job.x, job.y, job.grid),
+    };
     this.listeners.get('message')?.({ data } as MessageEvent);
   }
-  fail() { this.listeners.get('error')?.({} as ErrorEvent); }
+  fail() {
+    this.listeners.get('error')?.({} as ErrorEvent);
+  }
 }
 
 const items: Item[] = [
   { id: 'm', control: 'button', x: 0, y: 0, w: 1, h: 1 },
   { id: 'b', control: 'mixer', x: 1, y: 0, w: 1, h: 2 },
 ];
-const input = (generation: number, x: number) => ({ generation, revision: 'layout-a', id: 'm', x, y: 0, items,
-  grid: { rows: 2, cols: 4 } });
+const input = (generation: number, x: number) => ({
+  generation,
+  revision: 'layout-a',
+  id: 'm',
+  x,
+  y: 0,
+  items,
+  grid: { rows: 2, cols: 4 },
+});
 
 describe('drop preview worker', () => {
   it('copies proxied inputs into a cloneable scalar-only worker message', async () => {
     const workers: FakeWorker[] = [];
-    const service = new DropPreviewWorker(() => { const worker = new FakeWorker(); workers.push(worker); return worker; });
-    const proxiedItems = new Proxy(items.map(item => new Proxy(item, {})), {});
+    const service = new DropPreviewWorker(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
+    const proxiedItems = new Proxy(
+      items.map((item) => new Proxy(item, {})),
+      {},
+    );
     const proxiedGrid = new Proxy({ rows: 2, cols: 4 }, {});
     const pending = service.request({ ...input(4, 3), items: proxiedItems, grid: proxiedGrid });
     const message = workers[0].messages[0];
-    expect(Object.keys(message).sort()).toEqual(['generation', 'grid', 'id', 'items', 'requestId', 'revision', 'x', 'y']);
+    expect(Object.keys(message).sort()).toEqual([
+      'generation',
+      'grid',
+      'id',
+      'items',
+      'requestId',
+      'revision',
+      'x',
+      'y',
+    ]);
     expect(Object.keys(message.grid).sort()).toEqual(['cols', 'rows']);
     expect(Object.keys(message.items[0]).sort()).toEqual(['control', 'h', 'id', 'w', 'x', 'y']);
     expect(() => structuredClone(message)).not.toThrow();
@@ -51,7 +81,10 @@ describe('drop preview worker', () => {
       let nextFailure: typeof failure | null = failure;
       const workers: FakeWorker[] = [];
       const service = new DropPreviewWorker(() => {
-        if (nextFailure === 'create') { nextFailure = null; throw new Error('construction failed'); }
+        if (nextFailure === 'create') {
+          nextFailure = null;
+          throw new Error('construction failed');
+        }
         const worker = new FakeWorker();
         worker.failOnPost = nextFailure === 'post';
         workers.push(worker);
@@ -73,7 +106,11 @@ describe('drop preview worker', () => {
 
   it('terminates stale packing before starting another target and ignores its late reply', async () => {
     const workers: FakeWorker[] = [];
-    const service = new DropPreviewWorker(() => { const worker = new FakeWorker(); workers.push(worker); return worker; });
+    const service = new DropPreviewWorker(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
     const stale = service.request(input(1, 1));
     const current = service.request(input(1, 2));
     expect(workers[0].terminated).toBe(true);
@@ -86,7 +123,11 @@ describe('drop preview worker', () => {
 
   it('reuses a completed worker and caches by layout revision and target', async () => {
     const workers: FakeWorker[] = [];
-    const service = new DropPreviewWorker(() => { const worker = new FakeWorker(); workers.push(worker); return worker; });
+    const service = new DropPreviewWorker(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
     const first = service.request(input(7, 1));
     workers[0].reply();
     await first;
@@ -99,7 +140,11 @@ describe('drop preview worker', () => {
 
   it('invalidates cached results after a layout revision and cancels on teardown', async () => {
     const workers: FakeWorker[] = [];
-    const service = new DropPreviewWorker(() => { const worker = new FakeWorker(); workers.push(worker); return worker; });
+    const service = new DropPreviewWorker(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
     const old = service.request(input(1, 1));
     workers[0].reply();
     await old;

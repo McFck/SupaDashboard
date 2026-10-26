@@ -22,9 +22,14 @@ export class SnapshotHistory<T> {
   private pendingLabel = '';
   private timer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(initial: T, private apply: (snapshot: T) => void,
-    private update: (status: Status) => void, private recorded: (label: string) => void = () => {},
-    private delay = 400, private limit = 100) {
+  constructor(
+    initial: T,
+    private apply: (snapshot: T) => void,
+    private update: (status: Status) => void,
+    private recorded: (label: string) => void = () => {},
+    private delay = 400,
+    private limit = 100,
+  ) {
     this.states = [structuredClone(initial)];
     this.publish();
   }
@@ -32,14 +37,20 @@ export class SnapshotHistory<T> {
   // A pending (not yet debounced) edit already discards the redo branch, so reflect that immediately.
   private publish() {
     const pending = this.pending !== undefined;
-    this.update({ canUndo: pending || this.cursor > 0, canRedo: !pending && this.cursor < this.labels.length,
-      undoLabel: pending ? this.pendingLabel || 'Change settings' : this.labels[this.cursor - 1] ?? '',
-      redoLabel: pending ? '' : this.labels[this.cursor] ?? '' });
+    this.update({
+      canUndo: pending || this.cursor > 0,
+      canRedo: !pending && this.cursor < this.labels.length,
+      undoLabel: pending
+        ? this.pendingLabel || 'Change settings'
+        : (this.labels[this.cursor - 1] ?? ''),
+      redoLabel: pending ? '' : (this.labels[this.cursor] ?? ''),
+    });
   }
 
   observe(next: T) {
     const snapshot = structuredClone(next);
-    if (JSON.stringify(snapshot) === JSON.stringify(this.pending ?? this.states[this.cursor])) return;
+    if (JSON.stringify(snapshot) === JSON.stringify(this.pending ?? this.states[this.cursor]))
+      return;
     const wasPending = this.pending !== undefined;
     this.pending = snapshot;
     clearTimeout(this.timer);
@@ -52,7 +63,10 @@ export class SnapshotHistory<T> {
     this.observe(current);
     if (!this.pending) {
       clearTimeout(this.timer);
-      this.timer = setTimeout(() => { this.pendingLabel = ''; this.timer = undefined; }, this.delay);
+      this.timer = setTimeout(() => {
+        this.pendingLabel = '';
+        this.timer = undefined;
+      }, this.delay);
     }
   }
 
@@ -63,7 +77,10 @@ export class SnapshotHistory<T> {
     this.pending = undefined;
     const label = this.pendingLabel || 'Change settings';
     this.pendingLabel = '';
-    if (next === undefined || JSON.stringify(next) === JSON.stringify(this.states[this.cursor])) { this.publish(); return; }
+    if (next === undefined || JSON.stringify(next) === JSON.stringify(this.states[this.cursor])) {
+      this.publish();
+      return;
+    }
     this.states.splice(this.cursor + 1);
     this.labels.splice(this.cursor);
     this.states.push(next);
@@ -104,7 +121,12 @@ export class SnapshotHistory<T> {
   }
 }
 
-export const history = $state<Status>({ canUndo: false, canRedo: false, undoLabel: '', redoLabel: '' });
+export const history = $state<Status>({
+  canUndo: false,
+  canRedo: false,
+  undoLabel: '',
+  redoLabel: '',
+});
 let timeline: SnapshotHistory<EditableSettings> | undefined;
 let undoToast: string | number | undefined;
 
@@ -116,31 +138,49 @@ function dismissUndoToast() {
 /** Variant indices are runtime state outside history; keep each control on the same variant when undo reorders them. */
 export function applyEditableSettings(snapshot: EditableSettings) {
   const activePage = settings.deck.activePage;
-  const active = new Map(settings.controls.map(c => [c.id, JSON.stringify(c.variants[settings.variants[c.id] ?? 0])]));
+  const active = new Map(
+    settings.controls.map((c) => [c.id, JSON.stringify(c.variants[settings.variants[c.id] ?? 0])]),
+  );
   Object.assign(settings, { ...snapshot, deck: { ...snapshot.deck, activePage } });
   for (const c of settings.controls) {
-    const index = c.variants.findIndex(v => JSON.stringify(v) === active.get(c.id));
+    const index = c.variants.findIndex((v) => JSON.stringify(v) === active.get(c.id));
     if (index >= 0 && index !== (settings.variants[c.id] ?? 0)) settings.variants[c.id] = index;
   }
 }
 
 export function startHistory() {
   if (timeline) return;
-  timeline = new SnapshotHistory<EditableSettings>(editableSnapshot($state.snapshot(settings)), applyEditableSettings,
-    status => Object.assign(history, status), label => {
+  timeline = new SnapshotHistory<EditableSettings>(
+    editableSnapshot($state.snapshot(settings)),
+    applyEditableSettings,
+    (status) => Object.assign(history, status),
+    (label) => {
       dismissUndoToast();
       if (/^(delete|reset|paste|replace)/i.test(label))
-        undoToast = toast(/^delete/i.test(label) ? 'Item deleted' : label, { action: { label: 'Revert', onClick: () => undo() } });
-    });
-  onRemoteSettings(next => {
+        undoToast = toast(/^delete/i.test(label) ? 'Item deleted' : label, {
+          action: { label: 'Revert', onClick: () => undo() },
+        });
+    },
+  );
+  onRemoteSettings((next) => {
     if (editableChanged($state.snapshot(settings), next)) {
       dismissUndoToast();
       timeline?.remote(editableSnapshot(next));
     }
   });
-  $effect.root(() => { $effect(() => timeline?.observe(editableSnapshot($state.snapshot(settings)))); });
+  $effect.root(() => {
+    $effect(() => timeline?.observe(editableSnapshot($state.snapshot(settings))));
+  });
 }
 
-export function commit(label: string): void { timeline?.commit(label, editableSnapshot($state.snapshot(settings))); }
-export function undo(): void { dismissUndoToast(); timeline?.undo(); }
-export function redo(): void { dismissUndoToast(); timeline?.redo(); }
+export function commit(label: string): void {
+  timeline?.commit(label, editableSnapshot($state.snapshot(settings)));
+}
+export function undo(): void {
+  dismissUndoToast();
+  timeline?.undo();
+}
+export function redo(): void {
+  dismissUndoToast();
+  timeline?.redo();
+}
