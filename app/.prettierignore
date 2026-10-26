@@ -1,0 +1,8 @@
+node_modules/
+dist/
+src-tauri/
+public/
+pnpm-lock.yaml
+src/lib/components/ui/
+src/plugins/catalog.json
+src/plugins/subway/lcd/e235-yamanote-data.json

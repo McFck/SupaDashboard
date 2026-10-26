@@ -10,7 +10,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+    "format": "prettier --write src tests scripts docs README.md",
+    "format:check": "prettier --check src tests scripts docs README.md"
   },
   "devDependencies": {
     "@internationalized/date": "^3.12.0",
@@ -20,6 +22,8 @@
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.19.2",
     "mode-watcher": "^1.1.0",
+    "prettier": "3.9.10",
+    "prettier-plugin-svelte": "4.1.1",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.7",
     "svelte-sonner": "^1.2.0",
