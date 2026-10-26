@@ -21,62 +21,119 @@
   let page = $state<Page>('layout');
   const confirmationActive = $derived(confirmationState.current !== null);
   const NAV: { id: Page; label: string; icon: typeof Monitor }[] = [
-    { id: 'layout', label: 'Layout', icon: LayoutGrid }, { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'plugins', label: 'Plugins', icon: Puzzle }, { id: 'market', label: 'Market', icon: Store },
+    { id: 'layout', label: 'Layout', icon: LayoutGrid },
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'plugins', label: 'Plugins', icon: Puzzle },
+    { id: 'market', label: 'Market', icon: Store },
   ];
 
   // Mirror the dashboard's visibility (the tray can change it too).
   let visible = $state<boolean | null>(null);
   $effect(() => {
     let alive = true;
-    const read = () => Window.getByLabel('main').then(w => w?.isVisible()).then(v => { if (alive) visible = v ?? null; }).catch(() => {});
+    const read = () =>
+      Window.getByLabel('main')
+        .then((w) => w?.isVisible())
+        .then((v) => {
+          if (alive) visible = v ?? null;
+        })
+        .catch(() => {});
     read();
     const t = setInterval(read, 800);
-    return () => { alive = false; clearInterval(t); };
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
   });
   async function toggle() {
     const w = await Window.getByLabel('main');
     if (!w) return;
-    if (visible) await w.hide(); else await w.show();
+    if (visible) await w.hide();
+    else await w.show();
     visible = await w.isVisible();
   }
 </script>
 
-<div inert={confirmationActive} class="flex h-full min-h-0 min-w-0 overflow-hidden bg-[var(--canvas-surface)] text-foreground">
-  <nav aria-label="Main navigation" style:width="{SIDEBAR_RAIL}px" class="relative flex min-h-0 shrink-0 flex-col bg-[var(--canvas-surface)]">
+<div
+  inert={confirmationActive}
+  class="flex h-full min-h-0 min-w-0 overflow-hidden bg-[var(--canvas-surface)] text-foreground"
+>
+  <nav
+    aria-label="Main navigation"
+    style:width="{SIDEBAR_RAIL}px"
+    class="relative flex min-h-0 shrink-0 flex-col bg-[var(--canvas-surface)]"
+  >
     <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto py-3">
-    <div class="relative grid h-10 shrink-0 grid-cols-[56px_minmax(0,1fr)] items-center">
-      <Hint text={visible ? 'Hide dashboard' : 'Show dashboard'} side="right">
-        {#snippet children(props)}
-          <Button {...props} size="icon-lg" variant="ghost" aria-label={visible ? 'Hide dashboard' : 'Show dashboard'} aria-pressed={!!visible}
-            disabled={visible == null} onclick={toggle} class="ml-2 h-10 w-12 justify-self-start {visible ? 'text-foreground' : 'text-muted-foreground'}">
-            {#if visible}<Eye class="size-[17px]" />{:else}<EyeOff class="size-[17px]" />{/if}
-          </Button>
-        {/snippet}
-      </Hint>
-    </div>
-    {#each NAV as n (n.id)}
-          <Hint text={n.label} side="right">
+      <div class="relative grid h-10 shrink-0 grid-cols-[56px_minmax(0,1fr)] items-center">
+        <Hint
+          text={visible ? 'Hide dashboard' : 'Show dashboard'}
+          side="right"
+        >
           {#snippet children(props)}
-          <button {...props} type="button" onclick={() => (page = n.id)} aria-label={n.label} aria-current={page === n.id ? 'page' : undefined}
-            class="relative ml-2 grid h-10 w-12 shrink-0 place-items-center rounded-lg text-left text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring
-              {page === n.id ? 'bg-white/[.08] text-foreground' : 'text-muted-foreground hover:bg-white/[.04] hover:text-foreground'}">
-            <span class="flex h-10 w-12 items-center justify-center"><n.icon size={17} class="shrink-0" /></span>
-          </button>
+            <Button
+              {...props}
+              size="icon-lg"
+              variant="ghost"
+              aria-label={visible ? 'Hide dashboard' : 'Show dashboard'}
+              aria-pressed={!!visible}
+              disabled={visible == null}
+              onclick={toggle}
+              class="ml-2 h-10 w-12 justify-self-start {visible
+                ? 'text-foreground'
+                : 'text-muted-foreground'}"
+            >
+              {#if visible}<Eye class="size-[17px]" />{:else}<EyeOff class="size-[17px]" />{/if}
+            </Button>
           {/snippet}
-          </Hint>
-    {/each}
+        </Hint>
+      </div>
+      {#each NAV as n (n.id)}
+        <Hint
+          text={n.label}
+          side="right"
+        >
+          {#snippet children(props)}
+            <button
+              {...props}
+              type="button"
+              onclick={() => (page = n.id)}
+              aria-label={n.label}
+              aria-current={page === n.id ? 'page' : undefined}
+              class="relative ml-2 grid h-10 w-12 shrink-0 place-items-center rounded-lg text-left text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring
+              {page === n.id
+                ? 'bg-white/[.08] text-foreground'
+                : 'text-muted-foreground hover:bg-white/[.04] hover:text-foreground'}"
+            >
+              <span class="flex h-10 w-12 items-center justify-center"
+                ><n.icon
+                  size={17}
+                  class="shrink-0"
+                /></span
+              >
+            </button>
+          {/snippet}
+        </Hint>
+      {/each}
     </div>
   </nav>
   <main class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-    <div class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl border-l border-t border-[#262626] bg-[#171717]">
-      <div class="absolute inset-0 min-h-0 min-w-0" style:display={page === 'layout' ? undefined : 'none'} class:pointer-events-none={page !== 'layout'}
-        inert={page !== 'layout'} aria-hidden={page !== 'layout'}>
+    <div
+      class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl border-l border-t border-[#262626] bg-[#171717]"
+    >
+      <div
+        class="absolute inset-0 min-h-0 min-w-0"
+        style:display={page === 'layout' ? undefined : 'none'}
+        class:pointer-events-none={page !== 'layout'}
+        inert={page !== 'layout'}
+        aria-hidden={page !== 'layout'}
+      >
         <LayoutPage active={page === 'layout'} />
       </div>
       {#if page !== 'layout'}
         {#key page}
-          <div class="absolute inset-0 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
+          <div
+            class="absolute inset-0 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]"
+          >
             {#if page === 'settings'}<SettingsPage />
             {:else if page === 'plugins'}<PluginsPage />
             {:else}<MarketPage />{/if}

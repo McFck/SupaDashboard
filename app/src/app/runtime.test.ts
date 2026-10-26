@@ -7,17 +7,38 @@ import { settings, serializeSettings } from '../features/settings/state.svelte';
 import type { Page } from '../features/settings/schema';
 import { captureTrigger } from '../features/automation/scenario-runner';
 import { mediaSourceKey } from '../features/media/content';
-import { acceptRuntimeSnapshot, AutomationRuntime, bootRuntime, runtimeView, stopRuntime } from './runtime.svelte';
+import {
+  acceptRuntimeSnapshot,
+  AutomationRuntime,
+  bootRuntime,
+  runtimeView,
+  stopRuntime,
+} from './runtime.svelte';
 import type { ControlConfig } from '../features/controls/model';
 import type { Trigger } from '../features/automation/scenario';
 
 const priorSettings = structuredClone(settings);
-const page = (id: string): Page => ({ ...structuredClone(priorSettings.deck.pages[0]), id, name: id, items: [] });
-const control = (): ControlConfig => ({ id: 'runtime-test', name: 'Test', type: 'button', variants: [{ id: 'off', label: 'Off' }],
-  scenario: { triggers: { press: { steps: [{ id: 'run', kind: 'action', action: { id: 'test.action' } }] },
-    release: { steps: [{ id: 'release', kind: 'action', action: { id: 'test.release' } }] } }, events: [] } });
-const packet = (controlConfig: ControlConfig, trigger: Trigger = 'press') => captureTrigger(controlConfig, 'item', trigger,
-  `${trigger}-${Math.random()}`, 'off')!;
+const page = (id: string): Page => ({
+  ...structuredClone(priorSettings.deck.pages[0]),
+  id,
+  name: id,
+  items: [],
+});
+const control = (): ControlConfig => ({
+  id: 'runtime-test',
+  name: 'Test',
+  type: 'button',
+  variants: [{ id: 'off', label: 'Off' }],
+  scenario: {
+    triggers: {
+      press: { steps: [{ id: 'run', kind: 'action', action: { id: 'test.action' } }] },
+      release: { steps: [{ id: 'release', kind: 'action', action: { id: 'test.release' } }] },
+    },
+    events: [],
+  },
+});
+const packet = (controlConfig: ControlConfig, trigger: Trigger = 'press') =>
+  captureTrigger(controlConfig, 'item', trigger, `${trigger}-${Math.random()}`, 'off')!;
 let runtime: AutomationRuntime | undefined;
 
 afterEach(async () => {
@@ -41,7 +62,11 @@ afterEach(async () => {
 describe('automation runtime', () => {
   it('steps relative states for migrated next/prev pulls', async () => {
     const config = control();
-    config.variants = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }, { id: 'c', label: 'C' }];
+    config.variants = [
+      { id: 'a', label: 'A' },
+      { id: 'b', label: 'B' },
+      { id: 'c', label: 'C' },
+    ];
     settings.controls = [config];
     settings.variants[config.id] = 0;
     runtime = new AutomationRuntime();
@@ -56,16 +81,33 @@ describe('automation runtime', () => {
   });
 
   it('routes owner-only media commands by global control id and resets after source edits', async () => {
-    const config = { ...control(), type: 'media', options: { sources: [
-      { kind: 'url', value: 'https://example.test/one.png' },
-      { kind: 'url', value: 'https://example.test/two.png' },
-    ], loop: false } };
-    const web = { ...control(), id: 'web-runtime', type: 'web', options: { url: 'https://example.test', zoom: 100 } };
-    const pageA = page('page-1'), pageB = page('page-2');
+    const config = {
+      ...control(),
+      type: 'media',
+      options: {
+        sources: [
+          { kind: 'url', value: 'https://example.test/one.png' },
+          { kind: 'url', value: 'https://example.test/two.png' },
+        ],
+        loop: false,
+      },
+    };
+    const web = {
+      ...control(),
+      id: 'web-runtime',
+      type: 'web',
+      options: { url: 'https://example.test', zoom: 100 },
+    };
+    const pageA = page('page-1'),
+      pageB = page('page-2');
     settings.deck.pages = [pageA, pageB];
     settings.deck.activePage = pageA.id;
     pageB.items.push({ id: 'web-runtime-item', control: web.id, x: 0, y: 0, w: 3, h: 2 });
-    settings.skinLayouts = { subway: { [pageB.id]: { main: [{ id: 'media-item', control: config.id, x: 0, y: 0, w: 2, h: 2 }] } } };
+    settings.skinLayouts = {
+      subway: {
+        [pageB.id]: { main: [{ id: 'media-item', control: config.id, x: 0, y: 0, w: 2, h: 2 }] },
+      },
+    };
     settings.controls = [config, web];
     runtime = new AutomationRuntime();
     runtime.reconcile(settings.controls);
@@ -82,7 +124,9 @@ describe('automation runtime', () => {
     expect(runtime.contentCommand(config.id, 'prev')).toBe(true);
     expect(runtime.contentCommand(config.id, 'goto', 1)).toBe(true);
     expect(runtime.contentCommand(config.id, 'goto', 1)).toBe(false);
-    expect(() => runtime!.contentCommand(config.id, 'goto', 2)).toThrow('Media slide is unavailable');
+    expect(() => runtime!.contentCommand(config.id, 'goto', 2)).toThrow(
+      'Media slide is unavailable',
+    );
     expect(runtime.contentCommand(web.id, 'reload')).toBe(true);
     expect(get(runtime.snapshots).content[web.id]).toEqual({ slide: 0, reload: 1 });
     expect(runtime.contentCommand(web.id, 'reload')).toBe(true);
@@ -98,7 +142,9 @@ describe('automation runtime', () => {
 
     await runtime.dispose();
     runtime = new AutomationRuntime({ owner: false });
-    expect(() => runtime!.contentCommand(config.id, 'goto', 0)).toThrow('Content runtime is unavailable');
+    expect(() => runtime!.contentCommand(config.id, 'goto', 0)).toThrow(
+      'Content runtime is unavailable',
+    );
   });
 
   it('keeps the selected media source when an unrelated source changes or the list reorders', () => {
@@ -132,13 +178,26 @@ describe('automation runtime', () => {
 
   it('dispatches one configured pull action and keeps an unbound pull quiet', async () => {
     const config = control();
-    config.scenario!.triggers.swipeRight = { steps: [{ id: 'pull', kind: 'action', action: { id: 'test.pull' } }] };
+    config.scenario!.triggers.swipeRight = {
+      steps: [{ id: 'pull', kind: 'action', action: { id: 'test.pull' } }],
+    };
     settings.controls = [config];
-    const calls: string[] = [], failures: unknown[] = [];
-    actions.set('test.pull', { id: 'test.pull', title: 'Pull', run: () => { calls.push('pull'); } });
-    runtime = new AutomationRuntime({ onFailure: failure => failures.push(failure) });
-    await expect(runtime.dispatchTrigger(config.id, 'item', 'swipeRight')).resolves.toMatchObject({ status: 'completed' });
-    await expect(runtime.dispatchTrigger(config.id, 'item', 'swipeLeft')).resolves.toMatchObject({ status: 'completed' });
+    const calls: string[] = [],
+      failures: unknown[] = [];
+    actions.set('test.pull', {
+      id: 'test.pull',
+      title: 'Pull',
+      run: () => {
+        calls.push('pull');
+      },
+    });
+    runtime = new AutomationRuntime({ onFailure: (failure) => failures.push(failure) });
+    await expect(runtime.dispatchTrigger(config.id, 'item', 'swipeRight')).resolves.toMatchObject({
+      status: 'completed',
+    });
+    await expect(runtime.dispatchTrigger(config.id, 'item', 'swipeLeft')).resolves.toMatchObject({
+      status: 'completed',
+    });
     expect(calls).toEqual(['pull']);
     expect(failures).toEqual([]);
   });
@@ -148,12 +207,24 @@ describe('automation runtime', () => {
     settings.controls = [config];
     const trace: string[] = [];
     let unblock!: () => void;
-    const blocked = new Promise<void>(resolve => { unblock = resolve; });
-    actions.set('test.action', { id: 'test.action', title: 'Test', run: async args => {
-      trace.push(String(args.id));
-      if (args.id === 'first') await blocked;
-    } });
-    actions.set('test.release', { id: 'test.release', title: 'Release', run: () => { trace.push('release'); } });
+    const blocked = new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
+    actions.set('test.action', {
+      id: 'test.action',
+      title: 'Test',
+      run: async (args) => {
+        trace.push(String(args.id));
+        if (args.id === 'first') await blocked;
+      },
+    });
+    actions.set('test.release', {
+      id: 'test.release',
+      title: 'Release',
+      run: () => {
+        trace.push('release');
+      },
+    });
     config.scenario!.triggers.press!.steps = [
       { id: 'first', kind: 'action', action: { id: 'test.action', args: { id: 'first' } } },
       { id: 'second', kind: 'action', action: { id: 'test.action', args: { id: 'second' } } },
@@ -174,7 +245,9 @@ describe('automation runtime', () => {
     const config = control();
     settings.controls = [config];
     let unblock!: () => void;
-    const blocked = new Promise<void>(resolve => { unblock = resolve; });
+    const blocked = new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
     actions.set('test.action', { id: 'test.action', title: 'Test', run: () => blocked });
     runtime = new AutomationRuntime();
     const running = runtime.dispatch(packet(config));
@@ -182,7 +255,7 @@ describe('automation runtime', () => {
     const excess = await runtime.dispatch(packet(config));
     expect(excess.status).toBe('rejected');
     const stopped = runtime.stopControl(config.id);
-    expect((await Promise.all(queued)).every(result => result.status === 'cancelled')).toBe(true);
+    expect((await Promise.all(queued)).every((result) => result.status === 'cancelled')).toBe(true);
     unblock();
     await Promise.all([running, stopped]);
     expect(get(runtime.snapshots).busy).toEqual({});
@@ -192,7 +265,9 @@ describe('automation runtime', () => {
     const config = control();
     settings.controls = [config];
     let unblock!: () => void;
-    const blocked = new Promise<void>(resolve => { unblock = resolve; });
+    const blocked = new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
     actions.set('test.action', { id: 'test.action', title: 'Test', run: () => blocked });
     runtime = new AutomationRuntime();
     const run = runtime.dispatch(packet(config));
@@ -207,9 +282,11 @@ describe('automation runtime', () => {
   });
 
   it('keeps owner page selection runtime-only and follows a deleted active page once', async () => {
-    settings.deck.pages = [structuredClone(priorSettings.deck.pages[0]),
+    settings.deck.pages = [
+      structuredClone(priorSettings.deck.pages[0]),
       { ...structuredClone(priorSettings.deck.pages[0]), id: 'page-2', name: 'Page 2' },
-      { ...structuredClone(priorSettings.deck.pages[0]), id: 'page-3', name: 'Page 3' }];
+      { ...structuredClone(priorSettings.deck.pages[0]), id: 'page-3', name: 'Page 3' },
+    ];
     settings.deck.activePage = 'page-2';
     runtime = new AutomationRuntime();
     await tick();
@@ -219,12 +296,15 @@ describe('automation runtime', () => {
     expect(get(runtime.snapshots)).toMatchObject({ owner: true, activePage: 'page-3' });
     expect(JSON.parse(serializeSettings()).deck.activePage).toBe('page-1');
     expect(runtime.changePage('page-2')).toBe(true);
-    settings.deck.pages = settings.deck.pages.filter(page => page.id !== 'page-2');
+    settings.deck.pages = settings.deck.pages.filter((page) => page.id !== 'page-2');
     runtime.reconcilePages();
     await tick();
     expect(settings.deck.activePage).toBe('page-3');
     const writesBefore = serializeSettings();
-    acceptRuntimeSnapshot({ activePage: 'page-1', variables: { revision: 0, records: {} }, busy: {} }, 1000);
+    acceptRuntimeSnapshot(
+      { activePage: 'page-1', variables: { revision: 0, records: {} }, busy: {} },
+      1000,
+    );
     expect(settings.deck.activePage).toBe('page-1');
     expect(get(runtimeView)).toMatchObject({ owner: false, activePage: 'page-1' });
     expect(serializeSettings()).toBe(writesBefore);
@@ -234,7 +314,9 @@ describe('automation runtime', () => {
     settings.deck.pages = [page('page-1'), page('page-2')];
     settings.deck.activePage = 'page-1';
     const listener = control();
-    listener.scenario!.events = [{ id: 'page-listener', eventId: 'page.changed', list: { steps: [] } }];
+    listener.scenario!.events = [
+      { id: 'page-listener', eventId: 'page.changed', list: { steps: [] } },
+    ];
     settings.controls = [listener];
     runtime = new AutomationRuntime();
     const dispatch = vi.spyOn(runtime, 'dispatch').mockResolvedValue({ status: 'completed' });
@@ -243,8 +325,11 @@ describe('automation runtime', () => {
     expect(runtime.changePage('page-2', 'action')).toBe(false);
     await Promise.resolve();
     expect(dispatch).toHaveBeenCalledOnce();
-    expect(dispatch.mock.calls[0][0].event).toEqual({ id: 'page.changed', parameter: 'page-2',
-      payload: { previousPage: 'page-1', page: 'page-2', reason: 'dot' } });
+    expect(dispatch.mock.calls[0][0].event).toEqual({
+      id: 'page.changed',
+      parameter: 'page-2',
+      payload: { previousPage: 'page-1', page: 'page-2', reason: 'dot' },
+    });
 
     settings.deck.pages[1].name = 'Renamed';
     settings.deck.pages = [...settings.deck.pages].reverse();
@@ -260,19 +345,28 @@ describe('automation runtime', () => {
     settings.deck.pages = [page('page-1'), page('page-2'), page('page-3')];
     settings.deck.activePage = 'page-1';
     const listener = control();
-    listener.scenario!.events = [{ id: 'page-listener', eventId: 'page.changed', list: { steps: [
-      { id: 'cycle', kind: 'action', action: { id: 'test.page-cycle' } },
-    ] } }];
+    listener.scenario!.events = [
+      {
+        id: 'page-listener',
+        eventId: 'page.changed',
+        list: { steps: [{ id: 'cycle', kind: 'action', action: { id: 'test.page-cycle' } }] },
+      },
+    ];
     settings.controls = [listener];
-    const calls: unknown[] = [], failures: unknown[] = [];
-    actions.set('test.page-cycle', { id: 'test.page-cycle', title: 'Navigate', run: (_args, context) => {
-      calls.push(context?.eventAncestry);
-      runtime!.changePage('page-3', 'action', context?.eventAncestry);
-    } });
-    runtime = new AutomationRuntime({ onFailure: failure => failures.push(failure) });
+    const calls: unknown[] = [],
+      failures: unknown[] = [];
+    actions.set('test.page-cycle', {
+      id: 'test.page-cycle',
+      title: 'Navigate',
+      run: (_args, context) => {
+        calls.push(context?.eventAncestry);
+        runtime!.changePage('page-3', 'action', context?.eventAncestry);
+      },
+    });
+    runtime = new AutomationRuntime({ onFailure: (failure) => failures.push(failure) });
 
     expect(runtime.changePage('page-2', 'dot')).toBe(true);
-    await new Promise(resolve => setTimeout(resolve, 25));
+    await new Promise((resolve) => setTimeout(resolve, 25));
     expect(settings.deck.activePage).toBe('page-3');
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ depth: 1, listeners: ['runtime-test\u0000page-listener'] });
@@ -291,15 +385,43 @@ describe('automation runtime', () => {
       { kind: 'url' as const, value: 'https://example.test/b.png' },
       { kind: 'url' as const, value: 'https://example.test/c.png' },
     ];
-    const self = { ...control(), id: 'media-self', name: 'Self media', type: 'media', options: { sources, loop: false } };
-    const other = { ...control(), id: 'media-other', name: 'Other media', type: 'media', options: { sources, loop: true } };
-    settings.deck.pages[0].items.push({ id: 'self-item', control: self.id, x: 0, y: 0, w: 2, h: 2 });
-    settings.skinLayouts = { subway: { 'page-2': { main: [{ id: 'other-item', control: other.id, x: 0, y: 0, w: 2, h: 2 }] } } };
+    const self = {
+      ...control(),
+      id: 'media-self',
+      name: 'Self media',
+      type: 'media',
+      options: { sources, loop: false },
+    };
+    const other = {
+      ...control(),
+      id: 'media-other',
+      name: 'Other media',
+      type: 'media',
+      options: { sources, loop: true },
+    };
+    settings.deck.pages[0].items.push({
+      id: 'self-item',
+      control: self.id,
+      x: 0,
+      y: 0,
+      w: 2,
+      h: 2,
+    });
+    settings.skinLayouts = {
+      subway: {
+        'page-2': { main: [{ id: 'other-item', control: other.id, x: 0, y: 0, w: 2, h: 2 }] },
+      },
+    };
     settings.controls = [self, other];
     const owner = await bootRuntime({ variables: new VariableStore() });
     runtime = owner.runtime;
-    const context = { signal: new AbortController().signal, eventAncestry: { depth: 0, listeners: [] } } as unknown as ActionContext;
-    const next = actions.get('page.next')!, prev = actions.get('page.prev')!, goTo = actions.get('page.goto')!;
+    const context = {
+      signal: new AbortController().signal,
+      eventAncestry: { depth: 0, listeners: [] },
+    } as unknown as ActionContext;
+    const next = actions.get('page.next')!,
+      prev = actions.get('page.prev')!,
+      goTo = actions.get('page.goto')!;
 
     await next.run({}, context);
     expect(settings.deck.activePage).toBe('page-2');
@@ -307,13 +429,21 @@ describe('automation runtime', () => {
     expect(settings.deck.activePage).toBe('page-3');
     await prev.run({}, context);
     expect(settings.deck.activePage).toBe('page-2');
-    await expect(Promise.resolve().then(() => goTo.run({ page: 'missing' }, context))).rejects.toThrow('Page is unavailable');
+    await expect(
+      Promise.resolve().then(() => goTo.run({ page: 'missing' }, context)),
+    ).rejects.toThrow('Page is unavailable');
     expect(settings.deck.activePage).toBe('page-2');
 
-    const mediaNext = actions.get('media.next')!, mediaPrev = actions.get('media.prev')!, mediaGoto = actions.get('media.goto')!;
+    const mediaNext = actions.get('media.next')!,
+      mediaPrev = actions.get('media.prev')!,
+      mediaGoto = actions.get('media.goto')!;
     const mediaContext = { ...context, controlId: self.id };
-    const mediaTarget = mediaNext.params!.find(param => param.key === 'target')!;
-    expect((suggestionsOf(mediaTarget) ?? []).map(option => option.value)).toEqual(['self', 'media-self', 'media-other']);
+    const mediaTarget = mediaNext.params!.find((param) => param.key === 'target')!;
+    expect((suggestionsOf(mediaTarget) ?? []).map((option) => option.value)).toEqual([
+      'self',
+      'media-self',
+      'media-other',
+    ]);
     await mediaNext.run({ target: 'self', source: 'system' }, mediaContext);
     expect(get(runtime.snapshots).content[self.id]?.slide).toBe(1);
     await mediaNext.run({ target: other.id, source: 'system' }, mediaContext);
@@ -326,14 +456,20 @@ describe('automation runtime', () => {
     expect(get(runtime.snapshots).content[other.id]?.slide).toBe(0);
     const aborted = new AbortController();
     aborted.abort();
-    await expect(Promise.resolve().then(() => next.run({}, { ...context, signal: aborted.signal }))).rejects.toThrow('runtime is unavailable');
+    await expect(
+      Promise.resolve().then(() => next.run({}, { ...context, signal: aborted.signal })),
+    ).rejects.toThrow('runtime is unavailable');
 
     await stopRuntime();
     runtime = undefined;
     const follower = await bootRuntime({ variables: new VariableStore(), owner: false });
     runtime = follower.runtime;
-    await expect(Promise.resolve().then(() => next.run({}, context))).rejects.toThrow('runtime is unavailable');
-    await expect(Promise.resolve().then(() => mediaNext.run({ target: self.id }, mediaContext))).rejects.toThrow('Content runtime is unavailable');
+    await expect(Promise.resolve().then(() => next.run({}, context))).rejects.toThrow(
+      'runtime is unavailable',
+    );
+    await expect(
+      Promise.resolve().then(() => mediaNext.run({ target: self.id }, mediaContext)),
+    ).rejects.toThrow('Content runtime is unavailable');
   });
 
   it('runs skin setup only for an owner, resolves config and keeps view/state outside settings history', async () => {
@@ -341,22 +477,36 @@ describe('automation runtime', () => {
     const observed: unknown[] = [];
     const cleanup = vi.fn();
     let hookContext!: import('../features/skins/definition').SkinRuntimeContext;
-    install({ id: 'runtime-skin-plugin', title: 'Runtime skin fixture', setup: api => api.registerSkin({
-      id: skinId, title: 'Runtime skin', component: {} as import('svelte').Component,
-      slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
-      views: [{ id: 'display', title: 'Display', slots: ['main'] }, { id: 'cab', title: 'Cab', slots: ['main'] }], defaultView: 'display',
-      settings: [{ key: 'enabled', label: 'Enabled', type: 'boolean', default: false }],
-      state: [{ key: 'configured', type: 'boolean', initialValue: false, persistent: true }],
-      events: [{ id: `${skinId}.changed`, title: 'Changed' }],
-      runtime: context => {
-        hookContext = context;
-        const stop = context.config.subscribe(config => {
-          observed.push(config.enabled);
-          void context.setState('configured', config.enabled === true);
-        });
-        return () => { stop(); cleanup(); };
-      },
-    }) });
+    install({
+      id: 'runtime-skin-plugin',
+      title: 'Runtime skin fixture',
+      setup: (api) =>
+        api.registerSkin({
+          id: skinId,
+          title: 'Runtime skin',
+          component: {} as import('svelte').Component,
+          slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
+          views: [
+            { id: 'display', title: 'Display', slots: ['main'] },
+            { id: 'cab', title: 'Cab', slots: ['main'] },
+          ],
+          defaultView: 'display',
+          settings: [{ key: 'enabled', label: 'Enabled', type: 'boolean', default: false }],
+          state: [{ key: 'configured', type: 'boolean', initialValue: false, persistent: true }],
+          events: [{ id: `${skinId}.changed`, title: 'Changed' }],
+          runtime: (context) => {
+            hookContext = context;
+            const stop = context.config.subscribe((config) => {
+              observed.push(config.enabled);
+              void context.setState('configured', config.enabled === true);
+            });
+            return () => {
+              stop();
+              cleanup();
+            };
+          },
+        }),
+    });
     settings.skinSettings[skinId] = { enabled: true, future: '保持' };
     const before = serializeSettings();
     runtime = new AutomationRuntime();
@@ -366,7 +516,10 @@ describe('automation runtime', () => {
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('display');
     expect(serializeSettings()).toBe(before);
 
-    settings.skinSettings = { ...settings.skinSettings, [skinId]: { enabled: false, future: '保持' } };
+    settings.skinSettings = {
+      ...settings.skinSettings,
+      [skinId]: { enabled: false, future: '保持' },
+    };
     runtime.updateSkinConfig(skinId, settings.skinSettings[skinId]);
     await tick();
     expect(observed).toEqual([true, false]);
@@ -378,9 +531,22 @@ describe('automation runtime', () => {
     await runtime.setSkinState(skinId, 'configured', true, ancestry);
     await hookContext.emitEvent(`${skinId}.changed`, 'fixture', { ok: true }, ancestry);
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('cab');
-    expect(runtime.variables.serializePersistent().records.find(record => record.definition.id === `${skinId}.configured`)?.value).toBe(true);
-    expect(runtime.variables.serializePersistent().records.some(record => record.definition.id === `${skinId}.view`)).toBe(false);
-    expect(emit.mock.calls).toContainEqual(['variables.changed', `${skinId}.configured`, expect.any(Object), ancestry]);
+    expect(
+      runtime.variables
+        .serializePersistent()
+        .records.find((record) => record.definition.id === `${skinId}.configured`)?.value,
+    ).toBe(true);
+    expect(
+      runtime.variables
+        .serializePersistent()
+        .records.some((record) => record.definition.id === `${skinId}.view`),
+    ).toBe(false);
+    expect(emit.mock.calls).toContainEqual([
+      'variables.changed',
+      `${skinId}.configured`,
+      expect.any(Object),
+      ancestry,
+    ]);
     expect(emit).toHaveBeenCalledWith(`${skinId}.changed`, 'fixture', { ok: true }, ancestry);
 
     await runtime.dispose();
@@ -393,7 +559,8 @@ describe('automation runtime', () => {
     await runtime.dispose();
     runtime = new AutomationRuntime({ owner: false });
     expect(observed).toEqual([true, false]);
-    expect(() => runtime!.setSkinState(skinId, 'configured', false)).toThrow('Skin runtime is unavailable');
+    expect(() => runtime!.setSkinState(skinId, 'configured', false)).toThrow(
+      'Skin runtime is unavailable',
+    );
   });
-
 });

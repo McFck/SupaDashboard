@@ -3,17 +3,32 @@ import { SPRING_SAMPLES } from './spring';
 
 export type SortableRect = { start: number; end: number };
 
-export function sortablePosition(from: number, requestedTranslation: number, bounds: readonly SortableRect[]) {
-  if (!bounds.length || from < 0 || from >= bounds.length || !Number.isFinite(requestedTranslation)) {
+export function sortablePosition(
+  from: number,
+  requestedTranslation: number,
+  bounds: readonly SortableRect[],
+) {
+  if (
+    !bounds.length ||
+    from < 0 ||
+    from >= bounds.length ||
+    !Number.isFinite(requestedTranslation)
+  ) {
     return { translation: 0, destination: from };
   }
   const source = bounds[from];
-  const translation = Math.max(bounds[0].start - source.start,
-    Math.min(bounds.at(-1)!.end - source.end, requestedTranslation));
-  const centers = bounds.map(rect => (rect.start + rect.end) / 2);
-  const destination = translation > 0
-    ? from + centers.filter((center, index) => index > from && center < source.end + translation).length
-    : from - centers.filter((center, index) => index < from && center > source.start + translation).length;
+  const translation = Math.max(
+    bounds[0].start - source.start,
+    Math.min(bounds.at(-1)!.end - source.end, requestedTranslation),
+  );
+  const centers = bounds.map((rect) => (rect.start + rect.end) / 2);
+  const destination =
+    translation > 0
+      ? from +
+        centers.filter((center, index) => index > from && center < source.end + translation).length
+      : from -
+        centers.filter((center, index) => index < from && center > source.start + translation)
+          .length;
   return { translation, destination: Math.max(0, Math.min(bounds.length - 1, destination)) };
 }
 
@@ -45,19 +60,35 @@ type Session = {
   styles: Map<HTMLElement, StyleSnapshot>;
 };
 
-const axisProperty = (axis: 'x' | 'y') => axis === 'x'
-  ? { coordinate: 'clientX' as const, size: 'width' as const, scroll: 'scrollLeft' as const,
-    clientSize: 'clientWidth' as const, scrollSize: 'scrollWidth' as const, gap: 'columnGap' as const }
-  : { coordinate: 'clientY' as const, size: 'height' as const, scroll: 'scrollTop' as const,
-    clientSize: 'clientHeight' as const, scrollSize: 'scrollHeight' as const, gap: 'rowGap' as const };
+const axisProperty = (axis: 'x' | 'y') =>
+  axis === 'x'
+    ? {
+        coordinate: 'clientX' as const,
+        size: 'width' as const,
+        scroll: 'scrollLeft' as const,
+        clientSize: 'clientWidth' as const,
+        scrollSize: 'scrollWidth' as const,
+        gap: 'columnGap' as const,
+      }
+    : {
+        coordinate: 'clientY' as const,
+        size: 'height' as const,
+        scroll: 'scrollTop' as const,
+        clientSize: 'clientHeight' as const,
+        scrollSize: 'scrollHeight' as const,
+        gap: 'rowGap' as const,
+      };
 
 function scrollParent(node: HTMLElement, axis: 'x' | 'y') {
   const props = axisProperty(axis);
   for (let parent = node; parent; parent = parent.parentElement!) {
     const style = getComputedStyle(parent);
     const overflow = axis === 'x' ? style.overflowX : style.overflowY;
-    if ((overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay') &&
-      parent[props.scrollSize] > parent[props.clientSize] + 1) return parent;
+    if (
+      (overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay') &&
+      parent[props.scrollSize] > parent[props.clientSize] + 1
+    )
+      return parent;
   }
   return undefined;
 }
@@ -76,31 +107,40 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
 
   function matchesItems(current: Session) {
     const items = options.items();
-    return items.length === current.items.length && items.every((item, index) => item === current.items[index]);
+    return (
+      items.length === current.items.length &&
+      items.every((item, index) => item === current.items[index])
+    );
   }
 
   function restore(current: Session) {
     // Drop the drag offsets without letting any CSS transition animate them back; transitions return a frame later.
     for (const [item, style] of current.styles) {
       item.style.transition = 'none';
-      if (style.transform) item.style.transform = style.transform; else item.style.removeProperty('transform');
-      if (style.zIndex) item.style.zIndex = style.zIndex; else item.style.removeProperty('z-index');
+      if (style.transform) item.style.transform = style.transform;
+      else item.style.removeProperty('transform');
+      if (style.zIndex) item.style.zIndex = style.zIndex;
+      else item.style.removeProperty('z-index');
       item.removeAttribute('data-sortable-active');
     }
     void node.offsetHeight;
     requestAnimationFrame(() => {
       for (const [item, style] of current.styles) {
         if (settlingStyle?.item === item) continue;
-        if (style.transition) item.style.transition = style.transition; else item.style.removeProperty('transition');
+        if (style.transition) item.style.transition = style.transition;
+        else item.style.removeProperty('transition');
       }
     });
     node.removeAttribute('data-sorting');
   }
 
   function restoreStyle(item: HTMLElement, style: StyleSnapshot) {
-    if (style.transform) item.style.transform = style.transform; else item.style.removeProperty('transform');
-    if (style.transition) item.style.transition = style.transition; else item.style.removeProperty('transition');
-    if (style.zIndex) item.style.zIndex = style.zIndex; else item.style.removeProperty('z-index');
+    if (style.transform) item.style.transform = style.transform;
+    else item.style.removeProperty('transform');
+    if (style.transition) item.style.transition = style.transition;
+    else item.style.removeProperty('transition');
+    if (style.zIndex) item.style.zIndex = style.zIndex;
+    else item.style.removeProperty('z-index');
   }
 
   function cancelSettlement() {
@@ -118,7 +158,8 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     stopSessionListeners();
     if (current.frame !== null) cancelAnimationFrame(current.frame);
     restore(current);
-    if (current.source.hasPointerCapture(current.pointerId)) current.source.releasePointerCapture(current.pointerId);
+    if (current.source.hasPointerCapture(current.pointerId))
+      current.source.releasePointerCapture(current.pointerId);
   }
 
   function stopSessionListeners() {
@@ -138,7 +179,7 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
   function contentBounds(items: HTMLElement[], axis: 'x' | 'y', scrollElement?: HTMLElement) {
     const props = axisProperty(axis);
     const offset = scrollElement?.[props.scroll] ?? 0;
-    return items.map(item => {
+    return items.map((item) => {
       const rect = item.getBoundingClientRect();
       const start = (axis === 'x' ? rect.left : rect.top) + offset;
       return { start, end: start + rect[props.size] };
@@ -151,16 +192,27 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
 
   function paint(current: Session) {
     if (session !== current) return;
-    if (!matchesItems(current) || options.enabled === false) { cancel(current); return; }
+    if (!matchesItems(current) || options.enabled === false) {
+      cancel(current);
+      return;
+    }
     const props = axisProperty(options.axis);
-    const scrollDelta = (current.scrollElement?.[props.scroll] ?? current.startScroll) - current.startScroll;
-    const position = sortablePosition(current.from, current.latest - current.start + scrollDelta, current.bounds);
+    const scrollDelta =
+      (current.scrollElement?.[props.scroll] ?? current.startScroll) - current.startScroll;
+    const position = sortablePosition(
+      current.from,
+      current.latest - current.start + scrollDelta,
+      current.bounds,
+    );
     current.destination = position.destination;
     const sourceSize = current.bounds[current.from].end - current.bounds[current.from].start;
     const computedGap = Number.parseFloat(getComputedStyle(node)[props.gap]);
-    const neighborGap = current.from < current.bounds.length - 1
-      ? current.bounds[current.from + 1].start - current.bounds[current.from].end
-      : current.from > 0 ? current.bounds[current.from].start - current.bounds[current.from - 1].end : 0;
+    const neighborGap =
+      current.from < current.bounds.length - 1
+        ? current.bounds[current.from + 1].start - current.bounds[current.from].end
+        : current.from > 0
+          ? current.bounds[current.from].start - current.bounds[current.from - 1].end
+          : 0;
     const gap = Number.isFinite(computedGap) ? computedGap : Math.max(0, neighborGap);
     const step = sourceSize + gap;
     const source = current.items[current.from];
@@ -171,9 +223,15 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     setTranslate(source, options.axis, position.translation);
     current.items.forEach((item, index) => {
       if (index === current.from) return;
-      const shift = index > current.from && index <= current.destination ? -step
-        : index < current.from && index >= current.destination ? step : 0;
-      item.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : 'transform 180ms cubic-bezier(.22, 1, .36, 1)';
+      const shift =
+        index > current.from && index <= current.destination
+          ? -step
+          : index < current.from && index >= current.destination
+            ? step
+            : 0;
+      item.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'none'
+        : 'transform 180ms cubic-bezier(.22, 1, .36, 1)';
       setTranslate(item, options.axis, shift);
     });
   }
@@ -184,7 +242,8 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     void tick().then(() => {
       if (settleFrame === null) return;
       settleFrame = null;
-      const source = current.source, original = current.styles.get(source);
+      const source = current.source,
+        original = current.styles.get(source);
       if (!source.isConnected || !original) return;
       const held = heldRects.get(source);
       if (!held) return;
@@ -201,21 +260,29 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       source.style.transform = from;
       void source.getBoundingClientRect();
       const distanceDuration = Math.max(160, Math.min(260, 160 + Math.abs(offset) * 0.2));
-      const animation = source.animate([
-        { transform: from, offset: 0 },
-        ...SPRING_SAMPLES.slice(1).map(sample => ({ transform: `translate${axis}(${offset * (1 - sample.progress)}px)${original.transform ? ` ${original.transform}` : ''}`, offset: sample.offset })),
-        { transform: to, offset: 1 },
-      ], { duration: distanceDuration, fill: 'both' });
+      const animation = source.animate(
+        [
+          { transform: from, offset: 0 },
+          ...SPRING_SAMPLES.slice(1).map((sample) => ({
+            transform: `translate${axis}(${offset * (1 - sample.progress)}px)${original.transform ? ` ${original.transform}` : ''}`,
+            offset: sample.offset,
+          })),
+          { transform: to, offset: 1 },
+        ],
+        { duration: distanceDuration, fill: 'both' },
+      );
       settleAnimation = animation;
-      void animation.finished.then(() => {
-        if (settleAnimation !== animation) return;
-        settleAnimation = null;
-        if (settlingStyle?.item === source) {
-          restoreStyle(source, original);
-          settlingStyle = null;
-        }
-        animation.cancel();
-      }).catch(() => {});
+      void animation.finished
+        .then(() => {
+          if (settleAnimation !== animation) return;
+          settleAnimation = null;
+          if (settlingStyle?.item === source) {
+            restoreStyle(source, original);
+            settlingStyle = null;
+          }
+          animation.cancel();
+        })
+        .catch(() => {});
     });
   }
 
@@ -230,12 +297,14 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     const before = coordinate - startPoint;
     const after = startPoint + size - coordinate;
     let delta = 0;
-    if (before < edgeSize) delta = -Math.ceil(10 * (edgeSize - before) / edgeSize);
-    else if (after < edgeSize) delta = Math.ceil(10 * (edgeSize - after) / edgeSize);
+    if (before < edgeSize) delta = -Math.ceil((10 * (edgeSize - before)) / edgeSize);
+    else if (after < edgeSize) delta = Math.ceil((10 * (edgeSize - after)) / edgeSize);
     if (!delta) return false;
     const old = current.scrollElement[props.scroll];
-    current.scrollElement[props.scroll] = Math.max(current.scrollStart,
-      Math.min(current.scrollEnd, old + delta));
+    current.scrollElement[props.scroll] = Math.max(
+      current.scrollStart,
+      Math.min(current.scrollEnd, old + delta),
+    );
     return current.scrollElement[props.scroll] !== old;
   }
 
@@ -253,13 +322,18 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
   function onPointerDown(event: PointerEvent) {
     const target = event.target;
     if (session) cancel(session);
-    if (options.enabled === false || event.button !== 0 || !(target instanceof Element) ||
-      target.closest('[data-sortable-root]') !== node) return;
+    if (
+      options.enabled === false ||
+      event.button !== 0 ||
+      !(target instanceof Element) ||
+      target.closest('[data-sortable-root]') !== node
+    )
+      return;
     suppressedClick = null;
     cancelSettlement();
     const items = options.items();
     if (items.length < 2) return;
-    const source = items.find(item => item === target || item.contains(target));
+    const source = items.find((item) => item === target || item.contains(target));
     if (!source) return;
     if (options.handle) {
       const handle = target.closest(options.handle);
@@ -271,14 +345,40 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     const bounds = contentBounds(items, options.axis, parent);
     const from = items.indexOf(source);
     if (from < 0) return;
-    const styles = new Map(items.map(item => [item, { transform: item.style.transform, transition: item.style.transition, zIndex: item.style.zIndex }]));
-    session = { pointerId: event.pointerId, from, destination: from, start: event[props.coordinate], latest: event[props.coordinate],
-      startScroll: parent?.[props.scroll] ?? 0, scrollStart: 0,
+    const styles = new Map(
+      items.map((item) => [
+        item,
+        {
+          transform: item.style.transform,
+          transition: item.style.transition,
+          zIndex: item.style.zIndex,
+        },
+      ]),
+    );
+    session = {
+      pointerId: event.pointerId,
+      from,
+      destination: from,
+      start: event[props.coordinate],
+      latest: event[props.coordinate],
+      startScroll: parent?.[props.scroll] ?? 0,
+      scrollStart: 0,
       scrollEnd: parent ? parent[props.scrollSize] - parent[props.clientSize] : 0,
-      scrollElement: parent, scrollRect: parent?.getBoundingClientRect(), bounds, items, source, moved: false, frame: null, styles };
+      scrollElement: parent,
+      scrollRect: parent?.getBoundingClientRect(),
+      bounds,
+      items,
+      source,
+      moved: false,
+      frame: null,
+      styles,
+    };
     startSessionListeners();
-    try { source.setPointerCapture(event.pointerId); }
-    catch { /* Window capture listeners still complete the pointer session. */ }
+    try {
+      source.setPointerCapture(event.pointerId);
+    } catch {
+      /* Window capture listeners still complete the pointer session. */
+    }
   }
 
   function onNewPointerDown() {
@@ -289,7 +389,9 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     const current = session;
     if (!current || current.pointerId !== event.pointerId) return;
     current.latest = event[axisProperty(options.axis).coordinate];
-    const scrollDelta = (current.scrollElement?.[axisProperty(options.axis).scroll] ?? current.startScroll) - current.startScroll;
+    const scrollDelta =
+      (current.scrollElement?.[axisProperty(options.axis).scroll] ?? current.startScroll) -
+      current.startScroll;
     current.moved ||= Math.abs(current.latest - current.start + scrollDelta) >= 4;
     if (!current.moved) return;
     if (event.cancelable) event.preventDefault();
@@ -304,15 +406,19 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     if (current.frame !== null) cancelAnimationFrame(current.frame);
     current.frame = null;
     if (current.moved) paint(current);
-    const from = current.from, to = current.destination;
+    const from = current.from,
+      to = current.destination;
     const validOrder = matchesItems(current) && options.enabled !== false;
     const shouldMove = current.moved && validOrder && to !== from;
-    const heldRects = current.moved && validOrder
-      ? new Map(current.items.map(item => [item, item.getBoundingClientRect()])) : null;
+    const heldRects =
+      current.moved && validOrder
+        ? new Map(current.items.map((item) => [item, item.getBoundingClientRect()]))
+        : null;
     session = null;
     stopSessionListeners();
     restore(current);
-    if (current.source.hasPointerCapture(current.pointerId)) current.source.releasePointerCapture(current.pointerId);
+    if (current.source.hasPointerCapture(current.pointerId))
+      current.source.releasePointerCapture(current.pointerId);
     if (current.moved) {
       suppressedClick = current.source;
       suppressClickUntil = performance.now() + 500;
@@ -335,12 +441,16 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     cancel();
   }
 
-  function onBlur() { cancel(); }
+  function onBlur() {
+    cancel();
+  }
 
   function onClick(event: MouseEvent) {
     if (!suppressedClick) return;
     const target = event.target;
-    const shouldSuppress = performance.now() < suppressClickUntil && target instanceof Node &&
+    const shouldSuppress =
+      performance.now() < suppressClickUntil &&
+      target instanceof Node &&
       (target === suppressedClick || suppressedClick.contains(target));
     suppressedClick = null;
     if (!shouldSuppress) return;

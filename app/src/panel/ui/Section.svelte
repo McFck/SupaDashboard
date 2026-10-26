@@ -5,6 +5,8 @@
 </script>
 
 <section class="grid">
-  {#if title}<h3 class="pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>{/if}
+  {#if title}<h3 class="pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {title}
+    </h3>{/if}
   {@render children()}
 </section>

@@ -3,9 +3,26 @@
   import { backOut, cubicOut } from 'svelte/easing';
   import { toast } from 'svelte-sonner';
 
-  export type MenuAction = { label: string; run: () => void | Promise<void>; disabled?: boolean; danger?: boolean };
-  let { open, x, y, actions, onclose, ariaLabel = 'Widget actions' }: {
-    open: boolean; x: number; y: number; actions: MenuAction[]; onclose: () => void; ariaLabel?: string;
+  export type MenuAction = {
+    label: string;
+    run: () => void | Promise<void>;
+    disabled?: boolean;
+    danger?: boolean;
+  };
+  let {
+    open,
+    x,
+    y,
+    actions,
+    onclose,
+    ariaLabel = 'Widget actions',
+  }: {
+    open: boolean;
+    x: number;
+    y: number;
+    actions: MenuAction[];
+    onclose: () => void;
+    ariaLabel?: string;
   } = $props();
   let menu = $state<HTMLDivElement>();
   let closing = $state(false);
@@ -26,17 +43,30 @@
 
   function intro(node: HTMLElement) {
     const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 170;
-    return { duration, easing: backOut, css: (t: number) => `opacity:${t};transform:scale(${0.92 + 0.08 * t})` };
+    return {
+      duration,
+      easing: backOut,
+      css: (t: number) => `opacity:${t};transform:scale(${0.92 + 0.08 * t})`,
+    };
   }
   function outro(node: HTMLElement) {
     const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 120;
-    return { duration, easing: cubicOut, css: (t: number) => `opacity:${t};transform:scale(${0.97 + 0.03 * t})` };
+    return {
+      duration,
+      easing: cubicOut,
+      css: (t: number) => `opacity:${t};transform:scale(${0.97 + 0.03 * t})`,
+    };
   }
 
   function visible(element: HTMLElement | null): element is HTMLElement {
-    if (!element || !element.isConnected || element.closest('[inert], [aria-hidden="true"]')) return false;
+    if (!element || !element.isConnected || element.closest('[inert], [aria-hidden="true"]'))
+      return false;
     const style = getComputedStyle(element);
-    return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
+    return (
+      style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      element.getClientRects().length > 0
+    );
   }
   function close(restore = true) {
     if (closing) return;
@@ -63,7 +93,12 @@
     });
     return () => {
       const active = document.activeElement;
-      if (restoreFocus && (active === target || target.contains(active)) && visible(invoker) && invoker !== document.body) {
+      if (
+        restoreFocus &&
+        (active === target || target.contains(active)) &&
+        visible(invoker) &&
+        invoker !== document.body
+      ) {
         invoker.focus({ preventScroll: true });
       }
     };
@@ -120,8 +155,14 @@
     if (!buttons.length) return;
     event.preventDefault();
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
-      : at < 0 ? 0 : (at + (event.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length;
+    const next =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? buttons.length - 1
+          : at < 0
+            ? 0
+            : (at + (event.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length;
     buttons[next]?.focus({ preventScroll: true });
   }
   function choose(action: MenuAction) {
@@ -129,20 +170,39 @@
     actionRun = true;
     close(false);
     try {
-      void Promise.resolve(action.run()).catch(error => toast.error(String(error)));
+      void Promise.resolve(action.run()).catch((error) => toast.error(String(error)));
     } catch (error) {
       toast.error(String(error));
     }
   }
 </script>
 
-<div bind:this={menu} use:position={{ x, y }} role="menu" tabindex="-1" aria-label={ariaLabel} aria-hidden={!open || closing} inert={!open || closing} onkeydown={keyboard}
-  oncontextmenu={event => event.preventDefault()} in:intro out:outro
-  class="fixed z-50 grid max-h-[calc(100dvh-16px)] w-56 gap-0.5 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl">
+<div
+  bind:this={menu}
+  use:position={{ x, y }}
+  role="menu"
+  tabindex="-1"
+  aria-label={ariaLabel}
+  aria-hidden={!open || closing}
+  inert={!open || closing}
+  onkeydown={keyboard}
+  oncontextmenu={(event) => event.preventDefault()}
+  in:intro
+  out:outro
+  class="fixed z-50 grid max-h-[calc(100dvh-16px)] w-56 gap-0.5 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+>
   {#each actions as action (action.label)}
-    <button type="button" role="menuitem" tabindex="-1" disabled={action.disabled} aria-label={action.label}
+    <button
+      type="button"
+      role="menuitem"
+      tabindex="-1"
+      disabled={action.disabled}
+      aria-label={action.label}
       onclick={() => choose(action)}
-      class="flex min-h-8 items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm outline-none hover:bg-accent focus:bg-accent disabled:pointer-events-none disabled:opacity-40 {action.danger ? 'text-destructive' : ''}">
+      class="flex min-h-8 items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm outline-none hover:bg-accent focus:bg-accent disabled:pointer-events-none disabled:opacity-40 {action.danger
+        ? 'text-destructive'
+        : ''}"
+    >
       {action.label}
     </button>
   {/each}

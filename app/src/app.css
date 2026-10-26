@@ -1,6 +1,6 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "@fontsource-variable/inter";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/inter';
 
 @custom-variant dark (&:is(.dark *));
 /* shadcn-svelte classes use short state variants; bits-ui expresses them through data-state / data-orientation. */
@@ -71,58 +71,128 @@
 }
 
 @layer base {
-  * { @apply border-border outline-ring/50; }
-  html, body, #app { height: 100%; margin: 0; overflow: hidden; }
-  body { user-select: none; -webkit-user-select: none; }
-  input, textarea, [contenteditable='true'], .selectable { user-select: text; -webkit-user-select: text; }
-  body { @apply bg-background text-foreground antialiased; font-family: 'Inter Variable', 'Segoe UI', system-ui, sans-serif; font-feature-settings: 'cv11', 'ss01'; }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #app {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  input,
+  textarea,
+  [contenteditable='true'],
+  .selectable {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+  }
 }
 
 /* Scrollbars: reserve their gutter on scrolling panels, reveal the thumb on hover. */
 @supports not selector(::-webkit-scrollbar) {
-  * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
-  *:hover { scrollbar-color: #454545 transparent; }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  *:hover {
+    scrollbar-color: #454545 transparent;
+  }
 }
 @supports selector(::-webkit-scrollbar) {
-  *, *:hover { scrollbar-width: auto; scrollbar-color: auto; }
-  *::-webkit-scrollbar { width: 8px; height: 8px; }
-  *::-webkit-scrollbar-track { background: transparent; }
+  *,
+  *:hover {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
   *::-webkit-scrollbar-thumb {
     background: transparent;
     background-clip: padding-box;
     border: 2px solid transparent;
     border-radius: 999px;
   }
-  *:hover::-webkit-scrollbar-thumb { background-color: #454545; }
-  *::-webkit-scrollbar-thumb:hover { background-color: #626262; }
-  *::-webkit-scrollbar-corner { background: transparent; }
+  *:hover::-webkit-scrollbar-thumb {
+    background-color: #454545;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: #626262;
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 /* Compact, centered Sonner toasts that keep the library's transform-driven stack motion. */
-.toaster { font-family: inherit; }
+.toaster {
+  font-family: inherit;
+}
 .toaster [data-sonner-toast] {
   margin-inline: auto;
   min-width: 0;
   max-width: calc(100vw - 2rem);
   gap: 8px;
-  transition: transform 320ms cubic-bezier(.22, 1.12, .36, 1), opacity 160ms ease-out;
+  transition:
+    transform 320ms cubic-bezier(0.22, 1.12, 0.36, 1),
+    opacity 160ms ease-out;
 }
 .toaster [data-sonner-toast][data-styled='true'] {
   border-radius: 12px;
-  font: 12px/16px 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+  font:
+    12px/16px 'Inter Variable',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
 }
-.toaster [data-sonner-toast] [data-content] { min-width: 0; overflow-wrap: anywhere; }
-.toaster [data-sonner-toast] [data-button] { flex-shrink: 0; height: 24px; align-self: center; }
-.toaster [data-sonner-toast][data-type='success'] [data-icon] svg { color: oklch(.765 .177 163.223); }
-.toaster [data-sonner-toast][data-type='warning'] [data-icon] svg { color: oklch(.828 .189 84.429); }
-.toaster [data-sonner-toast][data-type='error'] [data-icon] svg { color: var(--destructive); }
-.toaster [data-sonner-toast][data-type='info'] [data-icon] svg { color: var(--primary); }
+.toaster [data-sonner-toast] [data-content] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.toaster [data-sonner-toast] [data-button] {
+  flex-shrink: 0;
+  height: 24px;
+  align-self: center;
+}
+.toaster [data-sonner-toast][data-type='success'] [data-icon] svg {
+  color: oklch(0.765 0.177 163.223);
+}
+.toaster [data-sonner-toast][data-type='warning'] [data-icon] svg {
+  color: oklch(0.828 0.189 84.429);
+}
+.toaster [data-sonner-toast][data-type='error'] [data-icon] svg {
+  color: var(--destructive);
+}
+.toaster [data-sonner-toast][data-type='info'] [data-icon] svg {
+  color: var(--primary);
+}
 .toaster [data-sonner-toast][data-removed='true'][data-front='false'][data-expanded='false'] {
-  transition: transform 320ms cubic-bezier(.22, 1.12, .36, 1), opacity 160ms ease-out;
+  transition:
+    transform 320ms cubic-bezier(0.22, 1.12, 0.36, 1),
+    opacity 160ms ease-out;
 }
-.toaster [data-sonner-toast][data-swiping='true'] { transition: none; }
+.toaster [data-sonner-toast][data-swiping='true'] {
+  transition: none;
+}
 @media (prefers-reduced-motion: reduce) {
-  .toaster [data-sonner-toast], .toaster [data-sonner-toast] *, .toaster .sonner-loading-bar {
+  .toaster [data-sonner-toast],
+  .toaster [data-sonner-toast] *,
+  .toaster .sonner-loading-bar {
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
   }
@@ -143,7 +213,7 @@
     border-radius: inherit;
     background: color-mix(in oklab, var(--accent, #8ea8f0) 5%, var(--tile-surface));
     border: 1px solid color-mix(in oklab, var(--accent, #8ea8f0) 22%, var(--tile-edge));
-    box-shadow: 0 2px 6px rgb(0 0 0 / .16);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.16);
   }
 }
 
@@ -158,18 +228,34 @@
   background: var(--tile-surface, #14161b);
 }
 
-[data-face-label-hidden="true"] .truncate { display: none; }
-[data-face-hide-name="true"] .flex.h-full.w-full.items-center.justify-between > .truncate { display: none; }
-[data-face-hide-percent="true"] .flex.h-full.w-full.items-center.justify-between > .tabular-nums { display: none; }
-[data-face-icon-only="true"] .flex.h-full.w-full.items-center.justify-between { justify-content: center; }
-[data-slider-track] [aria-hidden="true"]:not([data-slider-fill]) { border-radius: var(--track-radius, 18px); }
+[data-face-label-hidden='true'] .truncate {
+  display: none;
+}
+[data-face-hide-name='true'] .flex.h-full.w-full.items-center.justify-between > .truncate {
+  display: none;
+}
+[data-face-hide-percent='true'] .flex.h-full.w-full.items-center.justify-between > .tabular-nums {
+  display: none;
+}
+[data-face-icon-only='true'] .flex.h-full.w-full.items-center.justify-between {
+  justify-content: center;
+}
+[data-slider-track] [aria-hidden='true']:not([data-slider-fill]) {
+  border-radius: var(--track-radius, 18px);
+}
 
 [data-empty-cell] {
   background: var(--empty-cell-surface);
   border: 1px solid var(--empty-cell-edge);
 }
 
-[data-empty-cell]:hover { background: var(--empty-cell-hover); }
+[data-empty-cell]:hover {
+  background: var(--empty-cell-hover);
+}
 
 /* The dashboard window shows only its widgets. */
-html.transparent, html.transparent body, html.transparent #app { background: transparent; }
+html.transparent,
+html.transparent body,
+html.transparent #app {
+  background: transparent;
+}
