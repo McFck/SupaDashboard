@@ -5,20 +5,46 @@ import { sliderOrientation } from './geometry';
 import type { PullSnapshot } from './interaction';
 
 /** Legacy trigger names accepted only while migrating older saved controls. */
-export type Gesture = 'tap' | 'doubleTap' | 'longPress' | 'swipeUp' | 'swipeDown' | 'swipeLeft' | 'swipeRight';
+export type Gesture =
+  'tap' | 'doubleTap' | 'longPress' | 'swipeUp' | 'swipeDown' | 'swipeLeft' | 'swipeRight';
 
 export type SwipeGesture = Extract<Gesture, `swipe${string}`>;
 
 /** One mode of a control: prev for all media vs prev for Spotify only, system vs Spotify volume. */
-export type Variant = { id?: string; label: string; icon?: string | null; color?: string | null; background?: string | null;
-  /** Legacy action source, removed by normalizeControl. */ action?: ActionRef; value?: ValueRef };
+export type Variant = {
+  id?: string;
+  label: string;
+  icon?: string | null;
+  color?: string | null;
+  background?: string | null;
+  /** Legacy action source, removed by normalizeControl. */ action?: ActionRef;
+  value?: ValueRef;
+};
 /** A resolved, presentation-only view supplied by ACTIONS; these fields are never persisted here. */
 export type TileAppearance = Pick<Variant, 'label' | 'icon' | 'color' | 'background'>;
 export type TilePresentation = { key: string; view: TileAppearance };
-export type SliderFaceState = { level: number | null; muted: boolean; orientation: 'vertical' | 'horizontal';
-  active: boolean; fillReady: boolean; animateFill: boolean; sourceKey: string; accent: string };
-export type ControlFaceProps = { appearance: TileAppearance; presentation: TilePresentation; stateId: string; stateIndex: number;
-  busy: boolean; pull: PullSnapshot | null; compact: boolean; pixelWidth: number; pixelHeight: number; slider?: SliderFaceState };
+export type SliderFaceState = {
+  level: number | null;
+  muted: boolean;
+  orientation: 'vertical' | 'horizontal';
+  active: boolean;
+  fillReady: boolean;
+  animateFill: boolean;
+  sourceKey: string;
+  accent: string;
+};
+export type ControlFaceProps = {
+  appearance: TileAppearance;
+  presentation: TilePresentation;
+  stateId: string;
+  stateIndex: number;
+  busy: boolean;
+  pull: PullSnapshot | null;
+  compact: boolean;
+  pixelWidth: number;
+  pixelHeight: number;
+  slider?: SliderFaceState;
+};
 
 /** A gesture either runs an action or switches the control to another variant. */
 export type GestureBinding = ActionRef | { variant: 'next' | 'prev' | number };
@@ -45,19 +71,34 @@ export type ControlConfig = {
 
 /** Gestures a widget can use: sliders keep their drag axis for the value, so only cross-axis swipes remain. */
 export function availableGestures(type: string, w: number, h: number, compact = false): Gesture[] {
-  if (type === 'button' || type === 'media' || type === 'web') return ['swipeDown', 'swipeUp', 'swipeLeft', 'swipeRight', 'longPress', 'doubleTap'];
-  if (type === 'slider') return !compact && sliderOrientation(w, h) === 'vertical'
-    ? ['swipeLeft', 'swipeRight', 'longPress', 'doubleTap'] : ['swipeDown', 'swipeUp', 'longPress', 'doubleTap'];
+  if (type === 'button' || type === 'media' || type === 'web')
+    return ['swipeDown', 'swipeUp', 'swipeLeft', 'swipeRight', 'longPress', 'doubleTap'];
+  if (type === 'slider')
+    return !compact && sliderOrientation(w, h) === 'vertical'
+      ? ['swipeLeft', 'swipeRight', 'longPress', 'doubleTap']
+      : ['swipeDown', 'swipeUp', 'longPress', 'doubleTap'];
   return [];
 }
 
 /** Move a state; scenario references use stable IDs. Returns the reordered current index. */
-export function moveVariant(control: ControlConfig, current: number, from: number, to: number): number {
+export function moveVariant(
+  control: ControlConfig,
+  current: number,
+  from: number,
+  to: number,
+): number {
   const n = control.variants.length;
   if (from === to || from < 0 || to < 0 || from >= n || to >= n) return current;
   const [moved] = control.variants.splice(from, 1);
   control.variants.splice(to, 0, moved);
-  const remap = (i: number) => i === from ? to : from < to && i > from && i <= to ? i - 1 : from > to && i >= to && i < from ? i + 1 : i;
+  const remap = (i: number) =>
+    i === from
+      ? to
+      : from < to && i > from && i <= to
+        ? i - 1
+        : from > to && i >= to && i < from
+          ? i + 1
+          : i;
   return remap(current);
 }
 
@@ -69,13 +110,21 @@ export function removeVariant(control: ControlConfig, current: number, index: nu
   const replacement = control.variants[Math.min(index, n - 2)];
   const replacementId = replacement.id ?? `state-${Math.min(index, n - 2) + 1}`;
   control.variants.splice(index, 1);
-  const remap = (i: number) => i === index ? Math.min(index, n - 2) : i > index ? i - 1 : i;
+  const remap = (i: number) => (i === index ? Math.min(index, n - 2) : i > index ? i - 1 : i);
 
   const visit = (steps: ActionStep[] = []) => {
     for (const step of steps) {
-      if (step.kind === 'action' && step.action.id === 'button.variant' && step.action.args?.target === 'self' &&
-        step.action.args.variant === removedId) step.action.args.variant = replacementId;
-      else if (step.kind === 'if') { visit(step.then); visit(step.else); }
+      if (
+        step.kind === 'action' &&
+        step.action.id === 'button.variant' &&
+        step.action.args?.target === 'self' &&
+        step.action.args.variant === removedId
+      )
+        step.action.args.variant = replacementId;
+      else if (step.kind === 'if') {
+        visit(step.then);
+        visit(step.else);
+      }
     }
   };
   for (const list of Object.values(control.scenario?.triggers ?? {})) {
@@ -89,8 +138,14 @@ export function removeVariant(control: ControlConfig, current: number, index: nu
     visit(event.list.steps);
     for (const steps of Object.values(event.list.byState ?? {})) visit(steps);
   }
-  if (control.stateBinding) control.stateBinding.cases = control.stateBinding.cases.filter(item => item.stateId !== removedId);
-  if (control.stateRoles && (control.stateRoles.off === removedId || control.stateRoles.on === removedId))
+  if (control.stateBinding)
+    control.stateBinding.cases = control.stateBinding.cases.filter(
+      (item) => item.stateId !== removedId,
+    );
+  if (
+    control.stateRoles &&
+    (control.stateRoles.off === removedId || control.stateRoles.on === removedId)
+  )
     delete control.stateRoles;
   return remap(current);
 }

@@ -3,8 +3,22 @@
   import { onDestroy } from 'svelte';
   import { SPRING_SAMPLES } from '$lib/spring';
 
-  let { x = 0, y = 0, width, height, opacity = 1, invalid = false, preferredRadius = 22 }: {
-    x?: number; y?: number; width: number; height: number; opacity?: number; invalid?: boolean; preferredRadius?: number;
+  let {
+    x = 0,
+    y = 0,
+    width,
+    height,
+    opacity = 1,
+    invalid = false,
+    preferredRadius = 22,
+  }: {
+    x?: number;
+    y?: number;
+    width: number;
+    height: number;
+    opacity?: number;
+    invalid?: boolean;
+    preferredRadius?: number;
   } = $props();
 
   type Box = { x: number; y: number; width: number; height: number };
@@ -25,17 +39,42 @@
     animation?.cancel();
     if (!root) return Promise.resolve();
     const from = { x, y, width, height };
-    animation = root.animate(SPRING_SAMPLES.map(({ offset, progress: p }) => {
-      const w = tween(from.width, target.width, p), h = tween(from.height, target.height, p);
-      return { offset, translate: `${tween(from.x, target.x, p)}px ${tween(from.y, target.y, p)}px`,
-        width: `${w}px`, height: `${h}px`, borderRadius: `${radius(w, h)}px`, opacity: tween(opacity, 0, p) };
-    }), { duration, fill: 'both', easing: 'linear' });
-    return animation.finished.catch(() => {}).then(() => { if (run !== generation) return; });
+    animation = root.animate(
+      SPRING_SAMPLES.map(({ offset, progress: p }) => {
+        const w = tween(from.width, target.width, p),
+          h = tween(from.height, target.height, p);
+        return {
+          offset,
+          translate: `${tween(from.x, target.x, p)}px ${tween(from.y, target.y, p)}px`,
+          width: `${w}px`,
+          height: `${h}px`,
+          borderRadius: `${radius(w, h)}px`,
+          opacity: tween(opacity, 0, p),
+        };
+      }),
+      { duration, fill: 'both', easing: 'linear' },
+    );
+    return animation.finished
+      .catch(() => {})
+      .then(() => {
+        if (run !== generation) return;
+      });
   }
 
-  onDestroy(() => { generation++; animation?.cancel(); });
+  onDestroy(() => {
+    generation++;
+    animation?.cancel();
+  });
 </script>
 
-<div bind:this={root} aria-hidden="true" class="pointer-events-none absolute left-0 top-0 box-border border"
-  style:border-color={invalid ? 'rgb(248 113 113)' : 'rgb(110 231 183)'} style:translate="{x}px {y}px"
-  style:width="{width}px" style:height="{height}px" style:border-radius="{radius(width, height)}px" style:opacity></div>
+<div
+  bind:this={root}
+  aria-hidden="true"
+  class="pointer-events-none absolute left-0 top-0 box-border border"
+  style:border-color={invalid ? 'rgb(248 113 113)' : 'rgb(110 231 183)'}
+  style:translate="{x}px {y}px"
+  style:width="{width}px"
+  style:height="{height}px"
+  style:border-radius="{radius(width, height)}px"
+  style:opacity
+></div>

@@ -4,13 +4,34 @@
   import { runtimeView } from '../../../app/runtime.svelte';
   import { readWebOptions, webUrl } from '../../media/content';
   import { watchDashboardVisibility, watchIntersection } from '../../media/content-visibility';
-  import { consumeEligibleTime, initialWebFrameState, reduceWebFrameDomLoad, reduceWebFrameState, subscribeWebFrameEvents,
-    WEB_FRAME_TIMEOUT_MS, type WebFrameState } from '../../media/web-frame-status';
+  import {
+    consumeEligibleTime,
+    initialWebFrameState,
+    reduceWebFrameDomLoad,
+    reduceWebFrameState,
+    subscribeWebFrameEvents,
+    WEB_FRAME_TIMEOUT_MS,
+    type WebFrameState,
+  } from '../../media/web-frame-status';
   import ContentTile from './ContentTile.svelte';
 
-  let { control, page, pageId, pageVisible = true, pageRendered = true, itemId, pressFeedbackDisabled = false }:
-    { control: ControlConfig; page?: import('../../settings/schema').Page; pageId?: string;
-      pageVisible?: boolean; pageRendered?: boolean; itemId?: string; pressFeedbackDisabled?: boolean } = $props();
+  let {
+    control,
+    page,
+    pageId,
+    pageVisible = true,
+    pageRendered = true,
+    itemId,
+    pressFeedbackDisabled = false,
+  }: {
+    control: ControlConfig;
+    page?: import('../../settings/schema').Page;
+    pageId?: string;
+    pageVisible?: boolean;
+    pageRendered?: boolean;
+    itemId?: string;
+    pressFeedbackDisabled?: boolean;
+  } = $props();
   const options = $derived(readWebOptions(control.options));
   const reload = $derived($runtimeView.content[control.id]?.reload ?? 0);
   const requestedUrl = $derived(webUrl(options.url));
@@ -29,7 +50,9 @@
   let generation = $state(0);
   let stopFrames: (() => void) | undefined;
   let disposed = false;
-  const eligible = $derived(pageRendered && pageVisible && intersecting && documentVisible && dashboardVisible);
+  const eligible = $derived(
+    pageRendered && pageVisible && intersecting && documentVisible && dashboardVisible,
+  );
 
   function startAttempt(url: string | undefined) {
     generation++;
@@ -50,8 +73,11 @@
 
   $effect(() => {
     const node = visibilityTarget;
-    if (!node) { intersecting = false; return; }
-    return watchIntersection(node, value => intersecting = value);
+    if (!node) {
+      intersecting = false;
+      return;
+    }
+    return watchIntersection(node, (value) => (intersecting = value));
   });
 
   $effect(() => {
@@ -75,9 +101,12 @@
     }
     if (status === 'ready' && refresh > 0) {
       const token = generation;
-      const timer = setTimeout(() => {
-        if (token === generation && frameState.status === 'ready') startAttempt(attemptUrl);
-      }, refreshRemaining || refresh * 1000);
+      const timer = setTimeout(
+        () => {
+          if (token === generation && frameState.status === 'ready') startAttempt(attemptUrl);
+        },
+        refreshRemaining || refresh * 1000,
+      );
       return () => {
         clearTimeout(timer);
         refreshRemaining = refresh * 1000;
@@ -91,22 +120,29 @@
   }
 
   onMount(() => {
-    const updateDocument = () => documentVisible = document.visibilityState === 'visible';
+    const updateDocument = () => (documentVisible = document.visibilityState === 'visible');
     let stopDashboard = () => {};
     updateDocument();
     document.addEventListener('visibilitychange', updateDocument);
-    void watchDashboardVisibility(value => dashboardVisible = value).then(stop => {
-      if (disposed) stop(); else stopDashboard = stop;
-    }).catch(() => {});
-    void subscribeWebFrameEvents(event => {
+    void watchDashboardVisibility((value) => (dashboardVisible = value))
+      .then((stop) => {
+        if (disposed) stop();
+        else stopDashboard = stop;
+      })
+      .catch(() => {});
+    void subscribeWebFrameEvents((event) => {
       if (disposed || event.frameKey !== frameKey) return;
       frameState = reduceWebFrameState(frameState, event);
-    }).then(subscription => {
-      if (disposed) { subscription.dispose(); return; }
+    }).then((subscription) => {
+      if (disposed) {
+        subscription.dispose();
+        return;
+      }
       nativeStatus = subscription.nativeStatus;
       stopFrames = subscription.dispose;
       observerReady = true;
-      if (frameState.domLoaded && !nativeStatus) frameState = reduceWebFrameDomLoad(frameState, false);
+      if (frameState.domLoaded && !nativeStatus)
+        frameState = reduceWebFrameDomLoad(frameState, false);
     });
     return () => {
       disposed = true;
@@ -116,32 +152,60 @@
     };
   });
 
-  onDestroy(() => { generation++; stopFrames?.(); });
+  onDestroy(() => {
+    generation++;
+    stopFrames?.();
+  });
 </script>
 
-<ContentTile {control} {page} {pageId} {pageVisible} {itemId} {pressFeedbackDisabled}
-  passThrough={options.interactive && !pressFeedbackDisabled}>
+<ContentTile
+  {control}
+  {page}
+  {pageId}
+  {pageVisible}
+  {itemId}
+  {pressFeedbackDisabled}
+  passThrough={options.interactive && !pressFeedbackDisabled}
+>
   {#snippet children()}
-    <div bind:this={visibilityTarget} class="relative h-full w-full overflow-hidden">
+    <div
+      bind:this={visibilityTarget}
+      class="relative h-full w-full overflow-hidden"
+    >
       {#if observerReady && pageRendered && attemptUrl}
         {@const token = generation}{@const key = frameKey}
         {#key key}
-          <iframe name={key} title={control.name || 'Web content'} src={attemptUrl}
+          <iframe
+            name={key}
+            title={control.name || 'Web content'}
+            src={attemptUrl}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             onload={() => loaded(token, key)}
-            class="absolute left-0 top-0 border-0" class:invisible={frameState.status === 'unavailable'}
-            style:width="{10000 / options.zoom}%" style:height="{10000 / options.zoom}%"
-            style:transform="scale({options.zoom / 100})" style:transform-origin="0 0"></iframe>
+            class="absolute left-0 top-0 border-0"
+            class:invisible={frameState.status === 'unavailable'}
+            style:width="{10000 / options.zoom}%"
+            style:height="{10000 / options.zoom}%"
+            style:transform="scale({options.zoom / 100})"
+            style:transform-origin="0 0"
+          ></iframe>
         {/key}
       {/if}
       {#if frameState.status === 'unavailable'}
-        <div class="absolute inset-0 grid place-items-center bg-background text-sm text-muted-foreground">Unavailable</div>
+        <div
+          class="absolute inset-0 grid place-items-center bg-background text-sm text-muted-foreground"
+        >
+          Unavailable
+        </div>
       {/if}
     </div>
   {/snippet}
 </ContentTile>
 
 <style>
-  iframe { transition: opacity 150ms ease; }
-  iframe.invisible { opacity: 0; }
+  iframe {
+    transition: opacity 150ms ease;
+  }
+  iframe.invisible {
+    opacity: 0;
+  }
 </style>

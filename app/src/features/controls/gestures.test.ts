@@ -5,14 +5,36 @@ import type { Trigger } from '../automation/scenario';
 
 class PointerNode extends EventTarget {
   setPointerCapture = vi.fn();
-  getBoundingClientRect = vi.fn(() => ({ left: 10, top: 20, right: 210, bottom: 220, width: 200, height: 200,
-    x: 10, y: 20, toJSON: () => ({}) } as DOMRect));
+  getBoundingClientRect = vi.fn(
+    () =>
+      ({
+        left: 10,
+        top: 20,
+        right: 210,
+        bottom: 220,
+        width: 200,
+        height: 200,
+        x: 10,
+        y: 20,
+        toJSON: () => ({}),
+      }) as DOMRect,
+  );
 }
 
-function send(node: PointerNode, type: string, pointerId: number, x: number, y: number, button = 0) {
+function send(
+  node: PointerNode,
+  type: string,
+  pointerId: number,
+  x: number,
+  y: number,
+  button = 0,
+) {
   const event = new Event(type);
   Object.defineProperties(event, {
-    pointerId: { value: pointerId }, clientX: { value: x }, clientY: { value: y }, button: { value: button },
+    pointerId: { value: pointerId },
+    clientX: { value: x },
+    clientY: { value: y },
+    button: { value: button },
   });
   node.dispatchEvent(event);
 }
@@ -24,8 +46,21 @@ function setup() {
   const order: string[] = [];
   const onTrigger = vi.fn((trigger: Trigger) => order.push(trigger));
   const captureTrigger = vi.fn((_trigger: Trigger, _id: string) => undefined);
-  const action = gestures(node as unknown as HTMLElement, { onGesture: vi.fn(), onTrigger, captureTrigger });
-  return { node, order, onTrigger, captureTrigger, action, set now(value: number) { now = value; } };
+  const action = gestures(node as unknown as HTMLElement, {
+    onGesture: vi.fn(),
+    onTrigger,
+    captureTrigger,
+  });
+  return {
+    node,
+    order,
+    onTrigger,
+    captureTrigger,
+    action,
+    set now(value: number) {
+      now = value;
+    },
+  };
 }
 
 describe('pointer gesture lifecycle', () => {
@@ -89,33 +124,64 @@ describe('pointer gesture lifecycle', () => {
     const onPullEnd = vi.fn();
     const onGesture = vi.fn();
     const pullNode = new PointerNode();
-    const bindings: PullBindings = { swipeRight: { kind: 'scenario', trigger: 'swipeRight', title: 'Pull Right' } };
-    const pullAction = gestures(pullNode as unknown as HTMLElement, { onGesture, onTrigger: vi.fn(), onPullEnd,
-      pullBindings: bindings });
+    const bindings: PullBindings = {
+      swipeRight: { kind: 'scenario', trigger: 'swipeRight', title: 'Pull Right' },
+    };
+    const pullAction = gestures(pullNode as unknown as HTMLElement, {
+      onGesture,
+      onTrigger: vi.fn(),
+      onPullEnd,
+      pullBindings: bindings,
+    });
     send(pullNode, 'pointerdown', 2, 50, 50);
     send(pullNode, 'pointermove', 2, 58, 50);
     testTime(beyond, 80);
     send(pullNode, 'pointerup', 2, 58, 50);
-    expect(onPullEnd).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ distance: 8, armed: false }), false);
+    expect(onPullEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ distance: 8, armed: false }),
+      false,
+    );
     expect(onGesture).not.toHaveBeenCalled();
     pullAction.destroy();
   });
 
   it('captures geometry and bindings at down and evaluates the final pointerup sample once', () => {
-    const node = new PointerNode(), onGesture = vi.fn(), onPullEnd = vi.fn();
-    const bindings: PullBindings = { swipeRight: { kind: 'scenario', trigger: 'swipeRight', title: 'Pull Right' } };
-    const action = gestures(node as unknown as HTMLElement, { onGesture, onPullEnd, pullBindings: bindings });
+    const node = new PointerNode(),
+      onGesture = vi.fn(),
+      onPullEnd = vi.fn();
+    const bindings: PullBindings = {
+      swipeRight: { kind: 'scenario', trigger: 'swipeRight', title: 'Pull Right' },
+    };
+    const action = gestures(node as unknown as HTMLElement, {
+      onGesture,
+      onPullEnd,
+      pullBindings: bindings,
+    });
     send(node, 'pointerdown', 7, 20, 20);
     send(node, 'pointerup', 7, 120, 20); // No pointermove: release point still arms it.
     expect(node.getBoundingClientRect).toHaveBeenCalledTimes(1);
-    expect(onPullEnd).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ direction: 'swipeRight', armed: true }), true);
-    expect(onGesture).toHaveBeenCalledExactlyOnceWith('swipeRight', expect.objectContaining({ armed: true }), undefined);
+    expect(onPullEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ direction: 'swipeRight', armed: true }),
+      true,
+    );
+    expect(onGesture).toHaveBeenCalledExactlyOnceWith(
+      'swipeRight',
+      expect.objectContaining({ armed: true }),
+      undefined,
+    );
     action.destroy();
   });
 
   it('does not emit a preview or trigger for an unbound pull direction', () => {
-    const node = new PointerNode(), onTrigger = vi.fn(), onPull = vi.fn();
-    const action = gestures(node as unknown as HTMLElement, { onGesture: vi.fn(), onTrigger, onPull, pullBindings: {} });
+    const node = new PointerNode(),
+      onTrigger = vi.fn(),
+      onPull = vi.fn();
+    const action = gestures(node as unknown as HTMLElement, {
+      onGesture: vi.fn(),
+      onTrigger,
+      onPull,
+      pullBindings: {},
+    });
     send(node, 'pointerdown', 1, 40, 40);
     send(node, 'pointermove', 1, 120, 40);
     send(node, 'pointerup', 1, 120, 40);
@@ -125,13 +191,24 @@ describe('pointer gesture lifecycle', () => {
   });
 
   it('does not restore pull hysteresis: the final below-threshold release stays unarmed', () => {
-    const node = new PointerNode(), onGesture = vi.fn(), onPullEnd = vi.fn();
-    const bindings: PullBindings = { swipeRight: { kind: 'scenario', trigger: 'swipeRight', title: 'Pull Right' } };
-    const action = gestures(node as unknown as HTMLElement, { onGesture, onPullEnd, pullBindings: bindings });
+    const node = new PointerNode(),
+      onGesture = vi.fn(),
+      onPullEnd = vi.fn();
+    const bindings: PullBindings = {
+      swipeRight: { kind: 'scenario', trigger: 'swipeRight', title: 'Pull Right' },
+    };
+    const action = gestures(node as unknown as HTMLElement, {
+      onGesture,
+      onPullEnd,
+      pullBindings: bindings,
+    });
     send(node, 'pointerdown', 8, 20, 20);
     send(node, 'pointermove', 8, 80, 20);
     send(node, 'pointerup', 8, 67, 20);
-    expect(onPullEnd).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ distance: 47, armed: false }), false);
+    expect(onPullEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ distance: 47, armed: false }),
+      false,
+    );
     expect(onGesture).not.toHaveBeenCalled();
     action.destroy();
   });
@@ -139,11 +216,17 @@ describe('pointer gesture lifecycle', () => {
   it('keeps a long hold from turning into a pull after it fires', () => {
     vi.useFakeTimers();
     const test = setup();
-    const bindings: PullBindings = { swipeRight: { kind: 'scenario', trigger: 'swipeRight', title: 'Pull Right' } };
+    const bindings: PullBindings = {
+      swipeRight: { kind: 'scenario', trigger: 'swipeRight', title: 'Pull Right' },
+    };
     test.action.destroy();
     const onTrigger = vi.fn((trigger: Trigger) => test.order.push(trigger));
-    const action = gestures(test.node as unknown as HTMLElement, { onGesture: vi.fn(), onTrigger,
-      pullBindings: bindings, captureTrigger: (trigger, id) => `${trigger}:${id}` });
+    const action = gestures(test.node as unknown as HTMLElement, {
+      onGesture: vi.fn(),
+      onTrigger,
+      pullBindings: bindings,
+      captureTrigger: (trigger, id) => `${trigger}:${id}`,
+    });
     send(test.node, 'pointerdown', 1, 50, 50);
     test.now = 550;
     vi.advanceTimersByTime(550);
@@ -156,9 +239,14 @@ describe('pointer gesture lifecycle', () => {
 
   it('suppresses a nearby short pair for double tap, while distant taps stay independent', () => {
     vi.useFakeTimers();
-    const node = new PointerNode(), order: string[] = [];
-    const action = gestures(node as unknown as HTMLElement, { onGesture: vi.fn(), doubleTap: true,
-      onTrigger: trigger => order.push(trigger), captureTrigger: (trigger, id) => `${trigger}:${id}` });
+    const node = new PointerNode(),
+      order: string[] = [];
+    const action = gestures(node as unknown as HTMLElement, {
+      onGesture: vi.fn(),
+      doubleTap: true,
+      onTrigger: (trigger) => order.push(trigger),
+      captureTrigger: (trigger, id) => `${trigger}:${id}`,
+    });
     send(node, 'pointerdown', 1, 30, 30);
     send(node, 'pointerup', 1, 30, 30);
     expect(order).toEqual([]);
@@ -181,8 +269,13 @@ describe('pointer gesture lifecycle', () => {
   it('cancels pending short pairs on pointercancel, lost capture, blur, and destroy', () => {
     vi.useFakeTimers();
     for (const type of ['pointercancel', 'lostpointercapture']) {
-      const node = new PointerNode(), onTrigger = vi.fn();
-      const action = gestures(node as unknown as HTMLElement, { onGesture: vi.fn(), onTrigger, doubleTap: true });
+      const node = new PointerNode(),
+        onTrigger = vi.fn();
+      const action = gestures(node as unknown as HTMLElement, {
+        onGesture: vi.fn(),
+        onTrigger,
+        doubleTap: true,
+      });
       send(node, 'pointerdown', 1, 20, 20);
       send(node, 'pointerup', 1, 20, 20);
       send(node, 'pointerdown', 2, 20, 20);
@@ -194,7 +287,8 @@ describe('pointer gesture lifecycle', () => {
   });
 
   it('ignores a second pointer until the owner releases', () => {
-    const node = new PointerNode(), onGesture = vi.fn();
+    const node = new PointerNode(),
+      onGesture = vi.fn();
     const action = gestures(node as unknown as HTMLElement, { onGesture });
     send(node, 'pointerdown', 1, 30, 30);
     send(node, 'pointerdown', 2, 40, 40);
@@ -207,8 +301,12 @@ describe('pointer gesture lifecycle', () => {
 
   it('matches keyboard activation and clears its hold timer on release', () => {
     vi.useFakeTimers();
-    const node = new PointerNode(), order: string[] = [];
-    const action = gestures(node as unknown as HTMLElement, { onGesture: vi.fn(), onTrigger: trigger => order.push(trigger) });
+    const node = new PointerNode(),
+      order: string[] = [];
+    const action = gestures(node as unknown as HTMLElement, {
+      onGesture: vi.fn(),
+      onTrigger: (trigger) => order.push(trigger),
+    });
     const down = new Event('keydown', { bubbles: true });
     const up = new Event('keyup', { bubbles: true });
     Object.defineProperties(down, { key: { value: 'Enter' }, repeat: { value: false } });
@@ -223,4 +321,6 @@ describe('pointer gesture lifecycle', () => {
   });
 });
 
-function testTime(test: { now: number }, value: number) { test.now = value; }
+function testTime(test: { now: number }, value: number) {
+  test.now = value;
+}

@@ -5,20 +5,25 @@ import type { ControlConfig, Gesture, SwipeGesture } from './model';
 export type PullAxis = 'x' | 'y';
 
 export type PullEffect =
-  | { kind: 'variant'; variant: number }
-  | { kind: 'scenario'; trigger: SwipeGesture; title: string };
+  { kind: 'variant'; variant: number } | { kind: 'scenario'; trigger: SwipeGesture; title: string };
 export type PullBindings = Partial<Record<SwipeGesture, PullEffect>>;
 
-function simpleSelfVariant(control: ControlConfig, current: number, steps: ActionStep[] | undefined): number | undefined {
+function simpleSelfVariant(
+  control: ControlConfig,
+  current: number,
+  steps: ActionStep[] | undefined,
+): number | undefined {
   if (!steps || steps.length !== 1 || steps[0].kind !== 'action') return undefined;
   const action = steps[0].action;
   if (action.id !== 'button.variant' || action.args?.target !== 'self') return undefined;
   const requested = String(action.args.variant ?? 'next');
   if (requested === 'next' || requested === 'prev') {
     const count = control.variants.length;
-    return count ? ((current + (requested === 'next' ? 1 : -1) + count) % count) : 0;
+    return count ? (current + (requested === 'next' ? 1 : -1) + count) % count : 0;
   }
-  const byId = control.variants.findIndex((variant, index) => (variant.id ?? `state-${index + 1}`) === requested);
+  const byId = control.variants.findIndex(
+    (variant, index) => (variant.id ?? `state-${index + 1}`) === requested,
+  );
   if (byId >= 0) return byId;
   if (/^\d+$/.test(requested)) {
     const index = Number(requested);
@@ -56,7 +61,11 @@ export type PullSnapshot = {
 export const PULL_SLOP = 8;
 
 /** Resolve only canonical directional scenarios for pull preview. */
-export function pullBindingsFor(control: ControlConfig, current: number, eligible?: readonly SwipeGesture[]): PullBindings {
+export function pullBindingsFor(
+  control: ControlConfig,
+  current: number,
+  eligible?: readonly SwipeGesture[],
+): PullBindings {
   const result: PullBindings = {};
   const directions: SwipeGesture[] = ['swipeUp', 'swipeDown', 'swipeLeft', 'swipeRight'];
   const stateId = control.variants[current]?.id ?? `state-${current + 1}`;
@@ -68,46 +77,100 @@ export function pullBindingsFor(control: ControlConfig, current: number, eligibl
     const preview = simpleSelfVariant(control, current, steps);
     if (preview !== undefined) {
       if (preview !== current) result[direction] = { kind: 'variant', variant: preview };
-    } else result[direction] = { kind: 'scenario', trigger: direction, title: direction.replace('swipe', 'Pull ') };
+    } else
+      result[direction] = {
+        kind: 'scenario',
+        trigger: direction,
+        title: direction.replace('swipe', 'Pull '),
+      };
   }
   return result;
 }
 
-export function beginPull(pointerId: number, x: number, y: number, time: number, width: number, height: number): PullState {
-  return { pointerId, startX: x, startY: y, startTime: time,
+export function beginPull(
+  pointerId: number,
+  x: number,
+  y: number,
+  time: number,
+  width: number,
+  height: number,
+): PullState {
+  return {
+    pointerId,
+    startX: x,
+    startY: y,
+    startTime: time,
     width: Number.isFinite(width) ? Math.max(0, width) : 0,
     height: Number.isFinite(height) ? Math.max(0, height) : 0,
-    lockedAxis: null, movedBeyondSlop: false, armed: false, armedDirection: null };
+    lockedAxis: null,
+    movedBeyondSlop: false,
+    armed: false,
+    armedDirection: null,
+  };
 }
 
 function rubberDistance(distance: number, limit: number, threshold: number) {
   if (distance <= limit) return distance;
-  return limit + .18 * threshold * (1 - Math.exp(-(distance - limit) / threshold));
+  return limit + 0.18 * threshold * (1 - Math.exp(-(distance - limit) / threshold));
 }
 
 /** Lock to the dominant axis at 8px and keep that axis until pointerup. */
-export function updatePull(state: PullState, x: number, y: number, bindings: PullBindings): { state: PullState; snapshot: PullSnapshot | null } {
-  const dx = x - state.startX, dy = y - state.startY;
-  const movedBeyondSlop = state.movedBeyondSlop || Math.max(Math.abs(dx), Math.abs(dy)) >= PULL_SLOP;
-  const lockedAxis = state.lockedAxis ?? (movedBeyondSlop ? (Math.abs(dx) > Math.abs(dy) ? 'x' : 'y') : null);
+export function updatePull(
+  state: PullState,
+  x: number,
+  y: number,
+  bindings: PullBindings,
+): { state: PullState; snapshot: PullSnapshot | null } {
+  const dx = x - state.startX,
+    dy = y - state.startY;
+  const movedBeyondSlop =
+    state.movedBeyondSlop || Math.max(Math.abs(dx), Math.abs(dy)) >= PULL_SLOP;
+  const lockedAxis =
+    state.lockedAxis ?? (movedBeyondSlop ? (Math.abs(dx) > Math.abs(dy) ? 'x' : 'y') : null);
   if (!lockedAxis) return { state: { ...state, movedBeyondSlop }, snapshot: null };
   const projected = lockedAxis === 'x' ? dx : dy;
   const axisLength = lockedAxis === 'x' ? state.width : state.height;
-  const direction: SwipeGesture = lockedAxis === 'x'
-    ? projected >= 0 ? 'swipeRight' : 'swipeLeft'
-    : projected >= 0 ? 'swipeDown' : 'swipeUp';
+  const direction: SwipeGesture =
+    lockedAxis === 'x'
+      ? projected >= 0
+        ? 'swipeRight'
+        : 'swipeLeft'
+      : projected >= 0
+        ? 'swipeDown'
+        : 'swipeUp';
   const effect = bindings[direction];
   if (!effect || projected === 0) {
-    return { state: { ...state, movedBeyondSlop, lockedAxis, armed: false, armedDirection: null }, snapshot: null };
+    return {
+      state: { ...state, movedBeyondSlop, lockedAxis, armed: false, armedDirection: null },
+      snapshot: null,
+    };
   }
-  const threshold = Math.min(48, Math.max(20, axisLength * .25));
+  const threshold = Math.min(48, Math.max(20, axisLength * 0.25));
   const distance = Math.abs(projected);
   const armed = distance >= threshold;
-  const limit = axisLength * (effect.kind === 'variant' ? .25 : .125);
+  const limit = axisLength * (effect.kind === 'variant' ? 0.25 : 0.125);
   const offset = Math.sign(projected) * rubberDistance(distance, Math.max(0, limit), threshold);
-  const snapshot: PullSnapshot = { pointerId: state.pointerId, axis: lockedAxis, direction, offset,
-    distance, progress: Math.min(1, distance / threshold), threshold, armed, effect };
-  return { state: { ...state, movedBeyondSlop, lockedAxis, armed, armedDirection: armed ? direction : null }, snapshot };
+  const snapshot: PullSnapshot = {
+    pointerId: state.pointerId,
+    axis: lockedAxis,
+    direction,
+    offset,
+    distance,
+    progress: Math.min(1, distance / threshold),
+    threshold,
+    armed,
+    effect,
+  };
+  return {
+    state: {
+      ...state,
+      movedBeyondSlop,
+      lockedAxis,
+      armed,
+      armedDirection: armed ? direction : null,
+    },
+    snapshot,
+  };
 }
 
 export const SWIPE = 40; // px
@@ -129,10 +192,23 @@ export function pullHandoffProgress(snapshot: Pick<PullSnapshot, 'armed' | 'effe
 }
 
 export function shouldAnimateSliderFill(input: {
-  level: number | null; previousLevel: number | null; sourceKey: string; previousSourceKey: string;
-  vertical: boolean; previousVertical: boolean; ready: boolean; dragging: boolean; reducedMotion: boolean;
+  level: number | null;
+  previousLevel: number | null;
+  sourceKey: string;
+  previousSourceKey: string;
+  vertical: boolean;
+  previousVertical: boolean;
+  ready: boolean;
+  dragging: boolean;
+  reducedMotion: boolean;
 }) {
-  return input.ready && Number.isFinite(input.level) && Number.isFinite(input.previousLevel) &&
-    input.sourceKey === input.previousSourceKey && input.vertical === input.previousVertical &&
-    !input.dragging && !input.reducedMotion;
+  return (
+    input.ready &&
+    Number.isFinite(input.level) &&
+    Number.isFinite(input.previousLevel) &&
+    input.sourceKey === input.previousSourceKey &&
+    input.vertical === input.previousVertical &&
+    !input.dragging &&
+    !input.reducedMotion
+  );
 }

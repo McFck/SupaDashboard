@@ -3,20 +3,44 @@ import { effectiveVariant, validateStateConfiguration, variantIndexForState } fr
 import { moveVariant, type ControlConfig } from './model';
 import { VariableStore } from '../automation/variables';
 
-const control: ControlConfig = { id: 'b', name: 'Button', type: 'button', variants: [
-  { id: 'off', label: 'Stopped', icon: null, background: null, color: '#aaa' },
-  { id: 'on', label: 'Recording {count}', icon: 'Mic', background: '#123456', color: '#fff' },
-], stateBinding: { variableId: 'recording', cases: [{ value: false, stateId: 'off' }, { value: true, stateId: 'on' }] } };
+const control: ControlConfig = {
+  id: 'b',
+  name: 'Button',
+  type: 'button',
+  variants: [
+    { id: 'off', label: 'Stopped', icon: null, background: null, color: '#aaa' },
+    { id: 'on', label: 'Recording {count}', icon: 'Mic', background: '#123456', color: '#fff' },
+  ],
+  stateBinding: {
+    variableId: 'recording',
+    cases: [
+      { value: false, stateId: 'off' },
+      { value: true, stateId: 'on' },
+    ],
+  },
+};
 
 describe('effective button state', () => {
   it('binds by exact typed values and resolves labels without writing settings', () => {
     const variables = new VariableStore();
-    variables.createUser({ id: 'recording', name: 'recording', type: 'boolean', initialValue: true });
+    variables.createUser({
+      id: 'recording',
+      name: 'recording',
+      type: 'boolean',
+      initialValue: true,
+    });
     variables.createUser({ id: 'count', name: 'count', type: 'integer', initialValue: 2 });
     const before = structuredClone(control);
-    expect(effectiveVariant(control, variables, 0)).toEqual({ index: 1, stateId: 'on', view: {
-      label: 'Recording 2', icon: 'Mic', color: '#fff', background: '#123456',
-    } });
+    expect(effectiveVariant(control, variables, 0)).toEqual({
+      index: 1,
+      stateId: 'on',
+      view: {
+        label: 'Recording 2',
+        icon: 'Mic',
+        color: '#fff',
+        background: '#123456',
+      },
+    });
     expect(control).toEqual(before);
   });
 
@@ -24,9 +48,17 @@ describe('effective button state', () => {
     const missing = effectiveVariant(control, undefined, 1);
     expect(missing).toMatchObject({ index: 1, stateId: 'on' });
     const variables = new VariableStore();
-    variables.createUser({ id: 'recording', name: 'recording', type: 'string', initialValue: 'false' });
+    variables.createUser({
+      id: 'recording',
+      name: 'recording',
+      type: 'string',
+      initialValue: 'false',
+    });
     expect(effectiveVariant(control, variables, 0)).toMatchObject({ index: 0, stateId: 'off' });
-    const stale = { ...control, stateBinding: { variableId: 'recording', cases: [{ value: true, stateId: 'deleted' }] } };
+    const stale = {
+      ...control,
+      stateBinding: { variableId: 'recording', cases: [{ value: true, stateId: 'deleted' }] },
+    };
     variables.set('recording', 'true');
     expect(effectiveVariant(stale, variables, 1)).toMatchObject({ index: 1, stateId: 'on' });
     expect(effectiveVariant(stale, variables, 99)).toMatchObject({ index: 1, stateId: 'on' });
@@ -35,7 +67,11 @@ describe('effective button state', () => {
   it('uses Off/On roles for booleans when explicit cases are absent', () => {
     const variables = new VariableStore();
     variables.createUser({ id: 'active', name: 'active', type: 'boolean', initialValue: false });
-    const stateful = { ...control, stateBinding: { variableId: 'active', cases: [] }, stateRoles: { off: 'off', on: 'on' } };
+    const stateful = {
+      ...control,
+      stateBinding: { variableId: 'active', cases: [] },
+      stateRoles: { off: 'off', on: 'on' },
+    };
     expect(effectiveVariant(stateful, variables, 1)).toMatchObject({ index: 0, stateId: 'off' });
     variables.set('active', true);
     expect(effectiveVariant(stateful, variables, 0)).toMatchObject({ index: 1, stateId: 'on' });
@@ -46,21 +82,49 @@ describe('effective button state', () => {
     expect(moveVariant(reordered, 0, 0, 1)).toBe(1);
     expect(variantIndexForState(reordered, 'off')).toBe(1);
     const variables = new VariableStore();
-    variables.createUser({ id: 'recording', name: 'recording', type: 'boolean', initialValue: false });
-    expect(effectiveVariant(reordered, variables, 1)).toMatchObject({ index: 1, stateId: 'off', view: {
-      label: 'Stopped', icon: null, background: null,
-    } });
+    variables.createUser({
+      id: 'recording',
+      name: 'recording',
+      type: 'boolean',
+      initialValue: false,
+    });
+    expect(effectiveVariant(reordered, variables, 1)).toMatchObject({
+      index: 1,
+      stateId: 'off',
+      view: {
+        label: 'Stopped',
+        icon: null,
+        background: null,
+      },
+    });
   });
 
   it('validates typed case values, duplicate mappings, and stale references', () => {
     const variables = new VariableStore();
-    variables.createUser({ id: 'recording', name: 'recording', type: 'boolean', initialValue: false });
+    variables.createUser({
+      id: 'recording',
+      name: 'recording',
+      type: 'boolean',
+      initialValue: false,
+    });
     expect(validateStateConfiguration(control, variables.snapshot())).toEqual([]);
-    const invalid = { ...control, stateBinding: { variableId: 'recording', cases: [
-      { value: false, stateId: 'missing' }, { value: false, stateId: 'on' }, { value: 'true', stateId: 'off' },
-    ] } };
-    expect(validateStateConfiguration(invalid, variables.snapshot()).map(issue => issue.message)).toEqual([
-      'Bound state is unavailable', 'State values must be unique', 'State value does not match the variable type',
+    const invalid = {
+      ...control,
+      stateBinding: {
+        variableId: 'recording',
+        cases: [
+          { value: false, stateId: 'missing' },
+          { value: false, stateId: 'on' },
+          { value: 'true', stateId: 'off' },
+        ],
+      },
+    };
+    expect(
+      validateStateConfiguration(invalid, variables.snapshot()).map((issue) => issue.message),
+    ).toEqual([
+      'Bound state is unavailable',
+      'State values must be unique',
+      'State value does not match the variable type',
     ]);
   });
 });

@@ -4,16 +4,51 @@
   import type { ControlConfig } from '../model';
   import type { Trigger } from '../../automation/scenario';
   import { currentRuntime, runtimeView } from '../../../app/runtime.svelte';
-  import { canRunContent, mediaContentPages, watchDashboardVisibility, watchIntersection } from '../../media/content-visibility';
-  import { hasMediaExtension, isVideoSource, mediaFileUrl, mediaSourceKey, mediaUrl, readMediaOptions, stepSlide } from '../../media/content';
+  import {
+    canRunContent,
+    mediaContentPages,
+    watchDashboardVisibility,
+    watchIntersection,
+  } from '../../media/content-visibility';
+  import {
+    hasMediaExtension,
+    isVideoSource,
+    mediaFileUrl,
+    mediaSourceKey,
+    mediaUrl,
+    readMediaOptions,
+    stepSlide,
+  } from '../../media/content';
   import { preloadNextMedia } from '../../media/media-cache';
   import ContentTile from './ContentTile.svelte';
   import MediaFrame from './MediaFrame.svelte';
 
-  type MediaLayer = { key: string; url?: string; video: boolean; fit: 'cover' | 'contain'; loop: boolean; muted: boolean; token: number };
-  let { control, page, pageId, pageVisible = true, pageRendered = true, itemId, pressFeedbackDisabled = false }:
-    { control: ControlConfig; page?: import('../../settings/schema').Page; pageId?: string;
-      pageVisible?: boolean; pageRendered?: boolean; itemId?: string; pressFeedbackDisabled?: boolean } = $props();
+  type MediaLayer = {
+    key: string;
+    url?: string;
+    video: boolean;
+    fit: 'cover' | 'contain';
+    loop: boolean;
+    muted: boolean;
+    token: number;
+  };
+  let {
+    control,
+    page,
+    pageId,
+    pageVisible = true,
+    pageRendered = true,
+    itemId,
+    pressFeedbackDisabled = false,
+  }: {
+    control: ControlConfig;
+    page?: import('../../settings/schema').Page;
+    pageId?: string;
+    pageVisible?: boolean;
+    pageRendered?: boolean;
+    itemId?: string;
+    pressFeedbackDisabled?: boolean;
+  } = $props();
   const options = $derived(readMediaOptions(control.options));
   const slide = $derived($runtimeView.content[control.id]?.slide ?? 0);
   const source = $derived(options.sources[slide]);
@@ -40,20 +75,47 @@
   let preloadIdentity = '';
   let releasePreload = () => {};
   const displayEligible = $derived(pageRendered || pressFeedbackDisabled);
-  const resourceVisible = $derived(displayEligible && (pressFeedbackDisabled ||
-    ((!pageId || $mediaContentPages.has(pageId)) && documentVisible && dashboardVisible)));
+  const resourceVisible = $derived(
+    displayEligible &&
+      (pressFeedbackDisabled ||
+        ((!pageId || $mediaContentPages.has(pageId)) && documentVisible && dashboardVisible)),
+  );
   const isVideo = $derived(!!source && (fallbackVideo || isVideoSource(source)));
-  const canRun = $derived(canRunContent({ runtimeOwner: $runtimeView.owner, editing: pressFeedbackDisabled,
-    pageVisible, intersecting, documentVisible, dashboardVisible }));
-  const canPrimeVideo = $derived($runtimeView.owner && !pressFeedbackDisabled && resourceVisible && !pageVisible &&
-    !targetReady && documentVisible && dashboardVisible);
-  const sourceCandidate = $derived({ key: sourceKeyForPosition, url, video: isVideo,
-    fit: source?.fit ?? 'cover', loop: source?.loop ?? true, muted: options.muted || (source?.muted ?? true) });
+  const canRun = $derived(
+    canRunContent({
+      runtimeOwner: $runtimeView.owner,
+      editing: pressFeedbackDisabled,
+      pageVisible,
+      intersecting,
+      documentVisible,
+      dashboardVisible,
+    }),
+  );
+  const canPrimeVideo = $derived(
+    $runtimeView.owner &&
+      !pressFeedbackDisabled &&
+      resourceVisible &&
+      !pageVisible &&
+      !targetReady &&
+      documentVisible &&
+      dashboardVisible,
+  );
+  const sourceCandidate = $derived({
+    key: sourceKeyForPosition,
+    url,
+    video: isVideo,
+    fit: source?.fit ?? 'cover',
+    loop: source?.loop ?? true,
+    muted: options.muted || (source?.muted ?? true),
+  });
 
   $effect(() => {
     const node = visibilityTarget;
-    if (!node) { intersecting = false; return; }
-    return watchIntersection(node, value => intersecting = value);
+    if (!node) {
+      intersecting = false;
+      return;
+    }
+    return watchIntersection(node, (value) => (intersecting = value));
   });
 
   $effect(() => {
@@ -66,9 +128,10 @@
     sourceIdentity = nextSourceIdentity;
     generation++;
     const previous = untrack(() => mediaTarget);
-    const previousFrame = untrack(() => targetReady ? previous : mediaPrevious);
+    const previousFrame = untrack(() => (targetReady ? previous : mediaPrevious));
     clearTimeout(fadeTimer);
-    mediaPrevious = resourceVisible && previousFrame?.url && !untrack(() => unavailable) ? previousFrame : null;
+    mediaPrevious =
+      resourceVisible && previousFrame?.url && !untrack(() => unavailable) ? previousFrame : null;
     mediaTarget = { ...candidate, token: generation };
     if (sourceChanged) fallbackVideo = false;
     unavailable = !candidate.url;
@@ -80,11 +143,16 @@
 
   $effect(() => {
     const visible = resourceVisible && documentVisible && dashboardVisible;
-    const canAdvance = options.sources.length > 1 && (options.loop || slide < options.sources.length - 1);
+    const canAdvance =
+      options.sources.length > 1 && (options.loop || slide < options.sources.length - 1);
     const nextIndex = canAdvance ? stepSlide(slide, options.sources.length, 1, options.loop) : -1;
     const next = nextIndex >= 0 ? options.sources[nextIndex] : undefined;
-    const nextUrl = next?.kind === 'url' ? mediaUrl(next.value) : mediaFileUrl(next, convertFileSrc);
-    const nextKey = visible && nextUrl && next ? JSON.stringify([control.id, mediaSourceKey(next), nextUrl, isVideoSource(next)]) : '';
+    const nextUrl =
+      next?.kind === 'url' ? mediaUrl(next.value) : mediaFileUrl(next, convertFileSrc);
+    const nextKey =
+      visible && nextUrl && next
+        ? JSON.stringify([control.id, mediaSourceKey(next), nextUrl, isVideoSource(next)])
+        : '';
     if (nextKey === preloadIdentity) return;
     preloadIdentity = nextKey;
     releasePreload();
@@ -93,12 +161,22 @@
   });
 
   $effect(() => {
-    if (!canRun || options.interval === 0 || !dwellReady || options.sources.length < 2 ||
-      (!options.loop && slide >= options.sources.length - 1)) return;
+    if (
+      !canRun ||
+      options.interval === 0 ||
+      !dwellReady ||
+      options.sources.length < 2 ||
+      (!options.loop && slide >= options.sources.length - 1)
+    )
+      return;
     const currentGeneration = generation;
     const timer = setTimeout(() => {
       if (currentGeneration !== generation) return;
-      try { currentRuntime()?.contentCommand(control.id, 'next'); } catch { /* the control may have been deleted */ }
+      try {
+        currentRuntime()?.contentCommand(control.id, 'next');
+      } catch {
+        /* the control may have been deleted */
+      }
     }, options.interval * 1000);
     return () => clearTimeout(timer);
   });
@@ -106,7 +184,9 @@
   function finishPreviousFade() {
     clearTimeout(fadeTimer);
     if (!mediaPrevious) return;
-    fadeTimer = setTimeout(() => { mediaPrevious = null; }, 180);
+    fadeTimer = setTimeout(() => {
+      mediaPrevious = null;
+    }, 180);
   }
 
   function frameReady(token: number, success: boolean) {
@@ -131,19 +211,25 @@
   }
 
   function layerOpacity(layer: MediaLayer) {
-    if (layer.token === mediaTarget?.token) return targetReady && !unavailable ? 1 : mediaPrevious ? 0 : 1;
+    if (layer.token === mediaTarget?.token)
+      return targetReady && !unavailable ? 1 : mediaPrevious ? 0 : 1;
     return targetReady ? 0 : 1;
   }
 
   onMount(() => {
     let disposed = false;
     let stopDashboard = () => {};
-    const updateDocument = () => { documentVisible = document.visibilityState === 'visible'; };
+    const updateDocument = () => {
+      documentVisible = document.visibilityState === 'visible';
+    };
     updateDocument();
     document.addEventListener('visibilitychange', updateDocument);
-    void watchDashboardVisibility(value => dashboardVisible = value).then(stop => {
-      if (disposed) stop(); else stopDashboard = stop;
-    }).catch(() => {});
+    void watchDashboardVisibility((value) => (dashboardVisible = value))
+      .then((stop) => {
+        if (disposed) stop();
+        else stopDashboard = stop;
+      })
+      .catch(() => {});
     return () => {
       disposed = true;
       stopDashboard();
@@ -158,38 +244,70 @@
   });
 </script>
 
-<ContentTile {control} {page} {pageId} {pageVisible} {itemId} {pressFeedbackDisabled} {onCommitted}>
+<ContentTile
+  {control}
+  {page}
+  {pageId}
+  {pageVisible}
+  {itemId}
+  {pressFeedbackDisabled}
+  {onCommitted}
+>
   {#snippet children()}
-    <div bind:this={visibilityTarget} class="relative h-full w-full">
+    <div
+      bind:this={visibilityTarget}
+      class="relative h-full w-full"
+    >
       {#if displayEligible}
         {#if mediaPrevious}
           {@const previousLayer = mediaPrevious}
           {#key previousLayer.token}
-            <MediaFrame url={previousLayer.url} videoSource={previousLayer.video} fit={previousLayer.fit}
-              loop={previousLayer.loop} muted={previousLayer.muted} opacity={layerOpacity(previousLayer)}
-              {resourceVisible} playbackAllowed={false}
+            <MediaFrame
+              url={previousLayer.url}
+              videoSource={previousLayer.video}
+              fit={previousLayer.fit}
+              loop={previousLayer.loop}
+              muted={previousLayer.muted}
+              opacity={layerOpacity(previousLayer)}
+              {resourceVisible}
+              playbackAllowed={false}
               resumeAt={currentRuntime()?.videoPosition(control.id, previousLayer.key)}
-              onready={() => {}} onmetadata={() => {}}
-              onposition={time => rememberPosition(previousLayer.key, time)} />
+              onready={() => {}}
+              onmetadata={() => {}}
+              onposition={(time) => rememberPosition(previousLayer.key, time)}
+            />
           {/key}
         {/if}
         {#if mediaTarget}
           {@const targetLayer = mediaTarget}
-          {@const currentTarget = sourceKeyForPosition === targetLayer.key && url === targetLayer.url}
+          {@const currentTarget =
+            sourceKeyForPosition === targetLayer.key && url === targetLayer.url}
           {#key targetLayer.token}
-            <MediaFrame url={targetLayer.url} videoSource={targetLayer.video}
-              fit={currentTarget ? source?.fit ?? targetLayer.fit : targetLayer.fit}
-              loop={currentTarget ? source?.loop ?? targetLayer.loop : targetLayer.loop}
-              muted={currentTarget ? options.muted || (source?.muted ?? true) || canPrimeVideo : targetLayer.muted}
-              opacity={layerOpacity(targetLayer)} {resourceVisible}
-              playbackAllowed={canPrimeVideo || (canRun && (sourceCandidate.muted || userPlaybackRequested))}
+            <MediaFrame
+              url={targetLayer.url}
+              videoSource={targetLayer.video}
+              fit={currentTarget ? (source?.fit ?? targetLayer.fit) : targetLayer.fit}
+              loop={currentTarget ? (source?.loop ?? targetLayer.loop) : targetLayer.loop}
+              muted={currentTarget
+                ? options.muted || (source?.muted ?? true) || canPrimeVideo
+                : targetLayer.muted}
+              opacity={layerOpacity(targetLayer)}
+              {resourceVisible}
+              playbackAllowed={canPrimeVideo ||
+                (canRun && (sourceCandidate.muted || userPlaybackRequested))}
               resumeAt={currentRuntime()?.videoPosition(control.id, targetLayer.key)}
-              onready={success => frameReady(targetLayer.token, success)} onmetadata={() => {}}
-              onposition={time => rememberPosition(targetLayer.key, time)} />
+              onready={(success) => frameReady(targetLayer.token, success)}
+              onmetadata={() => {}}
+              onposition={(time) => rememberPosition(targetLayer.key, time)}
+            />
           {/key}
           {#if targetReady && unavailable}
-            <div class="absolute inset-0 grid place-items-center text-sm text-muted-foreground transition-opacity duration-150"
-              style:opacity={unavailable ? 1 : 0}>Unavailable</div>
+            <div
+              class="absolute inset-0 grid place-items-center text-sm text-muted-foreground transition-opacity duration-150"
+              style:opacity={unavailable ? 1 : 0}
+            >
+              Unavailable
+            </div>
           {/if}
         {/if}
       {/if}
