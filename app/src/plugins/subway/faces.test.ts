@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { subwayButtonFaceModel, subwaySliderFaceModel } from './faces';
-import type { ControlFaceProps } from '../../core/controls';
+import type { ControlFaceProps } from '../../features/controls/model';
 
 const base = {
   appearance: { label: 'Platform', icon: 'TrainFront', color: null, background: null },

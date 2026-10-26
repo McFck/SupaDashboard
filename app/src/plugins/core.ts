@@ -2,16 +2,16 @@
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { get } from 'svelte/store';
-import { settings } from '../core/settings.svelte';
-import { pageItems } from '../core/pages';
-import { hasPlacement } from '../core/skin-layouts';
-import { currentRuntime } from '../core/runtime.svelte';
-import { appOwners, mediaSources, runAction } from '../core/registry';
+import { settings } from '../features/settings/state.svelte';
+import { pageItems } from '../features/layout/pages';
+import { hasPlacement } from '../features/layout/skin-layouts';
+import { currentRuntime } from '../app/runtime.svelte';
+import { appOwners, mediaSources, runAction } from '../features/plugins/registry';
 import type { ActionRef, Param, Plugin } from '../features/plugins/contracts';
-import { parseVariableText } from '../core/variables';
-import { findVolumeChannel, initVolumeSync, readVolume, setMuted, setVolume, volumeChannels, type Channel } from '../core/volume';
+import { parseVariableText } from '../features/automation/variables';
+import { findVolumeChannel, initVolumeSync, readVolume, setMuted, setVolume, volumeChannels, type Channel } from '../features/media/volume';
 
-export type { Channel } from '../core/volume';
+export type { Channel } from '../features/media/volume';
 /** Apps with an audio session right now (process names without .exe). */
 let liveChannels: Channel[] = [];
 /** Master volume + every app with an audio session. */

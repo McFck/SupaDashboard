@@ -4,12 +4,12 @@
   import ArrowRight from '@lucide/svelte/icons/arrow-right';
   import { Button } from '$lib/components/ui/button';
   import type { Page } from '../../features/settings/schema';
-  import { watchDashboardVisibility, watchIntersection } from '../../core/content-visibility';
-  import { runtimeView } from '../../core/runtime.svelte';
-  import { getSkinHostContext } from '../../skins/context';
-  import Slot from '../../skins/Slot.svelte';
-  import CanvasScene from '../../skins/CanvasScene.svelte';
-  import SkinQuickActions from '../../skins/SkinQuickActions.svelte';
+  import { watchDashboardVisibility, watchIntersection } from '../../features/media/content-visibility';
+  import { runtimeView } from '../../app/runtime.svelte';
+  import { getSkinHostContext } from '../../features/skins/context';
+  import Slot from '../../features/skins/Slot.svelte';
+  import CanvasScene from '../../features/skins/CanvasScene.svelte';
+  import SkinQuickActions from '../../features/skins/SkinQuickActions.svelte';
   import { createSubwayScene, subwaySceneRevision, type SubwaySceneData } from './scene';
   import { regionStyle, subwayComposition } from './composition';
   import { registerSubwaySurface, subwaySceneState, type SubwaySurfaceRegistration } from './runtime';

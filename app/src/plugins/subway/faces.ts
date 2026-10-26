@@ -1,4 +1,5 @@
-import type { ControlFaceProps, PullSnapshot, SliderFaceState, TileAppearance } from '../../core/controls';
+import type { ControlFaceProps, SliderFaceState, TileAppearance } from '../../features/controls/model';
+import type { PullSnapshot } from '../../features/controls/interaction';
 
 const LINE_ACCENTS: Record<string, string> = { yamanote: '#79b52c', hibiya: '#9caeb7', sakaisuji: '#bc782d' };
 

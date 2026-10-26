@@ -1,17 +1,17 @@
 // Built-in widgets and skins, registered through the plugin API like any other plugin.
 import type { Plugin } from '../features/plugins/contracts';
-import ButtonControl from '../controls/ButtonControl.svelte';
-import ButtonFace from '../controls/ButtonFace.svelte';
-import MediaControl from '../controls/MediaControl.svelte';
-import MixerControl from '../controls/MixerControl.svelte';
-import SliderControl from '../controls/SliderControl.svelte';
-import SliderFace from '../controls/SliderFace.svelte';
-import WebControl from '../controls/WebControl.svelte';
-import DeckSkin from '../skins/deck/DeckSkin.svelte';
-import { emptyScenario } from '../core/scenario';
-import { settings } from '../core/settings.svelte';
-import { currentRuntime } from '../core/runtime.svelte';
-import { hasPlacement } from '../core/skin-layouts';
+import ButtonControl from '../features/controls/ui/ButtonControl.svelte';
+import ButtonFace from '../features/controls/ui/ButtonFace.svelte';
+import MediaControl from '../features/controls/ui/MediaControl.svelte';
+import MixerControl from '../features/controls/ui/MixerControl.svelte';
+import SliderControl from '../features/controls/ui/SliderControl.svelte';
+import SliderFace from '../features/controls/ui/SliderFace.svelte';
+import WebControl from '../features/controls/ui/WebControl.svelte';
+import DeckSkin from '../features/skins/deck/DeckSkin.svelte';
+import { emptyScenario } from '../features/automation/scenario';
+import { settings } from '../features/settings/state.svelte';
+import { currentRuntime } from '../app/runtime.svelte';
+import { hasPlacement } from '../features/layout/skin-layouts';
 
 export const uiPlugin: Plugin = {
   id: 'ui',

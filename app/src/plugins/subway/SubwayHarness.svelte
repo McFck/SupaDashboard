@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { SceneScheduler } from '../../core/skin-scene';
+  import { SceneScheduler } from '../../features/skins/scene';
   import { normalizeSubwayLines, stepStation, type LineDefinition, type RawLineBundle } from './lines';
   import { scheduleScreen, type ScreenConfig, type ScreenSchedule } from './screens';
   import { createHibiyaRenderer, scheduleHibiyaPair } from './lcd/hibiya';

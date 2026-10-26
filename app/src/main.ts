@@ -4,21 +4,21 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { toast } from 'svelte-sonner';
 import './app.css';
-import { actions, install, installEnabled } from './core/registry';
-import { redo, startHistory, undo } from './core/history.svelte';
-import { loadSettings, settings } from './core/settings.svelte';
-import { initVolumeSync } from './core/volume';
-import { followRemovals } from './controls/removal';
+import { actions, install, installEnabled } from './features/plugins/registry';
+import { redo, startHistory, undo } from './features/layout/history.svelte';
+import { loadSettings, settings } from './features/settings/state.svelte';
+import { initVolumeSync } from './features/media/volume';
+import { followRemovals } from './features/layout/removal';
 import { attachRuntimeConnection, bootRuntime, receiveRuntimeSnapshot, runtimeView, setRuntimeSync,
-  type AutomationRuntime } from './core/runtime.svelte';
-import { browserRuntimeLease, openRuntimeSync, validPageChangePayload, type RuntimeRequest, type RuntimeSync } from './core/runtime-sync';
-import { TRIGGERS, type Trigger } from './core/scenario';
-import type { VariableType, VariableValue } from './core/variables';
+  type AutomationRuntime } from './app/runtime.svelte';
+import { browserRuntimeLease, openRuntimeSync, validPageChangePayload, type RuntimeRequest, type RuntimeSync } from './app/runtime-sync';
+import { TRIGGERS, type Trigger } from './features/automation/scenario';
+import type { VariableType, VariableValue } from './features/automation/variables';
 import { corePlugin } from './plugins/core';
 import { spotifyPlugin } from './plugins/spotify';
 import { subwayPlugin } from './plugins/subway';
 import { uiPlugin } from './plugins/ui';
-import Root from './Root.svelte';
+import Root from './app/Root.svelte';
 
 document.addEventListener('contextmenu', event => event.preventDefault());
 
@@ -36,7 +36,7 @@ let disposeOwner: (() => Promise<void>) | undefined;
 let cleanupPromise: Promise<void> | undefined;
 let bootDisposed = false;
 
-function reportRuntimeFailure(failure: import('./core/scenario-runner').ScenarioFailure) {
+function reportRuntimeFailure(failure: import('./features/automation/scenario-runner').ScenarioFailure) {
   const control = settings.controls.find(item => item.id === failure.controlId);
   const action = failure.actionId ? actions.get(failure.actionId)?.title ?? failure.actionId : undefined;
   toast.error(`${control?.name ?? 'Automation'}: ${action ?? (failure.kind === 'delay' ? 'Wait' : 'Condition')} failed`);

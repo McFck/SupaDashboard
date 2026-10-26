@@ -1,10 +1,10 @@
 // Plugin contracts: the API that bundled features and plugins register through.
 // Type-only, so importing it never initializes registries, settings, storage, or the runtime.
 import type { Component } from 'svelte';
-import type { ControlConfig, ControlFaceProps } from '../../core/controls';
-import type { ActionStep, Trigger } from '../../core/scenario';
-import type { SkinDef } from '../../core/skins';
-import type { VariableDefinition, VariableRecord, VariableValue } from '../../core/variables';
+import type { ControlConfig, ControlFaceProps } from '../controls/model';
+import type { ActionStep, Trigger } from '../automation/scenario';
+import type { SkinDef } from '../skins/definition';
+import type { VariableDefinition, VariableRecord, VariableValue } from '../automation/variables';
 
 /** A reference to an action plus its arguments, as stored in settings. */
 export type ActionRef = { id: string; args?: Record<string, unknown> };

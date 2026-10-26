@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { ControlFaceProps } from '../../core/controls';
-  import { getSkinHostContext } from '../../skins/context';
-  import Icon from '../../controls/Icon.svelte';
+  import type { ControlFaceProps } from '../../features/controls/model';
+  import { getSkinHostContext } from '../../features/skins/context';
+  import Icon from '../../features/controls/ui/Icon.svelte';
   import { subwayButtonFaceModel } from './faces';
 
   let { appearance, compact, busy, pull, pixelWidth, pixelHeight }: ControlFaceProps = $props();

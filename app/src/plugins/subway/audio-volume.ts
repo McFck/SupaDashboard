@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import type { PluginApi } from '../../features/plugins/contracts';
-import { requestRuntime, runtimeView, type RuntimeSnapshot } from '../../core/runtime.svelte';
-import { registerLocalVolumeChannel } from '../../core/volume';
+import { requestRuntime, runtimeView, type RuntimeSnapshot } from '../../app/runtime.svelte';
+import { registerLocalVolumeChannel } from '../../features/media/volume';
 
 export const SUBWAY_MIX_TARGET = 'subway:immersion';
 export const SUBWAY_MIX_VOLUME_ID = 'subway.mixVolume';

@@ -1,5 +1,5 @@
 import { tick } from 'svelte';
-import { SPRING_SAMPLES } from '../../../../core/controls';
+import { SPRING_SAMPLES } from '../../../../features/controls/interaction';
 
 export class MotionLifecycle {
   private generation = 0;

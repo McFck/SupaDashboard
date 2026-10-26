@@ -9,10 +9,10 @@
   import Store from '@lucide/svelte/icons/store';
   import { Button } from '$lib/components/ui/button';
   import { Hint } from '$lib/components/ui/tooltip';
-  import LayoutPage from './LayoutPage.svelte';
-  import PluginsPage from './PluginsPage.svelte';
-  import SettingsPage from './SettingsPage.svelte';
-  import MarketPage from './MarketPage.svelte';
+  import LayoutPage from '../features/layout/ui/LayoutPage.svelte';
+  import PluginsPage from '../features/plugins/ui/PluginsPage.svelte';
+  import SettingsPage from '../features/settings/SettingsPage.svelte';
+  import MarketPage from '../features/plugins/ui/MarketPage.svelte';
   import ConfirmationHost from '$lib/components/ui/confirmation/ConfirmationHost.svelte';
   import { confirmationState } from '$lib/components/ui/confirmation/confirm.svelte';
   import { SIDEBAR_RAIL } from './ui/frame';

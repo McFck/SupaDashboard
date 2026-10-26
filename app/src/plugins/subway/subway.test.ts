@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionDef, PluginApi } from '../../features/plugins/contracts';
-import { validateSkinDefinition, type SkinDef } from '../../core/skins';
+import { validateSkinDefinition, type SkinDef } from '../../features/skins/definition';
 import { subwayPlugin } from './index';
 
 function collect() {

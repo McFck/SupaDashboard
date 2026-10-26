@@ -1,7 +1,7 @@
 // Upgrades any supported saved settings to the current version and normalizes them.
-import type { ControlConfig } from '../../core/controls';
-import type { Item } from '../../core/layout';
-import { normalizeControl } from '../../core/scenario';
+import type { ControlConfig } from '../controls/model';
+import type { Item } from '../layout/grid';
+import { normalizeControl } from '../automation/scenario';
 import { DEFAULT_PAGE, DEFAULTS, type Page, type Settings } from './schema';
 
 function uniqueId(value: unknown, used: Set<string>, base: string) {

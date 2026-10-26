@@ -1,7 +1,7 @@
 // Persisted settings shape (v5) and the defaults a fresh install starts from.
-import type { ControlConfig } from '../../core/controls';
-import type { DeckSizing, Item } from '../../core/layout';
-import { normalizeControl } from '../../core/scenario';
+import type { ControlConfig } from '../controls/model';
+import type { DeckSizing, Item } from '../layout/grid';
+import { normalizeControl } from '../automation/scenario';
 
 export type Page = {
   id: string;

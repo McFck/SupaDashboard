@@ -1,6 +1,6 @@
 import { get, writable, type Readable } from 'svelte/store';
 import type { EventAncestry } from '../../features/plugins/contracts';
-import type { SkinRuntimeContext } from '../../core/skins';
+import type { SkinRuntimeContext } from '../../features/skins/definition';
 import { normalizeSubwayLines, stepStation, type LineDefinition } from './lines';
 import { announcementLanguages, firstStationForDirection, normalizeSubwayConfig, type SubwayLineId } from './config';
 import { createSubwayAudio, type SubwayAudioController } from './audio';

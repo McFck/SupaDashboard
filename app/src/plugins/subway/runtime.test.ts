@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { get, writable } from 'svelte/store';
-import type { SkinRuntimeContext } from '../../core/skins';
+import type { SkinRuntimeContext } from '../../features/skins/definition';
 import { normalizeSubwayLines, type RawLineBundle } from './lines';
 import { registerSubwaySurface, createSubwayRuntime, subwaySceneState, type SubwayRuntimeClock } from './runtime';
 import type { DoorSequenceApi, LoadedSubwayAssets, RuntimeCueManifest } from './sound-pack';
