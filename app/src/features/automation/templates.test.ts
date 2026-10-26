@@ -1,16 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateExpression, evaluatePredicate, ExpressionError, renderTemplate } from './templates';
+import {
+  evaluateExpression,
+  evaluatePredicate,
+  ExpressionError,
+  renderTemplate,
+} from './templates';
 
 describe('safe templates and conditions', () => {
   it('renders Unicode values as plain text, supports escaped braces and keeps unknown tokens visible', () => {
-    const values: Record<string, boolean | number | string> = { recording: true, count: 2, title: 'Музыка 🎧' };
-    const result = renderTemplate('T{{{recording}}} · {title} · {unknown}', name => values[name]);
+    const values: Record<string, boolean | number | string> = {
+      recording: true,
+      count: 2,
+      title: 'Музыка 🎧',
+    };
+    const result = renderTemplate('T{{{recording}}} · {title} · {unknown}', (name) => values[name]);
     expect(result).toEqual({ text: 'T{true} · Музыка 🎧 · {unknown}', unknown: ['unknown'] });
-    expect(renderTemplate('{{literal}}', () => undefined)).toEqual({ text: '{literal}', unknown: [] });
+    expect(renderTemplate('{{literal}}', () => undefined)).toEqual({
+      text: '{literal}',
+      unknown: [],
+    });
   });
 
   it('parses precedence, typed comparisons, parentheses and short-circuits', () => {
-    const values: Record<string, boolean | number | string> = { recording: true, count: 2, title: 'a' };
+    const values: Record<string, boolean | number | string> = {
+      recording: true,
+      count: 2,
+      title: 'a',
+    };
     const get = (name: string) => values[name];
     expect(evaluateExpression('{recording} && {count} > 0 || false', get)).toBe(true);
     expect(evaluateExpression('!({recording} && {count} == 0)', get)).toBe(true);
@@ -21,7 +37,7 @@ describe('safe templates and conditions', () => {
   });
 
   it('rejects unresolved values, type mismatches and expressions that do not return Boolean', () => {
-    const get = (name: string) => name === 'count' ? 2 : undefined;
+    const get = (name: string) => (name === 'count' ? 2 : undefined);
     expect(() => evaluateExpression('{missing}', get)).toThrow('Unknown variable');
     expect(() => evaluateExpression('{count} && true', get)).toThrow('Boolean');
     expect(() => evaluateExpression('{count} == "2"', get)).toThrow('same type');
@@ -30,7 +46,14 @@ describe('safe templates and conditions', () => {
   });
 
   it('rejects JavaScript, property access, assignment and calls without evaluating them', () => {
-    for (const source of ['globalThis', '({}).constructor', '{count}.toString()', '{count} = 2', 'alert(1)', 'new Function("return 1")'])
+    for (const source of [
+      'globalThis',
+      '({}).constructor',
+      '{count}.toString()',
+      '{count} = 2',
+      'alert(1)',
+      'new Function("return 1")',
+    ])
       expect(() => evaluateExpression(source, () => undefined)).toThrow(ExpressionError);
   });
 
@@ -41,17 +64,55 @@ describe('safe templates and conditions', () => {
   });
 
   it('evaluates ID operands and stable current-state IDs with strict operator rules', () => {
-    const env = { getVariable: (id: string) => id === 'v-count' ? 2 : undefined,
-      findVariable: (name: string) => name === 'count' ? 2 : undefined,
-      getState: (id: string) => id === 'self' ? 'state-on' : undefined };
-    expect(evaluatePredicate({ kind: 'compare', left: { kind: 'variable', id: 'v-count' }, op: 'gt',
-      right: { kind: 'literal', value: 1 } }, env)).toBe(true);
-    expect(evaluatePredicate({ kind: 'compare', left: { kind: 'state', controlId: 'self' }, op: 'eq',
-      right: { kind: 'literal', value: 'state-on' } }, env)).toBe(true);
+    const env = {
+      getVariable: (id: string) => (id === 'v-count' ? 2 : undefined),
+      findVariable: (name: string) => (name === 'count' ? 2 : undefined),
+      getState: (id: string) => (id === 'self' ? 'state-on' : undefined),
+    };
+    expect(
+      evaluatePredicate(
+        {
+          kind: 'compare',
+          left: { kind: 'variable', id: 'v-count' },
+          op: 'gt',
+          right: { kind: 'literal', value: 1 },
+        },
+        env,
+      ),
+    ).toBe(true);
+    expect(
+      evaluatePredicate(
+        {
+          kind: 'compare',
+          left: { kind: 'state', controlId: 'self' },
+          op: 'eq',
+          right: { kind: 'literal', value: 'state-on' },
+        },
+        env,
+      ),
+    ).toBe(true);
     expect(evaluatePredicate({ kind: 'expression', source: '{count} > 1' }, env)).toBe(true);
-    expect(() => evaluatePredicate({ kind: 'compare', left: { kind: 'state', controlId: 'self' }, op: 'gt',
-      right: { kind: 'literal', value: 'state-on' } }, env)).toThrow('equality only');
-    expect(() => evaluatePredicate({ kind: 'compare', left: { kind: 'variable', id: 'missing' }, op: 'eq',
-      right: { kind: 'literal', value: false } }, env)).toThrow('Unavailable variable');
+    expect(() =>
+      evaluatePredicate(
+        {
+          kind: 'compare',
+          left: { kind: 'state', controlId: 'self' },
+          op: 'gt',
+          right: { kind: 'literal', value: 'state-on' },
+        },
+        env,
+      ),
+    ).toThrow('equality only');
+    expect(() =>
+      evaluatePredicate(
+        {
+          kind: 'compare',
+          left: { kind: 'variable', id: 'missing' },
+          op: 'eq',
+          right: { kind: 'literal', value: false },
+        },
+        env,
+      ),
+    ).toThrow('Unavailable variable');
   });
 });

@@ -10,14 +10,28 @@
 
   function pick(id: string) {
     const params = actions.get(id)?.params ?? [];
-    onchange({ id, args: Object.fromEntries(params.filter(p => p.default !== undefined).map(p => [p.key, structuredClone(p.default)])) });
+    onchange({
+      id,
+      args: Object.fromEntries(
+        params
+          .filter((p) => p.default !== undefined)
+          .map((p) => [p.key, structuredClone(p.default)]),
+      ),
+    });
   }
 </script>
 
 <div class="grid gap-3">
-  <ActionPicker value={value.id} onpick={pick} />
+  <ActionPicker
+    value={value.id}
+    onpick={pick}
+  />
   {#each def?.params ?? [] as param (param.key)}
-    <ParamField {param} provider={def?.plugin} value={value.args?.[param.key]}
-      onchange={v => onchange({ ...value, args: { ...value.args, [param.key]: v } })} />
+    <ParamField
+      {param}
+      provider={def?.plugin}
+      value={value.args?.[param.key]}
+      onchange={(v) => onchange({ ...value, args: { ...value.args, [param.key]: v } })}
+    />
   {/each}
 </div>
