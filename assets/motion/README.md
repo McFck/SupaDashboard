@@ -26,8 +26,8 @@ The Tokyo author describes the samples as muffled. The supplied tables refer to
 two absent Tokyo WAVs, but both tracks have zero volume throughout and are omitted.
 Neither pack's door sounds, chimes or announcements are imported.
 
-The sound pack remains tracked in the private project repository per the user's
-direction. Keep the source names and original provenance above, including the
+The sound pack is tracked in the repository and free to use.
+Keep the source names and original provenance above, including the
 preserved [Tokyo readme](tokyo-source-readme.txt), when updating the pack. No
 downloaded plugin or executable is used.
 

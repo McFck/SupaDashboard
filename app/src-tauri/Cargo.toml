@@ -2,6 +2,7 @@
 name = "supadashboard"
 version = "0.1.0"
 description = "Customizable second-screen dashboard"
+license = "GPL-3.0-or-later"
 edition = "2024"
 rust-version = "1.90"
 

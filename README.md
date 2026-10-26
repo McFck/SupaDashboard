@@ -1,8 +1,8 @@
 # SupaDashboard
 
-Private Japanese-train audio for a tablet dashboard. Open [assets/motion-demo.html](assets/motion-demo.html)
-directly in Chrome/Edge for station-to-station runs or movement only. Third-party audio stays local;
-do not publish or upload it. Credits and library SFX licence terms are in [assets/sources.json](assets/sources.json).
+Japanese-train audio for a tablet dashboard. Open [assets/motion-demo.html](assets/motion-demo.html)
+directly in Chrome/Edge for station-to-station runs or movement only. Credits for the original recordings and
+sound materials are in [assets/sources.json](assets/sources.json).
 
 | Line | Kept content |
 |---|---|
@@ -58,3 +58,10 @@ examples from other lines and the generic Osaka 30000 movement profile remain la
 
 The dashboard itself is in [`app/`](app/README.md): Tauri 2 + Svelte 5. Run it with `cd app && pnpm install && pnpm tauri dev`.
 It has skins with control slots, extensible actions, gesture-switchable controls, and native media + volume control.
+
+## License
+
+The software is licensed under the [GNU General Public License v3.0 or later](LICENSE): anyone may use, study,
+change and share it, provided that what they distribute stays free under the same terms. The audio, motion data
+and other assets in `assets/` are free to use; keep the credits to their original authors listed in
+[assets/sources.json](assets/sources.json) and the retained author readmes.
