@@ -8,24 +8,33 @@ function recordingContext() {
   const fillStyles: string[] = [];
   const rectangles: { color: string; bounds: number[] }[] = [];
   let fillStyle = '#000000';
-  const ctx = new Proxy({}, {
-    get(_target, key) {
-      if (key === 'measureText') return () => ({ width: 100 });
-      if (key === 'fillText') return (value: string) => text.push(value);
-      if (key === 'fillRect') return (...bounds: number[]) => rectangles.push({ color: fillStyle, bounds });
-      return () => {};
+  const ctx = new Proxy(
+    {},
+    {
+      get(_target, key) {
+        if (key === 'measureText') return () => ({ width: 100 });
+        if (key === 'fillText') return (value: string) => text.push(value);
+        if (key === 'fillRect')
+          return (...bounds: number[]) => rectangles.push({ color: fillStyle, bounds });
+        return () => {};
+      },
+      set(_target, key, value) {
+        if (key === 'fillStyle') {
+          fillStyle = String(value);
+          fillStyles.push(fillStyle);
+        }
+        return true;
+      },
     },
-    set(_target, key, value) {
-      if (key === 'fillStyle') { fillStyle = String(value); fillStyles.push(fillStyle); }
-      return true;
-    },
-  }) as CanvasRenderingContext2D;
+  ) as CanvasRenderingContext2D;
   return { ctx, text, fillStyles, rectangles };
 }
 
 function screen(page: ScreenSchedule['page'], language: ScreenSchedule['language'] = 'ja') {
   return {
-    page, language, visibleElapsed: 0,
+    page,
+    language,
+    visibleElapsed: 0,
     snapshot: { state: 'stopped', station: 'JY13', direction: 'inner' },
     station: { code: 'JY13' },
   } as unknown as ScreenSchedule;
@@ -33,10 +42,15 @@ function screen(page: ScreenSchedule['page'], language: ScreenSchedule['language
 
 describe('E235 source transfer layouts', () => {
   it('keeps all imported Shinkansen icons solid when the source has no secondary colour', () => {
-    const icons = e235Data.stations.flatMap(station => station.transfers.flatMap<Parameters<typeof drawE235LineIcon>[1]>(transfer => transfer.icons))
-      .filter(icon => icon.type.startsWith('Shinkansen'));
-    expect(icons.map(icon => icon.color)).toContain('#3f7fff');
-    expect(icons.map(icon => icon.color)).toContain('#00a000');
+    const icons = e235Data.stations
+      .flatMap((station) =>
+        station.transfers.flatMap<Parameters<typeof drawE235LineIcon>[1]>(
+          (transfer) => transfer.icons,
+        ),
+      )
+      .filter((icon) => icon.type.startsWith('Shinkansen'));
+    expect(icons.map((icon) => icon.color)).toContain('#3f7fff');
+    expect(icons.map((icon) => icon.color)).toContain('#00a000');
     for (const icon of icons) {
       const { ctx, rectangles } = recordingContext();
       drawE235LineIcon(ctx, icon, 0, 0, 30);
@@ -49,13 +63,25 @@ describe('E235 source transfer layouts', () => {
     const { ctx, text, fillStyles } = recordingContext();
     drawE235Page(ctx, screen('transfers'));
 
-    const expected = layout.lines.map(item => item.transfer.ja.replace(/\n/g, ''));
-    expect(text.filter(value => expected.includes(value))).toEqual(expected);
-    expect(layout.lines.map(item => [item.ref, item.row, item.column])).toEqual([
-      [0, 0, 0], [1, 0, 1], [2, 0, 2], [3, 1, 0], [4, 1, 1], [5, 1, 2], [6, 2, 0],
+    const expected = layout.lines.map((item) => item.transfer.ja.replace(/\n/g, ''));
+    expect(text.filter((value) => expected.includes(value))).toEqual(expected);
+    expect(layout.lines.map((item) => [item.ref, item.row, item.column])).toEqual([
+      [0, 0, 0],
+      [1, 0, 1],
+      [2, 0, 2],
+      [3, 1, 0],
+      [4, 1, 1],
+      [5, 1, 2],
+      [6, 2, 0],
     ]);
-    expect(layout.lines.map(item => item.transfer.icons[0]?.type)).toEqual([
-      'LineColor', 'LineColor', 'TrainIcon', 'TrainIcon', 'Subway', 'Subway', 'Subway',
+    expect(layout.lines.map((item) => item.transfer.icons[0]?.type)).toEqual([
+      'LineColor',
+      'LineColor',
+      'TrainIcon',
+      'TrainIcon',
+      'Subway',
+      'Subway',
+      'Subway',
     ]);
     expect(layout.lines[0]?.iconRef).toBe(1);
     expect(fillStyles).toContain('#ff2a00');
@@ -67,10 +93,16 @@ describe('E235 source transfer layouts', () => {
     const { ctx, text } = recordingContext();
     drawE235DetailedTransfers(ctx, screen('nearby'), false);
 
-    const expected = layout.lines.flatMap(item => (item.aliasJa || item.transfer.ja).split('\n'));
-    expect(text.filter(value => expected.includes(value))).toEqual(expected);
-    expect(layout.lines.map(item => [item.ref, item.row, item.column])).toEqual([
-      [0, 0, 0], [1, 0, 1], [2, 1, 0], [3, 1, 1], [4, 2, 0], [5, 2, 1], [6, 3, 0],
+    const expected = layout.lines.flatMap((item) => (item.aliasJa || item.transfer.ja).split('\n'));
+    expect(text.filter((value) => expected.includes(value))).toEqual(expected);
+    expect(layout.lines.map((item) => [item.ref, item.row, item.column])).toEqual([
+      [0, 0, 0],
+      [1, 0, 1],
+      [2, 1, 0],
+      [3, 1, 1],
+      [4, 2, 0],
+      [5, 2, 1],
+      [6, 3, 0],
     ]);
   });
 });

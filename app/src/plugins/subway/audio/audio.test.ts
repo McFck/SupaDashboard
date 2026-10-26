@@ -16,8 +16,12 @@ function audioParam() {
 function source() {
   const listeners = new Map<string, () => void>();
   const node = {
-    stop: vi.fn(), connect: vi.fn(), disconnect: vi.fn(),
-    addEventListener: vi.fn((type: string, listener: () => void) => { listeners.set(type, listener); }),
+    stop: vi.fn(),
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    addEventListener: vi.fn((type: string, listener: () => void) => {
+      listeners.set(type, listener);
+    }),
     finish: () => listeners.get('ended')?.(),
   };
   node.connect.mockReturnValue(node);
@@ -25,14 +29,26 @@ function source() {
 }
 
 function makeAudioHarness() {
-  const gains: { gain: ReturnType<typeof audioParam>; connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }[] = [];
+  const gains: {
+    gain: ReturnType<typeof audioParam>;
+    connect: ReturnType<typeof vi.fn>;
+    disconnect: ReturnType<typeof vi.fn>;
+  }[] = [];
   const sources: ReturnType<typeof source>[] = [];
   const oscillators: ReturnType<typeof source>[] = [];
   let now = 5;
   let state = 'suspended';
   const context = {
-    get currentTime() { return now; }, set currentTime(value: number) { now = value; },
-    get state() { return state; }, destination: {},
+    get currentTime() {
+      return now;
+    },
+    set currentTime(value: number) {
+      now = value;
+    },
+    get state() {
+      return state;
+    },
+    destination: {},
     createGain: vi.fn(() => {
       const node = { gain: audioParam(), connect: vi.fn(), disconnect: vi.fn() };
       gains.push(node);
@@ -44,38 +60,92 @@ function makeAudioHarness() {
       return node;
     }),
     decodeAudioData: vi.fn(async () => ({ length: 100, numberOfChannels: 1 })),
-    resume: vi.fn(async () => { state = 'running'; }),
-    suspend: vi.fn(async () => { state = 'suspended'; }),
-    close: vi.fn(async () => { state = 'closed'; }),
+    resume: vi.fn(async () => {
+      state = 'running';
+    }),
+    suspend: vi.fn(async () => {
+      state = 'suspended';
+    }),
+    close: vi.fn(async () => {
+      state = 'closed';
+    }),
   } as unknown as AudioContext & { currentTime: number; gains: typeof gains };
   const motion = { update: vi.fn(), volume: vi.fn(), reset: vi.fn(), dispose: vi.fn() };
-  const played: { destination: AudioNode; cue: ResolvedCue; when: number; source: ReturnType<typeof source> }[] = [];
+  const played: {
+    destination: AudioNode;
+    cue: ResolvedCue;
+    when: number;
+    source: ReturnType<typeof source>;
+  }[] = [];
   const api = {
     MotionAudio: { load: vi.fn(async () => motion) },
-    playCue: vi.fn((_context: AudioContext, destination: AudioNode, _buffer: AudioBuffer, cue: ResolvedCue, when: number) => {
-      const node = source();
-      sources.push(node);
-      played.push({ destination, cue, when, source: node });
-      return node as unknown as AudioBufferSourceNode;
-    }),
+    playCue: vi.fn(
+      (
+        _context: AudioContext,
+        destination: AudioNode,
+        _buffer: AudioBuffer,
+        cue: ResolvedCue,
+        when: number,
+      ) => {
+        const node = source();
+        sources.push(node);
+        played.push({ destination, cue, when, source: node });
+        return node as unknown as AudioBufferSourceNode;
+      },
+    ),
   } as unknown as TrainMotionApi;
   const loadEngine = vi.fn(async () => ({ api, profiles: [{ id: 'tokyo' }, { id: 'osaka' }] }));
-  const fetch = vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) } as Response));
+  const fetch = vi.fn(
+    async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }) as Response,
+  );
   const contextFactory = vi.fn(() => context);
   const audio = createSubwayAudio({ contextFactory, loadEngine, fetch });
-  return { audio, context, contextFactory, motion, loadEngine, fetch, played, gains, sources, oscillators };
+  return {
+    audio,
+    context,
+    contextFactory,
+    motion,
+    loadEngine,
+    fetch,
+    played,
+    gains,
+    sources,
+    oscillators,
+  };
 }
 
 const snapshot = (patch: Partial<RunSnapshot> = {}): RunSnapshot => ({
-  station: 'JY01', next: 'JY02', state: 'cruising', line: 'yamanote', direction: 'inner', doorSide: 'unknown',
-  doors: 'closed', speed: 24, power: 0.5, brake: 0, progress: 0.3, paused: false, immersion: true,
-  generation: 0, multiplier: 1, remainingMinutes: 4, ...patch,
+  station: 'JY01',
+  next: 'JY02',
+  state: 'cruising',
+  line: 'yamanote',
+  direction: 'inner',
+  doorSide: 'unknown',
+  doors: 'closed',
+  speed: 24,
+  power: 0.5,
+  brake: 0,
+  progress: 0.3,
+  paused: false,
+  immersion: true,
+  generation: 0,
+  multiplier: 1,
+  remainingMinutes: 4,
+  ...patch,
 });
 
 const cue: ResolvedCue = {
-  file: 'lines/yamanote/voice.opus', offset: 1, duration: 0.2, audible_end: 0.18,
-  gainByRole: { voice: 0.8 }, sha256: 'a'.repeat(64), status: 'approved', source: 'fixture',
-  gain: 0.8, role: 'voice', url: '/subway/lines/yamanote/voice.opus',
+  file: 'lines/yamanote/voice.opus',
+  offset: 1,
+  duration: 0.2,
+  audible_end: 0.18,
+  gainByRole: { voice: 0.8 },
+  sha256: 'a'.repeat(64),
+  status: 'approved',
+  source: 'fixture',
+  gain: 0.8,
+  role: 'voice',
+  url: '/subway/lines/yamanote/voice.opus',
 };
 
 async function ready() {
@@ -144,7 +214,12 @@ describe('Subway immersion audio', () => {
   it('cancels an old decoded cue after a line generation change and emits one synthetic alert per incident', async () => {
     const harness = await ready();
     let resolveFetch!: (response: Response) => void;
-    harness.fetch.mockImplementationOnce(() => new Promise(resolve => { resolveFetch = resolve; }));
+    harness.fetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
     const effect = { type: 'play-cue', id: 'arrival:ja', cue, generation: 0 } as const;
     const pending = harness.audio.playCue(effect);
     harness.audio.transition(snapshot({ line: 'sakaisuji', generation: 1 }), []);
@@ -152,9 +227,13 @@ describe('Subway immersion audio', () => {
     await pending;
     expect(harness.played).toHaveLength(0);
     const emergency = { type: 'emergency', generation: 1 } as const;
-    harness.audio.transition(snapshot({ line: 'sakaisuji', generation: 1, state: 'emergency' }), [emergency]);
+    harness.audio.transition(snapshot({ line: 'sakaisuji', generation: 1, state: 'emergency' }), [
+      emergency,
+    ]);
     expect(harness.oscillators).toHaveLength(2);
-    harness.audio.transition(snapshot({ line: 'sakaisuji', generation: 1, state: 'emergency' }), [emergency]);
+    harness.audio.transition(snapshot({ line: 'sakaisuji', generation: 1, state: 'emergency' }), [
+      emergency,
+    ]);
     expect(harness.oscillators).toHaveLength(2);
     expect(harness.audio.getStats().syntheticEmergencyAlert).toBe(true);
   });

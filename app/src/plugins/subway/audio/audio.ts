@@ -188,7 +188,11 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
 
   function stopSources() {
     for (const [source, url] of [...activeSources]) {
-      try { source.stop(); } catch { /* already ended */ }
+      try {
+        source.stop();
+      } catch {
+        /* already ended */
+      }
       source.disconnect();
       activeSources.delete(source);
       setPinned(url, -1);
@@ -196,15 +200,18 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
   }
 
   function ensureEngine(): Promise<{ api: TrainMotionApi; profiles: readonly unknown[] }> {
-    if (!enginePromise) enginePromise = loadEngine().then(loaded => {
-      motionApi = loaded.api;
-      profiles = loaded.profiles;
-      return loaded;
-    }).catch(error => {
-      enginePromise = undefined;
-      warnOnce('engine', error);
-      throw error;
-    });
+    if (!enginePromise)
+      enginePromise = loadEngine()
+        .then((loaded) => {
+          motionApi = loaded.api;
+          profiles = loaded.profiles;
+          return loaded;
+        })
+        .catch((error) => {
+          enginePromise = undefined;
+          warnOnce('engine', error);
+          throw error;
+        });
     return enginePromise;
   }
 
@@ -223,18 +230,35 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     profilePromise = (async () => {
       try {
         const loaded = await ensureEngine();
-        if (disposed || thisEpoch !== epoch || thisProfileEpoch !== profileEpoch || audioContext !== context) return;
-        const profile = loaded.profiles.find(candidate => (candidate as AudioProfile)?.id === wanted);
+        if (
+          disposed ||
+          thisEpoch !== epoch ||
+          thisProfileEpoch !== profileEpoch ||
+          audioContext !== context
+        )
+          return;
+        const profile = loaded.profiles.find(
+          (candidate) => (candidate as AudioProfile)?.id === wanted,
+        );
         if (!profile) throw new Error(`Missing ${wanted} motion profile`);
         const instance = await loaded.api.MotionAudio.load(audioContext, profile);
-        if (disposed || thisEpoch !== epoch || thisProfileEpoch !== profileEpoch || audioContext !== context) {
+        if (
+          disposed ||
+          thisEpoch !== epoch ||
+          thisProfileEpoch !== profileEpoch ||
+          audioContext !== context
+        ) {
           instance.dispose();
           return;
         }
         motion = instance;
         applyGains(true);
         if (currentSnapshot && !currentSnapshot.paused)
-          motion.update({ speed: currentSnapshot.speed, power: currentSnapshot.power, brake: currentSnapshot.brake });
+          motion.update({
+            speed: currentSnapshot.speed,
+            power: currentSnapshot.power,
+            brake: currentSnapshot.brake,
+          });
         setAvailability(audioContext.state === 'running');
       } catch (error) {
         if (thisEpoch === epoch && thisProfileEpoch === profileEpoch) {
@@ -253,15 +277,17 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     if (context.state === 'running') return;
     try {
       const resumed = context.resume();
-      void resumed.then(() => {
-        if (context && enabled && visible) {
-          applyGains(true);
-          if (motion) setAvailability(true);
-        }
-      }).catch(error => {
-        setAvailability(false);
-        warnOnce(fromGesture ? 'unlock' : 'resume', error);
-      });
+      void resumed
+        .then(() => {
+          if (context && enabled && visible) {
+            applyGains(true);
+            if (motion) setAvailability(true);
+          }
+        })
+        .catch((error) => {
+          setAvailability(false);
+          warnOnce(fromGesture ? 'unlock' : 'resume', error);
+        });
     } catch (error) {
       setAvailability(false);
       warnOnce(fromGesture ? 'unlock' : 'resume', error);
@@ -299,7 +325,8 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       pending.clear();
       pinned.clear();
       cacheBytes = 0;
-      if (audioContext && audioContext.state !== 'closed') void audioContext.close().catch(() => {});
+      if (audioContext && audioContext.state !== 'closed')
+        void audioContext.close().catch(() => {});
       setAvailability(false);
       return;
     }
@@ -324,9 +351,13 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       if (!context) return;
       applyGains(true);
       const suspendedContext = context;
-      void suspendedContext.suspend().then(() => {
-        if (visibilityEpoch !== request && visible && enabled && context === suspendedContext) resumeContext(false);
-      }).catch(error => warnOnce('suspend', error));
+      void suspendedContext
+        .suspend()
+        .then(() => {
+          if (visibilityEpoch !== request && visible && enabled && context === suspendedContext)
+            resumeContext(false);
+        })
+        .catch((error) => warnOnce('suspend', error));
     } else {
       ensureContext();
       resumeContext(false);
@@ -356,7 +387,10 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     if (!context || !cueBus || !enabled || !visible || mixMuted || alerts.has(generation)) return;
     alerts.add(generation);
     const start = context.currentTime;
-    for (const [frequency, at] of [[660, 0], [880, 0.15]] as const) {
+    for (const [frequency, at] of [
+      [660, 0],
+      [880, 0.15],
+    ] as const) {
       const oscillator = context.createOscillator();
       const envelope = context.createGain();
       const onset = start + at;
@@ -389,7 +423,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       void ensureMotion(snapshot.line);
       motion?.update({ speed: snapshot.speed, power: snapshot.power, brake: snapshot.brake });
     }
-    if (effects.some(effect => effect.type === 'emergency') && !alerts.has(snapshot.generation)) {
+    if (effects.some((effect) => effect.type === 'emergency') && !alerts.has(snapshot.generation)) {
       stopSources();
       playAlert(snapshot.generation);
     }
@@ -399,38 +433,79 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     const audioContext = context;
     let api = motionApi;
     const cueBusNode = cueBus;
-    if (!enabled || !visible || !audioContext || !cueBusNode || effect.generation !== audioGeneration) return;
+    if (
+      !enabled ||
+      !visible ||
+      !audioContext ||
+      !cueBusNode ||
+      effect.generation !== audioGeneration
+    )
+      return;
     const requestEpoch = epoch;
     const scheduledAt = audioContext.currentTime;
     if (!api) {
-      try { api = (await ensureEngine()).api; }
-      catch { return; }
+      try {
+        api = (await ensureEngine()).api;
+      } catch {
+        return;
+      }
     }
-    if (disposed || requestEpoch !== epoch || !enabled || !visible || audioContext !== context || effect.generation !== audioGeneration) return;
+    if (
+      disposed ||
+      requestEpoch !== epoch ||
+      !enabled ||
+      !visible ||
+      audioContext !== context ||
+      effect.generation !== audioGeneration
+    )
+      return;
     const buffer = await decode(effect.cue);
-    if (!buffer || disposed || !enabled || !visible || requestEpoch !== epoch || effect.generation !== audioGeneration || audioContext !== context) return;
+    if (
+      !buffer ||
+      disposed ||
+      !enabled ||
+      !visible ||
+      requestEpoch !== epoch ||
+      effect.generation !== audioGeneration ||
+      audioContext !== context
+    )
+      return;
     const elapsed = Math.max(0, audioContext.currentTime - scheduledAt);
     if (elapsed >= effect.cue.duration) return;
-    const cue: ResolvedCue = { ...effect.cue, offset: effect.cue.offset + elapsed,
-      duration: effect.cue.duration - elapsed };
+    const cue: ResolvedCue = {
+      ...effect.cue,
+      offset: effect.cue.offset + elapsed,
+      duration: effect.cue.duration - elapsed,
+    };
     const destination = cue.role === 'voice' ? voiceBus : cueBusNode;
     if (!destination) return;
     try {
       const source = api.playCue(audioContext, destination, buffer, cue, audioContext.currentTime);
       activeSources.set(source, cue.url);
       setPinned(cue.url, 1);
-      source.addEventListener('ended', () => {
-        activeSources.delete(source);
-        setPinned(cue.url, -1);
-        source.disconnect();
-        pruneCache();
-      }, { once: true });
-    } catch (error) { warnOnce(`play:${cue.url}`, error); }
+      source.addEventListener(
+        'ended',
+        () => {
+          activeSources.delete(source);
+          setPinned(cue.url, -1);
+          source.disconnect();
+          pruneCache();
+        },
+        { once: true },
+      );
+    } catch (error) {
+      warnOnce(`play:${cue.url}`, error);
+    }
   }
 
   function getStats(): SubwayAudioStats {
-    return { activeSources: activeSources.size, decodedCacheBytes: cacheBytes,
-      decodedCachePeakBytes: cachePeakBytes, cacheHits, syntheticEmergencyAlert: true };
+    return {
+      activeSources: activeSources.size,
+      decodedCacheBytes: cacheBytes,
+      decodedCachePeakBytes: cachePeakBytes,
+      cacheHits,
+      syntheticEmergencyAlert: true,
+    };
   }
 
   function dispose() {
@@ -441,6 +516,19 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     unsubscribeMixer();
   }
 
-  const unsubscribeMixer = subscribeSubwayMixerSettings(settings => setMix(settings.volume, settings.muted));
-  return { setEnabled, resetLine, setVisible, setMix, setAnnouncementVolume, transition, preload, playCue, getStats, dispose };
+  const unsubscribeMixer = subscribeSubwayMixerSettings((settings) =>
+    setMix(settings.volume, settings.muted),
+  );
+  return {
+    setEnabled,
+    resetLine,
+    setVisible,
+    setMix,
+    setAnnouncementVolume,
+    transition,
+    preload,
+    playCue,
+    getStats,
+    dispose,
+  };
 }

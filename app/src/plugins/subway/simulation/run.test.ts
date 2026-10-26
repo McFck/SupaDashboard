@@ -1,29 +1,66 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines, type RawLineBundle } from './lines';
-import { createRunState, nextRunWake, reduceRun, segmentPlanKey, snapshotRun, type RunEffect, type RunTransition, type SubwayCuePlans } from './run';
+import {
+  createRunState,
+  nextRunWake,
+  reduceRun,
+  segmentPlanKey,
+  snapshotRun,
+  type RunEffect,
+  type RunTransition,
+  type SubwayCuePlans,
+} from './run';
 
-const modules = import.meta.glob('../../../../../assets/lines/*/{line,pack}.json', { eager: true, import: 'default' }) as Record<string, unknown>;
+const modules = import.meta.glob('../../../../../assets/lines/*/{line,pack}.json', {
+  eager: true,
+  import: 'default',
+}) as Record<string, unknown>;
 const bundles: Record<string, RawLineBundle> = {};
 for (const [path, value] of Object.entries(modules)) {
-  const id = path.includes('/yamanote/') ? 'yamanote' : path.includes('/hibiya/') ? 'hibiya' : path.includes('/sakaisuji/') ? 'sakaisuji' : undefined;
+  const id = path.includes('/yamanote/')
+    ? 'yamanote'
+    : path.includes('/hibiya/')
+      ? 'hibiya'
+      : path.includes('/sakaisuji/')
+        ? 'sakaisuji'
+        : undefined;
   if (!id) continue;
   bundles[id] ??= { line: undefined, pack: undefined };
   if (path.endsWith('/line.json')) bundles[id].line = value;
   else bundles[id].pack = value;
 }
 const lines = normalizeSubwayLines(bundles);
-const byId = (id: string) => lines.find(line => line.id === id)!;
+const byId = (id: string) => lines.find((line) => line.id === id)!;
 const plans: SubwayCuePlans = {};
 
-function reduce(state: ReturnType<typeof createRunState>, type: Parameters<typeof reduceRun>[1]['type'], now: number, extra = {}, cuePlans: SubwayCuePlans = plans) {
-  return reduceRun(state, { type, ...extra } as Parameters<typeof reduceRun>[1], now, lines, cuePlans);
+function reduce(
+  state: ReturnType<typeof createRunState>,
+  type: Parameters<typeof reduceRun>[1]['type'],
+  now: number,
+  extra = {},
+  cuePlans: SubwayCuePlans = plans,
+) {
+  return reduceRun(
+    state,
+    { type, ...extra } as Parameters<typeof reduceRun>[1],
+    now,
+    lines,
+    cuePlans,
+  );
 }
 
-function advanceTo(state: ReturnType<typeof createRunState>, target: number): { state: ReturnType<typeof createRunState>; effects: RunEffect[] } {
+function advanceTo(
+  state: ReturnType<typeof createRunState>,
+  target: number,
+): { state: ReturnType<typeof createRunState>; effects: RunEffect[] } {
   return advanceWithPlans(state, target, plans);
 }
 
-function advanceWithPlans(state: ReturnType<typeof createRunState>, target: number, cuePlans: SubwayCuePlans): { state: ReturnType<typeof createRunState>; effects: RunEffect[] } {
+function advanceWithPlans(
+  state: ReturnType<typeof createRunState>,
+  target: number,
+  cuePlans: SubwayCuePlans,
+): { state: ReturnType<typeof createRunState>; effects: RunEffect[] } {
   let current = state;
   const effects: RunEffect[] = [];
   for (let at = current.lastTickAt + 3_000; at <= target; at += 3_000) {
@@ -43,10 +80,18 @@ describe('Subway run timeline', () => {
   it('keeps the selected station until zero-speed arrival, then opens before dwelling', () => {
     const journeyPlans: SubwayCuePlans = {
       [segmentPlanKey('yamanote', 'JY30', 'JY01', 'inner')]: {
-        close: { events: [], end: 0 }, open: { events: [], end: 2, open_end: 2 }, departure: [], arrival: [],
+        close: { events: [], end: 0 },
+        open: { events: [], end: 2, open_end: 2 },
+        departure: [],
+        arrival: [],
       },
     };
-    let state = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY30', direction: 'inner', now: 0 });
+    let state = createRunState(lines, {
+      lineId: 'yamanote',
+      stationCode: 'JY30',
+      direction: 'inner',
+      now: 0,
+    });
     state = reduce(state, 'start', 0, {}, journeyPlans).state;
     let stepped = advanceWithPlans(state, 15_000, journeyPlans);
     let transition: RunTransition = { state: stepped.state, effects: stepped.effects };
@@ -56,7 +101,7 @@ describe('Subway run timeline', () => {
     transition = reduce(state, 'tick', state.phaseDeadline!, {}, journeyPlans);
     state = transition.state;
     expect(state.phase).toBe('departing');
-    expect(transition.effects.filter(effect => effect.type === 'departed')).toHaveLength(1);
+    expect(transition.effects.filter((effect) => effect.type === 'departed')).toHaveLength(1);
     expect(state.segment?.to).toBe('JY01');
     const moving = snapshotRun(state, state.phaseStartedAt! + 2_000, lines);
     expect(moving.station).toBe('JY30');
@@ -71,7 +116,7 @@ describe('Subway run timeline', () => {
     expect(state.phase).toBe('arriving');
     expect(state.stationCode).toBe('JY01');
     expect(state.doors).toBe('opening');
-    expect(transition.effects.filter(effect => effect.type === 'arrived')).toHaveLength(1);
+    expect(transition.effects.filter((effect) => effect.type === 'arrived')).toHaveLength(1);
     expect(snapshotRun(state, arrivalAt, lines).speed).toBe(0);
     expect(snapshotRun(state, arrivalAt, lines).brake).toBe(1);
     expect(snapshotRun(state, arrivalAt, lines).next).toBe('JY02');
@@ -82,7 +127,12 @@ describe('Subway run timeline', () => {
   });
 
   it('wraps Yamanote exactly once and holds both non-loop terminals', () => {
-    let state = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY30', direction: 'inner', dwellSeconds: 0 });
+    let state = createRunState(lines, {
+      lineId: 'yamanote',
+      stationCode: 'JY30',
+      direction: 'inner',
+      dwellSeconds: 0,
+    });
     state = reduce(state, 'start', 0).state;
     const arrivals: string[] = [];
     let now = 0;
@@ -90,7 +140,14 @@ describe('Subway run timeline', () => {
       now += 3_000;
       const transition = reduce(state, 'tick', now);
       state = transition.state;
-      arrivals.push(...transition.effects.filter((effect): effect is Extract<RunEffect, { type: 'arrived' }> => effect.type === 'arrived').map(effect => effect.to));
+      arrivals.push(
+        ...transition.effects
+          .filter(
+            (effect): effect is Extract<RunEffect, { type: 'arrived' }> =>
+              effect.type === 'arrived',
+          )
+          .map((effect) => effect.to),
+      );
     }
     expect(arrivals).toHaveLength(30);
     expect(arrivals[0]).toBe('JY01');
@@ -103,10 +160,21 @@ describe('Subway run timeline', () => {
       ['hibiya', 'H22', 'to-kita-senju', 'to-naka-meguro', 'H21'],
       ['sakaisuji', 'K20', 'southbound', 'northbound', 'K19'],
     ] as const) {
-      let terminalState = createRunState(lines, { lineId, stationCode: terminal, direction: forward, now: 0 });
+      let terminalState = createRunState(lines, {
+        lineId,
+        stationCode: terminal,
+        direction: forward,
+        now: 0,
+      });
       terminalState = reduce(terminalState, 'start', 0).state;
       expect(terminalState.active).toBe(false);
-      terminalState = reduceRun(terminalState, { type: 'set-direction', direction: reverse }, 0, lines, plans).state;
+      terminalState = reduceRun(
+        terminalState,
+        { type: 'set-direction', direction: reverse },
+        0,
+        lines,
+        plans,
+      ).state;
       expect(terminalState.active).toBe(true);
       expect(snapshotRun(terminalState, 0, lines).next).toBe(expected);
     }
@@ -114,7 +182,13 @@ describe('Subway run timeline', () => {
 
   it('applies speed changes on the next segment and preserves the current timeline with audio off', () => {
     const make = (immersion: boolean) => {
-      let state = createRunState(lines, { lineId: 'hibiya', stationCode: 'H06', direction: 'to-kita-senju', immersion, dwellSeconds: 0 });
+      let state = createRunState(lines, {
+        lineId: 'hibiya',
+        stationCode: 'H06',
+        direction: 'to-kita-senju',
+        immersion,
+        dwellSeconds: 0,
+      });
       state = reduce(state, 'start', 0).state;
       state = reduce(state, 'tick', 0).state;
       state = reduce(state, 'tick', state.phaseDeadline!).state;
@@ -133,20 +207,36 @@ describe('Subway run timeline', () => {
   });
 
   it('keeps safety phases at least 12s and estimates future dwell and door budgets to one loop', () => {
-    let fast = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY30', direction: 'inner', multiplier: 2, dwellSeconds: 0 });
+    let fast = createRunState(lines, {
+      lineId: 'yamanote',
+      stationCode: 'JY30',
+      direction: 'inner',
+      multiplier: 2,
+      dwellSeconds: 0,
+    });
     fast = reduce(fast, 'start', 0).state;
     fast = reduce(fast, 'tick', 0).state;
     expect(fast.segment?.departureMs).toBeGreaterThanOrEqual(12_000);
     expect(fast.segment?.approachMs).toBeGreaterThanOrEqual(12_000);
     expect(fast.segment?.cruiseMs).toBeGreaterThanOrEqual(5_000);
 
-    const atStation = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY30', direction: 'inner', dwellSeconds: 15 });
+    const atStation = createRunState(lines, {
+      lineId: 'yamanote',
+      stationCode: 'JY30',
+      direction: 'inner',
+      dwellSeconds: 15,
+    });
     const started = reduce(atStation, 'start', 0).state;
     expect(snapshotRun(started, 0, lines).remainingMinutes).toBe(38);
   });
 
   it('freezes a hidden run without wakes or station events, then shifts its deadlines on show', () => {
-    let state = createRunState(lines, { lineId: 'sakaisuji', stationCode: 'K11', direction: 'southbound', now: 0 });
+    let state = createRunState(lines, {
+      lineId: 'sakaisuji',
+      stationCode: 'K11',
+      direction: 'southbound',
+      now: 0,
+    });
     state = reduce(state, 'start', 0).state;
     state = advanceTo(state, 15_000).state;
     const before = snapshotRun(state, state.lastTickAt, lines);
@@ -156,14 +246,24 @@ describe('Subway run timeline', () => {
     expect(wake).toBeNull();
     const hidden = reduce(state, 'tick', state.pausedAt! + 60_000);
     expect(hidden.effects).toEqual([]);
-    expect(snapshotRun(hidden.state, state.pausedAt! + 60_000, lines)).toMatchObject({ progress: before.progress, speed: before.speed, station: before.station });
+    expect(snapshotRun(hidden.state, state.pausedAt! + 60_000, lines)).toMatchObject({
+      progress: before.progress,
+      speed: before.speed,
+      station: before.station,
+    });
     state = reduce(hidden.state, 'resume', state.pausedAt! + 60_000).state;
     expect(state.phaseDeadline).toBe(deadline! + 60_000);
     expect(snapshotRun(state, state.lastTickAt, lines).station).toBe('K11');
   });
 
   it('brakes on an idempotent emergency, then resumes the same segment without a second departure', () => {
-    let state = createRunState(lines, { lineId: 'hibiya', stationCode: 'H06', direction: 'to-kita-senju', dwellSeconds: 0, now: 0 });
+    let state = createRunState(lines, {
+      lineId: 'hibiya',
+      stationCode: 'H06',
+      direction: 'to-kita-senju',
+      dwellSeconds: 0,
+      now: 0,
+    });
     state = reduce(state, 'start', 0).state;
     state = reduce(state, 'tick', 0).state;
     state = reduce(state, 'tick', state.phaseDeadline!).state;
@@ -171,7 +271,7 @@ describe('Subway run timeline', () => {
     const emergency = reduce(state, 'emergency', state.phaseStartedAt! + 3_000);
     state = emergency.state;
     expect(state.phase).toBe('emergency');
-    expect(emergency.effects.filter(effect => effect.type === 'emergency')).toHaveLength(1);
+    expect(emergency.effects.filter((effect) => effect.type === 'emergency')).toHaveLength(1);
     const repeated = reduce(state, 'emergency', state.lastTickAt + 1_000);
     expect(repeated.effects).toEqual([]);
     const speedBeforeBrake = snapshotRun(state, state.incident!.startedAt, lines).speed;
@@ -180,7 +280,9 @@ describe('Subway run timeline', () => {
     expect(braking.speed).toBeLessThan(speedBeforeBrake);
     expect(braking.power).toBe(0);
     expect(braking.brake).toBe(1);
-    expect(braking.progress).toBeGreaterThan(snapshotRun(state, state.incident!.startedAt, lines).progress);
+    expect(braking.progress).toBeGreaterThan(
+      snapshotRun(state, state.incident!.startedAt, lines).progress,
+    );
     state = reduce(state, 'tick', state.incident!.startedAt + 2_000).state;
     expect(snapshotRun(state, state.lastTickAt, lines).speed).toBe(0);
     const heldProgress = snapshotRun(state, state.lastTickAt, lines).progress;
@@ -190,11 +292,20 @@ describe('Subway run timeline', () => {
     expect(state.segment?.to).toBe(segment?.to);
     expect(state.generation).toBe(1);
     expect(snapshotRun(state, state.lastTickAt, lines).progress).toBe(heldProgress);
-    expect(reduce(state, 'tick', state.phaseDeadline!).effects.some(effect => effect.type === 'departed')).toBe(false);
+    expect(
+      reduce(state, 'tick', state.phaseDeadline!).effects.some(
+        (effect) => effect.type === 'departed',
+      ),
+    ).toBe(false);
   });
 
   it('defers a destination reached during emergency braking until recovery, then arrives once', () => {
-    let state = createRunState(lines, { lineId: 'hibiya', stationCode: 'H06', direction: 'to-kita-senju', dwellSeconds: 0 });
+    let state = createRunState(lines, {
+      lineId: 'hibiya',
+      stationCode: 'H06',
+      direction: 'to-kita-senju',
+      dwellSeconds: 0,
+    });
     state = reduce(state, 'start', 0).state;
     state = reduce(state, 'tick', 0).state;
     state = advanceTo(state, state.phaseDeadline!).state;
@@ -204,35 +315,65 @@ describe('Subway run timeline', () => {
     state = advanceWithPlans(state, state.phaseDeadline! - 1, plans).state;
     const emergency = reduce(state, 'emergency', state.lastTickAt);
     state = emergency.state;
-    expect(emergency.effects.some(effect => effect.type === 'arrived')).toBe(false);
+    expect(emergency.effects.some((effect) => effect.type === 'arrived')).toBe(false);
     state = reduce(state, 'tick', state.incident!.startedAt + 2_000).state;
     expect(snapshotRun(state, state.lastTickAt, lines).progress).toBe(1);
     const recovered = reduce(state, 'resume-service', state.lastTickAt + 1_000);
     expect(recovered.state.phase).toBe('arriving');
-    expect(recovered.effects.filter(effect => effect.type === 'arrived')).toHaveLength(1);
-    expect(recovered.effects.filter(effect => effect.type === 'state-changed' && effect.state === 'arriving')).toHaveLength(1);
-    expect(reduce(recovered.state, 'tick', recovered.state.phaseDeadline!).effects.some(effect => effect.type === 'arrived')).toBe(false);
+    expect(recovered.effects.filter((effect) => effect.type === 'arrived')).toHaveLength(1);
+    expect(
+      recovered.effects.filter(
+        (effect) => effect.type === 'state-changed' && effect.state === 'arriving',
+      ),
+    ).toHaveLength(1);
+    expect(
+      reduce(recovered.state, 'tick', recovered.state.phaseDeadline!).effects.some(
+        (effect) => effect.type === 'arrived',
+      ),
+    ).toBe(false);
   });
 
   it('suspends with no fabricated emergency event and reports door state safely', () => {
     const line = byId('sakaisuji');
-    const terminal = createRunState(lines, { lineId: line.id, stationCode: 'K11', direction: 'northbound' });
+    const terminal = createRunState(lines, {
+      lineId: line.id,
+      stationCode: 'K11',
+      direction: 'northbound',
+    });
     const transition = reduce(terminal, 'suspend', 0);
     expect(transition.state.phase).toBe('suspended');
-    expect(transition.effects.some(effect => effect.type === 'suspended')).toBe(true);
-    expect(transition.effects.some(effect => effect.type === 'emergency')).toBe(false);
+    expect(transition.effects.some((effect) => effect.type === 'suspended')).toBe(true);
+    expect(transition.effects.some((effect) => effect.type === 'emergency')).toBe(false);
     expect(snapshotRun(transition.state, 0, lines).doorSide).toBe('unknown');
   });
 
   it('uses the immutable door plan anchors and never opens doors while moving', () => {
-    const cue = { file: 'test.opus', offset: 0, duration: 1, audible_end: 0.8, gainByRole: { mechanics: 1 }, sha256: 'a'.repeat(64), status: 'approved', source: 'test', gain: 1, url: '/subway/test.opus' };
+    const cue = {
+      file: 'test.opus',
+      offset: 0,
+      duration: 1,
+      audible_end: 0.8,
+      gainByRole: { mechanics: 1 },
+      sha256: 'a'.repeat(64),
+      status: 'approved',
+      source: 'test',
+      gain: 1,
+      url: '/subway/test.opus',
+    };
     const plan: SubwayCuePlans = {
       [segmentPlanKey('yamanote', 'JY01', 'JY02', 'inner')]: {
         close: { events: [{ part: 'close', at: 0, cue }], end: 1, close_end: 0.8 },
-        open: { events: [{ part: 'open', at: 0, cue }], end: 3, open_end: 2.5 }, departure: [], arrival: [],
+        open: { events: [{ part: 'open', at: 0, cue }], end: 3, open_end: 2.5 },
+        departure: [],
+        arrival: [],
       },
     };
-    let state = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY01', direction: 'inner', now: 0 });
+    let state = createRunState(lines, {
+      lineId: 'yamanote',
+      stationCode: 'JY01',
+      direction: 'inner',
+      now: 0,
+    });
     state = reduceRun(state, { type: 'start' }, 0, lines, plan).state;
     state = advanceWithPlans(state, 15_000, plan).state;
     const closeDeadline = state.phaseDeadline!;
@@ -253,7 +394,12 @@ describe('Subway run timeline', () => {
   });
 
   it('holds the brake at rest through door closing, then releases it at traction', () => {
-    let state = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY01', direction: 'inner', dwellSeconds: 0 });
+    let state = createRunState(lines, {
+      lineId: 'yamanote',
+      stationCode: 'JY01',
+      direction: 'inner',
+      dwellSeconds: 0,
+    });
     expect(snapshotRun(state, 0, lines).brake).toBe(1);
     state = reduce(state, 'start', 0).state;
     state = reduce(state, 'tick', 0).state;
@@ -267,20 +413,59 @@ describe('Subway run timeline', () => {
 
   it('keeps line selection changes inert and validates commands at the boundary', () => {
     const initial = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY01' });
-    const changed = reduceRun(initial, { type: 'set-line', lineId: 'hibiya', stationCode: 'H14' }, 10, lines).state;
-    expect(changed).toMatchObject({ phase: 'stopped', doors: 'open', active: false, stationCode: 'H14', generation: 1 });
-    expect(() => reduceRun(changed, { type: 'set-speed', multiplier: 1.5 }, 20, lines)).toThrow(/Run speed/);
-    expect(() => createRunState(lines, { lineId: 'sakaisuji', stationCode: 'K21' })).toThrow(/Unknown station/);
+    const changed = reduceRun(
+      initial,
+      { type: 'set-line', lineId: 'hibiya', stationCode: 'H14' },
+      10,
+      lines,
+    ).state;
+    expect(changed).toMatchObject({
+      phase: 'stopped',
+      doors: 'open',
+      active: false,
+      stationCode: 'H14',
+      generation: 1,
+    });
+    expect(() => reduceRun(changed, { type: 'set-speed', multiplier: 1.5 }, 20, lines)).toThrow(
+      /Run speed/,
+    );
+    expect(() => createRunState(lines, { lineId: 'sakaisuji', stationCode: 'K21' })).toThrow(
+      /Unknown station/,
+    );
     expect(segmentPlanKey('yamanote', 'JY01', 'JY02', 'inner')).toBe('yamanote|JY01|JY02|inner');
   });
 
   it('atomically reconfigures line, direction and start station in one reset', () => {
-    const initial = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY18', direction: 'outer' });
-    const changed = reduceRun(initial, { type: 'configure', lineId: 'sakaisuji', direction: 'northbound', stationCode: 'K20' }, 42, lines);
+    const initial = createRunState(lines, {
+      lineId: 'yamanote',
+      stationCode: 'JY18',
+      direction: 'outer',
+    });
+    const changed = reduceRun(
+      initial,
+      { type: 'configure', lineId: 'sakaisuji', direction: 'northbound', stationCode: 'K20' },
+      42,
+      lines,
+    );
     expect(changed.effects).toEqual([]);
-    expect(changed.state).toMatchObject({ lineId: 'sakaisuji', direction: 'northbound', stationCode: 'K20',
-      phase: 'stopped', doors: 'open', active: false, incident: null, generation: initial.generation + 1, lastTickAt: 42 });
-    expect(() => reduceRun(initial, { type: 'configure', lineId: 'sakaisuji', direction: 'inner', stationCode: 'K11' }, 0, lines))
-      .toThrow(/Unknown direction/);
+    expect(changed.state).toMatchObject({
+      lineId: 'sakaisuji',
+      direction: 'northbound',
+      stationCode: 'K20',
+      phase: 'stopped',
+      doors: 'open',
+      active: false,
+      incident: null,
+      generation: initial.generation + 1,
+      lastTickAt: 42,
+    });
+    expect(() =>
+      reduceRun(
+        initial,
+        { type: 'configure', lineId: 'sakaisuji', direction: 'inner', stationCode: 'K11' },
+        0,
+        lines,
+      ),
+    ).toThrow(/Unknown direction/);
   });
 });

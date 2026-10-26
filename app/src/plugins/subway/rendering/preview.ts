@@ -10,7 +10,8 @@ export interface SubwayEditorPreview {
 
 async function readJson(url: string, signal: AbortSignal): Promise<unknown> {
   const response = await fetch(url, { signal });
-  if (!response.ok) throw new Error(`Subway preview asset unavailable (${response.status}): ${url}`);
+  if (!response.ok)
+    throw new Error(`Subway preview asset unavailable (${response.status}): ${url}`);
   return response.json() as Promise<unknown>;
 }
 
@@ -32,12 +33,25 @@ export async function loadSubwayEditorPreview(
   ]);
   if (signal.aborted) throw new DOMException('Subway preview cancelled', 'AbortError');
   const line = normalizeSubwayLine(rawLine, rawPack);
-  const direction = typeof config.direction === 'string' && line.directions.some(item => item.id === config.direction)
-    ? config.direction : line.directions[0].id;
-  const requestedStation = typeof config.startStation === 'string' ? config.startStation : config.station;
-  const stationCode = typeof requestedStation === 'string' && line.stations.some(item => item.code === requestedStation)
-    ? requestedStation : line.stations[0].code;
-  const state = createRunState([line], { lineId, stationCode, direction, immersion: false, now: 0 });
+  const direction =
+    typeof config.direction === 'string' &&
+    line.directions.some((item) => item.id === config.direction)
+      ? config.direction
+      : line.directions[0].id;
+  const requestedStation =
+    typeof config.startStation === 'string' ? config.startStation : config.station;
+  const stationCode =
+    typeof requestedStation === 'string' &&
+    line.stations.some((item) => item.code === requestedStation)
+      ? requestedStation
+      : line.stations[0].code;
+  const state = createRunState([line], {
+    lineId,
+    stationCode,
+    direction,
+    immersion: false,
+    now: 0,
+  });
   return Object.freeze({
     line,
     snapshot: Object.freeze(snapshotRun(state, 0, [line])),

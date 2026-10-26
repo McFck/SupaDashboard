@@ -1,5 +1,6 @@
 export type DoorSide = 'left' | 'right' | 'both' | 'unknown';
-export type FacilityKind = 'stairs' | 'escalator' | 'lift' | 'toilet' | 'gate' | 'exit' | 'transfer';
+export type FacilityKind =
+  'stairs' | 'escalator' | 'lift' | 'toilet' | 'gate' | 'exit' | 'transfer';
 
 export interface SideEvidence {
   direction: string;
@@ -17,7 +18,12 @@ export interface PlatformFacility {
   revision: string;
 }
 
-export interface DoorDirectionDetail { side: DoorSide; provenance: string; sources: readonly SideEvidence[]; synthetic: boolean }
+export interface DoorDirectionDetail {
+  side: DoorSide;
+  provenance: string;
+  sources: readonly SideEvidence[];
+  synthetic: boolean;
+}
 export interface PlatformDirectionDetail {
   carOrder: readonly number[];
   facilities: readonly PlatformFacility[];
@@ -44,7 +50,9 @@ const TOEI_IWAMOTOCHO = 'https://www.kotsu.metro.tokyo.jp/eng/subway_stations/iw
 const TOKYO_UENO_HIROKOJI = 'https://www.tokyometro.jp/station/ueno-hirokoji/index.html';
 const OSAKA_METRO = 'https://subway.osakametro.co.jp/en/station_guide/';
 
-export const transferSupplements: Readonly<Record<string, Readonly<Record<string, TransferSupplement>>>> = {
+export const transferSupplements: Readonly<
+  Record<string, Readonly<Record<string, TransferSupplement>>>
+> = {
   hibiya: {
     H02: { text: { ja: 'JR線', en: 'JR Line' }, source: TOKYO_METRO, revision: '2026-10-24' },
     H06: { codes: ['G07'], source: TOKYO_GINZA, revision: '2026-10-24' },
@@ -53,20 +61,38 @@ export const transferSupplements: Readonly<Record<string, Readonly<Record<string
     H11: { codes: ['Y20'], source: TOKYO_YURAKUCHO, revision: '2026-10-24' },
     H14: { codes: ['Z10'], source: TOKYO_HANZOMON, revision: '2026-10-24' },
     H16: {
-      codes: ['S08'], text: { ja: 'JR線・つくばエクスプレス', en: 'JR Lines and Tsukuba Express' },
-      source: TOEI_IWAMOTOCHO, revision: '2026-10-24',
+      codes: ['S08'],
+      text: { ja: 'JR線・つくばエクスプレス', en: 'JR Lines and Tsukuba Express' },
+      source: TOEI_IWAMOTOCHO,
+      revision: '2026-10-24',
     },
     H17: { codes: ['G15', 'E09'], source: TOKYO_UENO_HIROKOJI, revision: '2026-10-24' },
-    H18: { text: { ja: 'JR線・京成線', en: 'JR Lines and Keisei Line' }, source: TOKYO_METRO, revision: '2026-10-24' },
+    H18: {
+      text: { ja: 'JR線・京成線', en: 'JR Lines and Keisei Line' },
+      source: TOKYO_METRO,
+      revision: '2026-10-24',
+    },
   },
   sakaisuji: {
-    K11: { text: { ja: '阪急線（相互直通）', en: 'Hankyu Line (mutual through operation)' }, source: OSAKA_METRO, revision: '2026-10-24' },
+    K11: {
+      text: { ja: '阪急線（相互直通）', en: 'Hankyu Line (mutual through operation)' },
+      source: OSAKA_METRO,
+      revision: '2026-10-24',
+    },
     K12: { text: { ja: 'JR線', en: 'JR Line' }, source: OSAKA_METRO, revision: '2026-10-24' },
     K13: { text: { ja: 'JR線', en: 'JR Line' }, source: OSAKA_METRO, revision: '2026-10-24' },
     K14: { text: { ja: '京阪線', en: 'Keihan Line' }, source: OSAKA_METRO, revision: '2026-10-24' },
-    K17: { text: { ja: '近鉄線', en: 'Kintetsu Line' }, source: OSAKA_METRO, revision: '2026-10-24' },
+    K17: {
+      text: { ja: '近鉄線', en: 'Kintetsu Line' },
+      source: OSAKA_METRO,
+      revision: '2026-10-24',
+    },
     K18: { text: { ja: '阪堺線', en: 'Hankai Line' }, source: OSAKA_METRO, revision: '2026-10-24' },
-    K19: { text: { ja: 'JR線・阪堺線・南海線', en: 'JR, Hankai and Nankai Lines' }, source: OSAKA_METRO, revision: '2026-10-24' },
+    K19: {
+      text: { ja: 'JR線・阪堺線・南海線', en: 'JR, Hankai and Nankai Lines' },
+      source: OSAKA_METRO,
+      revision: '2026-10-24',
+    },
     K20: { text: { ja: '南海線', en: 'Nankai Line' }, source: OSAKA_METRO, revision: '2026-10-24' },
   },
 };
@@ -76,13 +102,19 @@ export function buildDirectionDetails(
   carCount: number,
   evidence: readonly SideEvidence[] = [],
 ): StationDirectionDetails {
-  if (!Number.isInteger(carCount) || carCount < 1 || carCount > 20) throw new Error(`Invalid formation car count: ${carCount}`);
-  if (!directions.length || new Set(directions).size !== directions.length || directions.some(direction => !direction)) {
+  if (!Number.isInteger(carCount) || carCount < 1 || carCount > 20)
+    throw new Error(`Invalid formation car count: ${carCount}`);
+  if (
+    !directions.length ||
+    new Set(directions).size !== directions.length ||
+    directions.some((direction) => !direction)
+  ) {
     throw new Error('Directions must be non-empty and unique');
   }
   const evidenceByDirection = new Map<string, SideEvidence[]>();
   for (const item of evidence) {
-    if (!directions.includes(item.direction)) throw new Error(`Unknown door-side direction: ${item.direction}`);
+    if (!directions.includes(item.direction))
+      throw new Error(`Unknown door-side direction: ${item.direction}`);
     if (!['left', 'right', 'both'].includes(item.side) || !item.source.trim()) {
       throw new Error(`Invalid door-side evidence for ${item.direction}`);
     }
@@ -94,16 +126,18 @@ export function buildDirectionDetails(
   const platformByDirection: Record<string, PlatformDirectionDetail> = {};
   for (const direction of directions) {
     const sources = evidenceByDirection.get(direction) ?? [];
-    const sides = new Set(sources.map(item => item.side));
+    const sides = new Set(sources.map((item) => item.side));
     const conflict = sides.size > 1;
     const hasEvidence = sources.length > 0 && !conflict;
     const side = hasEvidence ? sources[0].side : 'unknown';
     const door: DoorDirectionDetail = Object.freeze({
       side,
       provenance: conflict
-        ? `Conflicting direction-specific source entries: ${sources.map(item => item.source).join(', ')}`
-        : hasEvidence ? sources.map(item => item.source).join(', ') : 'No direction-specific platform-side data; synthetic unknown',
-      sources: Object.freeze(sources.map(item => Object.freeze({ ...item }))),
+        ? `Conflicting direction-specific source entries: ${sources.map((item) => item.source).join(', ')}`
+        : hasEvidence
+          ? sources.map((item) => item.source).join(', ')
+          : 'No direction-specific platform-side data; synthetic unknown',
+      sources: Object.freeze(sources.map((item) => Object.freeze({ ...item }))),
       synthetic: !hasEvidence,
     });
     doorByDirection[direction] = door;
@@ -120,16 +154,30 @@ export function buildDirectionDetails(
   });
 }
 
-export function validatePlatformFacilities(facilities: readonly PlatformFacility[], carCount: number): void {
-  if (!Number.isInteger(carCount) || carCount < 1 || carCount > 20) throw new Error(`Invalid formation car count: ${carCount}`);
+export function validatePlatformFacilities(
+  facilities: readonly PlatformFacility[],
+  carCount: number,
+): void {
+  if (!Number.isInteger(carCount) || carCount < 1 || carCount > 20)
+    throw new Error(`Invalid formation car count: ${carCount}`);
   for (const facility of facilities) {
-    if (!['stairs', 'escalator', 'lift', 'toilet', 'gate', 'exit', 'transfer'].includes(facility.kind)) {
+    if (
+      !['stairs', 'escalator', 'lift', 'toilet', 'gate', 'exit', 'transfer'].includes(facility.kind)
+    ) {
       throw new Error(`Unknown platform facility kind: ${facility.kind}`);
     }
-    if (facility.car !== null && (!Number.isInteger(facility.car) || facility.car < 1 || facility.car > carCount)) {
+    if (
+      facility.car !== null &&
+      (!Number.isInteger(facility.car) || facility.car < 1 || facility.car > carCount)
+    ) {
       throw new Error(`Invalid platform facility car: ${facility.car}`);
     }
-    if (facility.relativePosition !== null && (!Number.isFinite(facility.relativePosition) || facility.relativePosition < 0 || facility.relativePosition > 1)) {
+    if (
+      facility.relativePosition !== null &&
+      (!Number.isFinite(facility.relativePosition) ||
+        facility.relativePosition < 0 ||
+        facility.relativePosition > 1)
+    ) {
       throw new Error(`Invalid platform facility position: ${facility.relativePosition}`);
     }
     if (!facility.label.trim() || !facility.source.trim() || !facility.revision.trim()) {

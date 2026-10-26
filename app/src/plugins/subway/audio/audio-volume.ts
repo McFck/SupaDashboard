@@ -13,16 +13,21 @@ function clampVolume(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
 }
 
-export function readSubwayMixerSettings(snapshot: RuntimeSnapshot = get(runtimeView)): SubwayMixerSettings | null {
+export function readSubwayMixerSettings(
+  snapshot: RuntimeSnapshot = get(runtimeView),
+): SubwayMixerSettings | null {
   if (!snapshot.online) return null;
   const volume = snapshot.variables.records[SUBWAY_MIX_VOLUME_ID]?.value;
   const muted = snapshot.variables.records[SUBWAY_MIX_MUTED_ID]?.value;
-  if (typeof volume !== 'number' || !Number.isFinite(volume) || typeof muted !== 'boolean') return null;
+  if (typeof volume !== 'number' || !Number.isFinite(volume) || typeof muted !== 'boolean')
+    return null;
   return { volume: clampVolume(volume), muted };
 }
 
-export function subscribeSubwayMixerSettings(listener: (settings: SubwayMixerSettings) => void): () => void {
-  return runtimeView.subscribe(snapshot => {
+export function subscribeSubwayMixerSettings(
+  listener: (settings: SubwayMixerSettings) => void,
+): () => void {
+  return runtimeView.subscribe((snapshot) => {
     const settings = readSubwayMixerSettings(snapshot);
     if (settings) listener(settings);
   });
@@ -36,9 +41,9 @@ export function registerSubwayMixerChannel(api: PluginApi): () => void {
     label: 'Subway',
     icon: 'TrainFront',
     read: () => readSubwayMixerSettings(),
-    setVolume: value => writeVariable(api, SUBWAY_MIX_VOLUME_ID, clampVolume(value)),
-    setMuted: muted => writeVariable(api, SUBWAY_MIX_MUTED_ID, muted),
-    subscribe: listener => runtimeView.subscribe(() => listener()),
+    setVolume: (value) => writeVariable(api, SUBWAY_MIX_VOLUME_ID, clampVolume(value)),
+    setMuted: (muted) => writeVariable(api, SUBWAY_MIX_MUTED_ID, muted),
+    subscribe: (listener) => runtimeView.subscribe(() => listener()),
   });
   const cleanup = () => {
     stop();
