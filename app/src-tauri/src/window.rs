@@ -106,8 +106,8 @@ mod win32 {
         SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetWindowLongPtrW,
         SetWindowPos, WM_CANCELMODE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_MOUSEACTIVATE,
         WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_POINTERACTIVATE,
-        WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING,
-        WM_SYSCOMMAND, WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
+        WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND, WS_CAPTION, WS_EX_NOACTIVATE,
+        WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
     };
 
     struct PolicyState {
@@ -699,9 +699,21 @@ mod tests {
             resize_hit(normal, (11, 50), 96, false),
             Some(ResizeHit::West)
         );
-        assert_eq!(resize_hit(normal, (11, 31), 96, false), Some(ResizeHit::NorthWest));
-        assert_eq!(resize_hit(normal, (11, 32), 96, false), Some(ResizeHit::West));
-        assert_eq!(resize_hit(normal, (31, 11), 96, false), Some(ResizeHit::NorthWest));
-        assert_eq!(resize_hit(normal, (32, 11), 96, false), Some(ResizeHit::North));
+        assert_eq!(
+            resize_hit(normal, (11, 31), 96, false),
+            Some(ResizeHit::NorthWest)
+        );
+        assert_eq!(
+            resize_hit(normal, (11, 32), 96, false),
+            Some(ResizeHit::West)
+        );
+        assert_eq!(
+            resize_hit(normal, (31, 11), 96, false),
+            Some(ResizeHit::NorthWest)
+        );
+        assert_eq!(
+            resize_hit(normal, (32, 11), 96, false),
+            Some(ResizeHit::North)
+        );
     }
 }
