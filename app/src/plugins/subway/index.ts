@@ -1,11 +1,11 @@
 import type { Option, Param, Plugin } from '../../features/plugins/contracts';
 import type { SkinStateField } from '../../features/skins/definition';
-import SubwayButton from './SubwayButton.svelte';
-import SubwaySlider from './SubwaySlider.svelte';
-import SubwaySkin from './SubwaySkin.svelte';
-import { ANNOUNCEMENT_LANGUAGE_PRESETS, DISPLAY_LANGUAGE_PRESETS, SUBWAY_DEFAULT_CONFIG, SUBWAY_LINE_IDS } from './config';
-import { registerSubwayMixerChannel, SUBWAY_MIX_MUTED_ID, SUBWAY_MIX_VOLUME_ID } from './audio-volume';
-import { requestSubwayLine, requestSubwayView, dispatchSubwayCommand, setSubwayImmersion, runtime } from './runtime';
+import SubwayButton from './ui/SubwayButton.svelte';
+import SubwaySlider from './ui/SubwaySlider.svelte';
+import SubwaySkin from './ui/SubwaySkin.svelte';
+import { ANNOUNCEMENT_LANGUAGE_PRESETS, DISPLAY_LANGUAGE_PRESETS, SUBWAY_DEFAULT_CONFIG, SUBWAY_LINE_IDS } from './simulation/config';
+import { registerSubwayMixerChannel, SUBWAY_MIX_MUTED_ID, SUBWAY_MIX_VOLUME_ID } from './audio/audio-volume';
+import { requestSubwayLine, requestSubwayView, dispatchSubwayCommand, setSubwayImmersion, runtime } from './simulation/runtime';
 
 const lineTitles: Record<string, string> = { yamanote: 'Yamanote', hibiya: 'Hibiya', sakaisuji: 'Sakaisuji' };
 const directionIds: Record<string, string[]> = {

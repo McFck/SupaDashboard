@@ -5,4 +5,4 @@ public/
 pnpm-lock.yaml
 src/lib/components/ui/
 src/plugins/catalog.json
-src/plugins/subway/lcd/e235-yamanote-data.json
+src/plugins/subway/rendering/lcd/e235-yamanote-data.json

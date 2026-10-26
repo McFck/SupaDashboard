@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeSubwayLines } from './lines';
-import { scheduleScreen, stationMinutes } from './screens';
-import { subwaySceneRevision, createSubwayScene, type SubwaySceneData } from './scene';
-import { subwayComposition } from './composition';
-import { transferColor } from './lcd/sakaisuji';
-import type { RunSnapshot } from './run';
+import { normalizeSubwayLines } from './simulation/lines';
+import { scheduleScreen, stationMinutes } from './rendering/screens';
+import { subwaySceneRevision, createSubwayScene, type SubwaySceneData } from './rendering/scene';
+import { subwayComposition } from './rendering/composition';
+import { transferColor } from './rendering/lcd/sakaisuji';
+import type { RunSnapshot } from './simulation/run';
 
 const modules = import.meta.glob('../../../../assets/lines/*/{line,pack}.json', { eager: true, import: 'default' });
 const lines = normalizeSubwayLines(['yamanote', 'hibiya', 'sakaisuji'].map(id => ({
