@@ -12,12 +12,16 @@ const STATIC_ASSETS = [
   'assets/motion/data.js',
   'assets/motion/engine.js',
   'assets/motion/door-sequence.js',
-  ...LINE_IDS.flatMap(id => [`assets/lines/${id}/line.json`, `assets/lines/${id}/pack.json`]),
+  ...LINE_IDS.flatMap((id) => [`assets/lines/${id}/line.json`, `assets/lines/${id}/pack.json`]),
 ];
 const REBUILD = 'python ../tools/build_subway_catalog.py';
 
 export function resolveWithin(root, relative) {
-  if (typeof relative !== 'string' || path.isAbsolute(relative) || relative.split(/[\\/]/).includes('..')) {
+  if (
+    typeof relative !== 'string' ||
+    path.isAbsolute(relative) ||
+    relative.split(/[\\/]/).includes('..')
+  ) {
     throw new Error(`Unsafe path: ${relative}`);
   }
   const target = path.resolve(root, relative);
@@ -44,22 +48,39 @@ async function readSafe(root, relative) {
 }
 
 export function cueAssetFiles(catalogue) {
-  if (!catalogue || catalogue.version !== 1 || !Array.isArray(catalogue.cues) ||
-      !catalogue.inputs || typeof catalogue.inputs !== 'object' || Array.isArray(catalogue.inputs)) {
+  if (
+    !catalogue ||
+    catalogue.version !== 1 ||
+    !Array.isArray(catalogue.cues) ||
+    !catalogue.inputs ||
+    typeof catalogue.inputs !== 'object' ||
+    Array.isArray(catalogue.inputs)
+  ) {
     throw new Error('Invalid runtime-cues.json catalogue');
   }
   const files = new Set(STATIC_ASSETS);
   const seen = new Set();
   for (const cue of catalogue.cues) {
-    if (!cue || typeof cue.file !== 'string') throw new Error('Catalogue cue is missing its file path');
+    if (!cue || typeof cue.file !== 'string')
+      throw new Error('Catalogue cue is missing its file path');
     if (seen.has(cue.file)) throw new Error(`Duplicate catalogue cue: ${cue.file}`);
     seen.add(cue.file);
     resolveWithin(ASSET_ROOT, cue.file);
-    if (!Number.isFinite(cue.offset) || cue.offset < 0 || !Number.isFinite(cue.duration) || cue.duration <= 0 ||
-        !Number.isFinite(cue.audible_end) || cue.audible_end < 0 || cue.audible_end > cue.duration) {
+    if (
+      !Number.isFinite(cue.offset) ||
+      cue.offset < 0 ||
+      !Number.isFinite(cue.duration) ||
+      cue.duration <= 0 ||
+      !Number.isFinite(cue.audible_end) ||
+      cue.audible_end < 0 ||
+      cue.audible_end > cue.duration
+    ) {
       throw new Error(`Invalid cue bounds: ${cue.file}`);
     }
-    if (!cue.gainByRole || Object.values(cue.gainByRole).some(gain => !Number.isFinite(gain) || gain < 0 || gain > 4)) {
+    if (
+      !cue.gainByRole ||
+      Object.values(cue.gainByRole).some((gain) => !Number.isFinite(gain) || gain < 0 || gain > 4)
+    ) {
       throw new Error(`Invalid cue role gains: ${cue.file}`);
     }
     if (!/^[a-f0-9]{64}$/i.test(cue.sha256 || '')) throw new Error(`Missing cue hash: ${cue.file}`);
@@ -86,14 +107,21 @@ export async function validateCatalogue(repoRoot, assetRoot, catalogue) {
     await readSafe(assetRoot, relative);
   }
   for (const id of LINE_IDS) {
-    if (!catalogue.inputs?.[`assets/lines/${id}/line.json`] || !catalogue.inputs?.[`assets/lines/${id}/pack.json`]) {
+    if (
+      !catalogue.inputs?.[`assets/lines/${id}/line.json`] ||
+      !catalogue.inputs?.[`assets/lines/${id}/pack.json`]
+    ) {
       throw new Error(`Catalogue is missing ${id} input hashes`);
     }
   }
   return files;
 }
 
-export async function stageSubwayAssets({ repoRoot = REPO_ROOT, assetRoot = path.join(repoRoot, 'assets'), appRoot = path.join(repoRoot, 'app') } = {}) {
+export async function stageSubwayAssets({
+  repoRoot = REPO_ROOT,
+  assetRoot = path.join(repoRoot, 'assets'),
+  appRoot = path.join(repoRoot, 'app'),
+} = {}) {
   const outputRoot = resolveWithin(appRoot, 'public/subway');
   const { bytes: catalogueBytes } = await readSafe(assetRoot, 'motion/runtime-cues.json');
   let catalogue;
@@ -111,9 +139,14 @@ export async function stageSubwayAssets({ repoRoot = REPO_ROOT, assetRoot = path
     const destination = resolveWithin(outputRoot, assetRelative);
     await mkdir(path.dirname(destination), { recursive: true });
     const [sourceStat, destinationStat] = await Promise.all([
-      stat(source), stat(destination).catch(() => null),
+      stat(source),
+      stat(destination).catch(() => null),
     ]);
-    if (!destinationStat || destinationStat.size !== sourceStat.size || destinationStat.mtimeMs !== sourceStat.mtimeMs) {
+    if (
+      !destinationStat ||
+      destinationStat.size !== sourceStat.size ||
+      destinationStat.mtimeMs !== sourceStat.mtimeMs
+    ) {
       await copyFile(source, destination);
     }
     urls.push(`/subway/${assetRelative.split('/').map(encodeURIComponent).join('/')}`);
@@ -122,10 +155,12 @@ export async function stageSubwayAssets({ repoRoot = REPO_ROOT, assetRoot = path
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  stageSubwayAssets().then(result => {
-    console.log(`Staged ${result.files} Subway files under app/public/subway`);
-  }).catch(error => {
-    console.error(`${error.message}\nRebuild the catalogue from app/: ${REBUILD}`);
-    process.exitCode = 1;
-  });
+  stageSubwayAssets()
+    .then((result) => {
+      console.log(`Staged ${result.files} Subway files under app/public/subway`);
+    })
+    .catch((error) => {
+      console.error(`${error.message}\nRebuild the catalogue from app/: ${REBUILD}`);
+      process.exitCode = 1;
+    });
 }
