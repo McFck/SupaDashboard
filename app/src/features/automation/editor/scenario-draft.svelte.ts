@@ -27,6 +27,7 @@ import {
   sameScenarioDraft,
   scenarioNodeCount,
   setScenarioStateOverride,
+  withNewStepIds,
   type ScenarioDraft,
   type ScenarioListOwner,
   type StepListPath,
@@ -258,7 +259,8 @@ export class ScenarioDraftEditor {
     if (!draft || !this.owner) {
       return;
     }
-    const common = cloneDraftValue(this.currentList?.steps ?? []);
+    // Fresh IDs: step IDs are unique across the whole scenario.
+    const common = withNewStepIds(this.currentList?.steps ?? []);
     this.draft = {
       ...draft,
       scenario: setScenarioStateOverride(draft.scenario, this.owner, this.selectedState, common),

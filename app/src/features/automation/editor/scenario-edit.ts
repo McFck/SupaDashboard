@@ -183,6 +183,18 @@ export function setScenarioStateOverride(
   return next;
 }
 
+/** A copy of `steps` with fresh IDs throughout, so it can live beside the original in one scenario. */
+export function withNewStepIds(steps: ActionStep[]): ActionStep[] {
+  return steps.map((step) => {
+    const copy = { ...cloneDraftValue(step), id: newScenarioId() };
+    if (copy.kind === 'if') {
+      copy.then = withNewStepIds(copy.then);
+      copy.else = withNewStepIds(copy.else);
+    }
+    return copy;
+  });
+}
+
 /** Top-level steps of a trigger or event list, common and per-state together. */
 export function listStepCount(list: TriggerList | undefined) {
   if (!list) {
