@@ -202,8 +202,7 @@ export class DashboardWindow {
           break;
         }
         try {
-          const moved = this.lastSuccessfulRequest?.monitor !== request.monitor;
-          const fullscreen = await applyDisplay(display, moved);
+          const fullscreen = await applyDisplay(display);
           if (this.disposed) {
             break;
           }

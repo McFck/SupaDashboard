@@ -1,5 +1,8 @@
+// The dashboard window's display controller: one per window, every native change serialized through `chain`.
+// It owns fullscreen enter/exit and reconcile, always-on-top, monitor moves and saving the normal (windowed)
+// rectangle to `window-state.json` after the user moves or resizes the window.
 import { isTauri } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, type Window } from '@tauri-apps/api/window';
 import type { Page, Settings } from '../settings/schema';
 import {
   connectedMonitors,
@@ -13,27 +16,28 @@ import {
 } from '../../platform/window';
 import {
   clampGeometryToWorkArea,
-  firstLaunchGeometry,
   monitorRect,
   monitorWithLargestIntersection,
   resolveLiveMonitor,
-  resolveStartupMonitor,
   sameGeometry,
+  startupPlacement,
   validGeometry,
 } from './geometry';
 
 type DisplayRequest = Pick<Settings['display'], 'monitor' | 'fullscreen' | 'alwaysOnTop'>;
 type Controller = {
-  win: ReturnType<typeof getCurrentWindow>;
+  win: Window;
   store: WindowStateStore;
   cancelled: () => boolean;
   chain: Promise<unknown>;
   disposed: boolean;
+  /** Set while the controller itself moves the window, so its own move/resize events are not saved. */
   transition: boolean;
   appliedFullscreen: boolean;
   appliedTopmost: boolean;
   appliedMonitor: string | null;
   lastRequest: DisplayRequest;
+  /** The windowed rectangle to restore on fullscreen exit, and the monitor it belongs to. */
   normal: Geometry | null;
   normalMonitor: string | null;
   fullBounds: Geometry | null;
@@ -41,6 +45,8 @@ type Controller = {
   listeners: Array<() => void>;
   reconcileQueued: boolean;
 };
+
+const SAVE_DELAY_MS = 300;
 
 let activeController: Controller | undefined;
 
@@ -50,38 +56,44 @@ const snapshotRequest = (display: DisplayRequest): DisplayRequest => ({
   alwaysOnTop: display.alwaysOnTop,
 });
 
-const readCurrentBounds = (controller: Controller) => readWindowBounds(controller.win);
+const isLive = (controller: Controller) => !controller.disposed && !controller.cancelled();
+
+/** Only user moves and resizes of the windowed dashboard are saved. */
+const canSaveNormal = (controller: Controller) =>
+  isLive(controller) && !controller.appliedFullscreen && !controller.transition;
+
+function ensureActive(controller: Controller) {
+  if (!isLive(controller)) {
+    throw new Error('Dashboard display controller disposed');
+  }
+}
 
 async function placeBounds(bounds: Geometry): Promise<Geometry> {
-  if (!validGeometry(bounds)) throw new Error('Refusing invalid dashboard bounds');
+  if (!validGeometry(bounds)) {
+    throw new Error('Refusing invalid dashboard bounds');
+  }
   return setDashboardBounds(bounds);
 }
 
-const setInteractionMode = setDashboardInteractionMode;
-
 async function placeIfDifferent(controller: Controller, desired: Geometry): Promise<Geometry> {
-  if (!validGeometry(desired)) throw new Error('Monitor returned invalid dashboard bounds');
-  const actual = await readCurrentBounds(controller);
+  if (!validGeometry(desired)) {
+    throw new Error('Monitor returned invalid dashboard bounds');
+  }
+  const actual = await readWindowBounds(controller.win);
   return sameGeometry(actual, desired) ? actual : placeBounds(desired);
 }
 
-function ensureActive(controller: Controller) {
-  if (controller.disposed || controller.cancelled())
-    throw new Error('Dashboard display controller disposed');
-}
-
 async function setEffectiveTopmost(controller: Controller, topmost: boolean) {
-  if (controller.appliedTopmost === topmost) return;
+  if (controller.appliedTopmost === topmost) {
+    return;
+  }
   await controller.win.setAlwaysOnTop(topmost);
   ensureActive(controller);
   controller.appliedTopmost = topmost;
 }
 
 function serialize<T>(controller: Controller, operation: () => Promise<T>): Promise<T | undefined> {
-  const result = controller.chain.then(() => {
-    if (controller.disposed || controller.cancelled()) return undefined;
-    return operation();
-  });
+  const result = controller.chain.then(() => (isLive(controller) ? operation() : undefined));
   controller.chain = result.then(
     () => undefined,
     () => undefined,
@@ -104,57 +116,51 @@ async function persistNormal(controller: Controller, geometry: Geometry) {
   await controller.store.set('dashboard', geometry);
 }
 
-function saveNormalLater(controller: Controller) {
-  if (
-    controller.disposed ||
-    controller.cancelled() ||
-    controller.appliedFullscreen ||
-    controller.transition
-  )
+/** While fullscreen on another monitor, the retained windowed rectangle follows, centered on the new monitor. */
+async function moveNormalTo(controller: Controller, target: MonitorGeometry) {
+  if (!controller.normal || target.name === controller.normalMonitor) {
     return;
+  }
+  controller.normal = clampGeometryToWorkArea(controller.normal, target, true) ?? controller.normal;
+  controller.normalMonitor = target.name;
+  await persistNormal(controller, controller.normal);
+}
+
+function saveNormalLater(controller: Controller) {
+  if (!canSaveNormal(controller)) {
+    return;
+  }
   clearTimeout(controller.timer);
   controller.timer = setTimeout(() => {
-    if (
-      controller.disposed ||
-      controller.cancelled() ||
-      controller.appliedFullscreen ||
-      controller.transition
-    )
+    if (!canSaveNormal(controller)) {
       return;
+    }
     void serialize(controller, async () => {
-      if (
-        controller.disposed ||
-        controller.cancelled() ||
-        controller.appliedFullscreen ||
-        controller.transition
-      )
+      if (!canSaveNormal(controller)) {
         return;
-      const bounds = await readCurrentBounds(controller);
-      if (
-        controller.disposed ||
-        controller.cancelled() ||
-        controller.appliedFullscreen ||
-        controller.transition
-      )
+      }
+      const bounds = await readWindowBounds(controller.win);
+      if (!canSaveNormal(controller)) {
         return;
+      }
       await persistNormal(controller, bounds);
       controller.normal = bounds;
       const { screens, current } = await connectedMonitors();
       controller.normalMonitor =
         monitorWithLargestIntersection(bounds, screens)?.name ?? current?.name ?? null;
     }).catch((error) => console.warn('window state', error));
-  }, 300);
+  }, SAVE_DELAY_MS);
 }
 
 function queueFullscreenReconcile(controller: Controller) {
   if (
-    controller.disposed ||
-    controller.cancelled() ||
+    !isLive(controller) ||
     !controller.appliedFullscreen ||
     controller.transition ||
     controller.reconcileQueued
-  )
+  ) {
     return;
+  }
   controller.reconcileQueued = true;
   queueMicrotask(() => {
     controller.reconcileQueued = false;
@@ -164,17 +170,20 @@ function queueFullscreenReconcile(controller: Controller) {
   });
 }
 
-async function centerNormalOn(controller: Controller, monitor: MonitorGeometry, base: Geometry) {
-  return clampGeometryToWorkArea(base, monitor, true) ?? base;
-}
-
+/** Puts a fullscreen window back over its monitor after the OS or a monitor change resized it. */
 async function reconcileFullscreen(controller: Controller) {
-  if (!controller.appliedFullscreen || controller.transition) return;
+  if (!controller.appliedFullscreen || controller.transition) {
+    return;
+  }
   const { target } = await resolveTarget(controller.lastRequest);
-  if (!target) return;
+  if (!target) {
+    return;
+  }
   const desired = monitorRect(target);
-  if (!validGeometry(desired)) return;
-  const actual = await readCurrentBounds(controller);
+  if (!validGeometry(desired)) {
+    return;
+  }
+  const actual = await readWindowBounds(controller.win);
   if (sameGeometry(actual, desired)) {
     controller.appliedMonitor = target.name;
     controller.fullBounds = desired;
@@ -184,11 +193,7 @@ async function reconcileFullscreen(controller: Controller) {
   controller.transition = true;
   try {
     ensureActive(controller);
-    if (controller.normal && target.name !== controller.normalMonitor) {
-      controller.normal = await centerNormalOn(controller, target, controller.normal);
-      controller.normalMonitor = target.name;
-      await persistNormal(controller, controller.normal);
-    }
+    await moveNormalTo(controller, target);
     ensureActive(controller);
     const placed = await placeBounds(desired);
     ensureActive(controller);
@@ -212,7 +217,7 @@ async function enterFullscreen(
   let modeChanged = false;
   try {
     ensureActive(controller);
-    const normal = await readCurrentBounds(controller);
+    const normal = await readWindowBounds(controller.win);
     ensureActive(controller);
     controller.normal = normal;
     controller.normalMonitor =
@@ -220,7 +225,7 @@ async function enterFullscreen(
     await persistNormal(controller, normal);
     ensureActive(controller);
 
-    await setInteractionMode(true);
+    await setDashboardInteractionMode(true);
     modeChanged = true;
     ensureActive(controller);
     await setEffectiveTopmost(controller, true);
@@ -231,18 +236,14 @@ async function enterFullscreen(
     controller.appliedMonitor = target.name;
     controller.lastRequest = request;
   } catch (error) {
-    if (modeChanged && !controller.disposed && !controller.cancelled()) {
+    if (modeChanged && isLive(controller)) {
       try {
-        await setInteractionMode(controller.appliedFullscreen);
+        await setDashboardInteractionMode(controller.appliedFullscreen);
       } catch (rollbackError) {
         console.warn('could not restore dashboard interaction mode', rollbackError);
       }
     }
-    if (
-      !controller.disposed &&
-      !controller.cancelled() &&
-      controller.appliedTopmost !== previousTopmost
-    ) {
+    if (isLive(controller) && controller.appliedTopmost !== previousTopmost) {
       try {
         await setEffectiveTopmost(controller, previousTopmost);
       } catch (rollbackError) {
@@ -261,15 +262,13 @@ async function switchFullscreenMonitor(
   target: MonitorGeometry,
 ) {
   const desired = monitorRect(target);
-  if (!validGeometry(desired)) return;
+  if (!validGeometry(desired)) {
+    return;
+  }
   controller.transition = true;
   try {
     ensureActive(controller);
-    if (controller.normal && target.name !== controller.normalMonitor) {
-      controller.normal = await centerNormalOn(controller, target, controller.normal);
-      controller.normalMonitor = target.name;
-      await persistNormal(controller, controller.normal);
-    }
+    await moveNormalTo(controller, target);
     ensureActive(controller);
     const placed = await placeIfDifferent(controller, desired);
     ensureActive(controller);
@@ -287,7 +286,9 @@ async function exitFullscreen(
   target: MonitorGeometry,
 ) {
   const retained = controller.normal;
-  if (!retained) throw new Error('No normal dashboard rectangle was retained');
+  if (!retained) {
+    throw new Error('No normal dashboard rectangle was retained');
+  }
   const targetChanged = target.name !== controller.normalMonitor;
   const desired = clampGeometryToWorkArea(retained, target, targetChanged) ?? retained;
   controller.transition = true;
@@ -296,7 +297,7 @@ async function exitFullscreen(
     const placed = await placeIfDifferent(controller, desired);
     ensureActive(controller);
     await setEffectiveTopmost(controller, request.alwaysOnTop);
-    await setInteractionMode(false);
+    await setDashboardInteractionMode(false);
     ensureActive(controller);
     controller.appliedFullscreen = false;
     controller.appliedMonitor = target.name;
@@ -310,26 +311,33 @@ async function exitFullscreen(
       console.warn('window state', error);
     }
   } catch (error) {
-    if (!controller.disposed && !controller.cancelled()) {
-      try {
-        await setInteractionMode(true);
-      } catch (rollbackError) {
-        console.warn('could not restore dashboard fullscreen mode', rollbackError);
-      }
-      try {
-        await setEffectiveTopmost(controller, true);
-      } catch (rollbackError) {
-        console.warn('could not restore dashboard topmost state', rollbackError);
-      }
-      try {
-        if (controller.fullBounds) await placeIfDifferent(controller, controller.fullBounds);
-      } catch (rollbackError) {
-        console.warn('could not restore dashboard fullscreen bounds', rollbackError);
-      }
+    if (isLive(controller)) {
+      await restoreFullscreen(controller);
     }
     throw error;
   } finally {
     controller.transition = false;
+  }
+}
+
+/** Rollback for a failed exit: back to fullscreen interaction, topmost and the fullscreen rectangle. */
+async function restoreFullscreen(controller: Controller) {
+  try {
+    await setDashboardInteractionMode(true);
+  } catch (rollbackError) {
+    console.warn('could not restore dashboard fullscreen mode', rollbackError);
+  }
+  try {
+    await setEffectiveTopmost(controller, true);
+  } catch (rollbackError) {
+    console.warn('could not restore dashboard topmost state', rollbackError);
+  }
+  try {
+    if (controller.fullBounds) {
+      await placeIfDifferent(controller, controller.fullBounds);
+    }
+  } catch (rollbackError) {
+    console.warn('could not restore dashboard fullscreen bounds', rollbackError);
   }
 }
 
@@ -343,7 +351,7 @@ async function moveNormalToMonitor(
   try {
     ensureActive(controller);
     await setEffectiveTopmost(controller, request.alwaysOnTop);
-    const current = await readCurrentBounds(controller);
+    const current = await readWindowBounds(controller.win);
     ensureActive(controller);
     const changed =
       request.monitor !== controller.lastRequest.monitor &&
@@ -362,11 +370,7 @@ async function moveNormalToMonitor(
       console.warn('window state', error);
     }
   } catch (error) {
-    if (
-      !controller.disposed &&
-      !controller.cancelled() &&
-      controller.appliedTopmost !== previousTopmost
-    ) {
+    if (isLive(controller) && controller.appliedTopmost !== previousTopmost) {
       try {
         await setEffectiveTopmost(controller, previousTopmost);
       } catch (rollbackError) {
@@ -379,6 +383,7 @@ async function moveNormalToMonitor(
   }
 }
 
+/** Applies one display request; resolves to whether the dashboard is fullscreen afterwards. */
 async function applyRequest(controller: Controller, request: DisplayRequest) {
   if (
     request.monitor === controller.lastRequest.monitor &&
@@ -405,8 +410,7 @@ async function applyRequest(controller: Controller, request: DisplayRequest) {
     ) {
       await switchFullscreenMonitor(controller, request, target);
     } else {
-      const desired = monitorRect(target);
-      const placed = await placeIfDifferent(controller, desired);
+      const placed = await placeIfDifferent(controller, monitorRect(target));
       controller.fullBounds = placed;
       controller.appliedMonitor = target.name;
       controller.lastRequest = request;
@@ -435,24 +439,36 @@ async function attachListeners(controller: Controller) {
 }
 
 function disposeController(controller: Controller) {
-  if (controller.disposed) return;
+  if (controller.disposed) {
+    return;
+  }
   controller.disposed = true;
   clearTimeout(controller.timer);
-  for (const unlisten of controller.listeners.splice(0)) unlisten();
-  if (activeController === controller) activeController = undefined;
+  for (const unlisten of controller.listeners.splice(0)) {
+    unlisten();
+  }
+  if (activeController === controller) {
+    activeController = undefined;
+  }
 }
 
 export function getAppliedFullscreen() {
   return activeController?.appliedFullscreen ?? false;
 }
 
+/** Places the dashboard window at start-up and starts tracking it; resolves to the dispose function. */
 export async function initDisplay(
   display: Settings['display'],
   deck: Page,
   cancelled: () => boolean = () => false,
 ): Promise<() => void> {
-  if (!isTauri()) return () => {};
-  if (activeController) disposeController(activeController);
+  const noop = () => {};
+  if (!isTauri()) {
+    return noop;
+  }
+  if (activeController) {
+    disposeController(activeController);
+  }
 
   const request = snapshotRequest(display);
   const controller: Controller = {
@@ -473,61 +489,51 @@ export async function initDisplay(
     reconcileQueued: false,
   };
   activeController = controller;
+  /** Disposes the controller when the caller went away during an await. */
+  const abandoned = () => {
+    if (cancelled()) {
+      disposeController(controller);
+    }
+    return cancelled();
+  };
 
   try {
     controller.appliedTopmost = await controller.win.isAlwaysOnTop();
     ensureActive(controller);
     const saved = await controller.store.get<Geometry>('dashboard');
-    if (cancelled()) {
-      disposeController(controller);
-      return () => {};
+    if (abandoned()) {
+      return noop;
     }
     const [{ screens, current, primary }, actual] = await Promise.all([
       connectedMonitors(),
-      readCurrentBounds(controller),
+      readWindowBounds(controller.win),
     ]);
-    if (cancelled()) {
-      disposeController(controller);
-      return () => {};
+    if (abandoned()) {
+      return noop;
     }
-    const selected = resolveStartupMonitor(
+    const { monitor: selected, bounds } = startupPlacement(
       screens,
       request.monitor,
-      validGeometry(saved) ? saved : null,
+      saved,
       primary,
+      actual,
+      deck,
     );
-    let normal: Geometry;
-    if (!selected) {
-      normal = validGeometry(actual) ? actual : { x: 0, y: 0, width: 770, height: 392 };
-    } else if (validGeometry(saved)) {
-      const savedMonitor = monitorWithLargestIntersection(saved, screens);
-      const explicitChanged =
-        !!request.monitor &&
-        selected.name === request.monitor &&
-        savedMonitor?.name !== selected.name;
-      normal = clampGeometryToWorkArea(saved, selected, explicitChanged) ?? actual;
-    } else {
-      normal = firstLaunchGeometry(deck, selected) ?? actual;
-    }
-    if (!validGeometry(normal)) normal = { x: 0, y: 0, width: 770, height: 392 };
 
     await attachListeners(controller);
-    if (cancelled()) {
-      disposeController(controller);
-      return () => {};
+    if (abandoned()) {
+      return noop;
     }
     controller.transition = true;
     try {
-      await setInteractionMode(false);
-      if (cancelled()) {
-        disposeController(controller);
-        return () => {};
+      await setDashboardInteractionMode(false);
+      if (abandoned()) {
+        return noop;
       }
       // Persist only the OS-adjusted rectangle returned by the native placement command.
-      const placed = await placeBounds(normal);
-      if (cancelled()) {
-        disposeController(controller);
-        return () => {};
+      const placed = await placeBounds(bounds);
+      if (abandoned()) {
+        return noop;
       }
       controller.normal = placed;
       controller.normalMonitor =
@@ -547,26 +553,28 @@ export async function initDisplay(
       controller.appliedMonitor = selected?.name ?? current?.name ?? null;
       controller.lastRequest = request;
     }
-    if (cancelled()) {
-      disposeController(controller);
-      return () => {};
+    if (abandoned()) {
+      return noop;
     }
     return () => disposeController(controller);
   } catch (error) {
     disposeController(controller);
-    if (cancelled()) return () => {};
+    if (cancelled()) {
+      return noop;
+    }
     throw error;
   }
 }
 
-export async function applyDisplay(
-  display: Settings['display'],
-  _monitorChanged: boolean,
-): Promise<boolean> {
-  if (!isTauri()) return false;
+/** Serializes a display settings change; resolves to whether the dashboard is fullscreen afterwards. */
+export async function applyDisplay(display: Settings['display']): Promise<boolean> {
+  if (!isTauri()) {
+    return false;
+  }
   const controller = activeController;
-  if (!controller || controller.disposed)
+  if (!controller || controller.disposed) {
     throw new Error('Dashboard display controller is unavailable; reload the app');
+  }
   const request = snapshotRequest(display);
   return (
     (await serialize(controller, () => applyRequest(controller, request))) ??
@@ -574,7 +582,10 @@ export async function applyDisplay(
   );
 }
 
-if (import.meta.hot)
+if (import.meta.hot) {
   import.meta.hot.dispose(() => {
-    if (activeController) disposeController(activeController);
+    if (activeController) {
+      disposeController(activeController);
+    }
   });
+}

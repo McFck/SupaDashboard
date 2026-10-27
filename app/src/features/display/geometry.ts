@@ -25,8 +25,9 @@ export function complementRectangles(
     height <= inset * 2 ||
     dpr <= 0 ||
     inset < 0
-  )
+  ) {
     return [];
+  }
 
   const left = inset,
     top = inset,
@@ -37,11 +38,14 @@ export function complementRectangles(
       ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) ||
       rect.width <= 0 ||
       rect.height <= 0
-    )
+    ) {
       return [];
+    }
     const rawRight = rect.x + rect.width,
       rawBottom = rect.y + rect.height;
-    if (!Number.isFinite(rawRight) || !Number.isFinite(rawBottom)) return [];
+    if (!Number.isFinite(rawRight) || !Number.isFinite(rawBottom)) {
+      return [];
+    }
     const x = Math.max(left, Math.min(right, Math.floor(rect.x * dpr) / dpr));
     const y = Math.max(top, Math.min(bottom, Math.floor(rect.y * dpr) / dpr));
     const x2 = Math.max(left, Math.min(right, Math.ceil(rawRight * dpr) / dpr));
@@ -57,7 +61,9 @@ export function complementRectangles(
   for (let i = 0; i < xs.length - 1; i++) {
     const x = xs[i],
       x2 = xs[i + 1];
-    if (x2 <= x) continue;
+    if (x2 <= x) {
+      continue;
+    }
     const intervals = exclusions
       .filter((rect) => rect.x < x2 && rect.right > x)
       .map((rect) => ({ top: rect.y, bottom: rect.bottom }))
@@ -65,14 +71,20 @@ export function complementRectangles(
     const gaps: Array<{ top: number; bottom: number }> = [];
     let cursor = top;
     for (const interval of intervals) {
-      if (interval.top > cursor) gaps.push({ top: cursor, bottom: interval.top });
+      if (interval.top > cursor) {
+        gaps.push({ top: cursor, bottom: interval.top });
+      }
       cursor = Math.max(cursor, interval.bottom);
     }
-    if (cursor < bottom) gaps.push({ top: cursor, bottom });
+    if (cursor < bottom) {
+      gaps.push({ top: cursor, bottom });
+    }
 
     const bands = new Map<string, number>();
     for (const gap of gaps) {
-      if (gap.bottom <= gap.top) continue;
+      if (gap.bottom <= gap.top) {
+        continue;
+      }
       const key = `${gap.top}:${gap.bottom}`;
       const previous = previousBands.get(key);
       if (previous !== undefined && result[previous].x + result[previous].width === x) {
@@ -131,25 +143,28 @@ export function monitorWithLargestIntersection<
   return best;
 }
 
-export function resolveStartupMonitor<
-  T extends Pick<MonitorGeometry, 'name' | 'position' | 'size'>,
->(
-  screens: T[],
+function resolveStartupMonitor(
+  screens: MonitorGeometry[],
   preferred: string | null,
   saved: Geometry | null,
-  primary: T | null,
-): T | undefined {
+  primary: MonitorGeometry | null,
+): MonitorGeometry | undefined {
   if (preferred) {
     const selected = screens.find((screen) => screen.name === preferred);
-    if (selected) return selected;
+    if (selected) {
+      return selected;
+    }
   }
-  if (saved && validGeometry(saved)) {
+  if (saved) {
     const overlap = monitorWithLargestIntersection(saved, screens);
-    if (overlap) return overlap;
+    if (overlap) {
+      return overlap;
+    }
   }
   return (primary && screens.find((screen) => screen.name === primary.name)) ?? screens[0];
 }
 
+/** Monitor for a live display change: the explicit choice, else wherever the window is now, else the primary. */
 export function resolveLiveMonitor<T extends Pick<MonitorGeometry, 'name'>>(
   screens: T[],
   preferred: string | null,
@@ -170,18 +185,22 @@ function workAreaOf(monitor: MonitorGeometry) {
   const { position, size } = monitor.workArea;
   const width = Math.floor(size.width);
   const height = Math.floor(size.height);
-  if (!Number.isFinite(position.x) || !Number.isFinite(position.y) || width < 1 || height < 1)
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.y) || width < 1 || height < 1) {
     return null;
+  }
   return { x: Math.ceil(position.x), y: Math.ceil(position.y), width, height };
 }
 
+/** Fits `geometry` inside the monitor's work area, keeping its position unless `center` is set. */
 export function clampGeometryToWorkArea(
   geometry: Geometry,
   monitor: MonitorGeometry,
   center = false,
 ): Geometry | null {
   const area = workAreaOf(monitor);
-  if (!area) return null;
+  if (!area) {
+    return null;
+  }
   const width = Math.max(1, Math.min(Math.floor(geometry.width), area.width));
   const height = Math.max(1, Math.min(Math.floor(geometry.height), area.height));
   const x = center
@@ -194,12 +213,15 @@ export function clampGeometryToWorkArea(
   return validGeometry(result) ? result : null;
 }
 
-export function firstLaunchGeometry(
+/** The deck's natural size in physical pixels, shrunk to fit and centered in the work area. */
+function firstLaunchGeometry(
   deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>,
   monitor: MonitorGeometry,
 ): Geometry | null {
   const area = workAreaOf(monitor);
-  if (!area) return null;
+  if (!area) {
+    return null;
+  }
   const natural = deckSize(deck);
   const scale =
     Number.isFinite(monitor.scaleFactor) && monitor.scaleFactor > 0 ? monitor.scaleFactor : 1;
@@ -211,11 +233,43 @@ export function firstLaunchGeometry(
   return clampGeometryToWorkArea({ x: area.x, y: area.y, width, height }, monitor, true);
 }
 
+const FALLBACK_BOUNDS: Geometry = { x: 0, y: 0, width: 770, height: 392 };
+
+/**
+ * Where the dashboard window opens. The monitor is the explicit choice, else the one the saved bounds mostly
+ * cover, else the primary. Saved bounds are clamped into that monitor's work area, and centered on it when the
+ * explicit choice differs from where they were saved; without saved bounds the deck's natural size is used.
+ */
+export function startupPlacement(
+  screens: MonitorGeometry[],
+  preferred: string | null,
+  saved: Geometry | undefined,
+  primary: MonitorGeometry | null,
+  actual: Geometry,
+  deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>,
+): { monitor: MonitorGeometry | undefined; bounds: Geometry } {
+  const savedBounds = validGeometry(saved) ? saved : null;
+  const monitor = resolveStartupMonitor(screens, preferred, savedBounds, primary);
+  let bounds: Geometry | null;
+  if (!monitor) {
+    bounds = actual;
+  } else if (savedBounds) {
+    const savedMonitor = monitorWithLargestIntersection(savedBounds, screens);
+    const explicitChanged =
+      !!preferred && monitor.name === preferred && savedMonitor?.name !== monitor.name;
+    bounds = clampGeometryToWorkArea(savedBounds, monitor, explicitChanged) ?? actual;
+  } else {
+    bounds = firstLaunchGeometry(deck, monitor) ?? actual;
+  }
+  return { monitor, bounds: validGeometry(bounds) ? bounds : FALLBACK_BOUNDS };
+}
+
 export const sameGeometry = (a: Geometry, b: Geometry) =>
   a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
-const rect = (
-  position: { x: number; y: number },
-  size: { width: number; height: number },
-): Geometry => ({ x: position.x, y: position.y, width: size.width, height: size.height });
-export const monitorRect = (monitor: MonitorGeometry): Geometry =>
-  rect(monitor.position, monitor.size);
+
+export const monitorRect = (monitor: MonitorGeometry): Geometry => ({
+  x: monitor.position.x,
+  y: monitor.position.y,
+  width: monitor.size.width,
+  height: monitor.size.height,
+});
