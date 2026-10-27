@@ -58,10 +58,6 @@ export async function attachRuntimeConnection(sync: RuntimeSync) {
   };
 }
 
-export function receiveRuntimeSnapshot(snapshot: unknown, revision: number) {
-  acceptRuntimeSnapshot(snapshot, revision);
-}
-
 export async function requestRuntime(request: RuntimeRequest) {
   if (!clientSync) throw new Error('Runtime owner is unavailable');
   return clientSync.request(request);

@@ -8,13 +8,10 @@ import type { Page } from '../../features/settings/schema';
 import { captureTrigger } from '../../features/automation/scenario-runner';
 import { mediaSourceKey } from '../../features/media/content';
 import { VariableStore } from '../../features/automation/variables';
-import {
-  acceptRuntimeSnapshot,
-  AutomationRuntime,
-  bootRuntime,
-  runtimeView,
-  stopRuntime,
-} from '../runtime.svelte';
+import { acceptRuntimeSnapshot } from './client';
+import { bootRuntime, stopRuntime } from './lifecycle';
+import { RuntimeSession } from './session.svelte';
+import { runtimeView } from './state';
 import type { ControlConfig } from '../../features/controls/model';
 import type { Trigger } from '../../features/automation/scenario';
 
@@ -40,7 +37,7 @@ const control = (): ControlConfig => ({
 });
 const packet = (controlConfig: ControlConfig, trigger: Trigger = 'press') =>
   captureTrigger(controlConfig, 'item', trigger, `${trigger}-${Math.random()}`, 'off')!;
-let runtime: AutomationRuntime | undefined;
+let runtime: RuntimeSession | undefined;
 
 afterEach(async () => {
   await stopRuntime();
@@ -94,10 +91,10 @@ describe('automation runtime', () => {
       },
     });
     try {
-      expect(() => new AutomationRuntime()).toThrow('skin startup failed');
+      expect(() => new RuntimeSession()).toThrow('skin startup failed');
       expect(live).toBe(0);
       fail = false;
-      runtime = new AutomationRuntime();
+      runtime = new RuntimeSession();
       expect(live).toBe(1);
       await runtime.dispose();
       expect(live).toBe(0);
@@ -123,12 +120,12 @@ describe('automation runtime', () => {
       },
       'core',
     );
-    runtime = new AutomationRuntime({ variables, owner: false });
+    runtime = new RuntimeSession({ variables, owner: false });
     await vi.advanceTimersByTimeAsync(1000);
     expect(variables.getValue('clock.time')).toBe('not-started');
     await runtime.dispose();
 
-    runtime = new AutomationRuntime({ variables });
+    runtime = new RuntimeSession({ variables });
     const initial = variables.getValue('clock.time');
     expect(initial).not.toBe('not-started');
     await vi.advanceTimersByTimeAsync(1000);
@@ -148,7 +145,7 @@ describe('automation runtime', () => {
     ];
     settings.controls = [config];
     settings.variants[config.id] = 0;
-    runtime = new AutomationRuntime();
+    runtime = new RuntimeSession();
     runtime.setState(config.id, 'next');
     expect(settings.variants[config.id]).toBe(1);
     runtime.setState(config.id, 'prev');
@@ -188,7 +185,7 @@ describe('automation runtime', () => {
       },
     };
     settings.controls = [config, web];
-    runtime = new AutomationRuntime();
+    runtime = new RuntimeSession();
     runtime.reconcile(settings.controls);
     const saved = serializeSettings();
     const firstSource = mediaSourceKey({ kind: 'url', value: 'https://example.test/one.png' });
@@ -220,7 +217,7 @@ describe('automation runtime', () => {
     expect(get(runtime.snapshots).content[config.id]).toEqual({ slide: 0, reload: 0 });
 
     await runtime.dispose();
-    runtime = new AutomationRuntime({ owner: false });
+    runtime = new RuntimeSession({ owner: false });
     expect(() => runtime!.contentCommand(config.id, 'goto', 0)).toThrow(
       'Content runtime is unavailable',
     );
@@ -238,7 +235,7 @@ describe('automation runtime', () => {
     settings.deck.pages = [active];
     settings.deck.activePage = active.id;
     settings.controls = [config];
-    runtime = new AutomationRuntime();
+    runtime = new RuntimeSession();
     runtime.reconcile(settings.controls);
     runtime.contentCommand(config.id, 'goto', 1);
     const currentKey = mediaSourceKey({ kind: 'url', value: sources[1].value });
@@ -270,7 +267,7 @@ describe('automation runtime', () => {
         calls.push('pull');
       },
     });
-    runtime = new AutomationRuntime({ onFailure: (failure) => failures.push(failure) });
+    runtime = new RuntimeSession({ onFailure: (failure) => failures.push(failure) });
     await expect(runtime.dispatchTrigger(config.id, 'item', 'swipeRight')).resolves.toMatchObject({
       status: 'completed',
     });
@@ -289,7 +286,7 @@ describe('automation runtime', () => {
       unblock = resolve;
     });
     actions.set('test.action', { id: 'test.action', title: 'Test', run: () => blocked });
-    runtime = new AutomationRuntime();
+    runtime = new RuntimeSession();
     const run = runtime.dispatch(packet(config));
     await Promise.resolve();
     config.name = 'Renamed';
@@ -308,7 +305,7 @@ describe('automation runtime', () => {
       { ...structuredClone(priorSettings.deck.pages[0]), id: 'page-3', name: 'Page 3' },
     ];
     settings.deck.activePage = 'page-2';
-    runtime = new AutomationRuntime();
+    runtime = new RuntimeSession();
     await tick();
     expect(runtime.changePage('missing')).toBe(false);
     expect(runtime.changePage('page-2')).toBe(false);
@@ -338,7 +335,7 @@ describe('automation runtime', () => {
       { id: 'page-listener', eventId: 'page.changed', list: { steps: [] } },
     ];
     settings.controls = [listener];
-    runtime = new AutomationRuntime();
+    runtime = new RuntimeSession();
     const dispatch = vi.spyOn(runtime, 'dispatch').mockResolvedValue({ status: 'completed' });
 
     expect(runtime.changePage('page-2', 'dot')).toBe(true);
@@ -355,7 +352,7 @@ describe('automation runtime', () => {
     settings.deck.pages = [...settings.deck.pages].reverse();
     await tick();
     expect(dispatch).toHaveBeenCalledOnce();
-    const follower = new AutomationRuntime({ owner: false });
+    const follower = new RuntimeSession({ owner: false });
     expect(follower.changePage('page-1', 'dot')).toBe(false);
     await follower.dispose();
     expect(dispatch).toHaveBeenCalledOnce();
@@ -383,7 +380,7 @@ describe('automation runtime', () => {
         runtime!.changePage('page-3', 'action', context?.eventAncestry);
       },
     });
-    runtime = new AutomationRuntime({ onFailure: (failure) => failures.push(failure) });
+    runtime = new RuntimeSession({ onFailure: (failure) => failures.push(failure) });
 
     expect(runtime.changePage('page-2', 'dot')).toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 25));
@@ -529,7 +526,7 @@ describe('automation runtime', () => {
     });
     settings.skinSettings[skinId] = { enabled: true, future: '保持' };
     const before = serializeSettings();
-    runtime = new AutomationRuntime();
+    runtime = new RuntimeSession();
     await tick();
     expect(observed).toEqual([true]);
     expect(runtime.variables.getValue(`${skinId}.configured`)).toBe(true);
@@ -576,10 +573,10 @@ describe('automation runtime', () => {
     const variables = runtime.variables;
     skins.set(skinId, { ...skins.get(skinId)!, runtime: undefined });
     variables.set(`${skinId}.view`, 'missing-view', 'runtime-skin-plugin');
-    runtime = new AutomationRuntime({ variables });
+    runtime = new RuntimeSession({ variables });
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('display');
     await runtime.dispose();
-    runtime = new AutomationRuntime({ owner: false });
+    runtime = new RuntimeSession({ owner: false });
     expect(observed).toEqual([true, false]);
     expect(() => runtime!.setSkinState(skinId, 'configured', false)).toThrow(
       'Skin runtime is unavailable',
