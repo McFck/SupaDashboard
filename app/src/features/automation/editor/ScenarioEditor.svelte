@@ -7,7 +7,7 @@
   import { Label } from '$lib/components/ui/label';
   import * as Dialog from '$lib/components/ui/dialog';
   import type { EventList, Trigger } from '../scenario';
-  import { newScenarioId, TRIGGERS, validateScenario } from '../scenario';
+  import { newScenarioId, TRIGGER_LABELS, TRIGGERS, validateScenario } from '../scenario';
   import {
     availableGestures,
     MAX_VARIANTS,
@@ -559,19 +559,7 @@
           class="flex min-h-0 min-w-0 flex-col gap-2 overflow-y-auto border-r p-3 [scrollbar-gutter:stable]"
         >
           {#each TRIGGERS as trigger (trigger)}
-            {@const label = (
-              {
-                press: 'Press',
-                release: 'Release',
-                longPress: 'Long press',
-                longPressRelease: 'Long press release',
-                doubleTap: 'Double tap',
-                swipeUp: 'Pull up',
-                swipeDown: 'Pull down',
-                swipeLeft: 'Pull left',
-                swipeRight: 'Pull right',
-              } as Record<Trigger, string>
-            )[trigger]}
+            {@const label = TRIGGER_LABELS[trigger]}
             <Button
               variant={selectedKey === `trigger:${trigger}` ? 'secondary' : 'ghost'}
               size="sm"

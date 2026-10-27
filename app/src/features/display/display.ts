@@ -138,10 +138,7 @@ export const validGeometry = (g: Geometry | null | undefined): g is Geometry =>
   g.height > 0 &&
   g.height <= I32_MAX;
 
-function intersectionArea(
-  geometry: Geometry,
-  monitor: Pick<MonitorGeometry, 'position' | 'size'>,
-) {
+function intersectionArea(geometry: Geometry, monitor: Pick<MonitorGeometry, 'position' | 'size'>) {
   const width = Math.max(
     0,
     Math.min(geometry.x + geometry.width, monitor.position.x + monitor.size.width) -
@@ -170,9 +167,7 @@ function monitorWithLargestIntersection<
   return best;
 }
 
-function resolveStartupMonitor<
-  T extends Pick<MonitorGeometry, 'name' | 'position' | 'size'>,
->(
+function resolveStartupMonitor<T extends Pick<MonitorGeometry, 'name' | 'position' | 'size'>>(
   screens: T[],
   preferred: string | null,
   saved: Geometry | null,

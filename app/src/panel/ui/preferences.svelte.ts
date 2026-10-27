@@ -1,4 +1,4 @@
-import { sidebarWidth } from './frame';
+import { inspectorWidth, sidebarWidth } from './frame';
 
 function read() {
   try {
@@ -17,9 +17,7 @@ export const frame = $state({
         : 240,
   inspectorOpen: saved?.inspectorOpen !== false,
   inspectorWidth:
-    typeof saved?.inspectorWidth === 'number'
-      ? Math.max(320, Math.min(640, saved.inspectorWidth))
-      : 400,
+    typeof saved?.inspectorWidth === 'number' ? inspectorWidth(saved.inspectorWidth) : 400,
 });
 export function saveFrame() {
   try {

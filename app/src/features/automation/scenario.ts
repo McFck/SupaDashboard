@@ -42,6 +42,17 @@ export const TRIGGERS: readonly Trigger[] = [
   'swipeLeft',
   'swipeRight',
 ];
+export const TRIGGER_LABELS: Readonly<Record<Trigger, string>> = {
+  press: 'Press',
+  release: 'Release',
+  longPress: 'Long press',
+  longPressRelease: 'Long press release',
+  doubleTap: 'Double tap',
+  swipeUp: 'Pull up',
+  swipeDown: 'Pull down',
+  swipeLeft: 'Pull left',
+  swipeRight: 'Pull right',
+};
 export const MAX_SCENARIO_DEPTH = 16;
 export const MAX_SCENARIO_NODES = 1000;
 export const MAX_DELAY_MS = 86_400_000;

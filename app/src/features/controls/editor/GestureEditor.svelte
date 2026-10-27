@@ -1,22 +1,11 @@
 <script lang="ts">
   import { Button } from '$lib/components/ui/button';
   import type { ControlConfig } from '../model';
-  import { TRIGGERS, type Trigger } from '../../automation/scenario';
+  import { TRIGGER_LABELS, TRIGGERS, type Trigger } from '../../automation/scenario';
   import { scenarioStepCount } from '../../automation/editor/scenario-edit';
 
   let { control, onedit }: { control: ControlConfig; onedit: (trigger?: Trigger) => void } =
     $props();
-  const labels: Record<Trigger, string> = {
-    press: 'Press',
-    release: 'Release',
-    longPress: 'Long press',
-    longPressRelease: 'Long press release',
-    doubleTap: 'Double tap',
-    swipeUp: 'Pull up',
-    swipeDown: 'Pull down',
-    swipeLeft: 'Pull left',
-    swipeRight: 'Pull right',
-  };
   const configured = $derived(
     TRIGGERS.filter((trigger) => control.scenario?.triggers[trigger] !== undefined),
   );
@@ -54,10 +43,10 @@
       variant="ghost"
       size="sm"
       class="min-w-0 justify-between"
-      aria-label="Edit {labels[trigger]}, {stepCount(trigger)} steps"
+      aria-label="Edit {TRIGGER_LABELS[trigger]}, {stepCount(trigger)} steps"
       onclick={() => onedit(trigger)}
     >
-      <span class="truncate">{labels[trigger]}</span><span
+      <span class="truncate">{TRIGGER_LABELS[trigger]}</span><span
         class="shrink-0 text-xs tabular-nums text-muted-foreground">{stepCount(trigger)}</span
       >
     </Button>
