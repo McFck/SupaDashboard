@@ -132,7 +132,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             content::content_frames_ready,
-            panel::open_panel,
             panel::panel_bootstrap,
             panel::panel_ready,
             monitors::monitor_names,
@@ -140,12 +139,7 @@ pub fn run() {
             window::dashboard_interaction_mode,
             volume::audio_snapshot,
             volume::audio_update,
-            media::media_state,
             media::media_command,
-            volume::volume_get,
-            volume::volume_set,
-            volume::volume_mute,
-            volume::audio_mixer
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

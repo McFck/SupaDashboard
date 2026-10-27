@@ -298,7 +298,6 @@ pub async fn preload_panel(app: AppHandle) -> Result<(), String> {
     create_panel(app).await
 }
 
-#[tauri::command]
 pub async fn open_panel(app: AppHandle) -> Result<(), String> {
     let state = app.state::<PanelState>();
     let (generation, ready) = state.request_open();

@@ -126,48 +126,6 @@ pub async fn audio_update(
     request_update(&service, target, value, muted, Some(device_id)).await
 }
 
-#[tauri::command]
-pub async fn audio_mixer(service: State<'_, AudioService>) -> Result<Vec<Channel>, String> {
-    Ok(request_snapshot(&service).await?.channels)
-}
-
-#[tauri::command]
-pub async fn volume_get(
-    target: String,
-    service: State<'_, AudioService>,
-) -> Result<Option<f32>, String> {
-    let target = normalize_target(&target);
-    if target.is_empty() {
-        return Err("volume target cannot be empty".into());
-    }
-    Ok(
-        find_channel(&request_snapshot(&service).await?.channels, &target)
-            .map(|channel| channel.volume),
-    )
-}
-
-#[tauri::command]
-pub async fn volume_set(
-    target: String,
-    value: f32,
-    service: State<'_, AudioService>,
-) -> Result<bool, String> {
-    Ok(request_update(&service, target, Some(value), None, None)
-        .await?
-        .applied)
-}
-
-#[tauri::command]
-pub async fn volume_mute(
-    target: String,
-    muted: bool,
-    service: State<'_, AudioService>,
-) -> Result<bool, String> {
-    Ok(request_update(&service, target, None, Some(muted), None)
-        .await?
-        .applied)
-}
-
 fn normalize_target(target: &str) -> String {
     let target = target.trim().to_lowercase();
     target.strip_suffix(".exe").unwrap_or(&target).to_owned()
@@ -189,16 +147,6 @@ fn validate_patch(
         return Err("volume must be finite".into());
     }
     Ok((target, value.map(|value| value.clamp(0.0, 1.0))))
-}
-
-fn find_channel<'a>(channels: &'a [Channel], target: &str) -> Option<&'a Channel> {
-    if target == "system" {
-        channels.iter().find(|channel| channel.target == "system")
-    } else {
-        channels
-            .iter()
-            .find(|channel| channel.target.contains(target))
-    }
 }
 
 fn canonical_channels(mut channels: Vec<Channel>) -> Vec<Channel> {

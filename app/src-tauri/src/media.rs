@@ -1,18 +1,8 @@
 //! Media transport via Windows' global media sessions (Spotify, browsers, players all register there).
-use serde::Serialize;
 use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSession as Session,
     GlobalSystemMediaTransportControlsSessionManager as Manager,
-    GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
 };
-
-#[derive(Serialize)]
-pub struct MediaState {
-    app: String,
-    title: String,
-    artist: String,
-    playing: bool,
-}
 
 /// `target` None / "any" = the session Windows considers current; otherwise a case-insensitive
 /// match on the app id (e.g. "spotify").
@@ -34,23 +24,6 @@ fn session(target: Option<&str>) -> windows::core::Result<Option<Session>> {
             Ok(None)
         }
     }
-}
-
-#[tauri::command]
-pub async fn media_state(target: Option<String>) -> Result<Option<MediaState>, String> {
-    let read = || -> windows::core::Result<Option<MediaState>> {
-        let Some(s) = session(target.as_deref())? else {
-            return Ok(None);
-        };
-        let props = s.TryGetMediaPropertiesAsync()?.join()?;
-        Ok(Some(MediaState {
-            app: s.SourceAppUserModelId()?.to_string(),
-            title: props.Title()?.to_string(),
-            artist: props.Artist()?.to_string(),
-            playing: s.GetPlaybackInfo()?.PlaybackStatus()? == Status::Playing,
-        }))
-    };
-    read().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
