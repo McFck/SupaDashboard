@@ -1,4 +1,51 @@
 // Pixel geometry for moving and resizing placements on the grid.
+export type Box = { x: number; y: number; width: number; height: number };
+type CellRect = { x: number; y: number; w: number; h: number };
+type CellSize = { w: number; h: number };
+
+/** Pixel box of a placement: cells are `pitch` apart and the grid is inset by one gap. */
+export function itemBox(item: CellRect, pitch: number, gap: number): Box {
+  return {
+    x: item.x * pitch + gap,
+    y: item.y * pitch + gap,
+    width: item.w * pitch - gap,
+    height: item.h * pitch - gap,
+  };
+}
+
+/** Size limits for a corner resize: the type's own limits, capped by the grid edges that corner grows toward. */
+export function resizeLimits(
+  item: CellRect,
+  corner: ResizeCorner,
+  grid: { rows: number; cols: number },
+  size: { min?: CellSize; max?: CellSize },
+) {
+  const min = size.min ?? { w: 1, h: 1 };
+  const registeredMax = size.max ?? { w: 99, h: 99 };
+  const max = {
+    w: Math.min(registeredMax.w, corner.includes('w') ? item.x + item.w : grid.cols - item.x),
+    h: Math.min(registeredMax.h, corner.includes('n') ? item.y + item.h : grid.rows - item.y),
+  };
+  return { min, max };
+}
+
+/** One cell per arrow key; Shift grows or shrinks both axes together. */
+export function keyboardResizeDelta(key: string, shiftKey: boolean, pitch: number) {
+  let dx = key === 'ArrowLeft' ? -pitch : key === 'ArrowRight' ? pitch : 0;
+  let dy = key === 'ArrowUp' ? -pitch : key === 'ArrowDown' ? pitch : 0;
+  if (!dx && !dy) {
+    return null;
+  }
+  if (shiftKey) {
+    if (dx !== 0) {
+      dy = dx;
+    } else {
+      dx = dy;
+    }
+  }
+  return { dx, dy };
+}
+
 /** Project a captured logical-pixel grab point to the tile's nearest grid-origin snap. */
 export function projectMoveOrigin(
   clientX: number,
