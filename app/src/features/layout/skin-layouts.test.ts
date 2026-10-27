@@ -262,4 +262,45 @@ describe('skin layout storage', () => {
     ).toBeUndefined();
     expect(source.skinLayouts).toEqual(before);
   });
+
+  it('leaves the live settings untouched while computing a move (no copy left on the destination)', () => {
+    skins.set(skinId, skin);
+    controlTypes.set(typeId, {
+      type: typeId,
+      title: 'Button',
+      icon: 'Square',
+      component: {} as any,
+      size: { w: 1, h: 1 },
+      create: () => ({ name: 'Button', variants: [] }),
+    } as any);
+    const source = structuredClone(DEFAULTS);
+    const first = { ...source.deck.pages[0], id: 'page-a', items: [item('deck-item', 'c1', 0)] };
+    const second = { ...source.deck.pages[0], id: 'page-b', items: [] };
+    source.deck.pages = [first, second];
+    source.controls = [
+      { id: 'c1', name: 'One', type: typeId, variants: [] },
+      { id: 'c2', name: 'Two', type: typeId, variants: [] },
+    ] as any;
+    source.skinLayouts = {
+      [skinId]: { 'page-a': { main: [item('skin-item', 'c2', 0)] }, 'page-b': { main: [] } },
+    };
+    const before = structuredClone(source);
+
+    const deckMove = movePlacementToSlot(source, 'deck-item', {
+      skinId: 'deck',
+      pageId: 'page-b',
+      slotId: 'main',
+    });
+    const slotMove = movePlacementToSlot(source, 'skin-item', {
+      skinId,
+      pageId: 'page-b',
+      slotId: 'main',
+    });
+
+    expect(deckMove?.pages[1].items.map((entry) => entry.id)).toEqual(['deck-item']);
+    expect(slotMove?.skinLayouts[skinId]['page-b'].main.map((entry) => entry.id)).toEqual([
+      'skin-item',
+    ]);
+    expect(source).toEqual(before);
+  });
 });

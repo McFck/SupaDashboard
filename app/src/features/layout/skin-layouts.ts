@@ -186,19 +186,27 @@ export function movePlacementToSlot(source: Settings, itemId: string, destinatio
   if (!position) return undefined;
   const moved = { ...origin.item, ...position, w, h };
 
-  const pages = source.deck.pages.map((page) =>
-    page.id === origin.pageId && origin.skinId === 'deck'
-      ? { ...page, items: page.items.filter((item) => item.id !== itemId) }
-      : page,
-  );
-  const skinLayouts = { ...(source.skinLayouts ?? {}) };
-  delete skinLayouts.deck;
+  // setLayoutItems writes into the page or slot map it is given, so every container is copied first.
+  const pages = source.deck.pages.map((page) => ({
+    ...page,
+    items:
+      page.id === origin.pageId && origin.skinId === 'deck'
+        ? page.items.filter((item) => item.id !== itemId)
+        : page.items,
+  }));
+  const skinLayouts: Settings['skinLayouts'] = {};
+  for (const [skinId, byPage] of Object.entries(source.skinLayouts ?? {})) {
+    if (skinId === 'deck') {
+      continue;
+    }
+    skinLayouts[skinId] = Object.fromEntries(
+      Object.entries(byPage).map(([pageId, slots]) => [pageId, { ...slots }]),
+    );
+  }
   if (origin.skinId !== 'deck') {
-    const byPage = { ...skinLayouts[origin.skinId] };
-    const slots = { ...byPage[origin.pageId] };
-    slots[origin.slotId] = from.items.filter((item) => item.id !== itemId);
-    byPage[origin.pageId] = slots;
-    skinLayouts[origin.skinId] = byPage;
+    skinLayouts[origin.skinId][origin.pageId][origin.slotId] = from.items.filter(
+      (item) => item.id !== itemId,
+    );
   }
   const next = { ...source, deck: { ...source.deck, pages }, skinLayouts } as Settings;
   if (!setLayoutItems(next, destination, [...to.items, moved])) return undefined;
