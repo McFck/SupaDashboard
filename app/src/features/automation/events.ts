@@ -21,7 +21,7 @@ function eventPayload(value: unknown) {
   return JSON.parse(serialized) as unknown;
 }
 
-export function listenerKey(controlId: string, listenerId: string) {
+function listenerKey(controlId: string, listenerId: string) {
   return `${controlId}\u0000${listenerId}`;
 }
 

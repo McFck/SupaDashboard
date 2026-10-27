@@ -9,7 +9,7 @@ import {
 import { drawE235Page, drawE235PageOverlay, e235AssetRevision } from './e235-pages';
 import { CanvasLayerCache, drawFittedText, E235_COLORS as C } from './shared';
 
-export const YAMANOTE_LCD_WIDTH = 1280;
+const YAMANOTE_LCD_WIDTH = 1280;
 const E235_SCALE = YAMANOTE_LCD_WIDTH / E235_WIDTH;
 
 function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {

@@ -2,9 +2,9 @@ import { localizedName, type StationDefinition } from '../../simulation/lines';
 import type { ScreenLanguage, ScreenSchedule } from '../screens';
 import { CanvasLayerCache, drawBadge, drawFittedText, JAPANESE_FONT } from './shared';
 
-export const SAKAISUJI_LCD_WIDTH = 1920;
-export const SAKAISUJI_LCD_HEIGHT = 540;
-export const SAKAISUJI_HEADER_HEIGHT = 108;
+const SAKAISUJI_LCD_WIDTH = 1920;
+const SAKAISUJI_LCD_HEIGHT = 540;
+const SAKAISUJI_HEADER_HEIGHT = 108;
 export const SAKAISUJI_COLORS = Object.freeze({
   header: '#744020',
   route: '#bc782d',

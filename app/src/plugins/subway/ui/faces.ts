@@ -11,13 +11,13 @@ const LINE_ACCENTS: Record<string, string> = {
   sakaisuji: '#bc782d',
 };
 
-export function subwayAccent(lineId: unknown, appearance: TileAppearance): string {
+function subwayAccent(lineId: unknown, appearance: TileAppearance): string {
   return (
     appearance.color ?? (typeof lineId === 'string' ? LINE_ACCENTS[lineId] : undefined) ?? '#94a3b8'
   );
 }
 
-export function facePullTransform(pull: PullSnapshot | null): string | undefined {
+function facePullTransform(pull: PullSnapshot | null): string | undefined {
   if (!pull) return undefined;
   return pull.axis === 'x' ? `translateX(${pull.offset}px)` : `translateY(${pull.offset}px)`;
 }

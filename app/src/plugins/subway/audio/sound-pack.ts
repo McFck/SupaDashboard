@@ -349,7 +349,7 @@ function withoutDepartureMelodyAnchor(value: unknown): unknown {
   return match ? Number(match[1] ?? 0) : value;
 }
 
-export function resolveDoorPlanLine(
+function resolveDoorPlanLine(
   line: LoadedSubwayLine,
   catalogue: RuntimeCueManifest,
   base: string,

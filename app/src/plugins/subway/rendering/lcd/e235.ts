@@ -7,7 +7,7 @@ import { e235Data, e235Minutes } from './e235-data';
 import { drawE235DetailedTransfers } from './e235-pages';
 
 export const E235_WIDTH = 960;
-export const E235_HEIGHT = 540;
+const E235_HEIGHT = 540;
 const HEADER = 160;
 const LINE = '#40c000';
 const LINE_EDGE = '#00a000';
@@ -61,7 +61,7 @@ const stopped = (model: ScreenSchedule) =>
   ['stopped', 'arriving', 'doorsClosing'].includes(model.snapshot.state);
 
 /** The header/map "current" station: the stop while standing, otherwise the next stop. */
-export function e235Target(model: ScreenSchedule): StationDefinition {
+function e235Target(model: ScreenSchedule): StationDefinition {
   return stopped(model) ? model.station : (model.nextStation ?? model.station);
 }
 

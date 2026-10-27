@@ -138,7 +138,7 @@ export const validGeometry = (g: Geometry | null | undefined): g is Geometry =>
   g.height > 0 &&
   g.height <= I32_MAX;
 
-export function intersectionArea(
+function intersectionArea(
   geometry: Geometry,
   monitor: Pick<MonitorGeometry, 'position' | 'size'>,
 ) {
@@ -155,7 +155,7 @@ export function intersectionArea(
   return width * height;
 }
 
-export function monitorWithLargestIntersection<
+function monitorWithLargestIntersection<
   T extends Pick<MonitorGeometry, 'name' | 'position' | 'size'>,
 >(geometry: Geometry, screens: T[]): T | undefined {
   let best: T | undefined;
@@ -170,7 +170,7 @@ export function monitorWithLargestIntersection<
   return best;
 }
 
-export function resolveStartupMonitor<
+function resolveStartupMonitor<
   T extends Pick<MonitorGeometry, 'name' | 'position' | 'size'>,
 >(
   screens: T[],
@@ -189,7 +189,7 @@ export function resolveStartupMonitor<
   return (primary && screens.find((screen) => screen.name === primary.name)) ?? screens[0];
 }
 
-export function resolveLiveMonitor<T extends Pick<MonitorGeometry, 'name'>>(
+function resolveLiveMonitor<T extends Pick<MonitorGeometry, 'name'>>(
   screens: T[],
   preferred: string | null,
   current: T | null,
@@ -214,7 +214,7 @@ function workAreaOf(monitor: MonitorGeometry) {
   return { x: Math.ceil(position.x), y: Math.ceil(position.y), width, height };
 }
 
-export function clampGeometryToWorkArea(
+function clampGeometryToWorkArea(
   geometry: Geometry,
   monitor: MonitorGeometry,
   center = false,
@@ -233,7 +233,7 @@ export function clampGeometryToWorkArea(
   return validGeometry(result) ? result : null;
 }
 
-export function firstLaunchGeometry(
+function firstLaunchGeometry(
   deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>,
   monitor: MonitorGeometry,
 ): Geometry | null {

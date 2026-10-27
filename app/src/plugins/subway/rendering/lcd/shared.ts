@@ -13,7 +13,7 @@ export const E235_COLORS = Object.freeze({
   white: '#ffffff',
 });
 
-export function fittedFont(
+function fittedFont(
   ctx: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,

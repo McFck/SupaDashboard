@@ -173,7 +173,7 @@ export function updatePull(
   };
 }
 
-export const SWIPE = 40; // px
+const SWIPE = 40; // px
 const LONG_PRESS = 550; // ms
 export const DOUBLE_TAP = 300; // ms
 

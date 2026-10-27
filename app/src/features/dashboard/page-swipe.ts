@@ -1,6 +1,6 @@
 export type SwipeIntent = 'pending' | 'horizontal' | 'vertical';
 
-export const SWIPE_INTENT_SLOP = 8;
+const SWIPE_INTENT_SLOP = 8;
 
 export function pageSwipeIntent(dx: number, dy: number): SwipeIntent {
   if (

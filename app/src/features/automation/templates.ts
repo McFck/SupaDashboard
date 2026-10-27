@@ -1,8 +1,8 @@
 import type { Operand, Predicate, Scalar } from './scenario';
 import type { VariableValue } from './variables';
 
-export const MAX_EXPRESSION_SOURCE = 4096;
-export const MAX_EXPRESSION_DEPTH = 32;
+const MAX_EXPRESSION_SOURCE = 4096;
+const MAX_EXPRESSION_DEPTH = 32;
 type Expr =
   | { kind: 'literal'; value: Scalar }
   | { kind: 'variable'; name: string }
