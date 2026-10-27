@@ -1,6 +1,6 @@
 // The transparent dashboard is dragged by its empty areas. This measures them: the shell minus every widget,
 // control and chrome element, recomputed whenever any of those moves or resizes.
-import { complementRectangles, type LocalRect } from '../display/display';
+import { complementRectangles, type LocalRect } from '../display/geometry';
 
 const INTERACTIVE =
   '[data-skin-input], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]';

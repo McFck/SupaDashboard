@@ -7,7 +7,7 @@
   import { Button } from '$lib/components/ui/button';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Switch } from '$lib/components/ui/switch';
-  import { monitors } from '../display/display';
+  import { monitors } from '../../platform/window';
   import { skins } from '../plugins/registry';
   import { settings } from './state.svelte';
   import { DEFAULTS } from './schema';

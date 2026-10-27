@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deckSize, validGeometry } from './display';
+import { deckSize, validGeometry } from './geometry';
 
 describe('dashboard window geometry', () => {
   it('fits the grid plus its surrounding gap', () => {
