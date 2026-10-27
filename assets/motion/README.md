@@ -1,18 +1,10 @@
-# Movement sound audition
+# Movement sound
 
-Open [../motion-demo.html](../motion-demo.html) directly in Chrome or Edge. No server or installation is needed.
-Choose a line, then **Play station to station**: departure melody, door chime + warning signal + closing
-mechanics, the run with next-stop announcements, arrival announcements, then chime + opening at the next station.
-`cues.js` (built by `tools/build_station_demo.py` from each line's `pack.json`) embeds those clips with
-measured trim points and levels; every cue fades in/out so recorded background noise never switches abruptly.
-The list under the line selector shows which cues are approved and which still need an ear check.
-
-For movement only, choose Tokyo or Osaka, then **Movement only**. Listen through departure, coasting,
-power reapplication, braking and the final stop. **Power / Coast / Brake** allow a different run length.
-
-This replaces the rejected stop-to-stop ambience approach. This repository has
-audio preparation tools but no dashboard runtime yet; the demo is a working audio
-engine and audition, not an integrated dashboard feature. Both movement profiles are retained for the dashboard.
+Motor, rolling and brake sound for the Subway skin's immersion audio. `data.js` embeds the samples and speed
+curves, `engine.js` plays them with Web Audio, and `door-sequence.js` plans door cues; the app stages all three.
+`cues.js` (built by `tools/build_station_demo.py` from each line's `pack.json`) holds measured trim points and
+levels that `tools/build_subway_catalog.py` uses to verify `runtime-cues.json`; every cue fades in/out so
+recorded background noise never switches abruptly.
 
 ## Sources
 
