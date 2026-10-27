@@ -80,7 +80,11 @@
     place(copy, 'Add widget');
   }
 
-  function rowLabel(row: (typeof filteredRows)[number], providerTitle: string | undefined, fits: boolean) {
+  function rowLabel(
+    row: (typeof filteredRows)[number],
+    providerTitle: string | undefined,
+    fits: boolean,
+  ) {
     const plugin = providerTitle ? `, Plugin: ${providerTitle}` : '';
     const uses = `${row.uses} ${row.uses === 1 ? 'use' : 'uses'}`;
     const unavailable = row.available ? '' : ', unavailable';
