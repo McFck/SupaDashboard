@@ -1,9 +1,4 @@
-import {
-  localizedName,
-  stepStation,
-  type LineDefinition,
-  type StationDefinition,
-} from '../simulation/lines';
+import { localizedName, type LineDefinition, type StationDefinition } from '../simulation/lines';
 import type { RunSnapshot } from '../simulation/run';
 import { e235Routine } from './lcd/e235-data';
 import { normalizeCarNumber } from '../simulation/config';

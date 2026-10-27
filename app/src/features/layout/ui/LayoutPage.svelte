@@ -33,7 +33,6 @@
   import PageTabs from './PageTabs.svelte';
   import Choice from '../../plugins/ui/Choice.svelte';
   import {
-    canSetLayoutItems,
     effectiveSize,
     layoutFor,
     movePlacementToSlot,
@@ -63,7 +62,6 @@
   let layout = $state<HTMLElement>();
   let layoutWidth = $state(0);
   let area = $state<HTMLElement>();
-  let box = $state({ w: 0, h: 0 });
   let context = $state<{
     pageId: string;
     layoutTarget: LayoutTarget;
@@ -155,15 +153,6 @@
     return () => ro.disconnect();
   });
   $effect(() => {
-    if (!area) return;
-    const ro = new ResizeObserver(([e]) => {
-      const { width, height } = e.contentRect;
-      if (active && width > 0 && height > 0) box = { w: width, h: height };
-    });
-    ro.observe(area);
-    return () => ro.disconnect();
-  });
-  $effect(() => {
     const ids = settings.deck.pages.map((entry) => entry.id);
     const changed =
       ids.length !== previousPageOrder.length ||
@@ -228,9 +217,7 @@
     const frameId = requestAnimationFrame(() => {
       if (!active || !layout || !area) return;
       const width = layout.getBoundingClientRect().width;
-      const rect = area.getBoundingClientRect();
       if (width > 0) layoutWidth = width;
-      if (rect.width > 0 && rect.height > 0) box = { w: rect.width, h: rect.height };
     });
     return () => cancelAnimationFrame(frameId);
   });
@@ -329,9 +316,6 @@
   }
   // The inspector always has content, so it never closes; "close" falls back to the Deck settings.
   frame.inspectorOpen = true;
-  function closeInspector() {
-    select(null);
-  }
   function closeMenu(generation: number) {
     if (context?.generation === generation) menuOpen = false;
   }
@@ -1012,7 +996,6 @@
               layoutTarget={editorTarget}
               onselect={select}
               oneditScenario={openScenario}
-              onclose={closeInspector}
             />
           {/key}
         </div>

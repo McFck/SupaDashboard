@@ -219,10 +219,6 @@ export function hasPlacement(source: Settings, controlId: string) {
   return allPlacements(source).some((placement) => placement.item.control === controlId);
 }
 
-export function layoutItemIds(source: Settings) {
-  return allPlacements(source).map((placement) => placement.item.id);
-}
-
 function bounded(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }

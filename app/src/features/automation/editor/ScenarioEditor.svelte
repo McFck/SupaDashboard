@@ -32,7 +32,6 @@
     createScenarioDraft,
     sameScenarioDraft,
     scenarioNodeCount,
-    scenarioStepCount,
     cloneDraftValue,
     setScenarioStateOverride,
     type ScenarioDraft,
@@ -737,7 +736,7 @@
                       onchange={(value) => (draft = value)}
                     />
                   </section>
-                  {#each Object.entries(currentList.byState ?? {}) as [stateId, stateSteps] (stateId)}
+                  {#each Object.entries(currentList.byState ?? {}) as [stateId] (stateId)}
                     {@const index = stateIndex(stateId)}
                     <section
                       class="grid min-w-0 gap-3 rounded-lg border p-3"

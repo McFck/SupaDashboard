@@ -3,7 +3,6 @@ import {
   beginPull,
   classify,
   DOUBLE_TAP,
-  PULL_SLOP,
   updatePull,
   type PullBindings,
   type PullSnapshot,

@@ -13,13 +13,11 @@ import { springDuration, springProgress, SPRING_SAMPLES } from '$lib/spring';
 import {
   projectMoveOrigin,
   resizeCornerGeometry,
-  resizeFromCorner,
   resizeFromCornerHysteretic,
   resizePreview,
   type ResizeCorner,
 } from '../layout/drag-geometry';
 import { tapSequence } from './gestures';
-import { fits } from '../layout/grid';
 import { actions, install, runAction } from '../plugins/registry';
 import { corePlugin } from '../../plugins/core';
 
@@ -163,41 +161,6 @@ describe('mixer layout', () => {
 
 describe('corner resizing', () => {
   const rect = { x: 3, y: 3, w: 3, h: 3 };
-  it.each(['nw', 'ne', 'sw', 'se'] as ResizeCorner[])(
-    '%s grows and shrinks both axes while anchoring the opposite corner',
-    (corner) => {
-      const west = corner.includes('w'),
-        north = corner.includes('n');
-      const grown = resizeFromCorner(rect, corner, west ? -126 : 126, north ? -126 : 126, 126);
-      expect(grown).toEqual({ x: west ? 2 : 3, y: north ? 2 : 3, w: 4, h: 4 });
-      const shrunk = resizeFromCorner(rect, corner, west ? 126 : -126, north ? 126 : -126, 126);
-      expect(shrunk).toEqual({ x: west ? 4 : 3, y: north ? 4 : 3, w: 2, h: 2 });
-    },
-  );
-  it('clamps dimensions and leaves boundary/collision checks to fits', () => {
-    expect(resizeFromCorner(rect, 'nw', 1000, 1000, 126, { w: 2, h: 2 })).toEqual({
-      x: 4,
-      y: 4,
-      w: 2,
-      h: 2,
-    });
-    expect(resizeFromCorner(rect, 'se', 1000, 1000, 126, undefined, { w: 4, h: 5 })).toEqual({
-      x: 3,
-      y: 3,
-      w: 4,
-      h: 5,
-    });
-    const target = resizeFromCorner(rect, 'nw', -126, -126, 126);
-    expect(
-      fits([{ id: 'other', control: 'button', x: 2, y: 2, w: 1, h: 1 }], target, {
-        rows: 10,
-        cols: 10,
-      }),
-    ).toBe(false);
-    expect(fits([], resizeFromCorner(rect, 'nw', -1000, 0, 126), { rows: 10, cols: 10 })).toBe(
-      false,
-    );
-  });
   it('keeps live previews continuous below the cell snap threshold, with opposite-corner anchoring', () => {
     const preview = resizePreview(rect, 'se', 20, -30, 126, 14);
     expect(preview.width).toBe(384);

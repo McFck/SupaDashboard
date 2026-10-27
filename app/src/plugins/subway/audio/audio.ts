@@ -50,7 +50,6 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
   let voiceBus: GainNode | undefined;
   let motion: MotionAudioInstance | undefined;
   let motionApi: TrainMotionApi | undefined;
-  let profiles: readonly unknown[] = [];
   let enginePromise: ReturnType<typeof loadEngine> | undefined;
   let profilePromise: Promise<void> | undefined;
   let profileId: string | undefined;
@@ -204,7 +203,6 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       enginePromise = loadEngine()
         .then((loaded) => {
           motionApi = loaded.api;
-          profiles = loaded.profiles;
           return loaded;
         })
         .catch((error) => {

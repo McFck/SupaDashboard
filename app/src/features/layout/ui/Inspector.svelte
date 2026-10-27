@@ -29,7 +29,6 @@
   import type { Page } from '../../settings/schema';
   import { pageItems, removePlacement } from '../pages';
   import {
-    allPlacements,
     canSetLayoutItems,
     effectiveSize,
     layoutFor,
@@ -58,14 +57,12 @@
     selection,
     onselect,
     oneditScenario,
-    onclose,
     page,
     layoutTarget,
   }: {
     selection: Selection;
     onselect: (s: Selection, target?: LayoutTarget) => void;
     oneditScenario: (controlId: string, itemId: string, trigger?: Trigger) => void;
-    onclose: () => void;
     page: Page;
     layoutTarget: LayoutTarget;
   } = $props();

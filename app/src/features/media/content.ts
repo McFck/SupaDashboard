@@ -23,13 +23,6 @@ export const DEFAULT_MEDIA_OPTIONS: MediaOptions = {
   muted: true,
 };
 
-export const DEFAULT_WEB_OPTIONS: WebOptions = {
-  url: '',
-  zoom: 100,
-  refresh: 0,
-  interactive: false,
-};
-
 export function webUrl(
   value: string,
   currentOrigin = typeof location === 'undefined' ? undefined : location.origin,

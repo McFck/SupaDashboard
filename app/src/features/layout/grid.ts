@@ -120,52 +120,6 @@ export function firstFree(items: Item[], w: number, h: number, grid: Grid) {
   return null;
 }
 
-export type PlacementLimits = {
-  size: { w: number; h: number };
-  minSize?: { w: number; h: number };
-  maxSize?: { w: number; h: number };
-};
-
-/** Choose the largest registered footprint that fits, preferring the selected cell before another free cell. */
-export function placementForType(
-  items: Item[],
-  grid: Grid,
-  limits: PlacementLimits,
-  preferredCell?: { x: number; y: number },
-): { x: number; y: number; w: number; h: number } | null {
-  const validSize = (s: { w: number; h: number } | undefined) =>
-    !!s && Number.isInteger(s.w) && s.w > 0 && Number.isInteger(s.h) && s.h > 0;
-  if (
-    !validSize(limits.size) ||
-    (limits.minSize && !validSize(limits.minSize)) ||
-    (limits.maxSize && !validSize(limits.maxSize))
-  )
-    return null;
-  const min = limits.minSize ?? { w: 1, h: 1 };
-  const max = {
-    w: Math.min(limits.size.w, limits.maxSize?.w ?? limits.size.w),
-    h: Math.min(limits.size.h, limits.maxSize?.h ?? limits.size.h),
-  };
-  if (min.w > max.w || min.h > max.h) return null;
-  const sizes = [];
-  for (let w = min.w; w <= max.w; w++) for (let h = min.h; h <= max.h; h++) sizes.push({ w, h });
-  sizes.sort((a, b) => b.w * b.h - a.w * a.h || b.w - a.w || b.h - a.h);
-  if (preferredCell && Number.isInteger(preferredCell.x) && Number.isInteger(preferredCell.y)) {
-    for (const size of sizes) {
-      const rect = { ...preferredCell, ...size };
-      if (fits(items, rect, grid)) return rect;
-    }
-  }
-  for (const size of sizes) {
-    const at = firstFree(items, size.w, size.h, grid);
-    if (at) return { ...at, ...size };
-  }
-  return null;
-}
-
-export const itemAt = (items: Item[], x: number, y: number) =>
-  items.find((i) => overlaps(i, { x, y, w: 1, h: 1 }));
-
 export type DropPreview =
   | { kind: 'move' | 'swap'; items: Item[]; displaced: string[] }
   | { kind: 'invalid'; reason: 'bounds' | 'occupied' | 'missing' | 'layout' };

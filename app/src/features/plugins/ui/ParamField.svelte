@@ -12,7 +12,7 @@
   import type { ActionRef, Option, Param } from '../contracts';
   import ActionEditor from '../../automation/editor/ActionEditor.svelte';
   import Choice from './Choice.svelte';
-  import PluginMark, { pluginTitle } from './PluginMark.svelte';
+  import { pluginTitle } from './PluginMark.svelte';
   import SuggestionInput from './SuggestionInput.svelte';
 
   let {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { get, writable } from 'svelte/store';
 import type { SkinRuntimeContext } from '../../../features/skins/definition';
-import { normalizeSubwayLines, type RawLineBundle } from './lines';
+import type { RawLineBundle } from './lines';
 import {
   registerSubwaySurface,
   createSubwayRuntime,

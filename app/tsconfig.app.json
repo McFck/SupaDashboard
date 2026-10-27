@@ -13,6 +13,7 @@
     "allowJs": true,
     "checkJs": true,
     "moduleDetection": "force",
+    "noUnusedLocals": true,
     "paths": {
       "$lib": [
         "./src/lib"

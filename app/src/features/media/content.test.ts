@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MEDIA_OPTIONS,
-  DEFAULT_WEB_OPTIONS,
   hasMediaExtension,
   isVideoSource,
   mediaUrl,
@@ -190,12 +189,13 @@ describe('web content options', () => {
       interactive: true,
     });
     expect(saved.future).toBe('kept');
-    expect(readWebOptions({ zoom: Number.NaN, refresh: Infinity })).toEqual(DEFAULT_WEB_OPTIONS);
-    expect(readWebOptions({ zoom: 50, refresh: 1 })).toEqual({
-      ...DEFAULT_WEB_OPTIONS,
-      zoom: 50,
-      refresh: 1,
+    expect(readWebOptions({ zoom: Number.NaN, refresh: Infinity })).toEqual({
+      url: '',
+      zoom: 100,
+      refresh: 0,
+      interactive: false,
     });
+    expect(readWebOptions({ zoom: 50, refresh: 1 })).toMatchObject({ zoom: 50, refresh: 1 });
     expect(readWebOptions({ zoom: 150, refresh: 86400 }).refresh).toBe(86400);
     expect(readWebOptions({ zoom: 100, refresh: 86401 }).refresh).toBe(0);
   });

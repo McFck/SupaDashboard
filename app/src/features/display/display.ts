@@ -401,7 +401,7 @@ async function centerNormalOn(controller: Controller, monitor: MonitorGeometry, 
 
 async function reconcileFullscreen(controller: Controller) {
   if (!controller.appliedFullscreen || controller.transition) return;
-  const { screens, current, primary, target } = await resolveTarget(controller.lastRequest);
+  const { target } = await resolveTarget(controller.lastRequest);
   if (!target) return;
   const desired = monitorRect(target);
   if (!validGeometry(desired)) return;
@@ -619,7 +619,7 @@ async function applyRequest(controller: Controller, request: DisplayRequest) {
     controller.lastRequest = request;
     return controller.appliedFullscreen;
   }
-  const { screens, current, primary, target } = await resolveTarget(request);
+  const { screens, current, target } = await resolveTarget(request);
   ensureActive(controller);
   if (!target) {
     await setEffectiveTopmost(controller, controller.appliedFullscreen || request.alwaysOnTop);

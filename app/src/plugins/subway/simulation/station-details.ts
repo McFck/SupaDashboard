@@ -153,35 +153,3 @@ export function buildDirectionDetails(
     platformByDirection: Object.freeze(platformByDirection),
   });
 }
-
-export function validatePlatformFacilities(
-  facilities: readonly PlatformFacility[],
-  carCount: number,
-): void {
-  if (!Number.isInteger(carCount) || carCount < 1 || carCount > 20)
-    throw new Error(`Invalid formation car count: ${carCount}`);
-  for (const facility of facilities) {
-    if (
-      !['stairs', 'escalator', 'lift', 'toilet', 'gate', 'exit', 'transfer'].includes(facility.kind)
-    ) {
-      throw new Error(`Unknown platform facility kind: ${facility.kind}`);
-    }
-    if (
-      facility.car !== null &&
-      (!Number.isInteger(facility.car) || facility.car < 1 || facility.car > carCount)
-    ) {
-      throw new Error(`Invalid platform facility car: ${facility.car}`);
-    }
-    if (
-      facility.relativePosition !== null &&
-      (!Number.isFinite(facility.relativePosition) ||
-        facility.relativePosition < 0 ||
-        facility.relativePosition > 1)
-    ) {
-      throw new Error(`Invalid platform facility position: ${facility.relativePosition}`);
-    }
-    if (!facility.label.trim() || !facility.source.trim() || !facility.revision.trim()) {
-      throw new Error('Platform facilities require a label, source, and revision');
-    }
-  }
-}

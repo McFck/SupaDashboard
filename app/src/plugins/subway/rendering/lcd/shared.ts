@@ -1,87 +1,4 @@
-import type { StationDefinition } from '../../simulation/lines';
-import type { ScreenLanguage } from '../screens';
-
 export const JAPANESE_FONT = '"Yu Gothic UI", Meiryo, "Noto Sans JP", sans-serif';
-
-export function drawFacilitySymbol(
-  ctx: CanvasRenderingContext2D,
-  kind: string,
-  x: number,
-  y: number,
-  size = 56,
-) {
-  ctx.save();
-  ctx.translate(x - size / 2, y - size / 2);
-  ctx.scale(size / 56, size / 56);
-  ctx.fillStyle = '#f8fafb';
-  ctx.strokeStyle = '#f8fafb';
-  ctx.lineWidth = 4;
-  ctx.lineJoin = 'round';
-  if (kind === 'stairs') {
-    ctx.beginPath();
-    ctx.moveTo(4, 50);
-    for (let i = 0; i < 5; i++) {
-      ctx.lineTo(4 + i * 10, 42 - i * 8);
-      ctx.lineTo(14 + i * 10, 42 - i * 8);
-    }
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(4, 30);
-    ctx.lineTo(48, 4);
-    ctx.stroke();
-  } else if (kind === 'escalator') {
-    ctx.beginPath();
-    ctx.moveTo(5, 42);
-    ctx.lineTo(16, 42);
-    ctx.lineTo(40, 14);
-    ctx.lineTo(51, 14);
-    ctx.lineTo(51, 25);
-    ctx.lineTo(44, 25);
-    ctx.lineTo(20, 53);
-    ctx.lineTo(5, 53);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(27, 13, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(24, 21, 6, 13);
-  } else if (kind === 'lift') {
-    ctx.strokeRect(10, 16, 36, 38);
-    for (const px of [22, 34]) {
-      ctx.beginPath();
-      ctx.arc(px, 28, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillRect(px - 3, 35, 6, 14);
-    }
-    ctx.beginPath();
-    ctx.moveTo(14, 10);
-    ctx.lineTo(20, 4);
-    ctx.lineTo(26, 10);
-    ctx.moveTo(30, 4);
-    ctx.lineTo(36, 10);
-    ctx.lineTo(42, 4);
-    ctx.stroke();
-  } else if (kind === 'toilet') {
-    for (const px of [15, 41]) {
-      ctx.beginPath();
-      ctx.arc(px, 10, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillRect(px - 5, 20, 10, 20);
-      ctx.fillRect(px - 5, 40, 4, 14);
-      ctx.fillRect(px + 1, 40, 4, 14);
-    }
-  } else {
-    ctx.strokeRect(30, 6, 20, 46);
-    ctx.beginPath();
-    ctx.moveTo(2, 28);
-    ctx.lineTo(36, 28);
-    ctx.moveTo(25, 18);
-    ctx.lineTo(36, 28);
-    ctx.lineTo(25, 38);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
 
 export const E235_COLORS = Object.freeze({
   header: '#15191b',
@@ -167,26 +84,6 @@ export function drawBadge(
   }
 }
 
-export function drawStationName(
-  ctx: CanvasRenderingContext2D,
-  station: StationDefinition,
-  language: ScreenLanguage,
-  x: number,
-  y: number,
-  maxWidth: number,
-  maxSize: number,
-  minSize: number,
-  color: string = E235_COLORS.ink,
-  align: CanvasTextAlign = 'left',
-): void {
-  const text = station.names[language] ?? station.names.ja ?? station.names.en ?? station.code;
-  const family =
-    language === 'ja' || language === 'kana' || language === 'zh'
-      ? JAPANESE_FONT
-      : 'Arial, sans-serif';
-  drawFittedText(ctx, text, x, y, maxWidth, maxSize, minSize, color, 700, family, align);
-}
-
 export class CanvasLayerCache {
   private readonly layers = new Map<string, HTMLCanvasElement>();
   constructor(private readonly limit = 12) {}
@@ -227,17 +124,4 @@ export class CanvasLayerCache {
   clear(): void {
     this.layers.clear();
   }
-}
-
-export function transfersKey(station: StationDefinition): string {
-  return station.transfers
-    .map((transfer) =>
-      transfer.kind === 'badge'
-        ? transfer.code
-        : Object.entries(transfer.names)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([language, name]) => `${language}:${name}`)
-            .join('/'),
-    )
-    .join('|');
 }

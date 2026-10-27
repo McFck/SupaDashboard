@@ -45,24 +45,6 @@ export function resizePreview(
 
 export type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
 
-/** Resize from a corner while keeping the opposite corner anchored, in grid cells. */
-export function resizeFromCorner(
-  rect: { x: number; y: number; w: number; h: number },
-  corner: ResizeCorner,
-  dx: number,
-  dy: number,
-  pitch: number,
-  min = { w: 1, h: 1 },
-  max = { w: 99, h: 99 },
-) {
-  const west = corner.includes('w'),
-    north = corner.includes('n');
-  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-  const w = clamp(rect.w + Math.round(dx / pitch) * (west ? -1 : 1), min.w, max.w);
-  const h = clamp(rect.h + Math.round(dy / pitch) * (north ? -1 : 1), min.h, max.h);
-  return { x: west ? rect.x + rect.w - w : rect.x, y: north ? rect.y + rect.h - h : rect.y, w, h };
-}
-
 /** Resize with a pixel deadband around each half-cell snap boundary. `previous` is the last snapped draft. */
 export function resizeFromCornerHysteretic(
   rect: { x: number; y: number; w: number; h: number },

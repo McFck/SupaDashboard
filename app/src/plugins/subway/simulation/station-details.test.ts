@@ -1,19 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildDirectionDetails,
-  transferSupplements,
-  validatePlatformFacilities,
-  type PlatformFacility,
-} from './station-details';
-
-const facility: PlatformFacility = {
-  kind: 'lift',
-  car: null,
-  relativePosition: null,
-  label: 'Elevator',
-  source: 'station map',
-  revision: '2026-10-24',
-};
+import { buildDirectionDetails, transferSupplements } from './station-details';
 
 describe('Subway station details', () => {
   it('provides safe, immutable defaults for every direction and formation car', () => {
@@ -47,21 +33,6 @@ describe('Subway station details', () => {
       buildDirectionDetails(['north'], 8, [{ direction: 'south', side: 'left', source: 'map' }]),
     ).toThrow(/Unknown door-side direction/);
     expect(() => buildDirectionDetails(['north'], 0)).toThrow(/formation car count/i);
-  });
-
-  it('allows unassigned facilities without inventing a car or platform position', () => {
-    expect(() => validatePlatformFacilities([facility], 8)).not.toThrow();
-    expect(() => validatePlatformFacilities([{ ...facility, car: 9 }], 8)).toThrow(/facility car/i);
-    expect(() => validatePlatformFacilities([{ ...facility, relativePosition: 1.1 }], 8)).toThrow(
-      /facility position/i,
-    );
-    expect(() =>
-      validatePlatformFacilities(
-        [{ ...facility, kind: 'teleporter' as PlatformFacility['kind'] }],
-        8,
-      ),
-    ).toThrow(/facility kind/i);
-    expect(() => validatePlatformFacilities([{ ...facility, source: '' }], 8)).toThrow(/source/i);
   });
 
   it('keeps researched transfer text and badge codes traceable', () => {

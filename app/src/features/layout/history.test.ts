@@ -7,14 +7,7 @@ import {
 } from './history.svelte';
 import { settings } from '../settings/state.svelte';
 import { DEFAULTS } from '../settings/schema';
-import {
-  addPage,
-  deletePage,
-  duplicatePage,
-  movePlacement,
-  renamePage,
-  reorderPage,
-} from './pages';
+import { addPage, deletePage, duplicatePage, renamePage, reorderPage } from './pages';
 import type { ControlConfig } from '../controls/model';
 
 describe('settings history', () => {
@@ -277,13 +270,6 @@ describe('settings history', () => {
       record('Duplicate page');
       settings.deck.pages = reorderPage(settings.deck.pages, secondPage.id, 0)!.pages;
       record('Reorder pages');
-      settings.deck.pages = movePlacement(
-        settings.deck.pages,
-        firstPage.id,
-        secondPage.id,
-        'history-item',
-      )!.pages;
-      record('Move widget');
       const deleted = deletePage(
         settings.deck.pages,
         duplicated.page.id,

@@ -7,11 +7,9 @@ import {
   duplicatePage,
   hasPlacement,
   MAX_PAGES,
-  movePlacement,
   pageAfterRemoval,
   pageById,
   pageItems,
-  placementById,
   removePlacement,
   renamePage,
   reorderPage,
@@ -56,7 +54,7 @@ const second = page('page-b', 4, [
 ]);
 
 describe('page helpers', () => {
-  it('resolves IDs and flattens placements across pages without merging page geometry', () => {
+  it('resolves pages and flattens placements across pages without merging page geometry', () => {
     const pages = [first, second];
     const layouts = {
       subway: {
@@ -76,16 +74,6 @@ describe('page helpers', () => {
       'item-c',
       'skin-item',
     ]);
-    expect(placementById(pages, 'item-c')).toMatchObject({
-      page: second,
-      item: { control: 'other' },
-    });
-    expect(placementById(pages, 'skin-item', layouts)).toMatchObject({
-      page: second,
-      skinId: 'subway',
-      slotId: 'strip',
-    });
-    expect(placementById(pages, 'missing')).toBeUndefined();
     expect(hasPlacement(pages, 'shared', layouts)).toBe(true);
   });
 
@@ -252,44 +240,6 @@ describe('page helpers', () => {
     expect(deleted.variants).toEqual({ shared: 1, other: 0 });
     expect(deletePage([first], first.id, [], {})).toBeUndefined();
     expect(deletePage(pages, 'missing', [], {})).toBeUndefined();
-  });
-
-  it('moves a placement with exact IDs and footprint, preserving its preferred cell or using firstFree', () => {
-    const source = page('source', 4, [
-      { id: 'move-me', control: 'control-me', x: 2, y: 1, w: 2, h: 1 },
-    ]);
-    const clear = page('clear', 4);
-    const preferred = movePlacement([source, clear], source.id, clear.id, 'move-me')!;
-    expect(preferred.item).toEqual(source.items[0]);
-    expect(preferred.pages[0].items).toEqual([]);
-    expect(preferred.pages[1].items[0]).toEqual(source.items[0]);
-    const blocked = page('blocked', 4, [
-      { id: 'blocker', control: 'blocker', x: 2, y: 1, w: 2, h: 1 },
-    ]);
-    const relocated = movePlacement([source, blocked], source.id, blocked.id, 'move-me')!;
-    expect(relocated.item).toMatchObject({
-      id: 'move-me',
-      control: 'control-me',
-      x: 0,
-      y: 0,
-      w: 2,
-      h: 1,
-    });
-  });
-
-  it('leaves both pages unchanged when the exact moved footprint cannot fit', () => {
-    const source = page('source', 4, [
-      { id: 'move-me', control: 'control-me', x: 0, y: 0, w: 2, h: 2 },
-    ]);
-    const small = page('small', 1);
-    const full = page('full', 2, [{ id: 'blocker', control: 'blocker', x: 0, y: 0, w: 2, h: 2 }]);
-    for (const destination of [small, full]) {
-      const before = structuredClone([source, destination]);
-      expect(
-        movePlacement([source, destination], source.id, destination.id, 'move-me'),
-      ).toBeUndefined();
-      expect([source, destination]).toEqual(before);
-    }
   });
 
   it('removes only the requested placement and marks a control orphan after its last use', () => {

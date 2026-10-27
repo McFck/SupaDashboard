@@ -17,7 +17,6 @@
 
   let {
     control,
-    page,
     pageId,
     pageVisible = true,
     pageRendered = true,
@@ -25,7 +24,6 @@
     pressFeedbackDisabled = false,
   }: {
     control: ControlConfig;
-    page?: import('../../settings/schema').Page;
     pageId?: string;
     pageVisible?: boolean;
     pageRendered?: boolean;
@@ -160,7 +158,6 @@
 
 <ContentTile
   {control}
-  {page}
   {pageId}
   {pageVisible}
   {itemId}

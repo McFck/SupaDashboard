@@ -10,7 +10,6 @@ import { drawE235Page, drawE235PageOverlay, e235AssetRevision } from './e235-pag
 import { CanvasLayerCache, drawFittedText, E235_COLORS as C } from './shared';
 
 export const YAMANOTE_LCD_WIDTH = 1280;
-export const YAMANOTE_LCD_HEIGHT = 720;
 const E235_SCALE = YAMANOTE_LCD_WIDTH / E235_WIDTH;
 
 function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
@@ -46,11 +45,6 @@ function overlay(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time: num
     page = drawE235PageOverlay(ctx, model, time);
   ctx.restore();
   return map || page;
-}
-
-export function drawYamanoteLCD(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time = 0) {
-  drawStatic(ctx, { ...model, visibleElapsed: time });
-  overlay(ctx, model, time);
 }
 
 export function createYamanoteRenderer() {

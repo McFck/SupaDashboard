@@ -26,7 +26,3 @@ export function preloadNextMedia(controlId: string, url: string, video: boolean)
   if (resource instanceof HTMLVideoElement) resource.load();
   return () => release(controlId, resource);
 }
-
-export function mediaPreloadCount() {
-  return preloads.size;
-}

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   fitSkinDesign,
-  mapSkinPoint,
   resolveQuickActions,
   resolveSkinConfig,
   validSkinParam,
@@ -20,11 +19,9 @@ const base = (): SkinDef => ({
 });
 
 describe('skin declarations', () => {
-  it('fits a fixed design without distortion and maps only points inside its letterboxed bounds', () => {
+  it('fits a fixed design without distortion', () => {
     const fit = fitSkinDesign(1280, 720, 1920, 600)!;
     expect(fit).toEqual({ scale: 2 / 3, offsetX: 0, offsetY: 160 });
-    expect(mapSkinPoint(640, 160, 0, 0, fit, 1920, 600)).toEqual({ x: 960, y: 0 });
-    expect(mapSkinPoint(640, 159, 0, 0, fit, 1920, 600)).toBeNull();
     expect(fitSkinDesign(0, 720, 1920, 600)).toBeNull();
     expect(fitSkinDesign(Number.NaN, 720, 1920, 600)).toBeNull();
   });

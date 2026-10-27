@@ -1,5 +1,4 @@
 import type { Item } from './grid';
-import { firstFree, fits } from './grid';
 import type { ControlConfig } from '../controls/model';
 import type { Page, Settings } from '../settings/schema';
 import { allPlacements } from './skin-layouts';
@@ -179,48 +178,12 @@ export function deletePage(
   };
 }
 
-export function movePlacement(
-  pages: readonly Page[],
-  sourcePageId: string,
-  destinationPageId: string,
-  itemId: string,
-  skinLayouts: SkinLayouts = {},
-) {
-  const source = pages.find((page) => page.id === sourcePageId),
-    destination = pages.find((page) => page.id === destinationPageId);
-  const item = source?.items.find((candidate) => candidate.id === itemId);
-  if (!source || !destination || source === destination || !item) return undefined;
-  const position = fits(destination.items, item, destination)
-    ? { x: item.x, y: item.y }
-    : firstFree(destination.items, item.w, item.h, destination);
-  if (!position) return undefined;
-  const moved = { ...item, ...position };
-  return {
-    pages: pages.map((page) =>
-      page.id === sourcePageId
-        ? { ...page, items: page.items.filter((candidate) => candidate.id !== itemId) }
-        : page.id === destinationPageId
-          ? { ...page, items: [...page.items, moved] }
-          : page,
-    ),
-    skinLayouts,
-    item: moved,
-  };
-}
-
 export function pageById(pages: readonly Page[], id: string | undefined) {
   return pages.find((page) => page.id === id) ?? pages[0];
 }
 
 export function pageItems(pages: readonly Page[], layouts: SkinLayouts = {}): Item[] {
   return allPlacements(placementSource(pages, layouts)).map((placement) => placement.item);
-}
-
-export function placementById(pages: readonly Page[], itemId: string, layouts: SkinLayouts = {}) {
-  const placement = allPlacements(placementSource(pages, layouts)).find(
-    (candidate) => candidate.item.id === itemId,
-  );
-  return placement?.page ? placement : undefined;
 }
 
 export function hasPlacement(pages: readonly Page[], controlId: string, layouts: SkinLayouts = {}) {

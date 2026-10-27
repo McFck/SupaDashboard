@@ -1,13 +1,7 @@
 import type { ActionContext, ActionRef, EventAncestry } from '../plugins/contracts';
 import type { ControlConfig } from '../controls/model';
 import type { ActionStep, EventList, Predicate, Trigger, TriggerList } from './scenario';
-import {
-  MAX_DELAY_MS,
-  MAX_SCENARIO_DEPTH,
-  MAX_SCENARIO_NODES,
-  selectTriggerSteps,
-  validateScenario,
-} from './scenario';
+import { MAX_DELAY_MS, MAX_SCENARIO_DEPTH, MAX_SCENARIO_NODES, validateScenario } from './scenario';
 import { evaluatePredicate, type PredicateEnvironment } from './templates';
 import type { VariableValue } from './variables';
 

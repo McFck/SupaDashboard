@@ -20,20 +20,6 @@ export const SAKAISUJI_COLORS = Object.freeze({
 const C = SAKAISUJI_COLORS;
 const CAR_ORDER = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8]);
 
-export function sakaisujiLayout() {
-  return Object.freeze({
-    width: SAKAISUJI_LCD_WIDTH,
-    height: SAKAISUJI_LCD_HEIGHT,
-    header: { x: 0, y: 0, width: SAKAISUJI_LCD_WIDTH, height: SAKAISUJI_HEADER_HEIGHT },
-    body: {
-      x: 0,
-      y: SAKAISUJI_HEADER_HEIGHT,
-      width: SAKAISUJI_LCD_WIDTH,
-      height: SAKAISUJI_LCD_HEIGHT - SAKAISUJI_HEADER_HEIGHT,
-    },
-  });
-}
-
 export function sakaisujiOrderedStations(model: ScreenSchedule): readonly StationDefinition[] {
   const direction = model.line.directions.find((item) => item.id === model.snapshot.direction);
   return Object.freeze(

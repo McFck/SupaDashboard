@@ -2,13 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines, stepStation } from '../../simulation/lines';
 import type { RunSnapshot } from '../../simulation/run';
 import { scheduleScreen } from '../screens';
-import {
-  sakaisujiCarOrder,
-  sakaisujiLayout,
-  sakaisujiNearbyStations,
-  sakaisujiOrderedStations,
-  SAKAISUJI_COLORS,
-} from './sakaisuji';
+import { sakaisujiCarOrder, sakaisujiNearbyStations, sakaisujiOrderedStations } from './sakaisuji';
 
 const lineFiles = import.meta.glob('../../../../../../assets/lines/*/line.json', {
   eager: true,
@@ -50,17 +44,6 @@ function model(station = 'K15', direction = 'southbound') {
 }
 
 describe('Hankyu 1300 Sakaisuji LCD geometry', () => {
-  it('uses a 1920x540 screen with a separate 108px brown header', () => {
-    expect(sakaisujiLayout()).toMatchObject({
-      width: 1920,
-      height: 540,
-      header: { x: 0, y: 0, width: 1920, height: 108 },
-      body: { x: 0, y: 108, width: 1920, height: 432 },
-    });
-    expect(SAKAISUJI_COLORS.header).not.toBe(SAKAISUJI_COLORS.route);
-    expect(SAKAISUJI_COLORS.route).not.toBe(SAKAISUJI_COLORS.next);
-  });
-
   it('orders all ten K stations for southbound and northbound travel', () => {
     const southbound = sakaisujiOrderedStations(model('K11', 'southbound'));
     const northbound = sakaisujiOrderedStations(model('K20', 'northbound'));

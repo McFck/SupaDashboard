@@ -1,7 +1,7 @@
 import type { Component } from 'svelte';
 import type { Readable } from 'svelte/store';
 import type { ActionDef, ActionRef, EventDef, Param } from '../plugins/contracts';
-import type { ControlConfig, ControlFaceProps } from '../controls/model';
+import type { ControlFaceProps } from '../controls/model';
 import type { Page } from '../settings/schema';
 import type { VariableType, VariableValue } from '../automation/variables';
 
@@ -29,20 +29,6 @@ export function fitSkinDesign(
     offsetX: (width - designWidth * scale) / 2,
     offsetY: (height - designHeight * scale) / 2,
   };
-}
-
-export function mapSkinPoint(
-  clientX: number,
-  clientY: number,
-  hostLeft: number,
-  hostTop: number,
-  fit: SkinDesignFit,
-  designWidth: number,
-  designHeight: number,
-) {
-  const x = (clientX - hostLeft - fit.offsetX) / fit.scale;
-  const y = (clientY - hostTop - fit.offsetY) / fit.scale;
-  return x < 0 || y < 0 || x > designWidth || y > designHeight ? null : { x, y };
 }
 
 export type SkinGrid =

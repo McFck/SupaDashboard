@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  clampResizeRect,
-  drop,
-  firstFree,
-  fits,
-  fitDeck,
-  placementForType,
-  previewDrop,
-  type Item,
-} from './grid';
+import { clampResizeRect, drop, firstFree, fits, fitDeck, previewDrop, type Item } from './grid';
 
 const grid = { rows: 3, cols: 4 };
 const items: Item[] = [
@@ -90,76 +81,6 @@ describe('deck layout', () => {
     expect(firstFree(items, 1, 1, grid)).toEqual({ x: 2, y: 0 });
     expect(firstFree(items, 2, 3, grid)).toEqual({ x: 2, y: 0 });
     expect(firstFree(items, 3, 1, grid)).toBeNull();
-  });
-
-  it('fits type presets by minimum size and prefers the largest fitting footprint', () => {
-    const slider = { size: { w: 1, h: 3 } };
-    expect(placementForType([], { rows: 3, cols: 3 }, slider, { x: 2, y: 2 })).toEqual({
-      x: 2,
-      y: 2,
-      w: 1,
-      h: 1,
-    });
-    expect(placementForType([], { rows: 3, cols: 3 }, slider, { x: 1, y: 1 })).toEqual({
-      x: 1,
-      y: 1,
-      w: 1,
-      h: 2,
-    });
-    expect(placementForType([], { rows: 3, cols: 3 }, slider, { x: 0, y: 0 })).toEqual({
-      x: 0,
-      y: 0,
-      w: 1,
-      h: 3,
-    });
-    expect(
-      placementForType([], { rows: 1, cols: 1 }, { size: { w: 4, h: 3 }, minSize: { w: 2, h: 2 } }),
-    ).toBeNull();
-    expect(
-      placementForType(
-        [],
-        { rows: 3, cols: 4 },
-        { size: { w: 3, h: 2 }, minSize: { w: 1, h: 1 } },
-        { x: 3, y: 2 },
-      ),
-    ).toEqual({ x: 3, y: 2, w: 1, h: 1 });
-  });
-
-  it('ranks by area then width, keeps a preferred smaller fit ahead of a distant default, and respects max size', () => {
-    const items = [{ id: 'block', control: 'b', x: 0, y: 0, w: 2, h: 2 }];
-    expect(
-      placementForType(
-        items,
-        { rows: 4, cols: 4 },
-        { size: { w: 3, h: 2 }, minSize: { w: 1, h: 1 } },
-        { x: 0, y: 0 },
-      ),
-    ).toEqual({ x: 0, y: 2, w: 3, h: 2 });
-    const preferredObstacle = [{ id: 'block', control: 'b', x: 1, y: 0, w: 3, h: 2 }];
-    expect(
-      placementForType(
-        preferredObstacle,
-        { rows: 4, cols: 4 },
-        { size: { w: 3, h: 2 }, minSize: { w: 1, h: 1 } },
-        { x: 0, y: 0 },
-      ),
-    ).toEqual({ x: 0, y: 0, w: 1, h: 2 });
-    expect(
-      placementForType(
-        [],
-        { rows: 4, cols: 4 },
-        { size: { w: 4, h: 4 }, minSize: { w: 1, h: 1 }, maxSize: { w: 2, h: 3 } },
-      ),
-    ).toEqual({ x: 0, y: 0, w: 2, h: 3 });
-    for (const limits of [
-      { size: { w: 0, h: 2 } },
-      { size: { w: 2.5, h: 2 } },
-      { size: { w: 2, h: 2 }, minSize: { w: 3, h: 1 } },
-    ])
-      expect(placementForType([], { rows: 4, cols: 4 }, limits)).toBeNull();
-    expect(
-      placementForType([], { rows: 4, cols: 4 }, { size: { w: 2, h: 2 }, maxSize: { w: 1, h: 2 } }),
-    ).toEqual({ x: 0, y: 0, w: 1, h: 2 });
   });
 
   it('moves into free space, swaps equal-size items, refuses overlaps', () => {

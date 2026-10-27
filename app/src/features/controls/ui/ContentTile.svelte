@@ -9,7 +9,6 @@
   import type { TriggerPacket } from '../../automation/scenario-runner';
   import type { Trigger } from '../../automation/scenario';
   import { settings } from '../../settings/state.svelte';
-  import type { Page } from '../../settings/schema';
   import PressFeedback from './PressFeedback.svelte';
   import { getRuntimeCommands } from '../../../app/runtime/context';
 
@@ -17,23 +16,17 @@
 
   let {
     control,
-    page,
     pageId,
     pageVisible = true,
-    w = 1,
-    h = 1,
     itemId,
     pressFeedbackDisabled = false,
     passThrough = false,
     onCommitted,
-    children,
+    children: content,
   }: {
     control: ControlConfig;
-    page?: Page;
     pageId?: string;
     pageVisible?: boolean;
-    w?: number;
-    h?: number;
     itemId?: string;
     pressFeedbackDisabled?: boolean;
     passThrough?: boolean;
@@ -113,7 +106,7 @@
         class="absolute inset-0"
         style:transform={translate}
       >
-        {@render children()}
+        {@render content()}
       </div>
       {#if !passThrough}
         <button
