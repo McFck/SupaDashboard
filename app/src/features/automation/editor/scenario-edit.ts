@@ -1,11 +1,13 @@
 import type { ControlConfig, Variant } from '../../controls/model';
 import {
   emptyScenario,
+  newScenarioId,
   type ActionStep,
   type Scenario,
   type StateBinding,
   type StateRoles,
   type Trigger,
+  type TriggerList,
 } from '../scenario';
 
 export type ScenarioDraft = {
@@ -179,6 +181,23 @@ export function setScenarioStateOverride(
   else list.byState[stateId] = cloneDraftValue(steps);
   if (!Object.keys(list.byState).length) delete list.byState;
   return next;
+}
+
+/** Top-level steps of a trigger or event list, common and per-state together. */
+export function listStepCount(list: TriggerList | undefined) {
+  if (!list) {
+    return 0;
+  }
+  const overrides = Object.values(list.byState ?? {}).reduce((sum, steps) => sum + steps.length, 0);
+  return list.steps.length + overrides;
+}
+
+/** A new state that starts with `source`'s appearance, a fresh ID and an empty label. */
+export function newStateFrom(source: Variant): Variant {
+  const variant = { ...cloneDraftValue(source), id: newScenarioId(), label: '' };
+  delete variant.action;
+  delete variant.value;
+  return variant;
 }
 
 export function scenarioStepCount(steps: ActionStep[]): number {
