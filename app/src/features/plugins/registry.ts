@@ -28,7 +28,6 @@ export const controlTypes = new Map<string, ControlTypeDef>();
 export const skins = new Map<string, SkinDefinition>();
 export const mediaSources = new Map<string, MediaSource>();
 export const customIcons = new Map<string, string>();
-export const customIconOwners = new Map<string, string>();
 export const appIcons = new Map<string, string>();
 /** Which plugin registered each app, so app pickers can show the plugin mark. */
 export const appOwners = new Map<string, string>();
@@ -66,12 +65,7 @@ export function registeredEvents(
     ...[...eventDefinitions.values()].filter(
       (event) => event.id !== core.id && event.id !== pageChanged.id,
     ),
-  ].map((event) => ({
-    ...event,
-    ...(Array.isArray(event.parameterSuggestions)
-      ? { parameterSuggestions: structuredClone(event.parameterSuggestions) }
-      : {}),
-  }));
+  ].map(copyEvent);
 }
 export type RegistryRuntime = {
   variables: VariableStore;
@@ -90,95 +84,101 @@ export function setVariableMirror(records: readonly VariableRecord[] | undefined
   variableMirror = records ? records.map((record) => structuredClone(record)) : undefined;
 }
 
+function copyEvent(event: EventDef): EventDef {
+  return {
+    ...event,
+    ...(Array.isArray(event.parameterSuggestions)
+      ? { parameterSuggestions: structuredClone(event.parameterSuggestions) }
+      : {}),
+  };
+}
+
+function defineVariable(owner: string, definition: PluginVariableDef) {
+  const entry = { owner, definition: structuredClone(definition) };
+  variableDefinitions.set(definition.id, entry);
+  registryRuntime?.variables.define({ ...entry.definition, owner }, owner);
+}
+
+function namesOf(definition: PluginVariableDef) {
+  return [definition.name, ...(definition.aliases ?? [])];
+}
+
+function registerSkin(owner: string, d: SkinDefinition) {
+  validateSkinDefinition(d);
+  const stateVariables: PluginVariableDef[] = [
+    {
+      id: `${d.id}.view`,
+      name: `${d.title} view`,
+      type: 'string',
+      initialValue: d.defaultView,
+      persistent: false,
+      readOnly: true,
+    },
+    ...(d.state ?? []).map((field) => ({
+      id: `${d.id}.${field.key}`,
+      name: `${d.title} ${field.key}`,
+      type: field.type,
+      initialValue: field.initialValue,
+      persistent: field.persistent ?? false,
+      readOnly: true,
+    })),
+  ];
+  const names = new Set<string>();
+  const incomingIds = new Set(stateVariables.map((definition) => definition.id));
+  const existingRecords = registryRuntime
+    ? Object.values(registryRuntime.variables.snapshot().records)
+    : [];
+  const occupiedNames = [
+    ...[...variableDefinitions.entries()]
+      .filter(([id]) => !incomingIds.has(id))
+      .flatMap(([, entry]) => namesOf(entry.definition)),
+    ...existingRecords
+      .filter((record) => !incomingIds.has(record.definition.id))
+      .flatMap((record) => namesOf(record.definition)),
+  ].map((name) => name.trim().toLocaleLowerCase());
+  for (const definition of stateVariables) {
+    const id = definition.id;
+    const current = variableDefinitions.get(id);
+    if (current && (current.owner !== owner || skinVariableIds.get(id) !== d.id)) {
+      throw new Error(`Skin variable "${id}" is already registered`);
+    }
+    const runtimeRecord = registryRuntime?.variables.get(id);
+    if (runtimeRecord && runtimeRecord.definition.owner !== owner) {
+      throw new Error(`Skin variable "${id}" belongs to another plugin`);
+    }
+    const name = definition.name.trim().toLocaleLowerCase();
+    if (names.has(name) || occupiedNames.includes(name))
+      throw new Error(`Skin variable name "${definition.name}" is already in use`);
+    names.add(name);
+  }
+  for (const event of d.events ?? []) {
+    const current = eventDefinitions.get(event.id);
+    if (current && current.plugin !== owner)
+      throw new Error(`Skin event "${event.id}" belongs to another plugin`);
+  }
+  const existing = skins.get(d.id);
+  if (existing && existing.plugin !== owner)
+    throw new Error(`Skin "${d.id}" belongs to another plugin`);
+  for (const definition of stateVariables) {
+    defineVariable(owner, definition);
+    skinVariableIds.set(definition.id, d.id);
+  }
+  for (const definition of d.events ?? []) {
+    const event = copyEvent({ ...definition, plugin: owner });
+    eventDefinitions.set(event.id, event);
+    registryRuntime?.registerEvent(event);
+  }
+  skins.set(d.id, { ...d, plugin: owner });
+}
+
 function createApi(owner: string): PluginApi {
   return {
     registerAction: (d) => void actions.set(d.id, { ...d, plugin: owner }),
     registerValue: (d) => void values.set(d.id, { ...d, plugin: owner }),
     registerControl: (d) => void controlTypes.set(d.type, { ...d, plugin: owner }),
-    registerSkin: (d) => {
-      validateSkinDefinition(d);
-      const stateVariables: PluginVariableDef[] = [
-        {
-          id: `${d.id}.view`,
-          name: `${d.title} view`,
-          type: 'string',
-          initialValue: d.defaultView,
-          persistent: false,
-          readOnly: true,
-        },
-        ...(d.state ?? []).map((field) => ({
-          id: `${d.id}.${field.key}`,
-          name: `${d.title} ${field.key}`,
-          type: field.type,
-          initialValue: field.initialValue,
-          persistent: field.persistent ?? false,
-          readOnly: true,
-        })),
-      ];
-      for (const definition of stateVariables) {
-        const id = definition.id;
-        const current = variableDefinitions.get(id);
-        if (current && (current.owner !== owner || skinVariableIds.get(id) !== d.id))
-          throw new Error(`Skin variable "${id}" is already registered`);
-        const runtimeRecord = registryRuntime?.variables.get(id);
-        if (runtimeRecord && runtimeRecord.definition.owner !== owner)
-          throw new Error(`Skin variable "${id}" belongs to another plugin`);
-      }
-      const names = new Set<string>();
-      const incomingIds = new Set(stateVariables.map((definition) => definition.id));
-      const existingRecords = registryRuntime
-        ? Object.values(registryRuntime.variables.snapshot().records)
-        : [];
-      const occupiedNames = [
-        ...[...variableDefinitions.entries()]
-          .filter(([id]) => !incomingIds.has(id))
-          .flatMap(([, entry]) => [entry.definition.name, ...(entry.definition.aliases ?? [])]),
-        ...existingRecords
-          .filter((record) => !incomingIds.has(record.definition.id))
-          .flatMap((record) => [record.definition.name, ...(record.definition.aliases ?? [])]),
-      ].map((name) => name.trim().toLocaleLowerCase());
-      for (const definition of stateVariables) {
-        const name = definition.name.trim().toLocaleLowerCase();
-        if (names.has(name) || occupiedNames.includes(name))
-          throw new Error(`Skin variable name "${definition.name}" is already in use`);
-        names.add(name);
-      }
-      for (const event of d.events ?? []) {
-        const current = eventDefinitions.get(event.id);
-        if (current && current.plugin !== owner)
-          throw new Error(`Skin event "${event.id}" belongs to another plugin`);
-      }
-      const existing = skins.get(d.id);
-      if (existing && existing.plugin !== owner)
-        throw new Error(`Skin "${d.id}" belongs to another plugin`);
-      for (const definition of stateVariables) {
-        const entry = { owner, definition: structuredClone(definition) };
-        variableDefinitions.set(definition.id, entry);
-        skinVariableIds.set(definition.id, d.id);
-        registryRuntime?.variables.define({ ...entry.definition, owner }, owner);
-      }
-      for (const definition of d.events ?? []) {
-        const event = {
-          ...definition,
-          ...(Array.isArray(definition.parameterSuggestions)
-            ? { parameterSuggestions: structuredClone(definition.parameterSuggestions) }
-            : {}),
-          plugin: owner,
-        };
-        eventDefinitions.set(event.id, event);
-        registryRuntime?.registerEvent(event);
-      }
-      skins.set(d.id, { ...d, plugin: owner });
-    },
+    registerSkin: (d) => registerSkin(owner, d),
     registerMediaSource: (d) => void mediaSources.set(d.id, { ...d, plugin: owner }),
-    registerVariable: (definition) => {
-      const entry = { owner, definition: structuredClone(definition) };
-      variableDefinitions.set(definition.id, entry);
-      if (registryRuntime) registryRuntime.variables.define({ ...entry.definition, owner }, owner);
-    },
-    getVariable: (id) =>
-      registryRuntime?.variables.getValue(id) ??
-      variableMirror?.find((record) => record.definition.id === id)?.value,
+    registerVariable: (definition) => defineVariable(owner, definition),
     listVariables: () =>
       registryRuntime
         ? Object.values(registryRuntime.variables.snapshot().records).map((record) =>
@@ -198,30 +198,7 @@ function createApi(owner: string): PluginApi {
       if (!registryRuntime) throw new Error('Variable runtime is unavailable');
       return registryRuntime.variables.set(id, value, owner);
     },
-    subscribeVariable: (id, listener) => {
-      if (!registryRuntime) return () => {};
-      let previous = registryRuntime.variables.getValue(id);
-      return registryRuntime.variables.subscribe((snapshot) => {
-        const record = snapshot.records[id];
-        if (!record || record.value === previous) return;
-        const oldValue = previous;
-        previous = record.value;
-        listener({ id, oldValue, value: record.value, type: record.definition.type });
-      });
-    },
-    registerEvent: (definition) => {
-      const event = { ...structuredClone(definition), plugin: owner };
-      eventDefinitions.set(event.id, event);
-      registryRuntime?.registerEvent(event);
-    },
-    emitEvent: (id, parameter, payload) => {
-      if (!registryRuntime) throw new Error('Event runtime is unavailable');
-      return registryRuntime.emitEvent(id, parameter, payload);
-    },
-    registerIcon: (name, path) => {
-      customIcons.set(name, path);
-      customIconOwners.set(name, owner);
-    },
+    registerIcon: (name, path) => void customIcons.set(name, path),
     registerAppIcon: (app, icon) => {
       appIcons.set(app.toLowerCase(), icon);
       appOwners.set(app.toLowerCase(), owner);
@@ -232,8 +209,7 @@ function createApi(owner: string): PluginApi {
 /** Attach the main runtime after plugin/settings setup; declarations stay inert in the panel webview. */
 export function setRegistryRuntime(runtime: RegistryRuntime) {
   registryRuntime = runtime;
-  for (const entry of variableDefinitions.values())
-    runtime.variables.define({ ...entry.definition, owner: entry.owner }, entry.owner);
+  for (const entry of variableDefinitions.values()) defineVariable(entry.owner, entry.definition);
   for (const event of eventDefinitions.values()) runtime.registerEvent(event);
   return () => {
     if (registryRuntime === runtime) registryRuntime = undefined;

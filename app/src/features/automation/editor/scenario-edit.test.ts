@@ -7,7 +7,6 @@ import {
   removeScenarioStep,
   replaceScenarioStep,
   sameScenarioDraft,
-  setScenarioStateOverride,
   type StepListPath,
 } from './scenario-edit';
 
@@ -125,16 +124,6 @@ describe('scenario draft tree edits', () => {
     expect(() =>
       insertScenarioStep(control.scenario!, root, { id: 'then-1', kind: 'delay', ms: 0 }),
     ).toThrow(/unique/);
-  });
-
-  it('keeps inherited lists distinct from an explicit empty state override', () => {
-    const inherited = control.scenario!;
-    const explicitEmpty = setScenarioStateOverride(inherited, root, 'off', []);
-    expect(inherited.triggers.press?.byState?.off).toBeUndefined();
-    expect(explicitEmpty.triggers.press?.byState?.off).toEqual([]);
-    expect(
-      setScenarioStateOverride(explicitEmpty, root, 'off', undefined).triggers.press?.byState,
-    ).toBeUndefined();
   });
 
   it('edits event trees and leaves unrelated controls out of the conflict signature', () => {

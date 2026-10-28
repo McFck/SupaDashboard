@@ -27,34 +27,11 @@ function listenerKey(controlId: string, listenerId: string) {
 
 /** Registry metadata stays separate from persisted listeners, so missing plugins remain repairable. */
 export class EventRegistry {
-  private definitions = new Map<string, EventDef>();
+  private definitions = new Set<string>();
   private cyclicReported = false;
 
   register(definition: EventDef) {
-    // parameterSuggestions may be a function, which structuredClone rejects.
-    this.definitions.set(definition.id, {
-      ...definition,
-      ...(Array.isArray(definition.parameterSuggestions)
-        ? { parameterSuggestions: structuredClone(definition.parameterSuggestions) }
-        : {}),
-    });
-    return () => {
-      if (this.definitions.get(definition.id)?.plugin === definition.plugin)
-        this.definitions.delete(definition.id);
-    };
-  }
-
-  unregisterPlugin(plugin: string) {
-    for (const [id, definition] of this.definitions)
-      if (definition.plugin === plugin) this.definitions.delete(id);
-  }
-
-  get(id: string) {
-    const value = this.definitions.get(id);
-    return value && structuredClone(value);
-  }
-  list() {
-    return [...this.definitions.values()].map((value) => structuredClone(value));
+    this.definitions.add(definition.id);
   }
 
   async emit(

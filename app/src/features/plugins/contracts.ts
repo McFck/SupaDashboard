@@ -2,7 +2,6 @@
 // Type-only, so importing it never initializes registries, settings, storage, or the runtime.
 import type { Component } from 'svelte';
 import type { ControlConfig, ControlFaceProps } from '../controls/model';
-import type { ActionStep, Trigger } from '../automation/scenario';
 import type { SkinDef } from '../skins/contracts';
 import type { VariableDefinition, VariableRecord, VariableValue } from '../automation/variables';
 
@@ -14,15 +13,8 @@ export type EventAncestry = { depth: number; listeners: string[] };
 
 export type ActionContext = {
   signal: AbortSignal;
-  runId: string;
   controlId: string;
-  itemId: string;
-  trigger: Trigger | 'event';
-  listenerId?: string;
-  sourceStateId: string;
-  event?: { id: string; parameter?: string; payload?: unknown };
   eventAncestry?: EventAncestry;
-  getVariable(id: string): VariableValue | undefined;
   setVariable(id: string, value: VariableValue, ancestry?: EventAncestry): Promise<boolean>;
   getVariant(controlId: string): string | undefined;
   setVariant(controlId: string, stateId: string): Promise<void> | void;
@@ -32,7 +24,6 @@ export type ActionContext = {
     payload?: unknown,
     ancestry?: EventAncestry,
   ): Promise<void>;
-  runSteps(steps: ActionStep[]): Promise<void>;
 };
 
 export type EventDef = {
@@ -42,12 +33,6 @@ export type EventDef = {
   parameterSuggestions?: Option[] | (() => Option[]);
 };
 export type PluginVariableDef = Omit<VariableDefinition, 'owner' | 'available'>;
-export type VariableChange = {
-  id: string;
-  oldValue: VariableValue | undefined;
-  value: VariableValue;
-  type: VariableDefinition['type'];
-};
 
 /** Describes one argument so the editor can render a form for any action, including plugin ones. */
 export type Param = {
@@ -114,12 +99,8 @@ export type PluginApi = {
   registerSkin(def: SkinDef): void;
   registerMediaSource(def: MediaSource): void;
   registerVariable(def: PluginVariableDef): void;
-  getVariable(id: string): VariableValue | undefined;
   listVariables(): VariableRecord[];
   setVariable(id: string, value: VariableValue): Promise<boolean>;
-  subscribeVariable(id: string, listener: (change: VariableChange) => void): () => void;
-  registerEvent(def: Omit<EventDef, 'plugin'>): void;
-  emitEvent(id: string, parameter?: string, payload?: unknown): Promise<void>;
   /** A custom icon (24×24 SVG path, drawn as an outline) usable anywhere icons are chosen. */
   registerIcon(name: string, path: string): void;
   /** Icon shown for an app in the volume mixer, keyed by process name ("spotify"). */

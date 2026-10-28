@@ -12,7 +12,7 @@ import {
   type TriggerList,
 } from './scenario';
 
-function stepsFromAction(
+export function stepsFromAction(
   value: unknown,
   path: string,
   makeId: (base: string) => string,
@@ -37,6 +37,22 @@ function stepsFromAction(
     const ms = value.args?.ms;
     if (isValidDelay(ms)) return [{ id: makeId(path), kind: 'delay', ms }];
   }
+  if (actionRef(value) && (value.id === 'media.nextSlide' || value.id === 'media.prevSlide')) {
+    return [
+      {
+        id: makeId(path),
+        kind: 'action',
+        action: {
+          ...structuredClone(value),
+          id: value.id === 'media.nextSlide' ? 'media.next' : 'media.prev',
+          args: {
+            ...structuredClone(value.args),
+            target: typeof value.args?.target === 'string' ? value.args.target : 'self',
+          },
+        },
+      },
+    ];
+  }
   return [{ id: makeId(path), kind: 'action', action: structuredClone(value) as ActionRef }];
 }
 
@@ -60,18 +76,8 @@ function stableValue(value: unknown): unknown {
 }
 
 function sameMigratedSteps(left: ActionStep[], right: ActionStep[]) {
-  const shape = (steps: ActionStep[]): unknown[] =>
-    steps.map((step) => {
-      if (step.kind === 'if')
-        return {
-          kind: step.kind,
-          condition: step.condition,
-          then: shape(step.then),
-          else: shape(step.else),
-        };
-      if (step.kind === 'delay') return { kind: step.kind, ms: step.ms };
-      return { kind: step.kind, action: step.action };
-    });
+  // Legacy actions only produce flat action/delay lists; generated step IDs differ per variant.
+  const shape = (steps: ActionStep[]) => steps.map(({ id: _id, ...step }) => step);
   return JSON.stringify(stableValue(shape(left))) === JSON.stringify(stableValue(shape(right)));
 }
 

@@ -1,4 +1,4 @@
-import type { PluginApi, Param } from '../features/plugins/contracts';
+import type { ActionContext, PluginApi, Param } from '../features/plugins/contracts';
 import { settings } from '../features/settings/state.svelte';
 import { currentRuntime } from '../app/runtime/session.svelte';
 import { parseVariableText } from '../features/automation/variables';
@@ -9,6 +9,14 @@ const pageParam: Param = {
   type: 'select',
   suggestions: () => settings.deck.pages.map((page) => ({ value: page.id, label: page.name })),
 };
+
+function pageRuntime(context: ActionContext | undefined) {
+  const runtime = currentRuntime();
+  if (!context || context.signal.aborted || !runtime?.isOwner) {
+    throw new Error('Page navigation runtime is unavailable');
+  }
+  return runtime;
+}
 
 export function registerCoreAutomation(api: PluginApi) {
   const variableParam: Param = {
@@ -33,28 +41,16 @@ export function registerCoreAutomation(api: PluginApi) {
     id: 'page.next',
     title: 'Next page',
     run: (_args, context) => {
-      if (!context || context.signal.aborted) {
-        throw new Error('Page navigation runtime is unavailable');
-      }
-      const runtime = currentRuntime();
-      if (!runtime?.isOwner) {
-        throw new Error('Page navigation runtime is unavailable');
-      }
-      runtime.changePageInDirection('next', 'action', context.eventAncestry);
+      const runtime = pageRuntime(context);
+      runtime.changePageInDirection('next', 'action', context?.eventAncestry);
     },
   });
   api.registerAction({
     id: 'page.prev',
     title: 'Previous page',
     run: (_args, context) => {
-      if (!context || context.signal.aborted) {
-        throw new Error('Page navigation runtime is unavailable');
-      }
-      const runtime = currentRuntime();
-      if (!runtime?.isOwner) {
-        throw new Error('Page navigation runtime is unavailable');
-      }
-      runtime.changePageInDirection('prev', 'action', context.eventAncestry);
+      const runtime = pageRuntime(context);
+      runtime.changePageInDirection('prev', 'action', context?.eventAncestry);
     },
   });
   api.registerAction({
@@ -69,11 +65,8 @@ export function registerCoreAutomation(api: PluginApi) {
       if (typeof pageId !== 'string' || !settings.deck.pages.some((page) => page.id === pageId)) {
         throw new Error('Page is unavailable');
       }
-      const runtime = currentRuntime();
-      if (!runtime?.isOwner) {
-        throw new Error('Page navigation runtime is unavailable');
-      }
-      runtime.changePage(pageId, 'action', context.eventAncestry);
+      const runtime = pageRuntime(context);
+      runtime.changePage(pageId, 'action', context?.eventAncestry);
     },
   });
   api.registerAction({

@@ -38,10 +38,7 @@ function evaluate(node: Expr, valueOf: (name: string) => VariableValue | undefin
   return compare(node.op, left, evaluate(node.right, valueOf));
 }
 
-export function evaluateExpression(
-  source: string,
-  valueOf: (name: string) => VariableValue | undefined,
-) {
+function evaluateExpression(source: string, valueOf: (name: string) => VariableValue | undefined) {
   const value = evaluate(compileExpression(source), valueOf);
   if (typeof value !== 'boolean') throw new ExpressionError('Expression must return a Boolean');
   return value;

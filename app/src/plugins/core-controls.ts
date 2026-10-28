@@ -1,4 +1,5 @@
 import type { PluginApi, Param } from '../features/plugins/contracts';
+import { stateIdAt } from '../features/controls/variants';
 import { settings } from '../features/settings/state.svelte';
 
 export function registerCoreControls(api: PluginApi) {
@@ -24,10 +25,12 @@ export function registerCoreControls(api: PluginApi) {
       return [
         { value: 'next', label: 'Next' },
         { value: 'prev', label: 'Previous' },
-        ...(selected?.variants ?? []).map((state, i) => ({
-          value: state.id ?? `state-${i + 1}`,
-          label: state.label || `State ${i + 1}`,
-        })),
+        ...(selected
+          ? selected.variants.map((state, i) => ({
+              value: stateIdAt(selected, i),
+              label: state.label || `State ${i + 1}`,
+            }))
+          : []),
       ];
     },
   };

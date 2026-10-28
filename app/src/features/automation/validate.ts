@@ -1,4 +1,3 @@
-import type { ActionRef } from '../plugins/contracts';
 import { compileExpression } from './expression-parser';
 import { isRecord } from './plain-data';
 import {
@@ -114,9 +113,7 @@ class ScenarioWalk {
     }
     this.ids.add(step.id);
     if (step.kind === 'action') {
-      if (actionRef(step.action)) {
-        this.builtInAction(step.action, path, depth);
-      } else {
+      if (!actionRef(step.action)) {
         this.add(path, 'Action reference is invalid');
       }
     } else if (step.kind === 'delay') {
@@ -133,29 +130,6 @@ class ScenarioWalk {
     } else {
       this.add(path, 'Step type is unavailable');
     }
-  }
-
-  /** Legacy built-in `delay` and `sequence` actions still run, so their arguments are checked. */
-  private builtInAction(ref: ActionRef, path: string, depth: number) {
-    if (ref.id === 'delay' && !isValidDelay(ref.args?.ms)) {
-      this.add(path, DELAY_MESSAGE);
-    } else if (ref.id === 'sequence') {
-      const steps = ref.args?.steps;
-      if (Array.isArray(steps)) {
-        this.sequenceSteps(steps, path, depth + 1);
-      } else {
-        this.add(path, 'Action sequence is invalid');
-      }
-    }
-  }
-
-  private sequenceSteps(steps: unknown[], path: string, depth: number) {
-    steps.forEach((ref, i) => {
-      const stepPath = `${path}.${i}`;
-      if (!this.countNode(stepPath, depth) && actionRef(ref)) {
-        this.builtInAction(ref, stepPath, depth);
-      }
-    });
   }
 
   /** Counts one node against the scenario limits; returns whether it is nested too deep. */

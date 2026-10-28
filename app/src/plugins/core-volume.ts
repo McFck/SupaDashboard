@@ -1,4 +1,5 @@
 import { get } from 'svelte/store';
+import { walkSteps } from '../features/automation/scenario';
 import { settings } from '../features/settings/state.svelte';
 import { pageItems } from '../features/layout/placements';
 import { appOwners } from '../features/plugins/registry';
@@ -15,7 +16,7 @@ import {
 
 /** Apps with an audio session right now (process names without .exe). */
 let liveChannels: Channel[] = [];
-/** Master volume + every app with an audio session. */
+/** Every app with an audio session, excluding master volume. */
 const stopVolumeTargets = volumeChannels.subscribe((list) => {
   liveChannels = list.filter((c) => c.target !== 'system');
 });
@@ -36,41 +37,13 @@ function usedTargets() {
     if (!placed.has(c.id)) {
       continue;
     }
-    const refs: unknown[] = [
-      ...c.variants.flatMap((v) => [v.value, v.action]),
-      ...Object.values(c.gestures ?? {}),
-    ];
-    const visit = (steps: unknown) => {
-      if (!Array.isArray(steps)) {
-        return;
-      }
-      for (const step of steps) {
-        if (step && typeof step === 'object' && 'kind' in step) {
-          const row = step as { kind?: string; action?: unknown; then?: unknown; else?: unknown };
-          if (row.kind === 'action') {
-            refs.push(row.action);
-          } else if (row.kind === 'if') {
-            visit(row.then);
-            visit(row.else);
-          }
-        } else {
-          refs.push(step);
+    const refs: unknown[] = c.variants.map((variant) => variant.value);
+    if (c.scenario) {
+      walkSteps(c.scenario, (step) => {
+        if (step.kind === 'action') {
+          refs.push(step.action);
         }
-      }
-    };
-    for (const list of Object.values(c.scenario?.triggers ?? {})) {
-      if (list) {
-        visit(list.steps);
-        for (const steps of Object.values(list.byState ?? {})) {
-          visit(steps);
-        }
-      }
-    }
-    for (const listener of c.scenario?.events ?? []) {
-      visit(listener.list.steps);
-      for (const steps of Object.values(listener.list.byState ?? {})) {
-        visit(steps);
-      }
+      });
     }
     // Only volume refs name an audio app; other actions use `target` for controls (e.g. 'self').
     for (const ref of refs) {
@@ -132,9 +105,6 @@ export function registerCoreVolume(api: PluginApi) {
       }
     },
   });
-}
-
-export function registerCoreVolumeValue(api: PluginApi) {
   // target: "system" or a process name such as "discord".
   api.registerValue({
     id: 'volume',

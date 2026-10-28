@@ -58,15 +58,6 @@ class StepFailure extends Error {
   }
 }
 
-function asSteps(value: unknown, prefix: string): ActionStep[] | null {
-  if (!Array.isArray(value)) return null;
-  return value.map((action, i) => ({
-    id: `${prefix}-${i + 1}`,
-    kind: 'action',
-    action: structuredClone(action) as ActionRef,
-  }));
-}
-
 type RunState = { count: number; signal: AbortSignal; packet: TriggerPacket };
 
 function failureOf(packet: TriggerPacket, failed: StepFailure): ScenarioFailure {
@@ -157,23 +148,8 @@ export class ScenarioRunner {
       await this.runList(branch, state, depth + 1);
       return;
     }
-    // Legacy built-in delay and sequence actions run inline, like their canonical steps.
-    if (step.action.id === 'delay') {
-      const ms = step.action.args?.ms;
-      if (!isValidDelay(ms)) {
-        throw new StepFailure(step.id, 'delay');
-      }
-      await wait(ms, state.signal);
-    } else if (step.action.id === 'sequence') {
-      const nested = asSteps(step.action.args?.steps, step.id);
-      if (!nested) {
-        throw new StepFailure(step.id, 'action');
-      }
-      await this.runList(nested, state, depth + 1);
-    } else {
-      const operation = Promise.resolve(this.services.runAction(step.action, this.context(state)));
-      await awaitAction(operation, state.signal);
-    }
+    const operation = Promise.resolve(this.services.runAction(step.action, this.context(state)));
+    await awaitAction(operation, state.signal);
   }
 
   private context(state: RunState): ActionContext {
@@ -181,15 +157,8 @@ export class ScenarioRunner {
     const active = () => ensureActive(state.signal);
     return {
       signal: state.signal,
-      runId: packet.interactionId,
       controlId: packet.controlId,
-      itemId: packet.itemId,
-      trigger: packet.trigger,
-      listenerId: packet.listenerId,
-      sourceStateId: packet.sourceStateId,
-      event: packet.event,
       eventAncestry: packet.eventAncestry,
-      getVariable: (id) => this.services.getVariable(id),
       setVariable: async (id, value) => {
         active();
         const result = await this.services.setVariable(id, value, packet.eventAncestry);
@@ -205,11 +174,6 @@ export class ScenarioRunner {
       emitEvent: async (id, parameter, payload) => {
         active();
         await this.services.emitEvent(id, parameter, payload, packet.eventAncestry);
-        active();
-      },
-      runSteps: async (steps) => {
-        active();
-        await this.runList(steps, state, 0);
         active();
       },
     };
