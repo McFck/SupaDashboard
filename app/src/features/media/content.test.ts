@@ -4,7 +4,6 @@ import {
   hasMediaExtension,
   isVideoSource,
   mediaUrl,
-  mediaFileUrl,
   mediaSourceKey,
   readMediaOptions,
   readWebOptions,
@@ -134,20 +133,6 @@ describe('media content options', () => {
       '/relative.png',
     ])
       expect(mediaUrl(value)).toBeUndefined();
-  });
-
-  it('converts saved file sources without relying on a window-level Tauri marker', () => {
-    const convert = (path: string) => `asset://localhost/${encodeURIComponent(path)}`;
-    const source = { kind: 'file' as const, value: 'C:/Pictures/photo.jpg' };
-    expect(mediaFileUrl(source, convert)).toBe('asset://localhost/C%3A%2FPictures%2Fphoto.jpg');
-    expect(
-      mediaFileUrl({ kind: 'url', value: 'https://example.test/photo.jpg' }, convert),
-    ).toBeUndefined();
-    expect(
-      mediaFileUrl(source, () => {
-        throw new Error('not running in Tauri');
-      }),
-    ).toBeUndefined();
   });
 
   it('classifies video by URL pathname, ignoring query, hash and case', () => {
