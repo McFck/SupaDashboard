@@ -1,4 +1,4 @@
-import { inspectorWidth, sidebarWidth } from './frame';
+import { inspectorWidth, sidebarWidth, SIDEBAR_RAIL } from './frame';
 
 function load(key: string) {
   try {
@@ -20,7 +20,7 @@ export const frame = $state({
     typeof saved?.sidebarWidth === 'number'
       ? sidebarWidth(saved.sidebarWidth)
       : saved?.collapsed === true
-        ? 64
+        ? SIDEBAR_RAIL
         : 240,
   inspectorOpen: saved?.inspectorOpen !== false,
   inspectorWidth:
