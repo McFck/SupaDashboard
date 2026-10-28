@@ -185,14 +185,6 @@ export function withNewStepIds(steps: ActionStep[]): ActionStep[] {
   });
 }
 
-/** A new state that starts with `source`'s appearance, a fresh ID and an empty label. */
-export function newStateFrom(source: Variant): Variant {
-  const variant = { ...clonePlain(source), id: newId(), label: '' };
-  delete variant.action;
-  delete variant.value;
-  return variant;
-}
-
 export function scenarioPathKey(path: StepListPath) {
   return [
     path.kind,

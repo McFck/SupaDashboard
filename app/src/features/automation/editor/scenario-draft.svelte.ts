@@ -6,17 +6,12 @@ import {
   newId,
   scenarioNodeCount,
   type EventList,
+  type StateRoles,
   type Trigger,
 } from '../scenario';
 import { validateScenario } from '../validate';
 import { clonePlain } from '../plain-data';
-import {
-  MAX_VARIANTS,
-  moveVariant,
-  removeVariant,
-  type ControlConfig,
-  type Variant,
-} from '../../controls/model';
+import type { ControlConfig, Variant } from '../../controls/model';
 import { stateIdAt, validateStateConfiguration } from '../../controls/button-state';
 import { runtimeView } from '../../../app/runtime/state';
 import { registeredEvents } from '../../plugins/registry';
@@ -24,7 +19,6 @@ import { controlById, settings } from '../../settings/state.svelte';
 import { commit } from '../../layout/history.svelte';
 import {
   createScenarioDraft,
-  newStateFrom,
   sameScenarioDraft,
   setScenarioStateOverride,
   withNewStepIds,
@@ -32,9 +26,15 @@ import {
   type ScenarioListOwner,
   type StepListPath,
 } from './scenario-edit';
+import {
+  withAddedState,
+  withMovedState,
+  withoutState,
+  withRoles,
+  withToggledRoles,
+} from './draft-states';
 
 export type ScenarioEditorTab = 'scenario' | 'views' | 'binding' | 'variables';
-type StateRoles = { off: string; on: string };
 type Issue = { path: string; message: string };
 
 const issueKey = (issue: Issue) => `${issue.path}\u0000${issue.message}`;
@@ -331,54 +331,26 @@ export class ScenarioDraftEditor {
   }
 
   addState() {
-    const draft = this.draft;
-    if (!draft || !draft.variants.length || draft.variants.length >= MAX_VARIANTS) {
-      return;
+    const next = this.draft && withAddedState(this.draft);
+    if (next) {
+      this.draft = next;
     }
-    this.draft = { ...draft, variants: [...draft.variants, newStateFrom(draft.variants.at(-1)!)] };
   }
 
   updateRoles(roles: StateRoles | undefined) {
-    const draft = this.draft;
-    const control = this.control;
-    if (!draft || !control) {
-      return;
+    const next =
+      this.draft && this.control && withRoles(this.draft, this.control, roles, this.records);
+    if (next) {
+      this.draft = next;
     }
-    const next = clonePlain(draft);
-    const ids = next.variants.map((_, index) =>
-      stateIdAt({ ...control, variants: next.variants }, index),
-    );
-    if (roles && (roles.off === roles.on || !ids.includes(roles.off) || !ids.includes(roles.on))) {
-      return;
-    }
-    if (roles) {
-      next.stateRoles = roles;
-    } else {
-      delete next.stateRoles;
-    }
-    this.syncBooleanBinding(next);
-    this.draft = next;
   }
 
-  /** Turns Off/On roles on (using the first two states, adding one if needed) or off. */
   toggleRoles() {
-    const draft = this.draft;
-    const control = this.control;
-    if (!draft || !control) {
-      return;
+    const next =
+      this.draft && this.control && withToggledRoles(this.draft, this.control, this.records);
+    if (next) {
+      this.draft = next;
     }
-    if (draft.stateRoles) {
-      this.updateRoles(undefined);
-      return;
-    }
-    const next = clonePlain(draft);
-    if (next.variants.length < 2) {
-      next.variants.push(newStateFrom(next.variants[0]));
-    }
-    const working = { ...control, variants: next.variants };
-    next.stateRoles = { off: stateIdAt(working, 0), on: stateIdAt(working, 1) };
-    this.syncBooleanBinding(next);
-    this.draft = next;
   }
 
   moveState(from: number, to: number) {
@@ -387,14 +359,8 @@ export class ScenarioDraftEditor {
     if (!draft || !control || from === to) {
       return;
     }
-    const currentState = this.manualFallbackStateId || this.liveStateId(control);
-    const next = clonePlain(draft);
-    const working = { ...structuredClone($state.snapshot(control)), ...next };
-    const current = next.variants.findIndex(
-      (_, index) => stateIdAt(working, index) === currentState,
-    );
-    moveVariant(working, current, from, to);
-    this.draft = { ...next, variants: working.variants };
+    const live = this.manualFallbackStateId || this.liveStateId(control);
+    this.draft = withMovedState(draft, $state.snapshot(control), live, from, to);
   }
 
   /** Deletes a state and repairs references to it; the live state falls back to its replacement. */
@@ -404,25 +370,13 @@ export class ScenarioDraftEditor {
     if (!draft || draft.variants.length < 2 || !control) {
       return;
     }
-    const currentState = this.manualFallbackStateId || this.liveStateId(control);
-    const removedId = stateIdAt({ ...control, variants: draft.variants }, index);
-    const next = clonePlain(draft);
-    const working = { ...structuredClone($state.snapshot(control)), ...next };
-    const currentIndex = working.variants.findIndex(
-      (_, i) => stateIdAt(working, i) === currentState,
-    );
-    const nextIndex = removeVariant(working, currentIndex < 0 ? 0 : currentIndex, index);
-    if (removedId === currentState) {
-      this.manualFallbackStateId = stateIdAt(working, nextIndex);
+    const live = this.manualFallbackStateId || this.liveStateId(control);
+    const result = withoutState(draft, $state.snapshot(control), live, index);
+    if (result.removedId === live) {
+      this.manualFallbackStateId = result.replacementId;
     }
-    this.draft = {
-      ...next,
-      variants: working.variants,
-      scenario: working.scenario,
-      stateBinding: working.stateBinding,
-      stateRoles: working.stateRoles,
-    };
-    if (this.selectedState === removedId) {
+    this.draft = result.draft;
+    if (this.selectedState === result.removedId) {
       this.selectedState = '*';
     }
   }
@@ -438,27 +392,15 @@ export class ScenarioDraftEditor {
     return stateIdAt(control, settings.variants[this.controlId()] ?? 0);
   }
 
+  private get records() {
+    return this.runtime.current.variables.records;
+  }
+
   private issuesOf(draft: ScenarioDraft): Issue[] {
     const stateIssues = validateStateConfiguration(
       { variants: draft.variants, stateBinding: draft.stateBinding, stateRoles: draft.stateRoles },
       this.runtime.current.variables,
     );
     return [...validateScenario(draft.scenario), ...stateIssues];
-  }
-
-  /** A Boolean binding follows the Off/On roles: false shows Off, true shows On. */
-  private syncBooleanBinding(next: ScenarioDraft) {
-    const binding = next.stateBinding;
-    const roles = next.stateRoles;
-    const record = binding && this.runtime.current.variables.records[binding.variableId];
-    if (binding && roles && record?.definition.type === 'boolean') {
-      next.stateBinding = {
-        ...binding,
-        cases: [
-          { value: false, stateId: roles.off },
-          { value: true, stateId: roles.on },
-        ],
-      };
-    }
   }
 }
