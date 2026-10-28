@@ -14,6 +14,7 @@
   import { pageOffset } from './page-motion';
   import { Pager } from './pager.svelte';
   import PageDots from './PageDots.svelte';
+  import ResizeGrips from './ResizeGrips.svelte';
 
   const { requestPageChange } = runtimeCommands;
 
@@ -80,6 +81,7 @@
   // The visible page's geometry or placements changed: the drag areas move with them.
   $effect(() => {
     const active = page;
+    void dashboard.appliedFullscreen;
     void [active.id, active.cols, active.rows, active.size, active.gap, active.sizing];
     for (const item of active.items) {
       void [item.x, item.y, item.w, item.h];
@@ -169,6 +171,7 @@
     {/each}
   {/if}
   {#if !dashboard.appliedFullscreen}
+    <ResizeGrips {dashboard} />
     <div
       aria-hidden="true"
       class="resize-cues"
@@ -237,7 +240,7 @@
     pointer-events: none;
   }
 
-  /* The native window resizes from its edges; this outline only shows where. */
+  /* Shared by the DOM grips and the native border. */
   .resize-cues {
     position: absolute;
     z-index: 40;

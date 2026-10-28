@@ -5,7 +5,7 @@ import type { Geometry } from '../display/geometry';
 import { INTERACTIVE } from './pager.svelte';
 
 const EXCLUDED = `[data-skin-input], .tile, ${INTERACTIVE}`;
-const CHROME = '.dashboard-page-dots, .dashboard-page-dots button';
+const CHROME = '.dashboard-page-dots, .dashboard-page-dots button, [data-resize-handle]';
 const OBSERVED_ATTRIBUTES = [
   'data-visible-page',
   'data-skin-input',

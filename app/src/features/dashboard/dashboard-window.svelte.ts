@@ -6,6 +6,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { startDisplay, type DisplayController } from '../display/display';
 import type { Page, Settings } from '../settings/schema';
+import { toast } from 'svelte-sonner';
 
 type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
 type ResizeEvent = { resizing: boolean; revision: number };
@@ -54,6 +55,18 @@ export class DashboardWindow {
     getCurrentWindow()
       .startDragging()
       .catch((error) => console.warn('drag', error));
+  }
+
+  startResize(
+    direction: Parameters<ReturnType<typeof getCurrentWindow>['startResizeDragging']>[0],
+  ) {
+    if (!isTauri() || this.appliedFullscreen) {
+      return;
+    }
+    this.showResizeCues();
+    void getCurrentWindow()
+      .startResizeDragging(direction)
+      .catch(() => toast.error('Could not resize window'));
   }
 
   destroy() {
