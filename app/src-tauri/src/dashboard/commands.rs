@@ -10,12 +10,15 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 #[tauri::command]
 pub async fn dashboard_set_bounds(app: AppHandle, bounds: Geometry) -> Result<Geometry, String> {
-    on_main_window(&app, move |window| set_bounds(hwnd_of(&window)?, bounds)).await
+    on_main_window(&app, "bounds", move |window| {
+        set_bounds(hwnd_of(&window)?, bounds)
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn dashboard_interaction_mode(app: AppHandle, fullscreen: bool) -> Result<(), String> {
-    on_main_window(&app, move |window| {
+    on_main_window(&app, "interaction mode", move |window| {
         set_interaction_mode(&window, fullscreen)
     })
     .await
@@ -24,6 +27,7 @@ pub async fn dashboard_interaction_mode(app: AppHandle, fullscreen: bool) -> Res
 /// Window calls must run on the UI thread; the result comes back over a channel.
 async fn on_main_window<T: Send + 'static>(
     app: &AppHandle,
+    operation: &'static str,
     work: impl FnOnce(WebviewWindow) -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
     let (sender, mut receiver) = tauri::async_runtime::channel(1);
@@ -35,11 +39,11 @@ async fn on_main_window<T: Send + 'static>(
             .and_then(work);
         let _ = sender.try_send(result);
     })
-    .map_err(|error| format!("could not dispatch to the UI thread: {error}"))?;
+    .map_err(|error| format!("could not dispatch {operation} to the UI thread: {error}"))?;
     receiver
         .recv()
         .await
-        .ok_or_else(|| "dashboard UI thread dropped the result".to_owned())?
+        .ok_or_else(|| format!("dashboard UI thread dropped the {operation} result"))?
 }
 
 fn set_bounds(hwnd: HWND, bounds: Geometry) -> Result<Geometry, String> {
