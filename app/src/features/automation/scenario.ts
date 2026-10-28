@@ -70,11 +70,17 @@ export const MAX_SCENARIO_NODES = 1000;
 
 export const MAX_DELAY_MS = 86_400_000;
 
+export function isValidDelay(ms: unknown): ms is number {
+  return Number.isInteger(ms) && (ms as number) >= 0 && (ms as number) <= MAX_DELAY_MS;
+}
+
 export const emptyScenario = (): Scenario => ({ triggers: {}, events: [] });
 
-export function newScenarioId() {
-  if (!globalThis.crypto?.randomUUID) throw new Error('This browser cannot create scenario IDs');
-  return globalThis.crypto.randomUUID();
+/** randomUUID needs a secure context; the fallback keeps IDs unique on plain-HTTP origins too. */
+export function newId() {
+  return (
+    globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 }
 
 export function selectTriggerSteps(

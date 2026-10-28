@@ -2,7 +2,7 @@ import { compileExpression } from './expression';
 import { isRecord } from './plain-data';
 import {
   actionRef,
-  MAX_DELAY_MS,
+  isValidDelay,
   MAX_SCENARIO_DEPTH,
   MAX_SCENARIO_NODES,
   type ScenarioIssue,
@@ -29,8 +29,7 @@ export function validateScenario(value: unknown): ScenarioIssue[] {
           inspectLegacy(legacy.args.steps, stepPath, depth + 1);
         else issues.push({ path: stepPath, message: 'Action sequence is invalid' });
       } else if (legacy.id === 'delay') {
-        const ms = legacy.args?.ms;
-        if (typeof ms !== 'number' || !Number.isInteger(ms) || ms < 0 || ms > MAX_DELAY_MS)
+        if (!isValidDelay(legacy.args?.ms))
           issues.push({
             path: stepPath,
             message: 'Wait duration must be an integer from 0 to 86400000',
@@ -61,8 +60,7 @@ export function validateScenario(value: unknown): ScenarioIssue[] {
         if (!actionRef(step.action))
           issues.push({ path: stepPath, message: 'Action reference is invalid' });
         else if (step.action.id === 'delay') {
-          const ms = step.action.args?.ms;
-          if (typeof ms !== 'number' || !Number.isInteger(ms) || ms < 0 || ms > MAX_DELAY_MS)
+          if (!isValidDelay(step.action.args?.ms))
             issues.push({
               path: stepPath,
               message: 'Wait duration must be an integer from 0 to 86400000',
@@ -73,12 +71,7 @@ export function validateScenario(value: unknown): ScenarioIssue[] {
           else inspectLegacy(step.action.args.steps, stepPath, depth + 1);
         }
       } else if (step.kind === 'delay') {
-        if (
-          typeof step.ms !== 'number' ||
-          !Number.isInteger(step.ms) ||
-          step.ms < 0 ||
-          step.ms > MAX_DELAY_MS
-        )
+        if (!isValidDelay(step.ms))
           issues.push({
             path: stepPath,
             message: 'Wait duration must be an integer from 0 to 86400000',

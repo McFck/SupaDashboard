@@ -12,7 +12,7 @@
   import { Label } from '$lib/components/ui/label';
   import { actions } from '../../plugins/registry';
   import { runtimeView } from '../../../app/runtime/state';
-  import { newScenarioId, type ActionStep, type Predicate } from '../scenario';
+  import { newId, type ActionStep, type Predicate } from '../scenario';
   import ConditionEditor from './ConditionEditor.svelte';
   import ScenarioSteps from './ScenarioSteps.svelte';
   import ActionPicker from './ActionPicker.svelte';
@@ -112,7 +112,7 @@
         .filter((param) => param.default !== undefined)
         .map((param) => [param.key, structuredClone(param.default)]),
     );
-    return { id: newScenarioId(), kind: 'action', action: { id, args } };
+    return { id: newId(), kind: 'action', action: { id, args } };
   }
   async function chooseStep(step: ActionStep, index: number, current?: ActionStep) {
     // Picking the current action must preserve its arguments and nested branches.
@@ -143,7 +143,7 @@
     highlightTimer = setTimeout(() => (highlightedId = ''), 1000);
   }
   function waitStep(): ActionStep {
-    return { id: newScenarioId(), kind: 'delay', ms: 200 };
+    return { id: newId(), kind: 'delay', ms: 200 };
   }
   function conditionStep(): ActionStep {
     const condition: Predicate = {
@@ -152,7 +152,7 @@
       op: 'eq',
       right: { kind: 'literal', value: path.stateId ?? draft.variants[0]?.id ?? 'state-1' },
     };
-    return { id: newScenarioId(), kind: 'if', condition, then: [], else: [] };
+    return { id: newId(), kind: 'if', condition, then: [], else: [] };
   }
   async function closePicker() {
     await changeLayout(() => onpickerchange(null));

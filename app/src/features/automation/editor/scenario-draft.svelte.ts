@@ -1,8 +1,9 @@
 // The scenario editor's working copy of one control. Edits stay in the draft until save() writes them back as one
 // settings change with one undo step; a change made elsewhere meanwhile is reported as a conflict.
 import { fromStore } from 'svelte/store';
-import { MAX_SCENARIO_NODES, newScenarioId, type EventList, type Trigger } from '../scenario';
+import { MAX_SCENARIO_NODES, newId, type EventList, type Trigger } from '../scenario';
 import { validateScenario } from '../validate';
+import { clonePlain } from '../plain-data';
 import {
   MAX_VARIANTS,
   moveVariant,
@@ -16,7 +17,6 @@ import { registeredEvents } from '../../plugins/registry';
 import { controlById, settings } from '../../settings/state.svelte';
 import { commit } from '../../layout/history.svelte';
 import {
-  cloneDraftValue,
   createScenarioDraft,
   newStateFrom,
   sameScenarioDraft,
@@ -149,7 +149,7 @@ export class ScenarioDraftEditor {
       return false;
     }
     this.baseline = createScenarioDraft($state.snapshot(latest));
-    this.draft = cloneDraftValue(this.baseline);
+    this.draft = clonePlain(this.baseline);
     this.selectedState = '*';
     this.pickerKey = null;
     this.manualFallbackStateId = '';
@@ -166,15 +166,15 @@ export class ScenarioDraftEditor {
     }
     commit('Edit scenario');
     const replacement = structuredClone($state.snapshot(latest)) as ControlConfig;
-    replacement.scenario = cloneDraftValue(draft.scenario);
-    replacement.variants = cloneDraftValue(draft.variants);
+    replacement.scenario = clonePlain(draft.scenario);
+    replacement.variants = clonePlain(draft.variants);
     if (draft.stateBinding) {
-      replacement.stateBinding = cloneDraftValue(draft.stateBinding);
+      replacement.stateBinding = clonePlain(draft.stateBinding);
     } else {
       delete replacement.stateBinding;
     }
     if (draft.stateRoles) {
-      replacement.stateRoles = cloneDraftValue(draft.stateRoles);
+      replacement.stateRoles = clonePlain(draft.stateRoles);
     } else {
       delete replacement.stateRoles;
     }
@@ -280,7 +280,7 @@ export class ScenarioDraftEditor {
     if (!draft || !this.eventDefinitions.some((event) => event.id === eventId)) {
       return;
     }
-    const listener: EventList = { id: newScenarioId(), eventId, list: { steps: [] } };
+    const listener: EventList = { id: newId(), eventId, list: { steps: [] } };
     this.draft = {
       ...draft,
       scenario: { ...draft.scenario, events: [...draft.scenario.events, listener] },
@@ -321,7 +321,7 @@ export class ScenarioDraftEditor {
       return;
     }
     const variants = [...draft.variants];
-    variants[index] = cloneDraftValue(variant);
+    variants[index] = clonePlain(variant);
     this.draft = { ...draft, variants };
   }
 
@@ -339,7 +339,7 @@ export class ScenarioDraftEditor {
     if (!draft || !control) {
       return;
     }
-    const next = cloneDraftValue(draft);
+    const next = clonePlain(draft);
     const ids = next.variants.map((_, index) =>
       stateIdAt({ ...control, variants: next.variants }, index),
     );
@@ -366,7 +366,7 @@ export class ScenarioDraftEditor {
       this.updateRoles(undefined);
       return;
     }
-    const next = cloneDraftValue(draft);
+    const next = clonePlain(draft);
     if (next.variants.length < 2) {
       next.variants.push(newStateFrom(next.variants[0]));
     }
@@ -383,7 +383,7 @@ export class ScenarioDraftEditor {
       return;
     }
     const currentState = this.manualFallbackStateId || this.liveStateId(control);
-    const next = cloneDraftValue(draft);
+    const next = clonePlain(draft);
     const working = { ...structuredClone($state.snapshot(control)), ...next };
     const current = next.variants.findIndex(
       (_, index) => stateIdAt(working, index) === currentState,
@@ -401,7 +401,7 @@ export class ScenarioDraftEditor {
     }
     const currentState = this.manualFallbackStateId || this.liveStateId(control);
     const removedId = stateIdAt({ ...control, variants: draft.variants }, index);
-    const next = cloneDraftValue(draft);
+    const next = clonePlain(draft);
     const working = { ...structuredClone($state.snapshot(control)), ...next };
     const currentIndex = working.variants.findIndex(
       (_, i) => stateIdAt(working, i) === currentState,

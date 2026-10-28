@@ -22,7 +22,7 @@ import {
   type VariableSnapshot,
   type VariableValue,
 } from '../../features/automation/variables';
-import type { Trigger } from '../../features/automation/scenario';
+import { newId, type Trigger } from '../../features/automation/scenario';
 import { PageController, type PageChangeReason } from '../../features/layout/page-controller';
 import { allPlacements, hasPlacement } from '../../features/layout/skin-layouts';
 import { ContentController } from '../../features/media/content-controller';
@@ -38,9 +38,6 @@ export type RuntimeOptions = {
   onFailure?: (failure: ScenarioFailure) => void;
   onQueueFull?: (controlId: string, trigger: Trigger | 'event') => void;
 };
-
-const scenarioId = () =>
-  globalThis.crypto?.randomUUID?.() ?? `run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 function fingerprint(control: import('../../features/controls/model').ControlConfig) {
   return JSON.stringify({
@@ -209,7 +206,7 @@ export class RuntimeSession {
       controlId: '',
       itemId: '',
       trigger: 'press',
-      interactionId: scenarioId(),
+      interactionId: newId(),
       sourceStateId: '',
       capturedAt: Date.now(),
       steps: [{ id: 'quick-action', kind: 'action', action: ref }],
@@ -220,7 +217,7 @@ export class RuntimeSession {
     controlId: string,
     itemId: string,
     trigger: Trigger,
-    interactionId = scenarioId(),
+    interactionId = newId(),
     options: { notify?: boolean } = {},
   ) {
     const control = controlById(controlId);
@@ -322,7 +319,7 @@ export class RuntimeSession {
           target.control,
           '',
           target.listener,
-          scenarioId(),
+          newId(),
           state,
           Date.now(),
           eventParameter,

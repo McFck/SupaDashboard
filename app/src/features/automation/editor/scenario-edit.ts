@@ -1,7 +1,7 @@
 import type { ControlConfig, Variant } from '../../controls/model';
 import {
   emptyScenario,
-  newScenarioId,
+  newId,
   type ActionStep,
   type Scenario,
   type StateBinding,
@@ -9,6 +9,7 @@ import {
   type Trigger,
   type TriggerList,
 } from '../scenario';
+import { clonePlain } from '../plain-data';
 
 export type ScenarioDraft = {
   scenario: Scenario;
@@ -21,18 +22,8 @@ export type ScenarioListOwner =
   { kind: 'trigger'; trigger: Trigger } | { kind: 'event'; eventId: string };
 export type StepListPath = ScenarioListOwner & { stateId?: string; branches?: Branch[] };
 
-export function cloneDraftValue<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((item) => cloneDraftValue(item)) as T;
-  if (value && typeof value === 'object') {
-    const copy: Record<string, unknown> = {};
-    for (const [key, child] of Object.entries(value)) copy[key] = cloneDraftValue(child);
-    return copy as T;
-  }
-  return value;
-}
-
 export function createScenarioDraft(control: ControlConfig): ScenarioDraft {
-  return cloneDraftValue({
+  return clonePlain({
     scenario: control.scenario ?? emptyScenario(),
     variants: control.variants,
     ...(control.stateBinding ? { stateBinding: control.stateBinding } : {}),
@@ -82,7 +73,7 @@ function editList(
   edit: (steps: ActionStep[]) => void,
   create = false,
 ) {
-  const next = cloneDraftValue(scenario);
+  const next = clonePlain(scenario);
   edit(listAt(next, path, create));
   return next;
 }
@@ -116,7 +107,7 @@ export function insertScenarioStep(
       const at = index ?? steps.length;
       if (!Number.isInteger(at) || at < 0 || at > steps.length)
         throw new Error('Step position is invalid');
-      steps.splice(at, 0, cloneDraftValue(step));
+      steps.splice(at, 0, clonePlain(step));
     },
     true,
   );
@@ -139,7 +130,7 @@ export function replaceScenarioStep(
   return editList(scenario, path, (steps) => {
     const index = steps.findIndex((step) => step.id === stepId);
     if (index < 0) throw new Error('Step is unavailable');
-    steps[index] = { ...cloneDraftValue(replacement), id: stepId };
+    steps[index] = { ...clonePlain(replacement), id: stepId };
   });
 }
 
@@ -170,7 +161,7 @@ export function setScenarioStateOverride(
   stateId: string,
   steps: ActionStep[] | undefined,
 ) {
-  const next = cloneDraftValue(scenario);
+  const next = clonePlain(scenario);
   const list =
     path.kind === 'trigger'
       ? next.triggers[path.trigger]
@@ -178,7 +169,7 @@ export function setScenarioStateOverride(
   if (!list) throw new Error('Scenario list is unavailable');
   list.byState ??= {};
   if (steps === undefined) delete list.byState[stateId];
-  else list.byState[stateId] = cloneDraftValue(steps);
+  else list.byState[stateId] = clonePlain(steps);
   if (!Object.keys(list.byState).length) delete list.byState;
   return next;
 }
@@ -186,7 +177,7 @@ export function setScenarioStateOverride(
 /** A copy of `steps` with fresh IDs throughout, so it can live beside the original in one scenario. */
 export function withNewStepIds(steps: ActionStep[]): ActionStep[] {
   return steps.map((step) => {
-    const copy = { ...cloneDraftValue(step), id: newScenarioId() };
+    const copy = { ...clonePlain(step), id: newId() };
     if (copy.kind === 'if') {
       copy.then = withNewStepIds(copy.then);
       copy.else = withNewStepIds(copy.else);
@@ -206,7 +197,7 @@ export function listStepCount(list: TriggerList | undefined) {
 
 /** A new state that starts with `source`'s appearance, a fresh ID and an empty label. */
 export function newStateFrom(source: Variant): Variant {
-  const variant = { ...cloneDraftValue(source), id: newScenarioId(), label: '' };
+  const variant = { ...clonePlain(source), id: newId(), label: '' };
   delete variant.action;
   delete variant.value;
   return variant;

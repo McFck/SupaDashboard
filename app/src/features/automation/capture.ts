@@ -2,25 +2,7 @@ import type { EventAncestry } from '../plugins/contracts';
 import type { ControlConfig } from '../controls/model';
 import type { EventList, Trigger, TriggerList } from './scenario';
 import type { TriggerPacket } from './scenario-runner';
-
-function freezeDeep<T>(value: T): T {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    for (const child of Object.values(value as Record<string, unknown>)) freezeDeep(child);
-  }
-  return value;
-}
-
-function cloneSerializable<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((item) => cloneSerializable(item)) as T;
-  if (value && typeof value === 'object') {
-    const copy: Record<string, unknown> = {};
-    for (const [key, child] of Object.entries(value as Record<string, unknown>))
-      copy[key] = cloneSerializable(child);
-    return copy as T;
-  }
-  return value;
-}
+import { clonePlain, freezeDeep } from './plain-data';
 
 function packet(
   control: ControlConfig,
@@ -43,8 +25,8 @@ function packet(
     interactionId,
     sourceStateId,
     capturedAt,
-    steps: cloneSerializable(steps),
-    ...(event ? { event: cloneSerializable(event) } : {}),
+    steps: clonePlain(steps),
+    ...(event ? { event: clonePlain(event) } : {}),
   });
 }
 

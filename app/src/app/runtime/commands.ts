@@ -3,14 +3,11 @@ import { settings, controlById } from '../../features/settings/state.svelte';
 import { effectiveVariant } from '../../features/controls/button-state';
 import { captureTrigger } from '../../features/automation/capture';
 import type { RunResult, TriggerPacket } from '../../features/automation/scenario-runner';
-import type { Trigger } from '../../features/automation/scenario';
+import { newId, type Trigger } from '../../features/automation/scenario';
 import type { PageChangePayload } from './sync';
 import { runtimeView, type RuntimeSnapshot } from './state';
 import { requestRuntime } from './client';
 import { currentRuntime } from './lifecycle';
-
-const scenarioId = () =>
-  globalThis.crypto?.randomUUID?.() ?? `run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export async function requestPageChange(
   change: { direction: 'next' | 'prev' } | { page: string },
@@ -49,7 +46,7 @@ export function captureRuntimeTrigger(
   controlId: string,
   itemId: string,
   trigger: Trigger,
-  interactionId: string = scenarioId(),
+  interactionId: string = newId(),
 ) {
   const control = controlById(controlId);
   if (!control) return undefined;

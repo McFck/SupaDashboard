@@ -3,7 +3,7 @@ import type { ActionRef } from '../plugins/contracts';
 import { isRecord } from './plain-data';
 import {
   actionRef,
-  MAX_DELAY_MS,
+  isValidDelay,
   MAX_SCENARIO_DEPTH,
   MAX_SCENARIO_NODES,
   type ActionStep,
@@ -35,8 +35,7 @@ function stepsFromAction(
   }
   if (actionRef(value) && value.id === 'delay') {
     const ms = value.args?.ms;
-    if (typeof ms === 'number' && Number.isInteger(ms) && ms >= 0 && ms <= MAX_DELAY_MS)
-      return [{ id: makeId(path), kind: 'delay', ms }];
+    if (isValidDelay(ms)) return [{ id: makeId(path), kind: 'delay', ms }];
   }
   return [{ id: makeId(path), kind: 'action', action: structuredClone(value) as ActionRef }];
 }

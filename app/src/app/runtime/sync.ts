@@ -1,5 +1,6 @@
 import { emit, emitTo, listen } from '@tauri-apps/api/event';
 import { isTauri } from '@tauri-apps/api/core';
+import { newId } from '../../features/automation/scenario';
 
 export type PageChangeReason = 'dot' | 'swipe' | 'skin';
 export type PageChangePayload =
@@ -61,8 +62,6 @@ const REQUEST_TYPES = new Set([
   'stop',
   'changePage',
 ]);
-const newId = () =>
-  globalThis.crypto?.randomUUID?.() ?? `sync-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function validPageChangePayload(value: unknown): value is PageChangePayload {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;

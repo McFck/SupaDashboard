@@ -2,6 +2,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { load } from '@tauri-apps/plugin-store';
 import { toast } from 'svelte-sonner';
 import { storeIsReadable } from '$lib/store';
+import { newId } from '../../features/automation/scenario';
 import { VariableStore } from '../../features/automation/variables';
 
 export type VariablePersistence = {
@@ -40,7 +41,7 @@ export async function loadVariableState(): Promise<{
 
   const variables = new VariableStore(envelope);
   let recovery = variables.needsRecovery || corruptJson;
-  const recoveryKey = `variables.recovery:${crypto.randomUUID()}`;
+  const recoveryKey = `variables.recovery:${newId()}`;
   if (unreadable || recovery) {
     toast.error('Could not load saved variables');
   }

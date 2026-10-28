@@ -1,3 +1,5 @@
+import { freezeDeep, isRecord } from './plain-data';
+
 export type VariableType = 'boolean' | 'integer' | 'float' | 'string';
 export type VariableValue = boolean | number | string;
 export type VariableDefinition = {
@@ -57,24 +59,12 @@ export function parseVariableText(type: VariableType, text: string): VariableVal
   return parsed;
 }
 
-function freezeDeep<T>(value: T): T {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    for (const child of Object.values(value as Record<string, unknown>)) freezeDeep(child);
-  }
-  return value;
-}
-
 function copyRecord(record: VariableRecord): VariableRecord {
   return structuredClone(record);
 }
 
 function nameKey(name: string) {
   return normalizeName(name).toLocaleLowerCase();
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function isDefinition(value: unknown): value is VariableDefinition {

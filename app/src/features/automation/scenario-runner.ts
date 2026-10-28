@@ -1,6 +1,6 @@
 import type { ActionContext, ActionRef, EventAncestry } from '../plugins/contracts';
 import type { ActionStep, Predicate, Trigger } from './scenario';
-import { MAX_DELAY_MS, MAX_SCENARIO_DEPTH, MAX_SCENARIO_NODES } from './scenario';
+import { isValidDelay, MAX_SCENARIO_DEPTH, MAX_SCENARIO_NODES } from './scenario';
 import { validateScenario } from './validate';
 import { evaluatePredicate, type PredicateEnvironment } from './expression';
 import type { VariableValue } from './variables';
@@ -182,8 +182,7 @@ export class ScenarioRunner {
       }
       try {
         if (step.kind === 'delay') {
-          if (!Number.isInteger(step.ms) || step.ms < 0 || step.ms > MAX_DELAY_MS)
-            throw new StepFailure(step.id, 'delay');
+          if (!isValidDelay(step.ms)) throw new StepFailure(step.id, 'delay');
           await wait(step.ms, state.signal);
         } else if (step.kind === 'if') {
           const env: PredicateEnvironment = {
@@ -198,8 +197,7 @@ export class ScenarioRunner {
         } else if (step.kind === 'action') {
           if (step.action.id === 'delay') {
             const ms = step.action.args?.ms;
-            if (typeof ms !== 'number' || !Number.isInteger(ms) || ms < 0 || ms > MAX_DELAY_MS)
-              throw new StepFailure(step.id, 'delay');
+            if (!isValidDelay(ms)) throw new StepFailure(step.id, 'delay');
             await wait(ms, state.signal);
           } else if (step.action.id === 'sequence') {
             const nested = asSteps(step.action.args?.steps, step.id);

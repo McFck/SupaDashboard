@@ -1,7 +1,8 @@
 // Owner side of the runtime protocol: validates requests from other windows before they touch the runtime.
 import { get } from 'svelte/store';
 import { settings } from '../../features/settings/state.svelte';
-import { TRIGGERS, type Trigger } from '../../features/automation/scenario';
+import { isRecord } from '../../features/automation/plain-data';
+import { newId, TRIGGERS, type Trigger } from '../../features/automation/scenario';
 import type { VariableType, VariableValue } from '../../features/automation/variables';
 import type { RuntimeSession } from './session.svelte';
 import { validPageChangePayload, type RuntimeRequest } from './sync';
@@ -11,10 +12,6 @@ const MAX_EVENT_TEXT = 256;
 const VARIABLE_TYPES: readonly string[] = ['boolean', 'integer', 'float', 'string'];
 
 type Payload = Record<string, unknown>;
-
-function isRecord(value: unknown): value is Payload {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 function isVariableValue(value: unknown): value is VariableValue {
   return typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string';
@@ -129,7 +126,7 @@ function createVariable(runtime: RuntimeSession, payload: Payload) {
     throw new Error('Invalid variable definition');
   }
   runtime.variables.createUser({
-    id: `user:${crypto.randomUUID()}`,
+    id: `user:${newId()}`,
     name,
     type: type as VariableType,
     initialValue: initialValue as VariableValue,
