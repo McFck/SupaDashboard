@@ -91,15 +91,35 @@ export function selectTriggerSteps(
   return list.byState && Object.hasOwn(list.byState, stateId) ? list.byState[stateId] : list.steps;
 }
 
+function visitSteps(steps: ActionStep[], visit: (step: ActionStep) => void) {
+  for (const step of steps) {
+    visit(step);
+    if (step.kind === 'if') {
+      visitSteps(step.then, visit);
+      visitSteps(step.else, visit);
+    }
+  }
+}
+
+export function walkSteps(scenario: Scenario, visit: (step: ActionStep) => void) {
+  const lists = [
+    ...Object.values(scenario.triggers),
+    ...scenario.events.map((event) => event.list),
+  ];
+  for (const list of lists) {
+    if (list) {
+      visitSteps(list.steps, visit);
+      for (const steps of Object.values(list.byState ?? {})) {
+        visitSteps(steps, visit);
+      }
+    }
+  }
+}
+
 /** Steps in a list, counting the steps inside Condition branches. */
 export function scenarioStepCount(steps: ActionStep[]): number {
   let count = 0;
-  for (const step of steps) {
-    count += 1;
-    if (step.kind === 'if') {
-      count += scenarioStepCount(step.then) + scenarioStepCount(step.else);
-    }
-  }
+  visitSteps(steps, () => count++);
   return count;
 }
 
@@ -118,12 +138,7 @@ export function listStepCount(list: TriggerList | undefined) {
 /** All steps of a scenario, the quantity MAX_SCENARIO_NODES bounds. */
 export function scenarioNodeCount(scenario: Scenario) {
   let count = 0;
-  for (const list of Object.values(scenario.triggers)) {
-    count += listStepCount(list);
-  }
-  for (const event of scenario.events) {
-    count += listStepCount(event.list);
-  }
+  walkSteps(scenario, () => count++);
   return count;
 }
 

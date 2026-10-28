@@ -6,6 +6,7 @@ import {
   newId,
   scenarioNodeCount,
   type EventList,
+  type ScenarioIssue,
   type StateRoles,
   type Trigger,
 } from '../scenario';
@@ -20,6 +21,7 @@ import { controlById, settings } from '../../settings/state.svelte';
 import { commit } from '../../layout/history.svelte';
 import {
   createScenarioDraft,
+  listOf,
   sameScenarioDraft,
   setScenarioStateOverride,
   withNewStepIds,
@@ -36,9 +38,8 @@ import {
 } from './draft-states';
 
 export type ScenarioEditorTab = 'scenario' | 'views' | 'binding' | 'variables';
-type Issue = { path: string; message: string };
 
-const issueKey = (issue: Issue) => `${issue.path}\u0000${issue.message}`;
+const issueKey = (issue: ScenarioIssue) => `${issue.path}\u0000${issue.message}`;
 
 export class ScenarioDraftEditor {
   // Assigned in the constructor; the derived fields below read it lazily.
@@ -86,10 +87,7 @@ export class ScenarioDraftEditor {
     if (!owner || !this.draft) {
       return undefined;
     }
-    if (owner.kind === 'trigger') {
-      return this.draft.scenario.triggers[owner.trigger];
-    }
-    return this.draft.scenario.events.find((event) => event.id === owner.eventId)?.list;
+    return listOf(this.draft.scenario, owner);
   });
   readonly hasOverride = $derived(
     this.selectedState !== '*' &&
@@ -132,7 +130,7 @@ export class ScenarioDraftEditor {
   readonly stateOptions = $derived([
     { value: '*', label: 'Common' },
     ...(this.draft?.variants.map((variant, index) => ({
-      value: variant.id ?? `state-${index + 1}`,
+      value: stateIdAt({ variants: this.draft?.variants ?? [] }, index),
       label: variant.label || `State ${index + 1}`,
     })) ?? []),
   ]);
@@ -397,7 +395,7 @@ export class ScenarioDraftEditor {
     return this.runtime.current.variables.records;
   }
 
-  private issuesOf(draft: ScenarioDraft): Issue[] {
+  private issuesOf(draft: ScenarioDraft): ScenarioIssue[] {
     const stateIssues = validateStateConfiguration(
       { variants: draft.variants, stateBinding: draft.stateBinding, stateRoles: draft.stateRoles },
       this.runtime.current.variables,

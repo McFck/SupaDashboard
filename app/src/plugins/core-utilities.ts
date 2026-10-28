@@ -8,9 +8,6 @@ export function registerCoreUtilities(api: PluginApi) {
     params: [{ key: 'url', label: 'URL', type: 'text', default: 'https://' }],
     run: (a) => openUrl(String(a.url)),
   });
-}
-
-export function registerCoreAppIcons(api: PluginApi) {
   for (const [app, icon] of [
     ['discord', 'MessageCircle'],
     ['chrome', 'Chrome'],

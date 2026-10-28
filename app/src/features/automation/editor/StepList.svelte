@@ -12,7 +12,6 @@
     type ActionStep,
   } from '../scenario';
   import StepCard from './StepCard.svelte';
-  // A Condition's Then and Else are step lists themselves: the list renders its nested lists.
   import StepList from './StepList.svelte';
   import StepPicker from './StepPicker.svelte';
   import { scrollParent, StepLayoutMotion } from './step-layout';

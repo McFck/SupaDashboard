@@ -2,6 +2,7 @@ import type { ControlConfig, Variant } from '../../controls/model';
 import {
   emptyScenario,
   newId,
+  walkSteps,
   type ActionStep,
   type Scenario,
   type StateBinding,
@@ -34,11 +35,14 @@ export function sameScenarioDraft(a: ScenarioDraft, b: ScenarioDraft) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+export function listOf(scenario: Scenario, path: ScenarioListOwner) {
+  return path.kind === 'trigger'
+    ? scenario.triggers[path.trigger]
+    : scenario.events.find((event) => event.id === path.eventId)?.list;
+}
+
 function listAt(scenario: Scenario, path: StepListPath, create: boolean) {
-  let list =
-    path.kind === 'trigger'
-      ? scenario.triggers[path.trigger]
-      : scenario.events.find((event) => event.id === path.eventId)?.list;
+  let list = listOf(scenario, path);
   if (!list && path.kind === 'trigger' && create)
     list = scenario.triggers[path.trigger] = { steps: [] };
   if (!list) throw new Error('Scenario list is unavailable');
@@ -78,18 +82,11 @@ function editList(
 }
 
 function duplicateId(scenario: Scenario, id: string) {
-  const visit = (steps: ActionStep[]): boolean =>
-    steps.some(
-      (step) => step.id === id || (step.kind === 'if' && (visit(step.then) || visit(step.else))),
-    );
-  return (
-    Object.values(scenario.triggers).some(
-      (list) => !!list && (visit(list.steps) || Object.values(list.byState ?? {}).some(visit)),
-    ) ||
-    scenario.events.some(
-      (event) => visit(event.list.steps) || Object.values(event.list.byState ?? {}).some(visit),
-    )
-  );
+  let found = false;
+  walkSteps(scenario, (step) => {
+    found ||= step.id === id;
+  });
+  return found;
 }
 
 export function insertScenarioStep(
@@ -161,10 +158,7 @@ export function setScenarioStateOverride(
   steps: ActionStep[] | undefined,
 ) {
   const next = clonePlain(scenario);
-  const list =
-    path.kind === 'trigger'
-      ? next.triggers[path.trigger]
-      : next.events.find((event) => event.id === path.eventId)?.list;
+  const list = listOf(next, path);
   if (!list) throw new Error('Scenario list is unavailable');
   list.byState ??= {};
   if (steps === undefined) delete list.byState[stateId];
