@@ -70,6 +70,7 @@ pixelWidth, pixelHeight
       ) === 'vertical',
   );
   let content = $state<PullContent>();
+  let feedback = $state<PressFeedback>();
   /** Level a not-yet-active variant would show; only volume sources can be read without subscribing. */
   function previewLevel(v: Variant) {
     if (v.value?.id !== 'volume') return null;
@@ -172,6 +173,7 @@ pixelWidth, pixelHeight
   class="relative h-full w-full"
 >
   <PressFeedback
+    bind:this={feedback}
     disabled={pressFeedbackDisabled}
     class={compact ? 'min-w-48 rounded-lg' : 'tile'}
   >
@@ -222,6 +224,7 @@ pixelWidth, pixelHeight
                 capturetrigger={(trigger, interactionId) =>
                   captureRuntimeTrigger(control.id, itemId ?? '', trigger, interactionId)}
                 ontrigger={onTrigger}
+                {feedback}
               />
             {:else}
               <SliderTrack

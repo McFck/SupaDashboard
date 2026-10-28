@@ -22,6 +22,7 @@
     pixelHeight: number;
     pressFeedbackDisabled?: boolean;
   } = $props();
+  let feedback = $state<PressFeedback>();
   const options = $derived(
     (control.options ?? {}) as {
       channels?: 'auto' | Fixed[];
@@ -81,6 +82,7 @@
   class="relative h-full w-full"
 >
   <PressFeedback
+    bind:this={feedback}
     disabled={pressFeedbackDisabled}
     class="tile flex h-full w-full p-3"
   >
@@ -112,6 +114,7 @@
                 label={ch.label}
                 onchange={(v) => set(ch.target, v)}
                 onmute={() => mute(ch.target)}
+                {feedback}
               />
             </div>
           {/each}

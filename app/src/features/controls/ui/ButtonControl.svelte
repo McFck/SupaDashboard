@@ -45,6 +45,7 @@
   let width = $state(0),
     height = $state(0);
   let content = $state<PullContent>();
+  let feedback = $state<PressFeedback>();
   const manualIndex = $derived(settings.variants[control.id] ?? 0);
   const effective = $derived(effectiveVariant(control, runtimeVariables, manualIndex));
   const current = $derived(effective.index);
@@ -102,12 +103,14 @@ width || pixelWidth, height || pixelHeight
       if (p && !armed) void content?.release(p);
     },
     onCancel: (p) => content?.cancelPull(p),
+    feedback,
   }}
   aria-label={(resolvedPresentation.view.label ?? variant.label) || undefined}
   style:--accent={accent}
   class="relative h-full w-full min-h-0 min-w-0 select-none touch-none overflow-hidden outline-none"
 >
   <PressFeedback
+    bind:this={feedback}
     disabled={pressFeedbackDisabled}
     class={compact ? 'min-w-12 rounded-lg text-zinc-100 hover:bg-white/5' : 'tile'}
   >

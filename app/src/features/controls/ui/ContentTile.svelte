@@ -36,6 +36,7 @@
   let pull = $state<PullSnapshot | null>(null);
   let settling = $state(false);
   let face = $state<HTMLElement>();
+  let feedback = $state<PressFeedback>();
   let animation: Animation | undefined;
   const current = $derived(
     effectiveVariant(control, runtimeVariables, settings.variants[control.id] ?? 0).index,
@@ -97,6 +98,7 @@
   class="relative h-full w-full min-h-0 min-w-0"
 >
   <PressFeedback
+    bind:this={feedback}
     disabled={pressFeedbackDisabled || passThrough}
     class="tile-content"
   >
@@ -125,6 +127,7 @@
             },
             onPullEnd: (value) => settle(value),
             onCancel: settle,
+            feedback,
           }}
           class="content-tile-input"
         ></button>

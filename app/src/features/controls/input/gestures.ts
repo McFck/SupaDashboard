@@ -10,6 +10,8 @@ type Pointer = {
   snapshot: PullSnapshot | null;
   captures: Captures;
 };
+/** Tile press feedback (PressFeedback), told when a pointer press starts and how it ends. */
+export type PressFeedbackHandle = { start(event: PointerEvent): void; end(tapped: boolean): void };
 type GestureHandlers = {
   onTrigger: (trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) => void;
   captureTrigger?: (trigger: Trigger, interactionId: string) => unknown;
@@ -23,6 +25,7 @@ type GestureHandlers = {
   /** Direction bindings are captured at pointerdown so an active pull cannot change meaning. */
   pullBindings?: PullBindings | (() => PullBindings);
   onStart?: () => void;
+  feedback?: PressFeedbackHandle;
 };
 
 const isActivationKey = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ';
@@ -61,6 +64,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
     if (pointer) {
       const snapshot = pointer.snapshot;
       pointer = null;
+      handlers.feedback?.end(false);
       handlers.onCancel?.(snapshot);
       handlers.onPull?.(null);
     }
@@ -85,6 +89,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
       captures: captureTriggers(handlers.captureTrigger),
     };
     press.start(pointer.captures);
+    handlers.feedback?.start(e);
     node.setPointerCapture(e.pointerId);
     handlers.onStart?.();
   };
@@ -97,6 +102,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
     pointer.snapshot = result.snapshot;
     if (result.state.movedBeyondSlop) {
       press.move();
+      handlers.feedback?.end(false);
     }
     handlers.onPull?.(press.long ? null : result.snapshot);
   };
@@ -105,6 +111,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
       return;
     }
     move(e);
+    handlers.feedback?.end(true);
     const { snapshot, captures } = pointer;
     pointer = null;
     if (press.end({ x: e.clientX, y: e.clientY, captures }) === 'moved') {

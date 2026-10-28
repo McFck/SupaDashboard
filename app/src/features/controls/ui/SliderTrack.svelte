@@ -11,6 +11,7 @@
   } from '../input/pull';
   import type { ControlFaceProps, TilePresentation } from '../model';
   import { captureTriggers, PressMachine, type Captures, type Tap } from '../input/press';
+  import type { PressFeedbackHandle } from '../input/gestures';
   import type { Trigger } from '../../automation/scenario';
   import { onDestroy, tick, untrack } from 'svelte';
   import { prefersReducedMotion } from 'svelte/motion';
@@ -62,6 +63,7 @@
     oncancel,
     capturetrigger,
     ontrigger,
+    feedback,
   }: {
     level: number | null;
     muted?: boolean;
@@ -89,6 +91,7 @@
     oncancel?: (p: PullSnapshot | null) => void;
     capturetrigger?: (trigger: Trigger, interactionId: string) => unknown;
     ontrigger?: (trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) => void;
+    feedback?: PressFeedbackHandle;
   } = $props();
 
   let el = $state<HTMLElement>();
@@ -206,6 +209,7 @@
       captures: captureTriggers(capturetrigger),
     };
     press.start(drag.captures);
+    feedback?.start(e);
     el!.setPointerCapture(e.pointerId);
   }
   function move(e: PointerEvent) {
@@ -219,6 +223,7 @@
     drag.snapshot = result.snapshot;
     if (result.state.movedBeyondSlop) {
       press.move();
+      feedback?.end(false);
     }
     if (press.long) {
       onpull?.(null);
@@ -247,6 +252,7 @@
       return;
     }
     move(e);
+    feedback?.end(true);
     const finished = drag;
     drag = null;
     active = false;
@@ -273,6 +279,7 @@
     drag = null;
     active = false;
     press.cancel();
+    feedback?.end(false);
     if (finished.state.lockedAxis !== valueAxis(finished.vertical)) {
       oncancel?.(finished.snapshot);
     }
