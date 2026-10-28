@@ -3,7 +3,6 @@
   import type { Component } from 'svelte';
   import {
     beginPull,
-    shouldAnimateSliderFill,
     type PullAxis,
     type PullBindings,
     type PullSnapshot,
@@ -13,7 +12,8 @@
   import type { ControlFaceProps, TilePresentation } from '../model';
   import { captureTriggers, PressMachine, type Captures, type Tap } from '../input/press';
   import type { Trigger } from '../../automation/scenario';
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onDestroy, tick, untrack } from 'svelte';
+  import { prefersReducedMotion } from 'svelte/motion';
   import SliderFace from './SliderFace.svelte';
   import StateView from './StateView.svelte';
   import { sliderFaceText } from '../face-layout';
@@ -97,10 +97,9 @@
   let drag: ActiveDrag | null = null;
   let active = $state(false);
   let fillReady = $state(false);
-  let reducedMotion = $state(false);
-  let previousLevel = $state<number | null>(null);
-  let previousSourceKey = $state<string | undefined>();
-  let previousVertical = $state<boolean | undefined>();
+  let previousLevel: number | null = null;
+  let previousSourceKey: string | undefined;
+  let previousVertical: boolean | undefined;
   let readinessGeneration = 0,
     frameA = 0,
     frameB = 0;
@@ -129,7 +128,8 @@
     });
   }
 
-  $effect(() => {
+  // Runs before the DOM update, so a new source or orientation never animates the fill from the old level.
+  $effect.pre(() => {
     const value = level,
       source = sourceKey,
       orientation = vertical;
@@ -138,21 +138,12 @@
       fillReady = false;
       cancelReadiness();
     }
-    if (value != null && (identityChanged || previousLevel == null || !fillReady))
+    if (value != null && (identityChanged || previousLevel == null || !untrack(() => fillReady))) {
       void enableReadiness();
+    }
     previousSourceKey = source;
     previousVertical = orientation;
     previousLevel = value;
-  });
-
-  onMount(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = () => {
-      reducedMotion = media.matches;
-    };
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
   });
 
   const rectNow = (): TrackRect => {
@@ -313,17 +304,7 @@
   const Face = $derived(face ?? SliderFace);
   const faceText = $derived(sliderFaceText(width || pixelWidth, height || pixelHeight, vertical));
   const animateFill = $derived(
-    shouldAnimateSliderFill({
-      level,
-      previousLevel,
-      sourceKey,
-      previousSourceKey: previousSourceKey ?? '',
-      vertical,
-      previousVertical: previousVertical ?? vertical,
-      ready: fillReady,
-      dragging: active,
-      reducedMotion,
-    }),
+    fillReady && Number.isFinite(level) && !active && !prefersReducedMotion.current,
   );
 </script>
 

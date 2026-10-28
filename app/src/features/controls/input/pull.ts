@@ -162,25 +162,3 @@ export function updatePull(
     snapshot,
   };
 }
-
-export function shouldAnimateSliderFill(input: {
-  level: number | null;
-  previousLevel: number | null;
-  sourceKey: string;
-  previousSourceKey: string;
-  vertical: boolean;
-  previousVertical: boolean;
-  ready: boolean;
-  dragging: boolean;
-  reducedMotion: boolean;
-}) {
-  return (
-    input.ready &&
-    Number.isFinite(input.level) &&
-    Number.isFinite(input.previousLevel) &&
-    input.sourceKey === input.previousSourceKey &&
-    input.vertical === input.previousVertical &&
-    !input.dragging &&
-    !input.reducedMotion
-  );
-}

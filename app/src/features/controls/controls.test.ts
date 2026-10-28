@@ -4,7 +4,6 @@ import { buttonIconSize, mixerLayout, pressRippleGeometry, sliderOrientation } f
 import {
   beginPull,
   pullBindingsFor,
-  shouldAnimateSliderFill,
   updatePull,
 } from './input/pull';
 import { springDuration, springProgress, SPRING_SAMPLES } from '$lib/spring';
@@ -464,43 +463,6 @@ describe('configured pull state', () => {
       },
     };
     expect(pullBindingsFor(emptyOverride, 0).swipeRight).toMatchObject({ kind: 'scenario' });
-  });
-});
-
-describe('slider fill readiness', () => {
-  const base = {
-    sourceKey: 'volume:system',
-    previousSourceKey: 'volume:system',
-    vertical: true,
-    previousVertical: true,
-    ready: true,
-    dragging: false,
-    reducedMotion: false,
-  };
-  it('animates only finite numeric changes from the same ready source and orientation', () => {
-    expect(shouldAnimateSliderFill({ ...base, level: 0.4, previousLevel: 0.65 })).toBe(true);
-    expect(shouldAnimateSliderFill({ ...base, level: 0.65, previousLevel: null })).toBe(false);
-    expect(shouldAnimateSliderFill({ ...base, level: null, previousLevel: 0.65 })).toBe(false);
-    expect(
-      shouldAnimateSliderFill({
-        ...base,
-        level: 0.4,
-        previousLevel: 0.65,
-        sourceKey: 'volume:spotify',
-      }),
-    ).toBe(false);
-    expect(
-      shouldAnimateSliderFill({ ...base, level: 0.4, previousLevel: 0.65, vertical: false }),
-    ).toBe(false);
-    expect(
-      shouldAnimateSliderFill({ ...base, level: 0.4, previousLevel: 0.65, ready: false }),
-    ).toBe(false);
-    expect(
-      shouldAnimateSliderFill({ ...base, level: 0.4, previousLevel: 0.65, dragging: true }),
-    ).toBe(false);
-    expect(
-      shouldAnimateSliderFill({ ...base, level: 0.4, previousLevel: 0.65, reducedMotion: true }),
-    ).toBe(false);
   });
 });
 
