@@ -57,6 +57,7 @@ pub fn run() {
             content::content_frames_ready,
             panel::panel_bootstrap,
             panel::panel_ready,
+            panel::snap::panel_snap_button,
             monitors::monitor_names,
             dashboard::commands::dashboard_set_bounds,
             dashboard::commands::dashboard_interaction_mode,
