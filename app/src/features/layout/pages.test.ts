@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ControlConfig } from '../controls/model';
-import { DEFAULTS, type Settings } from '../settings/schema';
+import { type Settings } from '../settings/schema';
+import { DEFAULTS } from '../settings/defaults';
 import {
   addPage,
   deletePage,

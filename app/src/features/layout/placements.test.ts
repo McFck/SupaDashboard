@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULTS } from '../settings/schema';
+import { DEFAULTS } from '../settings/defaults';
 import { hasPlacement, pageItems, removePlacement, storedPlacements } from './placements';
 
 type PageItem = { id: string; control: string; x: number; y: number; w: number; h: number };

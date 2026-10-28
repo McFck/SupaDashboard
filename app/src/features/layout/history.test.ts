@@ -6,7 +6,7 @@ import {
   SnapshotHistory,
 } from './history.svelte';
 import { settings } from '../settings/state.svelte';
-import { DEFAULTS } from '../settings/schema';
+import { DEFAULTS } from '../settings/defaults';
 import { addPage, deletePage, duplicatePage, renamePage, reorderPage } from './pages';
 import type { ControlConfig } from '../controls/model';
 

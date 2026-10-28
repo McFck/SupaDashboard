@@ -1,6 +1,3 @@
-// Spotify integration as a plugin: the core only knows "media sources" and "app volumes".
-// Today it drives the desktop app through Windows' media session; a Web API connection
-// (now playing, like, shuffle…) can be added here later without touching the core.
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Plugin } from '../features/plugins/contracts';
