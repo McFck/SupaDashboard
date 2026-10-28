@@ -2,7 +2,6 @@ import { writable } from 'svelte/store';
 import { settings, onRemoteSettings } from '../../features/settings/state.svelte';
 import type { Settings } from '../../features/settings/schema';
 import { controlById } from '../../features/settings/state.svelte';
-import { effectiveVariant, stateIdAt } from '../../features/controls/button-state';
 import { EventRegistry } from '../../features/automation/events';
 import {
   runAction,
@@ -30,6 +29,7 @@ import { SkinController } from '../../features/skins/skin-controller';
 import { startClock } from '../../features/automation/clock';
 import { EMPTY, type RuntimeSnapshot } from './state';
 import { VariableSaver, type VariablePersistence } from './variable-persistence';
+import { controlStateId, stateIndex } from './control-state';
 import { ExecutionEngine } from '../../features/automation/execution-engine';
 import type { ControlConfig } from '../../features/controls/model';
 
@@ -47,30 +47,6 @@ function fingerprint(control: ControlConfig) {
     stateRoles: control.stateRoles,
     states: control.variants.map((variant) => variant.id),
   });
-}
-
-/** The state a control shows now: its variable binding first, else its manual state. */
-export function controlStateId(
-  control: ControlConfig,
-  variables: Parameters<typeof effectiveVariant>[1],
-) {
-  return effectiveVariant(control, variables, settings.variants[control.id] ?? 0).stateId;
-}
-
-/** Resolves a state by ID, by index (older settings), or relative to `current` for migrated next/prev gestures. */
-function stateIndex(control: ControlConfig, current: number, stateId: string) {
-  const count = control.variants.length;
-  if (stateId === 'next') {
-    return (current + 1) % count;
-  }
-  if (stateId === 'prev') {
-    return (current - 1 + count) % count;
-  }
-  const index = control.variants.findIndex((_, i) => stateIdAt(control, i) === stateId);
-  if (index < 0 && /^\d+$/.test(stateId) && Number(stateId) < count) {
-    return Number(stateId);
-  }
-  return index;
 }
 
 function valuesOf(snapshot: VariableSnapshot) {

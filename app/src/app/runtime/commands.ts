@@ -6,7 +6,8 @@ import { newId, type Trigger } from '../../features/automation/scenario';
 import type { PageChangePayload, RemotePageChangeReason } from './protocol';
 import { runtimeView, type RuntimeSnapshot } from './state';
 import { requestRuntime } from './client';
-import { controlStateId, currentRuntime } from './session.svelte';
+import { controlStateId } from './control-state';
+import { currentRuntime } from './session.svelte';
 
 export async function requestPageChange(
   change: { direction: 'next' | 'prev' } | { page: string },
