@@ -2,7 +2,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Label } from '$lib/components/ui/label';
   import Choice from '../../plugins/ui/Choice.svelte';
-  import ScenarioSteps from './ScenarioSteps.svelte';
+  import StepList from './StepList.svelte';
   import type { StepListPath } from './scenario-edit';
   import type { ScenarioDraftEditor } from './scenario-draft.svelte';
 
@@ -38,7 +38,7 @@
 </script>
 
 {#snippet steps(path: StepListPath)}
-  <ScenarioSteps
+  <StepList
     {draft}
     {path}
     pickerKey={editor.pickerKey}
