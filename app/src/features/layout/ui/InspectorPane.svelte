@@ -59,7 +59,7 @@
   class="right-slot relative min-h-0 shrink-0 overflow-visible"
   class:resizing={resizing !== null}
   class:inactive={!active}
-  style:width="{frame.inspectorOpen ? width : 0}px"
+  style:width="{width}px"
 >
   <PaneHandle
     label="Resize inspector"
@@ -70,12 +70,8 @@
   />
   <section
     aria-label="Inspector"
-    aria-hidden={!frame.inspectorOpen}
-    inert={!frame.inspectorOpen}
     style:width="{width}px"
-    style:display={frame.inspectorOpen ? undefined : 'none'}
     class="right-panel absolute -top-12 bottom-0 left-0 z-10 flex min-h-0 flex-col overflow-hidden bg-sidebar"
-    class:open={frame.inspectorOpen}
   >
     <div
       aria-hidden="true"

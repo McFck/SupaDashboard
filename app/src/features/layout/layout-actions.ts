@@ -18,9 +18,8 @@ export function pasteWidget(
   controls: ControlConfig[],
   grid: Grid,
   at: { x: number; y: number },
-  replace?: string,
 ) {
-  if (!fits(items, { ...at, w: copy.w, h: copy.h }, grid, replace ? [replace] : [])) return null;
+  if (!fits(items, { ...at, w: copy.w, h: copy.h }, grid)) return null;
   const control = {
     ...cloneControl(copy.control),
     id: idFor(

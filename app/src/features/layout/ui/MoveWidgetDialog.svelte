@@ -9,7 +9,6 @@
     mode,
     options,
     destination,
-    canMove,
     ondestination,
     onclose,
     onmove,
@@ -18,11 +17,14 @@
     mode: MoveMode | undefined;
     options: MoveOption[];
     destination: string;
-    canMove: boolean;
     ondestination: (value: string) => void;
     onclose: () => void;
     onmove: () => void;
   } = $props();
+
+  const canMove = $derived(
+    options.some((option) => option.value === destination && !option.disabled),
+  );
 </script>
 
 <Dialog.Root

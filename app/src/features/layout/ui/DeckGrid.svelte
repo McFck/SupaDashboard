@@ -57,7 +57,7 @@
     page: Page;
     layout?: GridLayout;
     target?: LayoutTarget;
-    onitemschange?: (items: Item[]) => boolean | void;
+    onitemschange: (items: Item[]) => boolean;
     faceMap?: Record<string, Component<ControlFaceProps>>;
     compact?: boolean;
     resolveSize?: (typeId: string) => Pick<EffectiveSize, 'min' | 'max'> | undefined;
@@ -154,11 +154,7 @@
 
   function writeItems(next: Item[], label: string) {
     commit(label);
-    if (onitemschange) {
-      return onitemschange(next) !== false;
-    }
-    page.items = next;
-    return true;
+    return onitemschange(next);
   }
 
   function openContextMenu(event: MouseEvent, selection: ContextTarget) {

@@ -22,12 +22,7 @@
   import { layoutFor, movePlacementToSlot, type LayoutTarget } from '../skin-layouts';
   import type { SkinDef } from '../../skins/definition';
   import ContextMenu, { type MenuAction } from '../../../panel/ui/ContextMenu.svelte';
-  import {
-    frame,
-    layoutPreview,
-    saveFrame,
-    saveLayoutPreview,
-  } from '../../../panel/ui/preferences.svelte';
+  import { frame, layoutPreview, saveLayoutPreview } from '../../../panel/ui/preferences.svelte';
   import { cloneControl, type WidgetCopy } from '../layout-actions';
   import { clipboard } from '../widget-clipboard.svelte';
   import { insertWidget, planInsertion } from '../widget-insert';
@@ -128,9 +123,6 @@
   const inspectorWidth = $derived(
     Math.max(0, Math.min(frame.inspectorWidth, layoutWidth - CANVAS_MIN_WIDTH)),
   );
-
-  // The inspector always has content, so it never closes; "close" falls back to the Deck settings.
-  frame.inspectorOpen = true;
 
   $effect(() => {
     if (!active) {
@@ -340,16 +332,10 @@
     if (target) {
       selectionTarget = target;
     }
-    if (next) {
-      frame.inspectorOpen = true;
-      saveFrame();
-    }
   }
 
   function openDeckSettings() {
     select(null);
-    frame.inspectorOpen = true;
-    saveFrame();
   }
 
   function openScenario(controlId: string, itemId: string, trigger: Trigger = 'press') {
@@ -728,7 +714,7 @@
 
 <div class="flex h-full min-h-0 min-w-0 flex-col overflow-visible">
   <header
-    style:padding-right="{frame.inspectorOpen ? inspectorWidth + 16 : 16}px"
+    style:padding-right="{inspectorWidth + 16}px"
     class="flex h-12 min-h-12 shrink-0 items-center gap-2 border-b border-[#262626] bg-[#171717] px-4"
   >
     <PageTabs
@@ -805,7 +791,6 @@
   mode={moveRequest?.mode}
   options={moveOptions}
   destination={moveRequest?.destinationKey ?? ''}
-  canMove={!!moveDestination}
   ondestination={(value) => {
     if (moveRequest) {
       moveRequest.destinationKey = value;

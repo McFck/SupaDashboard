@@ -20,12 +20,12 @@ const slotOf = (target: LayoutTarget) =>
 
 /**
  * Where a widget of `typeId` can go in the slot: on `cell` when it fits there, else the first free spot. The size
- * defaults to the type's default for this slot; `ignoredItemId` treats one placement as already removed.
+ * defaults to the type's default for this slot.
  */
 export function findSlotPlacement(
   target: LayoutTarget,
   typeId: string,
-  options: { cell?: Cell; size?: Size; ignoredItemId?: string } = {},
+  options: { cell?: Cell; size?: Size } = {},
 ) {
   const current = slotOf(target);
   const slot = current?.slot;
@@ -33,9 +33,7 @@ export function findSlotPlacement(
   if (!current || !slot || !geometry) {
     return null;
   }
-  const occupied = options.ignoredItemId
-    ? current.items.filter((entry) => entry.id !== options.ignoredItemId)
-    : current.items;
+  const occupied = current.items;
   const accepted = !slot.accepts || slot.accepts.includes(typeId);
   const full = slot.max !== undefined && occupied.length >= slot.max;
   const bounds = effectiveSize(target.skinId, slot, typeId);

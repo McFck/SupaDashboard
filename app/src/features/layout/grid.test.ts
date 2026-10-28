@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampResizeRect, drop, firstFree, fits, fitDeck, previewDrop, type Item } from './grid';
+import { clampResizeRect, firstFree, fits, fitDeck, previewDrop, type Item } from './grid';
 
 const grid = { rows: 3, cols: 4 };
 const items: Item[] = [
@@ -83,14 +83,18 @@ describe('deck layout', () => {
     expect(firstFree(items, 3, 1, grid)).toBeNull();
   });
 
-  it('moves into free space, swaps equal-size items, refuses overlaps', () => {
-    expect(drop(items, 'a', 3, 2, grid)!.find((i) => i.id === 'a')).toMatchObject({ x: 3, y: 2 });
-    const swapped = drop(items, 'a', 1, 0, grid)!;
+  it('moves into free space, swaps equal-size items, relocates blockers', () => {
+    const drop = (id: string, x: number, y: number) => {
+      const preview = previewDrop(items, id, x, y, grid);
+      return preview.kind === 'invalid' ? null : preview.items;
+    };
+    expect(drop('a', 3, 2)!.find((i) => i.id === 'a')).toMatchObject({ x: 3, y: 2 });
+    const swapped = drop('a', 1, 0)!;
     expect(swapped.find((i) => i.id === 'a')).toMatchObject({ x: 1, y: 0 });
     expect(swapped.find((i) => i.id === 'b')).toMatchObject({ x: 0, y: 0 });
-    const relocatedMixer = drop(items, 'a', 1, 1, grid)!;
+    const relocatedMixer = drop('a', 1, 1)!;
     expect(relocatedMixer.find((i) => i.id === 'm')).toMatchObject({ x: 2, y: 1 });
-    expect(drop(items, 'm', 3, 1, grid)).toBeNull(); // off the grid
+    expect(drop('m', 3, 1)).toBeNull(); // off the grid
   });
 
   it('swaps a smaller tile into the source footprint when the snapped result is collision-free', () => {

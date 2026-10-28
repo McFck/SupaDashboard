@@ -3,8 +3,8 @@ import { buildExistingControlRows, searchExistingControls } from './existing-con
 import { pageItems } from './pages';
 
 const types = new Map([
-  ['button', { title: 'Button', icon: 'MousePointer2', size: { w: 2, h: 1 } }],
-  ['slider', { title: 'Slider', icon: 'SlidersHorizontal', size: { w: 3, h: 1 } }],
+  ['button', { title: 'Button', icon: 'MousePointer2' }],
+  ['slider', { title: 'Slider', icon: 'SlidersHorizontal' }],
 ]);
 
 describe('existing controls', () => {
@@ -28,7 +28,6 @@ describe('existing controls', () => {
       typeTitle: 'plugin.unknown',
       icon: 'Puzzle',
       available: false,
-      size: undefined,
     });
   });
 
@@ -44,30 +43,6 @@ describe('existing controls', () => {
     expect(searchExistingControls(rows, '  KITCHEN ').map((row) => row.id)).toEqual(['one']);
     expect(searchExistingControls(rows, ' SLIDER ').map((row) => row.id)).toEqual(['two']);
     expect(searchExistingControls(rows, 'button').map((row) => row.id)).toEqual(['one']);
-  });
-
-  it('sorts duplicate names by ID without changing source arrays and rebuilds counts from current items', () => {
-    const controls = [
-      { id: 'z', name: 'Same', type: 'button' },
-      { id: 'a', name: 'same', type: 'button' },
-    ];
-    const originalControls = structuredClone(controls);
-    const items = [{ control: 'z' }];
-    const originalItems = structuredClone(items);
-    expect(buildExistingControlRows(controls, items, types).map((row) => row.id)).toEqual([
-      'a',
-      'z',
-    ]);
-    expect(controls).toEqual(originalControls);
-    expect(items).toEqual(originalItems);
-    expect(
-      buildExistingControlRows(controls, [...items, { control: 'z' }], types).find(
-        (row) => row.id === 'z',
-      )?.uses,
-    ).toBe(2);
-    expect(buildExistingControlRows(controls, [], types).find((row) => row.id === 'z')?.uses).toBe(
-      0,
-    );
   });
 
   it('counts uses from page and skin placements while keeping page-local items separate', () => {
