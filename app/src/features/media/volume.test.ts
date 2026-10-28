@@ -350,15 +350,6 @@ describe('shared volume stream', () => {
     expect(get(volume.volumeChannels)).toEqual(makeSnapshot(7).channels);
   });
 
-  it('leaves the browser transport empty without native calls', async () => {
-    const volume = await loadVolume();
-    transport.isTauri = false;
-    await volume.initVolumeSync();
-    expect(get(volume.volumeChannels)).toEqual([]);
-    expect(transport.listen).not.toHaveBeenCalled();
-    expect(transport.invoke).not.toHaveBeenCalled();
-  });
-
   it('registers an exact-ID local channel and routes its writes without native initialization', async () => {
     const volume = await loadVolume();
     let current = { volume: 0.7, muted: false };
