@@ -55,7 +55,23 @@ struct SessionVolume {
     volume: ISimpleAudioVolume,
 }
 
-fn session_volumes(device: &IMMDevice) -> Vec<SessionVolume> {
+/// Process names by pid, kept across polls: resolving one costs an OpenProcess call per session. Pids that no longer
+/// have a session are dropped on every enumeration, so a reused pid is looked up again. Failed lookups are not kept.
+#[derive(Default)]
+pub struct ProcessNames(HashMap<u32, String>);
+
+impl ProcessNames {
+    fn resolve(&mut self, pid: u32) -> Option<String> {
+        if let Some(name) = self.0.get(&pid) {
+            return Some(name.clone());
+        }
+        let name = process_name(pid)?;
+        self.0.insert(pid, name.clone());
+        Some(name)
+    }
+}
+
+fn session_volumes(device: &IMMDevice, names: &mut ProcessNames) -> Vec<SessionVolume> {
     let manager: IAudioSessionManager2 = match unsafe { device.Activate(CLSCTX_ALL, None) } {
         Ok(manager) => manager,
         Err(_) => return Vec::new(),
@@ -68,7 +84,7 @@ fn session_volumes(device: &IMMDevice) -> Vec<SessionVolume> {
         Ok(count) => count,
         Err(_) => return Vec::new(),
     };
-    let mut process_names = HashMap::<u32, Option<String>>::new();
+    let mut seen = Vec::new();
     let mut out = Vec::new();
     for index in 0..count {
         let control: IAudioSessionControl2 =
@@ -80,11 +96,8 @@ fn session_volumes(device: &IMMDevice) -> Vec<SessionVolume> {
             Ok(pid) if pid != 0 => pid,
             _ => continue,
         };
-        let target = process_names
-            .entry(pid)
-            .or_insert_with(|| process_name(pid))
-            .clone();
-        let Some(target) = target.map(|name| normalize_target(&name)) else {
+        seen.push(pid);
+        let Some(target) = names.resolve(pid) else {
             continue;
         };
         let Some(instance_id) = read_session_id(&control) else {
@@ -100,17 +113,21 @@ fn session_volumes(device: &IMMDevice) -> Vec<SessionVolume> {
             volume,
         });
     }
+    names.0.retain(|pid, _| seen.contains(pid));
     out
 }
 
-pub fn read_device(device: &IMMDevice) -> windows::core::Result<Vec<Channel>> {
+pub fn read_device(
+    device: &IMMDevice,
+    names: &mut ProcessNames,
+) -> windows::core::Result<Vec<Channel>> {
     let endpoint: IAudioEndpointVolume = unsafe { device.Activate(CLSCTX_ALL, None)? };
     let mut channels = vec![Channel {
         target: "system".into(),
         volume: unsafe { endpoint.GetMasterVolumeLevelScalar()? },
         muted: unsafe { endpoint.GetMute()? }.as_bool(),
     }];
-    let sessions = session_volumes(device);
+    let sessions = session_volumes(device, names);
     let mut samples = Vec::new();
     for session in sessions {
         let volume = match unsafe { session.volume.GetMasterVolume() } {
@@ -134,6 +151,7 @@ pub fn read_device(device: &IMMDevice) -> windows::core::Result<Vec<Channel>> {
 
 pub fn write_device(
     device: &IMMDevice,
+    names: &mut ProcessNames,
     target: &str,
     value: Option<f32>,
     muted: Option<bool>,
@@ -154,7 +172,7 @@ pub fn write_device(
     }
 
     let selector = normalize_target(target);
-    let sessions = session_volumes(device);
+    let sessions = session_volumes(device, names);
     let targets: Vec<&str> = sessions
         .iter()
         .map(|session| session.target.as_str())

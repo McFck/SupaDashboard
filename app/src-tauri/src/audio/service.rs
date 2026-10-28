@@ -1,5 +1,5 @@
 //! The audio worker thread, its request channel and the two commands that talk to it.
-use super::core_audio::{read_device, read_device_id, write_device};
+use super::core_audio::{ProcessNames, read_device, read_device_id, write_device};
 use super::model::{
     AudioSnapshot, AudioUpdateResult, Channel, canonical_channels, snapshot_changed, validate_patch,
 };
@@ -99,6 +99,7 @@ struct Worker {
     app: AppHandle,
     enumerator: IMMDeviceEnumerator,
     snapshot: AudioSnapshot,
+    process_names: ProcessNames,
     last_error: Option<String>,
 }
 
@@ -126,16 +127,23 @@ fn run(app: AppHandle, requests: Receiver<Request>) {
             device_id: None,
             channels: Vec::new(),
         },
+        process_names: ProcessNames::default(),
         last_error: None,
     };
-    worker.refresh();
-    let mut deadline = Instant::now() + POLL_INTERVAL;
+    // Nobody reads audio until a window asks for the first snapshot, so polling starts then.
+    let mut deadline: Option<Instant> = None;
     loop {
-        let timeout = deadline.saturating_duration_since(Instant::now());
-        match requests.recv_timeout(timeout) {
+        let received = match deadline {
+            Some(deadline) => {
+                requests.recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            }
+            None => requests.recv().map_err(|_| RecvTimeoutError::Disconnected),
+        };
+        match received {
             Ok(Request::Snapshot(reply)) => {
                 worker.refresh();
                 let _ = reply.try_send(Ok(worker.snapshot.clone()));
+                deadline.get_or_insert_with(|| Instant::now() + POLL_INTERVAL);
             }
             Ok(Request::Update {
                 target,
@@ -150,11 +158,12 @@ fn run(app: AppHandle, requests: Receiver<Request>) {
             Ok(Request::Stop) | Err(RecvTimeoutError::Disconnected) => break,
             Err(RecvTimeoutError::Timeout) => {
                 worker.refresh();
-                deadline += POLL_INTERVAL;
                 let now = Instant::now();
-                while deadline <= now {
-                    deadline += POLL_INTERVAL;
+                let mut next = deadline.unwrap_or(now) + POLL_INTERVAL;
+                while next <= now {
+                    next += POLL_INTERVAL;
                 }
+                deadline = Some(next);
             }
         }
     }
@@ -176,19 +185,20 @@ impl Worker {
         }
     }
 
-    fn read_default(&self) -> Result<(Option<String>, Vec<Channel>), String> {
+    fn read_default(&mut self) -> Result<(Option<String>, Vec<Channel>), String> {
         let device = unsafe {
             self.enumerator
                 .GetDefaultAudioEndpoint(eRender, eMultimedia)
         }
         .map_err(|error| error.to_string())?;
         let device_id = read_device_id(&device).map_err(|error| error.to_string())?;
-        let channels = read_device(&device).map_err(|error| error.to_string())?;
+        let channels =
+            read_device(&device, &mut self.process_names).map_err(|error| error.to_string())?;
         Ok((Some(device_id), channels))
     }
 
     fn read_on_device(&mut self, device: &IMMDevice, device_id: String, force_revision: bool) {
-        match read_device(device) {
+        match read_device(device, &mut self.process_names) {
             Ok(channels) => {
                 self.set_error(None);
                 self.commit(Some(device_id), channels, force_revision);
@@ -224,7 +234,7 @@ impl Worker {
             return Ok(self.update_result(false));
         }
 
-        let applied = match write_device(&device, target, value, muted) {
+        let applied = match write_device(&device, &mut self.process_names, target, value, muted) {
             Ok(applied) => applied,
             Err(error) => {
                 self.read_on_device(&device, device_id, false);
