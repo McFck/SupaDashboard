@@ -12,7 +12,7 @@
   import ColorField from '$lib/components/ColorField.svelte';
   import { MAX_VARIANTS, type ControlConfig, type Variant } from '../../controls/model';
   import { moveVariant, removeVariant as removeStateVariant } from '../../controls/variants';
-  import { newStateFrom } from '../../automation/editor/scenario-edit';
+  import { newStateFrom } from '../../automation/editor/draft-states';
   import IconPicker from '../../controls/editor/IconPicker.svelte';
   import ValueEditor from '../../controls/editor/ValueEditor.svelte';
   import { settings } from '../../settings/state.svelte';

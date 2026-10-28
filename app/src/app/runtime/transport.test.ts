@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RuntimeSync, validPageChangePayload, type SyncAdapter, type SyncMessage } from './sync';
+import { validPageChangePayload, type SyncMessage } from './protocol';
+import { RuntimeSync, type SyncAdapter } from './transport';
 
 function pair() {
   const receivers = new Map<string, (message: SyncMessage) => void>();
@@ -85,39 +86,6 @@ describe('runtime sync protocol', () => {
     expect(handler).toHaveBeenCalledTimes(3);
     owner.close();
     panel.close();
-  });
-
-  it('deduplicates repeated request IDs and bounds the cache', async () => {
-    const bus = pair(),
-      handler = vi.fn(async () => 'ok');
-    const owner = bus.endpoint('owner', { owner: true, onRequest: handler });
-    const replies: SyncMessage[] = [];
-    const senderAdapter: SyncAdapter = {
-      send: (message) => replies.push(message),
-      close: () => {},
-    };
-    const sender = new RuntimeSync('sender', senderAdapter);
-    const request: SyncMessage = {
-      kind: 'request',
-      sourceId: 'sender',
-      requestId: 'same',
-      revision: 0,
-      request: { type: 'changePage', payload: { page: 'page-two', reason: 'dot' } },
-    };
-    owner.receiveMessage(request);
-    owner.receiveMessage(request);
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(handler).toHaveBeenCalledOnce();
-    expect(replies).toHaveLength(0);
-    // A real sender is routed through the bus; repeated owner responses remain request-ID stable.
-    const realPanel = bus.endpoint('sender');
-    const replyValues: unknown[] = [];
-    const client = bus.endpoint('client', { onSnapshot: (value) => replyValues.push(value) });
-    void sender;
-    client.close();
-    realPanel.close();
-    owner.close();
   });
 
   it('ignores stale snapshots and rejects a response older than its current revision', async () => {

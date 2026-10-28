@@ -1,5 +1,8 @@
+import { freezeDeep, isRecord } from './plain-data';
+
 export type VariableType = 'boolean' | 'integer' | 'float' | 'string';
 export type VariableValue = boolean | number | string;
+export const VARIABLE_TYPES: readonly VariableType[] = ['boolean', 'integer', 'float', 'string'];
 export type VariableDefinition = {
   id: string;
   name: string;
@@ -57,24 +60,12 @@ export function parseVariableText(type: VariableType, text: string): VariableVal
   return parsed;
 }
 
-function freezeDeep<T>(value: T): T {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    for (const child of Object.values(value as Record<string, unknown>)) freezeDeep(child);
-  }
-  return value;
-}
-
 function copyRecord(record: VariableRecord): VariableRecord {
   return structuredClone(record);
 }
 
 function nameKey(name: string) {
   return normalizeName(name).toLocaleLowerCase();
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function isDefinition(value: unknown): value is VariableDefinition {
@@ -86,10 +77,7 @@ function isDefinition(value: unknown): value is VariableDefinition {
     !!value.name.trim() &&
     typeof value.owner === 'string' &&
     !!value.owner &&
-    (value.type === 'boolean' ||
-      value.type === 'integer' ||
-      value.type === 'float' ||
-      value.type === 'string') &&
+    VARIABLE_TYPES.includes(value.type as VariableType) &&
     typeof value.persistent === 'boolean' &&
     typeof value.readOnly === 'boolean' &&
     (value.aliases === undefined ||

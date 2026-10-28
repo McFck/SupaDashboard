@@ -4,7 +4,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { get } from 'svelte/store';
 import { settings } from '../features/settings/state.svelte';
 import { hasPlacement, pageItems } from '../features/layout/placements';
-import { currentRuntime } from '../app/runtime/lifecycle';
+import { currentRuntime } from '../app/runtime/session.svelte';
 import { appOwners, mediaSources } from '../features/plugins/registry';
 import type { ActionRef, Param, Plugin } from '../features/plugins/contracts';
 import { parseVariableText } from '../features/automation/variables';

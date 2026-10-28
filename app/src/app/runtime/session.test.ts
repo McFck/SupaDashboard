@@ -5,11 +5,10 @@ import { actions, install, skins } from '../../features/plugins/registry';
 import type { ActionContext } from '../../features/plugins/contracts';
 import { settings, serializeSettings } from '../../features/settings/state.svelte';
 import type { Page } from '../../features/settings/schema';
-import { captureTrigger } from '../../features/automation/scenario-runner';
+import { captureTrigger } from '../../features/automation/capture';
 import { mediaSourceKey } from '../../features/media/content';
 import { VariableStore } from '../../features/automation/variables';
 import { acceptRuntimeSnapshot } from './client';
-import { bootRuntime, stopRuntime } from './lifecycle';
 import { RuntimeSession } from './session.svelte';
 import { runtimeView } from './state';
 import type { ControlConfig } from '../../features/controls/model';
@@ -40,7 +39,6 @@ const packet = (controlConfig: ControlConfig, trigger: Trigger = 'press') =>
 let runtime: RuntimeSession | undefined;
 
 afterEach(async () => {
-  await stopRuntime();
   await runtime?.dispose();
   runtime = undefined;
   Object.assign(settings, structuredClone(priorSettings));
@@ -58,7 +56,7 @@ afterEach(async () => {
 });
 
 describe('automation runtime', () => {
-  it('runs skin quick actions only in the owner with runner context', async () => {
+  it('runs skin quick actions only in a live owner with runner context', async () => {
     let received: ActionContext | undefined;
     actions.set('test.action', {
       id: 'test.action',
@@ -75,8 +73,14 @@ describe('automation runtime', () => {
     expect(received).toMatchObject({ controlId: '', itemId: '', trigger: 'press' });
     expect(received?.signal.aborted).toBe(false);
 
+    actions.set('test.release', {
+      id: 'test.release',
+      title: 'Endless quick action',
+      run: () => new Promise(() => {}),
+    });
+    const endless = runtime.dispatchQuickAction({ id: 'test.release' });
     await runtime.dispose();
-    runtime = new RuntimeSession({ owner: false });
+    await expect(endless).resolves.toEqual({ status: 'cancelled' });
     await expect(runtime.dispatchQuickAction({ id: 'test.action' })).resolves.toEqual({
       status: 'rejected',
     });
@@ -175,7 +179,7 @@ describe('automation runtime', () => {
     }
   });
 
-  it('keeps the clock inactive in followers and stops publishing after owner disposal', async () => {
+  it('stops the clock after owner disposal', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-26T12:00:00Z'));
     const variables = new VariableStore();
@@ -191,11 +195,6 @@ describe('automation runtime', () => {
       },
       'core',
     );
-    runtime = new RuntimeSession({ variables, owner: false });
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(variables.getValue('clock.time')).toBe('not-started');
-    await runtime.dispose();
-
     runtime = new RuntimeSession({ variables });
     const initial = variables.getValue('clock.time');
     expect(initial).not.toBe('not-started');
@@ -288,7 +287,6 @@ describe('automation runtime', () => {
     expect(get(runtime.snapshots).content[config.id]).toEqual({ slide: 0, reload: 0 });
 
     await runtime.dispose();
-    runtime = new RuntimeSession({ owner: false });
     expect(() => runtime!.contentCommand(config.id, 'goto', 0)).toThrow(
       'Content runtime is unavailable',
     );
@@ -385,7 +383,7 @@ describe('automation runtime', () => {
     expect(JSON.parse(serializeSettings()).deck.activePage).toBe('page-1');
     expect(runtime.changePage('page-2')).toBe(true);
     settings.deck.pages = settings.deck.pages.filter((page) => page.id !== 'page-2');
-    runtime.reconcilePages();
+    runtime.pages.reconcile(settings.deck.pages);
     await tick();
     expect(settings.deck.activePage).toBe('page-3');
     const writesBefore = serializeSettings();
@@ -423,9 +421,8 @@ describe('automation runtime', () => {
     settings.deck.pages = [...settings.deck.pages].reverse();
     await tick();
     expect(dispatch).toHaveBeenCalledOnce();
-    const follower = new RuntimeSession({ owner: false });
-    expect(follower.changePage('page-1', 'dot')).toBe(false);
-    await follower.dispose();
+    await runtime.dispose();
+    expect(runtime.changePage('page-1', 'dot')).toBe(false);
     expect(dispatch).toHaveBeenCalledOnce();
   });
 
@@ -502,8 +499,7 @@ describe('automation runtime', () => {
       },
     };
     settings.controls = [self, other];
-    const owner = await bootRuntime({ variables: new VariableStore() });
-    runtime = owner.runtime;
+    runtime = new RuntimeSession({ variables: new VariableStore() });
     const context = {
       signal: new AbortController().signal,
       eventAncestry: { depth: 0, listeners: [] },
@@ -549,10 +545,8 @@ describe('automation runtime', () => {
       Promise.resolve().then(() => next.run({}, { ...context, signal: aborted.signal })),
     ).rejects.toThrow('runtime is unavailable');
 
-    await stopRuntime();
+    await runtime.dispose();
     runtime = undefined;
-    const follower = await bootRuntime({ variables: new VariableStore(), owner: false });
-    runtime = follower.runtime;
     await expect(Promise.resolve().then(() => next.run({}, context))).rejects.toThrow(
       'runtime is unavailable',
     );
@@ -609,15 +603,15 @@ describe('automation runtime', () => {
       ...settings.skinSettings,
       [skinId]: { enabled: false, future: '保持' },
     };
-    runtime.updateSkinConfig(skinId, settings.skinSettings[skinId]);
+    runtime.skins.updateConfig(skinId, settings.skinSettings[skinId]);
     await tick();
     expect(observed).toEqual([true, false]);
     expect(runtime.variables.getValue(`${skinId}.configured`)).toBe(false);
 
     const ancestry = { depth: 2, listeners: ['button\u0000change'] };
     const emit = vi.spyOn(runtime, 'emitEvent').mockResolvedValue();
-    await runtime.setSkinView(skinId, 'cab', ancestry);
-    await runtime.setSkinState(skinId, 'configured', true, ancestry);
+    await runtime.skins.setView(skinId, 'cab', ancestry);
+    await hookContext.setState('configured', true, ancestry);
     await hookContext.emitEvent(`${skinId}.changed`, 'fixture', { ok: true }, ancestry);
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('cab');
     expect(
@@ -648,10 +642,6 @@ describe('automation runtime', () => {
     runtime = new RuntimeSession({ variables });
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('display');
     await runtime.dispose();
-    runtime = new RuntimeSession({ owner: false });
     expect(observed).toEqual([true, false]);
-    expect(() => runtime!.setSkinState(skinId, 'configured', false)).toThrow(
-      'Skin runtime is unavailable',
-    );
   });
 });

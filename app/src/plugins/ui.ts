@@ -11,7 +11,7 @@ import WebControl from '../features/controls/ui/WebControl.svelte';
 import DeckSkin from '../features/skins/deck/DeckSkin.svelte';
 import { emptyScenario } from '../features/automation/scenario';
 import { settings } from '../features/settings/state.svelte';
-import { currentRuntime } from '../app/runtime/lifecycle';
+import { currentRuntime } from '../app/runtime/session.svelte';
 import { hasPlacement } from '../features/layout/placements';
 
 export const uiPlugin: Plugin = {

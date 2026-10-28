@@ -2,6 +2,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { load } from '@tauri-apps/plugin-store';
 import { toast } from 'svelte-sonner';
 import { storeIsReadable } from '$lib/store';
+import { newId } from '../../features/automation/scenario';
 import { VariableStore } from '../../features/automation/variables';
 
 export type VariablePersistence = {
@@ -9,6 +10,41 @@ export type VariablePersistence = {
 };
 
 const VARIABLE_KEY = 'supadashboard:variables:v1';
+const SAVE_DELAY_MS = 200;
+
+/** Saves the persistent variables shortly after the last change, so a burst of edits writes once. */
+export class VariableSaver {
+  private timer: ReturnType<typeof setTimeout> | undefined;
+
+  constructor(
+    private readonly variables: VariableStore,
+    private readonly persistence: VariablePersistence | undefined,
+  ) {}
+
+  schedule() {
+    if (!this.persistence) {
+      return;
+    }
+    this.cancel();
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      void this.flush();
+    }, SAVE_DELAY_MS);
+  }
+
+  cancel() {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+  }
+
+  async flush() {
+    try {
+      await this.persistence?.save(this.variables.serializePersistent());
+    } catch {
+      /* persistence errors are surfaced by the owner boot adapter */
+    }
+  }
+}
 
 export async function loadVariableState(): Promise<{
   variables: VariableStore;
@@ -40,7 +76,7 @@ export async function loadVariableState(): Promise<{
 
   const variables = new VariableStore(envelope);
   let recovery = variables.needsRecovery || corruptJson;
-  const recoveryKey = `variables.recovery:${crypto.randomUUID()}`;
+  const recoveryKey = `variables.recovery:${newId()}`;
   if (unreadable || recovery) {
     toast.error('Could not load saved variables');
   }

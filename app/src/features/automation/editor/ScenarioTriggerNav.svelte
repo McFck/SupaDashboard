@@ -3,9 +3,8 @@
   import Trash from '@lucide/svelte/icons/trash-2';
   import { DropdownMenu } from 'bits-ui';
   import { Button } from '$lib/components/ui/button';
-  import { TRIGGER_LABELS, TRIGGERS, type Trigger } from '../scenario';
+  import { listStepCount, TRIGGER_LABELS, TRIGGERS, type Trigger } from '../scenario';
   import PluginMark, { pluginTitle } from '../../plugins/ui/PluginMark.svelte';
-  import { listStepCount } from './scenario-edit';
   import type { ScenarioDraftEditor } from './scenario-draft.svelte';
 
   let {

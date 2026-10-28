@@ -5,7 +5,7 @@
   import { Input } from '$lib/components/ui/input';
   import Icon from '../../controls/ui/Icon.svelte';
   import type { ControlConfig } from '../../controls/model';
-  import { normalizeControl } from '../../automation/scenario';
+  import { normalizeControl } from '../../automation/normalize-control';
   import { controlTypes } from '../../plugins/registry';
   import PluginMark, { pluginTitle } from '../../plugins/ui/PluginMark.svelte';
   import { settings } from '../../settings/state.svelte';

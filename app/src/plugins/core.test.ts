@@ -27,7 +27,6 @@ const runner = () =>
     getState: () => 'off',
     setState: () => {},
     emitEvent: async () => {},
-    onError: () => {},
   } satisfies RunnerServices);
 
 function sequence(steps: ActionRef[]) {

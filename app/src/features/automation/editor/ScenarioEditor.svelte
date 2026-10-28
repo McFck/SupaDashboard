@@ -148,7 +148,7 @@
       onchange={(binding) => editor.updateBinding(binding)}
     />
   {:else}
-    <VariablesEditor inline />
+    <VariablesEditor />
   {/if}
 {/snippet}
 

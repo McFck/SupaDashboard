@@ -7,18 +7,19 @@ import { settings } from '../../features/settings/state.svelte';
 import type { ScenarioFailure } from '../../features/automation/scenario-runner';
 import type { Trigger } from '../../features/automation/scenario';
 import { acceptRuntimeSnapshot, attachRuntimeConnection, setRuntimeSync } from './client';
-import { bootRuntime, stopRuntime } from './lifecycle';
+import { RuntimeSession } from './session.svelte';
+import { loadVariableState } from './variable-persistence';
 import { handleRuntimeRequest } from './requests';
 import { runtimeView } from './state';
-import { browserRuntimeLease, openRuntimeSync, type RuntimeSync } from './sync';
+import { browserRuntimeLease } from './lease';
+import { openRuntimeSync, type RuntimeSync } from './transport';
 
 export type WindowView = 'dashboard' | 'panel';
 
 let sync: RuntimeSync | undefined;
 let releaseClient: (() => void) | undefined;
 let stopLease: (() => Promise<void>) | undefined;
-let disposeOwner: (() => Promise<void>) | undefined;
-let stopping: Promise<void> | undefined;
+let stopOwner: (() => Promise<void>) | undefined;
 let stopped = false;
 
 function controlName(controlId: string) {
@@ -41,28 +42,30 @@ function reportQueueFull(controlId: string, trigger: Trigger | 'event') {
   toast.warning(`${controlName(controlId)} · ${trigger} queue is full`);
 }
 
-/** Boots the runtime as owner and serves other windows' requests; resolves to its teardown. */
+/** Creates the owner session, serves other windows' requests and publishes its snapshots. */
 async function startOwner(channel: RuntimeSync) {
+  const loaded = await loadVariableState();
   if (stopped) {
-    return async () => {};
+    return;
   }
-  const { runtime, dispose } = await bootRuntime({
-    owner: true,
+  const session = new RuntimeSession({
+    ...loaded,
     onFailure: reportFailure,
     onQueueFull: reportQueueFull,
   });
-  if (stopped) {
-    await dispose();
-    return async () => {};
-  }
-
-  channel.becomeOwner((request) => handleRuntimeRequest(runtime, request));
-  const unsubscribe = runtime.snapshots.subscribe((snapshot) => channel.publish(snapshot));
-  return async () => {
-    unsubscribe();
-    channel.releaseOwnership();
-    await dispose();
-  };
+  channel.becomeOwner((request) => handleRuntimeRequest(session, request));
+  const unsubscribe = session.snapshots.subscribe((snapshot) => {
+    runtimeView.set(snapshot);
+    channel.publish(snapshot);
+  });
+  let disposal: Promise<void> | undefined;
+  // The browser lease and the window teardown both stop the owner; they share one disposal.
+  stopOwner = () =>
+    (disposal ??= (async () => {
+      unsubscribe();
+      channel.releaseOwnership();
+      await session.dispose();
+    })());
 }
 
 export async function startRuntimeServices(view: WindowView) {
@@ -97,39 +100,29 @@ export async function startRuntimeServices(view: WindowView) {
 
   releaseClient = setRuntimeSync(channel);
   if (native) {
-    disposeOwner = await startOwner(channel);
+    await startOwner(channel);
     return;
   }
-  // Several browser tabs share one localStorage: only the lease holder owns the runtime.
+  // Several browser tabs share one localStorage: only the lease holder owns the runtime. The lease
+  // stays held until the owner has stopped, so the next tab never loads variables mid-save.
   const lease = browserRuntimeLease(
+    () => startOwner(channel),
     async () => {
-      disposeOwner = await startOwner(channel);
-    },
-    async () => {
-      await disposeOwner?.();
-      disposeOwner = undefined;
+      await stopOwner?.();
     },
   );
   stopLease = lease.stop;
 }
 
-export function stopRuntimeServices() {
+export async function stopRuntimeServices() {
   stopped = true;
-  stopping ??= (async () => {
-    try {
-      await stopLease?.();
-      await disposeOwner?.();
-    } finally {
-      disposeOwner = undefined;
-      try {
-        await stopRuntime();
-      } finally {
-        releaseClient?.();
-        releaseClient = undefined;
-        sync?.close();
-        sync = undefined;
-      }
-    }
-  })();
-  return stopping;
+  try {
+    await stopLease?.();
+    await stopOwner?.();
+  } finally {
+    releaseClient?.();
+    releaseClient = undefined;
+    sync?.close();
+    sync = undefined;
+  }
 }
