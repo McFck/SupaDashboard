@@ -1,28 +1,16 @@
+#[cfg(not(windows))]
+compile_error!("SupaDashboard builds for Windows only");
+
+mod audio;
 mod content;
-#[cfg(windows)]
+mod dashboard;
 mod media;
 mod monitors;
 mod panel;
-#[cfg(windows)]
-mod volume;
-mod window;
+mod tray;
 
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::{Manager, WindowEvent};
 
-/// The dashboard lives in the tray: closing hides it, the tray brings it back.
-fn toggle_dashboard(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
-        if w.is_visible().unwrap_or(false) {
-            let _ = w.hide();
-        } else {
-            let _ = w.show();
-        }
-    }
-}
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -41,106 +29,40 @@ pub fn run() {
                     .build(),
             )?;
             if let Some(main) = app.get_webview_window("main") {
-                window::install_dashboard_policy(&main).map_err(std::io::Error::other)?;
+                dashboard::policy::install(&main).map_err(std::io::Error::other)?;
             }
-            app.manage(content::ContentObserverState::default());
             app.manage(panel::PanelState::default());
-            #[cfg(windows)]
             app.manage(
-                volume::AudioService::start(app.handle().clone()).map_err(std::io::Error::other)?,
+                audio::service::AudioService::start(app.handle().clone())
+                    .map_err(std::io::Error::other)?,
             );
-            let panel = MenuItem::with_id(app, "panel", "Open control panel", true, None::<&str>)?;
-            let toggle =
-                MenuItem::with_id(app, "toggle", "Show / hide dashboard", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit SupaDashboard", true, None::<&str>)?;
-            TrayIconBuilder::with_id("tray")
-                .icon(app.default_window_icon().cloned().expect("bundle icon"))
-                .tooltip("SupaDashboard")
-                .menu(&Menu::with_items(app, &[&panel, &toggle, &quit])?)
-                .show_menu_on_left_click(false)
-                .on_menu_event(|app, e| match e.id.as_ref() {
-                    "panel" => {
-                        let app = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            if let Err(error) = panel::open_panel(app).await {
-                                log::error!("tray panel open failed: {error}");
-                            }
-                        });
-                    }
-                    "toggle" => toggle_dashboard(app),
-                    "quit" => app.exit(0),
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, e| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } = e
-                    {
-                        let app = tray.app_handle().clone();
-                        // Left click toggles the control panel: a visible panel hides like its close button.
-                        if let Some(window) = app.get_webview_window("panel") {
-                            if window.is_visible().unwrap_or(false)
-                                && !window.is_minimized().unwrap_or(false)
-                            {
-                                app.state::<panel::PanelState>().close_requested();
-                                let _ = window.hide();
-                                return;
-                            }
-                        }
-                        tauri::async_runtime::spawn(async move {
-                            if let Err(error) = panel::open_panel(app).await {
-                                log::error!("tray panel open failed: {error}");
-                            }
-                        });
-                    }
-                })
-                .build(app)?;
-            let app = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(error) = panel::preload_panel(app).await {
-                    log::error!("control panel preload failed: {error}");
-                }
-            });
+            tray::install(app)?;
+            panel::spawn_preload(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
-                } else if window.label() == "panel" {
-                    api.prevent_close();
-                    window
-                        .app_handle()
-                        .state::<panel::PanelState>()
-                        .close_requested();
-                    let _ = window.hide();
+            match window.label() {
+                // The dashboard lives in the tray: closing hides it.
+                "main" => {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
                 }
+                "panel" => panel::on_window_event(window, event),
+                _ => return,
             }
-            if window.label() == "panel" && matches!(event, WindowEvent::Destroyed) {
-                window.app_handle().state::<panel::PanelState>().destroyed();
-            }
-            if matches!(window.label(), "main" | "panel") && matches!(event, WindowEvent::Destroyed)
-            {
-                let state = window.app_handle().state::<content::ContentObserverState>();
-                content::forget_window(
-                    window.label().to_owned(),
-                    window.app_handle().clone(),
-                    &state,
-                );
-            }
+            content::on_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
             content::content_frames_ready,
             panel::panel_bootstrap,
             panel::panel_ready,
             monitors::monitor_names,
-            window::dashboard_set_bounds,
-            window::dashboard_interaction_mode,
-            volume::audio_snapshot,
-            volume::audio_update,
+            dashboard::commands::dashboard_set_bounds,
+            dashboard::commands::dashboard_interaction_mode,
+            audio::service::audio_snapshot,
+            audio::service::audio_update,
             media::media_command,
         ])
         .run(tauri::generate_context!())
