@@ -15,8 +15,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             app.handle().plugin(
@@ -36,6 +34,7 @@ pub fn run() {
                 audio::service::AudioService::start(app.handle().clone())
                     .map_err(std::io::Error::other)?,
             );
+            media::grant_saved_files(app.handle());
             tray::install(app)?;
             panel::spawn_preload(app.handle().clone());
             Ok(())
