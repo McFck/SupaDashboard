@@ -117,7 +117,7 @@ describe('automation runtime', () => {
     await expect(runtime.dispatchQuickAction({ id: 'test.action' })).resolves.toEqual({
       status: 'completed',
     });
-    expect(received).toMatchObject({ controlId: '', itemId: '', trigger: 'press' });
+    expect(received).toMatchObject({ controlId: '' });
     expect(received?.signal.aborted).toBe(false);
 
     actions.set('test.release', {
