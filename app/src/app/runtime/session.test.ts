@@ -75,7 +75,14 @@ describe('automation runtime', () => {
     expect(received).toMatchObject({ controlId: '', itemId: '', trigger: 'press' });
     expect(received?.signal.aborted).toBe(false);
 
+    actions.set('test.release', {
+      id: 'test.release',
+      title: 'Endless quick action',
+      run: () => new Promise(() => {}),
+    });
+    const endless = runtime.dispatchQuickAction({ id: 'test.release' });
     await runtime.dispose();
+    await expect(endless).resolves.toEqual({ status: 'cancelled' });
     await expect(runtime.dispatchQuickAction({ id: 'test.action' })).resolves.toEqual({
       status: 'rejected',
     });

@@ -53,6 +53,8 @@ export class RuntimeSession {
   readonly events = new EventRegistry();
   readonly snapshots = writable<RuntimeSnapshot>(EMPTY);
   private readonly execution: ExecutionEngine;
+  private readonly runner: ScenarioRunner;
+  private readonly quickActions = new Set<AbortController>();
   private readonly content: ContentController;
   private readonly pages: PageController;
   private readonly skins: SkinController;
@@ -100,7 +102,7 @@ export class RuntimeSession {
     });
     this.events.register({ id: 'variables.changed', title: 'Variable changed', plugin: 'core' });
     this.events.register({ id: 'page.changed', title: 'Page changed', plugin: 'core' });
-    const runner = new ScenarioRunner({
+    this.runner = new ScenarioRunner({
       runAction: (ref, context) => runAction(ref, context),
       getVariable: (id) => this.variables.getValue(id),
       findVariable: (name) => this.variables.findByName(name)?.value,
@@ -111,9 +113,8 @@ export class RuntimeSession {
         this.emitEvent(id, parameter, payload, ancestry),
     });
     this.execution = new ExecutionEngine({
-      execute: (packet, signal) => runner.run(packet, signal),
+      execute: (packet, signal) => this.runner.run(packet, signal),
       getFingerprint: (id) => {
-        if (id === '') return 'skin.quickAction';
         const control = controlById(id);
         return control ? fingerprint(control) : undefined;
       },
@@ -201,16 +202,33 @@ export class RuntimeSession {
     return this.execution.dispatch(packet, options);
   }
 
-  dispatchQuickAction(ref: ActionRef): Promise<RunResult> {
-    return this.dispatch({
-      controlId: '',
-      itemId: '',
-      trigger: 'press',
-      interactionId: newId(),
-      sourceStateId: '',
-      capturedAt: Date.now(),
-      steps: [{ id: 'quick-action', kind: 'action', action: ref }],
-    });
+  /** Skin quick actions belong to no control: they skip the control lanes and stop with the session. */
+  async dispatchQuickAction(ref: ActionRef): Promise<RunResult> {
+    if (!this.isOwner) {
+      return { status: 'rejected' };
+    }
+    const controller = new AbortController();
+    this.quickActions.add(controller);
+    try {
+      const result = await this.runner.run(
+        {
+          controlId: '',
+          itemId: '',
+          trigger: 'press',
+          interactionId: newId(),
+          sourceStateId: '',
+          capturedAt: Date.now(),
+          steps: [{ id: 'quick-action', kind: 'action', action: ref }],
+        },
+        controller.signal,
+      );
+      if (result.status === 'failed' && result.failure) {
+        this.onFailure(result.failure);
+      }
+      return result;
+    } finally {
+      this.quickActions.delete(controller);
+    }
   }
 
   dispatchTrigger(
@@ -346,10 +364,7 @@ export class RuntimeSession {
 
   reconcile(controls: Settings['controls']) {
     this.execution.reconcile(
-      new Map<string, string>([
-        ['', 'skin.quickAction'],
-        ...controls.map((control) => [control.id, fingerprint(control)] as const),
-      ]),
+      new Map(controls.map((control) => [control.id, fingerprint(control)] as const)),
     );
     this.content.reconcile(
       controls,
@@ -390,6 +405,7 @@ export class RuntimeSession {
       () => this.skins.dispose(),
       this.detachRegistry,
       () => this.execution.dispose(),
+      () => this.quickActions.forEach((controller) => controller.abort()),
     ]) {
       try {
         cleanup();
