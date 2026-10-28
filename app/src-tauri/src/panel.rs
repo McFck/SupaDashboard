@@ -1,4 +1,5 @@
 mod lifecycle;
+pub mod snap;
 
 use lifecycle::{PanelLifecycle, ReadyAction};
 use std::sync::{Mutex, MutexGuard};
@@ -103,7 +104,7 @@ fn create_panel(app: AppHandle) -> Result<(), String> {
     }
 
     let page_app = app.clone();
-    let built = WebviewWindowBuilder::new(&app, "panel", WebviewUrl::App("index.html".into()))
+    let builder = WebviewWindowBuilder::new(&app, "panel", WebviewUrl::App("index.html".into()))
         .title("SupaDashboard")
         .inner_size(1360.0, 860.0)
         .min_inner_size(960.0, 620.0)
@@ -111,7 +112,15 @@ fn create_panel(app: AppHandle) -> Result<(), String> {
         .visible(false)
         .focused(false)
         .theme(Some(tauri::Theme::Dark))
-        .background_color(tauri::window::Color(24, 24, 24, 255))
+        .background_color(tauri::window::Color(24, 24, 24, 255));
+    // macOS keeps its native traffic lights, inset into the header (32px tall) and over a hidden title.
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .decorations(true)
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .traffic_light_position(tauri::LogicalPosition::new(12.0, 9.0));
+    let built = builder
         .on_page_load(move |window, payload| {
             if payload.event() != PageLoadEvent::Started || window.label() != "panel" {
                 return;
