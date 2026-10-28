@@ -23,8 +23,8 @@
 </script>
 
 {#if title}
-  <span class="sr-only">Plugin · {title}</span>
-  <Hint text="Plugin · {title}">
+  <span class="sr-only">Plugin: {title}</span>
+  <Hint text="Plugin: {title}">
     {#snippet children(props)}
       <span
         {...props}

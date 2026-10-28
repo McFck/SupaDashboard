@@ -46,7 +46,8 @@ export function registeredEvents(
     parameterSuggestions: () =>
       variables.map((record) => ({
         value: record.definition.id,
-        label: `${record.definition.available === false ? 'Unavailable · ' : ''}${record.definition.name}`,
+        label: record.definition.name,
+        unavailable: record.definition.available === false,
         plugin: record.definition.owner,
       })),
   };

@@ -3,6 +3,7 @@
   import Plus from '@lucide/svelte/icons/plus';
   import Trash from '@lucide/svelte/icons/trash-2';
   import Pencil from '@lucide/svelte/icons/pencil';
+  import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
@@ -153,7 +154,6 @@
     await mutate(`delete:${id}`, 'deleteVariable', { id });
   }
   function displayOwner(record: VariableRecord) {
-    if (record.definition.available === false) return `Unavailable · ${record.definition.owner}`;
     return record.definition.owner === 'user' ? 'User' : record.definition.owner;
   }
 </script>
@@ -273,9 +273,16 @@
                     >{/if}
                 </div>
               {/if}
-              <span class="truncate text-xs text-muted-foreground"
-                >{record.definition.type} · {displayOwner(record)}</span
-              >
+              <div class="flex min-w-0 items-center gap-1">
+                <Badge variant="secondary">{record.definition.type}</Badge>
+                <Badge
+                  variant="secondary"
+                  class="min-w-0 truncate font-normal">{displayOwner(record)}</Badge
+                >
+                {#if record.definition.available === false}<Badge variant="outline"
+                    >Unavailable</Badge
+                  >{/if}
+              </div>
             </div>
             {#if editable}
               <div class="flex min-w-0 gap-2">

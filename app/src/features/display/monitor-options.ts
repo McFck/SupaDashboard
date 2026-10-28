@@ -14,6 +14,8 @@ export type MonitorOption = {
   label: string;
   ordinal: number;
   primary: boolean;
+  detail?: string;
+  unavailable?: boolean;
   disabled?: boolean;
 };
 
@@ -72,7 +74,8 @@ export function buildMonitorOptions(
       const friendly = info?.friendly || nativeName?.trim() || 'Display';
       return {
         value: nativeName ?? String(index),
-        label: `${friendly} · ${ordinal} · ${monitor.size.width}×${monitor.size.height}`,
+        label: `${friendly} ${ordinal}`,
+        detail: `${monitor.size.width}×${monitor.size.height}`,
         ordinal,
         primary: index === primaryIndex,
       };
@@ -94,7 +97,8 @@ export function monitorSelectOptions(
   ) {
     local.push({
       value: selected,
-      label: `${selected} · Unavailable`,
+      label: selected,
+      unavailable: true,
       ordinal: 0,
       primary: false,
       disabled: true,

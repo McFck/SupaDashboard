@@ -11,7 +11,8 @@
   const variables = $derived(
     Object.values($runtimeView.variables.records).map((record) => ({
       value: record.definition.id,
-      label: `${record.definition.name} · ${record.definition.type}`,
+      label: record.definition.name,
+      detail: record.definition.type,
       plugin: record.definition.owner,
     })),
   );
@@ -25,13 +26,13 @@
   const variableOptions = (id: string) => [
     ...variables,
     ...(id && !variables.some((option) => option.value === id)
-      ? [{ value: id, label: `Unavailable · ${id}` }]
+      ? [{ value: id, label: id, unavailable: true }]
       : []),
   ];
   const controlStateOptions = (id: string) => [
     ...stateOptions,
     ...(id !== 'self' && !stateOptions.some((option) => option.value === id)
-      ? [{ value: id, label: `Unavailable · ${id}` }]
+      ? [{ value: id, label: id, unavailable: true }]
       : []),
   ];
 

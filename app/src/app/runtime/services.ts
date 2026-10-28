@@ -39,7 +39,7 @@ function reportFailure(failure: ScenarioFailure) {
 }
 
 function reportQueueFull(controlId: string, trigger: Trigger | 'event') {
-  toast.warning(`${controlName(controlId)} · ${trigger} queue is full`);
+  toast.warning(`${controlName(controlId)}: ${trigger} queue is full`);
 }
 
 /** Creates the owner session, serves other windows' requests and publishes its snapshots. */

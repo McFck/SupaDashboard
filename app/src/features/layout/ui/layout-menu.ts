@@ -60,7 +60,7 @@ export function layoutMenuActions(
       run: () => void host.simulate(control.id, item.id, trigger),
     })),
     ...(control.scenario?.events ?? []).map((event) => ({
-      label: `Simulate event · ${eventTitles.get(event.eventId) ?? event.eventId}`,
+      label: `Simulate ${eventTitles.get(event.eventId) ?? event.eventId}`,
       run: () => void host.simulateEvent(event.eventId, event.parameter),
     })),
   ];
