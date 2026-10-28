@@ -48,7 +48,8 @@
     transition: opacity 120ms ease-out;
   }
 
-  :global(.dashboard-shell[data-hovered='true']) .dashboard-page-dots {
+  :global(.dashboard-shell[data-hovered='true']) .dashboard-page-dots,
+  .dashboard-page-dots:focus-within {
     opacity: 1;
     pointer-events: auto;
   }
