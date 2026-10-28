@@ -2,7 +2,7 @@
 import type { ControlConfig } from '../controls/model';
 import { newId, settings } from '../settings/state.svelte';
 import { commit } from './history.svelte';
-import { firstFree, fits, type Item } from './grid';
+import { firstFree, fits, inside, type Item } from './grid';
 import { pageItems, removePlacement } from './pages';
 import {
   canSetLayoutItems,
@@ -128,7 +128,32 @@ export function removeFromSlot(target: LayoutTarget, itemId: string, label: stri
     return false;
   }
   commit(label);
-  const result = removePlacement(settings.deck.pages, target.pageId, itemId, settings.skinLayouts);
+  return deletePlacement(target.pageId, itemId);
+}
+
+/**
+ * Finishes a rows/columns change of a deck page that started at `from`. Widgets left outside the grid are deleted
+ * like any other deletion (a control goes with its last placement), in one undo step with the resize. Keeping them
+ * would strand configured controls that no picker shows and the next page deletion would silently discard.
+ */
+export function finishGridResize(pageId: string, from: { rows: number; cols: number }) {
+  const page = settings.deck.pages.find((entry) => entry.id === pageId);
+  const outside = page ? page.items.filter((item) => !inside(item, page)) : [];
+  if (!page || !outside.length) {
+    return;
+  }
+  const to = { rows: page.rows, cols: page.cols };
+  // Rewind to the start of the gesture so undo brings back the size and the widgets together.
+  Object.assign(page, from);
+  commit(outside.length === 1 ? 'Delete widget' : `Delete ${outside.length} widgets`);
+  Object.assign(page, to);
+  for (const item of outside) {
+    deletePlacement(pageId, item.id);
+  }
+}
+
+function deletePlacement(pageId: string, itemId: string) {
+  const result = removePlacement(settings.deck.pages, pageId, itemId, settings.skinLayouts);
   if (!result.item) {
     return false;
   }

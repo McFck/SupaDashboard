@@ -281,6 +281,3 @@ export function drop(items: Item[], id: string, x: number, y: number, grid: Grid
   const preview = previewDrop(items, id, x, y, grid);
   return preview.kind === 'invalid' ? null : preview.items;
 }
-
-/** Items that still fit after the grid shrinks (others are dropped from the layout, not deleted as controls). */
-export const clampToGrid = (items: Item[], grid: Grid) => items.filter((i) => inside(i, grid));
