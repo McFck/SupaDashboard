@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { writable } from 'svelte/store';
 import { handleRuntimeRequest } from './requests';
 import type { RuntimeSession } from './session.svelte';
-import type { RuntimeRequest } from './sync';
+import type { RuntimeRequest } from './protocol';
 
 function fakeRuntime() {
   const variables = {

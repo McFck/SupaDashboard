@@ -1,6 +1,7 @@
 import { settings } from '../../features/settings/state.svelte';
 import { setVariableMirror } from '../../features/plugins/registry';
-import type { RuntimeRequest, RuntimeSync } from './sync';
+import type { RuntimeRequest } from './protocol';
+import type { RuntimeSync } from './transport';
 import { EMPTY, runtimeView, type RuntimeSnapshot } from './state';
 
 let clientSync: RuntimeSync | undefined;

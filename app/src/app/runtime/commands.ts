@@ -4,7 +4,7 @@ import { effectiveVariant } from '../../features/controls/button-state';
 import { captureTrigger } from '../../features/automation/capture';
 import type { RunResult, TriggerPacket } from '../../features/automation/scenario-runner';
 import { newId, type Trigger } from '../../features/automation/scenario';
-import type { PageChangePayload } from './sync';
+import type { PageChangePayload } from './protocol';
 import { runtimeView, type RuntimeSnapshot } from './state';
 import { requestRuntime } from './client';
 import { currentRuntime } from './lifecycle';

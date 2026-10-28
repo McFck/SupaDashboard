@@ -1,45 +1,8 @@
 import { emit, emitTo, listen } from '@tauri-apps/api/event';
 import { isTauri } from '@tauri-apps/api/core';
 import { newId } from '../../features/automation/scenario';
+import { REQUEST_TYPES, validMessage, type RuntimeRequest, type SyncMessage } from './protocol';
 
-export type PageChangeReason = 'dot' | 'swipe' | 'skin';
-export type PageChangePayload =
-  | { direction: 'next' | 'prev'; reason: PageChangeReason }
-  | { page: string; reason: PageChangeReason };
-export type RuntimeRequest =
-  | { type: 'changePage'; payload: PageChangePayload }
-  | {
-      type:
-        | 'snapshot'
-        | 'simulate'
-        | 'emitEvent'
-        | 'setVariable'
-        | 'createVariable'
-        | 'renameVariable'
-        | 'setVariablePersistence'
-        | 'deleteVariable'
-        | 'stop';
-      payload?: unknown;
-    };
-export type SyncMessage =
-  | {
-      kind: 'request';
-      sourceId: string;
-      requestId: string;
-      revision: number;
-      request: RuntimeRequest;
-    }
-  | {
-      kind: 'reply';
-      sourceId: string;
-      destination: string;
-      requestId: string;
-      revision: number;
-      ok: boolean;
-      value?: unknown;
-      error?: string;
-    }
-  | { kind: 'snapshot'; sourceId: string; destination?: string; revision: number; value: unknown };
 export type SyncAdapter = { send(message: SyncMessage): void; close(): void };
 export type SyncOptions = {
   owner?: boolean;
@@ -49,74 +12,6 @@ export type SyncOptions = {
 };
 
 const CHANNEL = 'supadashboard:runtime:v1';
-const MAX_MESSAGE_SIZE = 256 * 1024;
-const REQUEST_TYPES = new Set([
-  'snapshot',
-  'simulate',
-  'emitEvent',
-  'setVariable',
-  'createVariable',
-  'renameVariable',
-  'setVariablePersistence',
-  'deleteVariable',
-  'stop',
-  'changePage',
-]);
-
-export function validPageChangePayload(value: unknown): value is PageChangePayload {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const payload = value as Record<string, unknown>;
-  if (payload.reason !== 'dot' && payload.reason !== 'swipe' && payload.reason !== 'skin')
-    return false;
-  if (typeof payload.page === 'string')
-    return (
-      Object.keys(payload).sort().join(',') === 'page,reason' &&
-      payload.page.length > 0 &&
-      payload.page.length <= 128
-    );
-  return (
-    Object.keys(payload).sort().join(',') === 'direction,reason' &&
-    (payload.direction === 'next' || payload.direction === 'prev')
-  );
-}
-
-function validMessage(value: unknown): value is SyncMessage {
-  if (!value || typeof value !== 'object') return false;
-  let size: number;
-  try {
-    size = JSON.stringify(value).length;
-  } catch {
-    return false;
-  }
-  if (size > MAX_MESSAGE_SIZE) return false;
-  const message = value as Record<string, any>;
-  if (
-    typeof message.sourceId !== 'string' ||
-    message.sourceId.length > 128 ||
-    !Number.isSafeInteger(message.revision) ||
-    message.revision < 0
-  )
-    return false;
-  if (message.kind === 'request')
-    return (
-      typeof message.requestId === 'string' &&
-      message.requestId.length <= 128 &&
-      message.request &&
-      REQUEST_TYPES.has(message.request.type) &&
-      (message.request.type !== 'changePage' || validPageChangePayload(message.request.payload))
-    );
-  if (message.kind === 'reply')
-    return (
-      typeof message.destination === 'string' &&
-      typeof message.requestId === 'string' &&
-      message.requestId.length <= 128 &&
-      typeof message.ok === 'boolean' &&
-      (message.error === undefined || typeof message.error === 'string')
-    );
-  if (message.kind === 'snapshot')
-    return message.destination === undefined || typeof message.destination === 'string';
-  return false;
-}
 
 type Pending = {
   resolve(value: unknown): void;
@@ -299,54 +194,4 @@ export async function openRuntimeSync(sourceId: string = newId(), options: SyncO
   };
   sync = new RuntimeSync(sourceId, adapter, options);
   return sync;
-}
-
-/** A single browser dashboard tab holds this Web Lock while it owns automation and persistence. */
-export function browserRuntimeLease(
-  onAcquire: () => Promise<void>,
-  onRelease: () => Promise<void>,
-) {
-  let stopped = false,
-    release: (() => void) | undefined,
-    timer: ReturnType<typeof setTimeout> | undefined;
-  const locks = navigator.locks;
-  if (!locks)
-    return {
-      stop: async () => {
-        stopped = true;
-      },
-    };
-  const attempt = () => {
-    if (stopped) return;
-    void locks
-      .request(
-        'supadashboard-runtime-v1',
-        { mode: 'exclusive', ifAvailable: true },
-        async (lock) => {
-          if (!lock) {
-            timer = setTimeout(attempt, 1000);
-            return;
-          }
-          await onAcquire();
-          await new Promise<void>((resolve) => {
-            release = resolve;
-          });
-          release = undefined;
-          await onRelease();
-          if (!stopped) timer = setTimeout(attempt, 0);
-        },
-      )
-      .catch(() => {
-        if (!stopped) timer = setTimeout(attempt, 1000);
-      });
-  };
-  attempt();
-  return {
-    stop: async () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-      release?.();
-      await Promise.resolve();
-    },
-  };
 }

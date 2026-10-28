@@ -10,7 +10,8 @@ import { acceptRuntimeSnapshot, attachRuntimeConnection, setRuntimeSync } from '
 import { bootRuntime, stopRuntime } from './lifecycle';
 import { handleRuntimeRequest } from './requests';
 import { runtimeView } from './state';
-import { browserRuntimeLease, openRuntimeSync, type RuntimeSync } from './sync';
+import { browserRuntimeLease } from './lease';
+import { openRuntimeSync, type RuntimeSync } from './transport';
 
 export type WindowView = 'dashboard' | 'panel';
 

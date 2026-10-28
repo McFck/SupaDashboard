@@ -5,7 +5,7 @@ import { isRecord } from '../../features/automation/plain-data';
 import { newId, TRIGGERS, type Trigger } from '../../features/automation/scenario';
 import type { VariableType, VariableValue } from '../../features/automation/variables';
 import type { RuntimeSession } from './session.svelte';
-import { validPageChangePayload, type RuntimeRequest } from './sync';
+import { validPageChangePayload, type RuntimeRequest } from './protocol';
 
 const MAX_ITEM_ID = 128;
 const MAX_EVENT_TEXT = 256;
