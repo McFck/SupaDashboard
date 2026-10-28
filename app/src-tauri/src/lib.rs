@@ -3,10 +3,10 @@ compile_error!("SupaDashboard builds for Windows only");
 
 mod audio;
 mod content;
+mod dashboard;
 mod media;
 mod monitors;
 mod panel;
-mod window;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -41,7 +41,7 @@ pub fn run() {
                     .build(),
             )?;
             if let Some(main) = app.get_webview_window("main") {
-                window::install_dashboard_policy(&main).map_err(std::io::Error::other)?;
+                dashboard::policy::install(&main).map_err(std::io::Error::other)?;
             }
             app.manage(content::ContentObserverState::default());
             app.manage(panel::PanelState::default());
@@ -137,8 +137,8 @@ pub fn run() {
             panel::panel_bootstrap,
             panel::panel_ready,
             monitors::monitor_names,
-            window::dashboard_set_bounds,
-            window::dashboard_interaction_mode,
+            dashboard::commands::dashboard_set_bounds,
+            dashboard::commands::dashboard_interaction_mode,
             audio::service::audio_snapshot,
             audio::service::audio_update,
             media::media_command,
