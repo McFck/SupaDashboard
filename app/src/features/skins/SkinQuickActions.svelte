@@ -1,7 +1,8 @@
 <script lang="ts">
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
-  import { actions, runAction } from '../plugins/registry';
+  import { actions } from '../plugins/registry';
+  import { currentRuntime } from '../../app/runtime/lifecycle';
   import type { ActionDef, ActionRef } from '../plugins/contracts';
   import { resolveQuickActions, validSkinParam } from './definition';
   import ParamField from '../plugins/ui/ParamField.svelte';
@@ -39,8 +40,11 @@
     host.resetSceneInput();
     running = row.index;
     try {
-      await runAction({ id: row.ref.id, args: row.args });
-      host.setQuickActionsOpen(false);
+      const runtime = currentRuntime();
+      if (!runtime?.isOwner) throw new Error('Runtime owner is unavailable');
+      const result = await runtime.dispatchQuickAction({ id: row.ref.id, args: row.args });
+      if (result.status === 'rejected') throw new Error('Runtime owner is unavailable');
+      if (result.status === 'completed') host.setQuickActionsOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     } finally {

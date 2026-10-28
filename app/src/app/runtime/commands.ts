@@ -41,7 +41,7 @@ export async function dispatchRuntimeTrigger(controlId: string, itemId: string, 
     return (await requestRuntime({
       type: 'simulate',
       payload: { controlId, itemId, trigger },
-    })) as RunResult;
+    })) as RunResult | { status: 'started' };
   } catch {
     return { status: 'rejected' } as RunResult;
   }

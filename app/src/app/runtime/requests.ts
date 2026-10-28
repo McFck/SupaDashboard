@@ -108,7 +108,8 @@ function simulate(runtime: RuntimeSession, payload: Payload) {
   if (!valid) {
     throw new Error('Invalid simulation request');
   }
-  return runtime.simulate(controlId, trigger as Trigger, itemId, { notify: false });
+  void runtime.simulate(controlId, trigger as Trigger, itemId).catch(() => {});
+  return { status: 'started' };
 }
 
 async function emitEvent(runtime: RuntimeSession, payload: Payload) {

@@ -148,9 +148,9 @@
   function conditionStep(): ActionStep {
     const condition: Predicate = {
       kind: 'compare',
-      left: { kind: 'literal', value: '' },
+      left: { kind: 'state', controlId: 'self' },
       op: 'eq',
-      right: { kind: 'literal', value: true },
+      right: { kind: 'literal', value: path.stateId ?? draft.variants[0]?.id ?? 'state-1' },
     };
     return { id: newScenarioId(), kind: 'if', condition, then: [], else: [] };
   }

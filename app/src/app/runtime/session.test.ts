@@ -58,6 +58,30 @@ afterEach(async () => {
 });
 
 describe('automation runtime', () => {
+  it('runs skin quick actions only in the owner with runner context', async () => {
+    let received: ActionContext | undefined;
+    actions.set('test.action', {
+      id: 'test.action',
+      title: 'Quick action',
+      run: (_args, context) => {
+        received = context;
+      },
+    });
+    runtime = new RuntimeSession();
+
+    await expect(runtime.dispatchQuickAction({ id: 'test.action' })).resolves.toEqual({
+      status: 'completed',
+    });
+    expect(received).toMatchObject({ controlId: '', itemId: '', trigger: 'press' });
+    expect(received?.signal.aborted).toBe(false);
+
+    await runtime.dispose();
+    runtime = new RuntimeSession({ owner: false });
+    await expect(runtime.dispatchQuickAction({ id: 'test.action' })).resolves.toEqual({
+      status: 'rejected',
+    });
+  });
+
   it('cleans up started skins when a later skin fails so a retry has only one live instance', async () => {
     let live = 0;
     let fail = true;
@@ -388,6 +412,7 @@ describe('automation runtime', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ depth: 1, listeners: ['runtime-test\u0000page-listener'] });
     expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ kind: 'cycle' });
   });
 
   it('runs next, previous and goto only through a live owner and rejects invalid requests', async () => {

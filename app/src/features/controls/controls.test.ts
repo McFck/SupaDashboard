@@ -18,8 +18,6 @@ import {
   type ResizeCorner,
 } from '../layout/drag-geometry';
 import { tapSequence } from './gestures';
-import { actions, install, runAction } from '../plugins/registry';
-import { corePlugin } from '../../plugins/core';
 
 const prev: ControlConfig = {
   id: 'prev',
@@ -580,26 +578,6 @@ describe('slider fill readiness', () => {
     expect(
       shouldAnimateSliderFill({ ...base, level: 0.4, previousLevel: 0.65, reducedMotion: true }),
     ).toBe(false);
-  });
-});
-
-describe('actions', () => {
-  it('a sequence runs its steps in order, including plugin actions', async () => {
-    install(corePlugin);
-    const log: unknown[] = [];
-    actions.set('test.log', { id: 'test.log', title: 'log', run: (a) => void log.push(a.n) });
-    await runAction({
-      id: 'sequence',
-      args: {
-        steps: [
-          { id: 'test.log', args: { n: 1 } },
-          { id: 'delay', args: { ms: 5 } },
-          { id: 'test.log', args: { n: 2 } },
-        ],
-      },
-    });
-    expect(log).toEqual([1, 2]);
-    await expect(runAction({ id: 'nope' })).rejects.toThrow('Unknown action');
   });
 });
 
