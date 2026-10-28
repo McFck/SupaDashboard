@@ -3,9 +3,13 @@
   "identifier": "panel",
   "description": "The control panel: show or hide the dashboard and pick media files",
   "windows": ["panel"],
-  "permissions": ["core:window:allow-show", "core:window:allow-hide",
+  "permissions": [
+    "core:window:allow-show",
+    "core:window:allow-hide",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
-    "core:window:allow-start-dragging", "dialog:allow-open"]
+    "core:window:allow-start-dragging",
+    "dialog:allow-open"
+  ]
 }

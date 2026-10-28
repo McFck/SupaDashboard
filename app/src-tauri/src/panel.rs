@@ -104,7 +104,7 @@ fn create_panel(app: AppHandle) -> Result<(), String> {
 
     let page_app = app.clone();
     let built = WebviewWindowBuilder::new(&app, "panel", WebviewUrl::App("index.html".into()))
-        .title("SupaDashboard · Control panel")
+        .title("SupaDashboard")
         .inner_size(1360.0, 860.0)
         .min_inner_size(960.0, 620.0)
         .decorations(false)
