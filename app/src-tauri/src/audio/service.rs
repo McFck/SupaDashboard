@@ -173,38 +173,35 @@ fn run(app: AppHandle, requests: Receiver<Request>) {
 
 impl Worker {
     fn refresh(&mut self) {
-        match self.read_default() {
-            Ok((device_id, channels)) => {
-                self.set_error(None);
-                self.commit(device_id, channels, false);
-            }
-            Err(error) => {
-                self.set_error(Some(error));
-                self.commit(None, Vec::new(), false);
-            }
-        }
-    }
-
-    fn read_default(&mut self) -> Result<(Option<String>, Vec<Channel>), String> {
         let device = unsafe {
             self.enumerator
                 .GetDefaultAudioEndpoint(eRender, eMultimedia)
-        }
-        .map_err(|error| error.to_string())?;
-        let device_id = read_device_id(&device).map_err(|error| error.to_string())?;
-        let channels =
-            read_device(&device, &mut self.process_names).map_err(|error| error.to_string())?;
-        Ok((Some(device_id), channels))
+        };
+        let result = device
+            .as_ref()
+            .map_err(|error| error.to_string())
+            .and_then(|device| {
+                read_device_id(device)
+                    .map(|id| (device, id))
+                    .map_err(|error| error.to_string())
+            });
+        self.resync(result, false);
     }
 
-    fn read_on_device(&mut self, device: &IMMDevice, device_id: String, force_revision: bool) {
-        match read_device(device, &mut self.process_names) {
-            Ok(channels) => {
+    /// Polls and writes share the same readback, error state and revision rules.
+    fn resync(&mut self, device: Result<(&IMMDevice, String), String>, force_revision: bool) {
+        let result = device.and_then(|(device, id)| {
+            read_device(device, &mut self.process_names)
+                .map(|channels| (id, channels))
+                .map_err(|error| error.to_string())
+        });
+        match result {
+            Ok((device_id, channels)) => {
                 self.set_error(None);
                 self.commit(Some(device_id), channels, force_revision);
             }
             Err(error) => {
-                self.set_error(Some(error.to_string()));
+                self.set_error(Some(error));
                 self.commit(None, Vec::new(), force_revision);
             }
         }
@@ -223,25 +220,24 @@ impl Worker {
         } {
             Ok(device) => device,
             Err(error) => {
-                self.set_error(Some(error.to_string()));
-                self.commit(None, Vec::new(), false);
+                self.resync(Err(error.to_string()), false);
                 return Ok(self.update_result(false));
             }
         };
         let device_id = read_device_id(&device).map_err(|error| error.to_string())?;
         if expected_device_id != device_id {
-            self.read_on_device(&device, device_id, false);
+            self.resync(Ok((&device, device_id)), false);
             return Ok(self.update_result(false));
         }
 
         let applied = match write_device(&device, &mut self.process_names, target, value, muted) {
             Ok(applied) => applied,
             Err(error) => {
-                self.read_on_device(&device, device_id, false);
+                self.resync(Ok((&device, device_id)), false);
                 return Err(error.to_string());
             }
         };
-        self.read_on_device(&device, device_id, applied);
+        self.resync(Ok((&device, device_id)), applied);
         Ok(self.update_result(applied))
     }
 
