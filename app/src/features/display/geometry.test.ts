@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { startupPlacement, validGeometry } from './geometry';
 
 describe('dashboard window geometry', () => {
-
   it('rejects unusable saved sizes and coordinates', () => {
     expect(validGeometry({ x: -1200, y: 100, width: 770, height: 392 })).toBe(true);
     expect(validGeometry({ x: 0, y: 0, width: 0, height: 392 })).toBe(false);

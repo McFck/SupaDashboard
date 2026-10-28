@@ -73,7 +73,6 @@ export class DashboardWindow {
     }, RESIZE_QUIET_MS);
   }
 
-
   startDrag() {
     getCurrentWindow()
       .startDragging()

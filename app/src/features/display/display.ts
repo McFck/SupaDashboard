@@ -10,8 +10,6 @@ import {
   readWindowBounds,
   setDashboardBounds,
   setDashboardInteractionMode,
-  type Geometry,
-  type MonitorGeometry,
   type WindowStateStore,
 } from '../../platform/window';
 import {
@@ -23,6 +21,7 @@ import {
   startupPlacement,
   validGeometry,
 } from './geometry';
+import type { Geometry, MonitorGeometry } from './model';
 
 type DisplayRequest = Pick<Settings['display'], 'monitor' | 'fullscreen' | 'alwaysOnTop'>;
 type Controller = {

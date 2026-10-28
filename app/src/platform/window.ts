@@ -7,16 +7,8 @@ import {
   primaryMonitor,
   type Window,
 } from '@tauri-apps/api/window';
+import type { Geometry, MonitorGeometry } from '../features/display/model';
 
-/** Physical pixels, as Tauri reports outer window and monitor rectangles. */
-export type Geometry = { x: number; y: number; width: number; height: number };
-export type MonitorGeometry = {
-  name: string;
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  workArea: { position: { x: number; y: number }; size: { width: number; height: number } };
-  scaleFactor: number;
-};
 export type WindowStateStore = Awaited<ReturnType<typeof load>>;
 
 export const monitors = () => availableMonitors();
