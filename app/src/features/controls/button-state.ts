@@ -68,7 +68,7 @@ export function variantIndexForState(control: ControlConfig, stateId: string) {
 function getValue(variables: RuntimeVariables | undefined, id: string): VariableValue | undefined {
   if (!variables) return undefined;
   if (variables instanceof VariableStore) return variables.getValue(id);
-  if ('revision' in variables && 'records' in variables)
+  if ('records' in variables && typeof variables.records === 'object')
     return (variables as VariableSnapshot).records[id]?.value;
   return (variables as Readonly<Record<string, VariableValue>>)[id];
 }
@@ -76,7 +76,7 @@ function getValue(variables: RuntimeVariables | undefined, id: string): Variable
 function getName(variables: RuntimeVariables | undefined, name: string): VariableValue | undefined {
   if (!variables) return undefined;
   if (variables instanceof VariableStore) return variables.findByName(name)?.value;
-  if ('revision' in variables && 'records' in variables) {
+  if ('records' in variables && typeof variables.records === 'object') {
     const key = name.trim().toLocaleLowerCase();
     const record = Object.values((variables as VariableSnapshot).records).find((item) =>
       [item.definition.name, ...(item.definition.aliases ?? [])].some(

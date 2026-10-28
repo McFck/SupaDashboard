@@ -110,7 +110,7 @@ export class VariableStore {
   readonly needsRecovery: boolean = false;
   private records = new Map<string, VariableRecord>();
   private revision = 0;
-  private listeners = new Set<(snapshot: VariableSnapshot) => void>();
+  private listeners = new Set<(snapshot: VariableSnapshot, persistentChanged: boolean) => void>();
 
   constructor(envelope?: unknown) {
     if (envelope === undefined || envelope === null) {
@@ -154,7 +154,7 @@ export class VariableStore {
     return freezeDeep({ revision: this.revision, records });
   }
 
-  subscribe(listener: (snapshot: VariableSnapshot) => void) {
+  subscribe(listener: (snapshot: VariableSnapshot, persistentChanged: boolean) => void) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
@@ -199,7 +199,7 @@ export class VariableStore {
     });
     assertValue(next.definition.type, next.value);
     this.records.set(next.definition.id, next);
-    this.changed();
+    this.changed(next.definition.persistent || current?.definition.persistent === true);
     return copyRecord(next);
   }
 
@@ -225,7 +225,7 @@ export class VariableStore {
       ...new Set([...(current.definition.aliases ?? []), current.definition.name]),
     ].filter((alias) => nameKey(alias) !== nameKey(name));
     this.records.set(id, { ...current, definition: { ...current.definition, name, aliases } });
-    this.changed();
+    this.changed(current.definition.persistent);
   }
 
   setPersistent(id: string, persistent: boolean, actor: VariableActor = 'user') {
@@ -233,7 +233,7 @@ export class VariableStore {
     this.assertOwner(current, actor);
     if (current.definition.persistent === persistent) return false;
     this.records.set(id, { ...current, definition: { ...current.definition, persistent } });
-    this.changed();
+    this.changed(true);
     return true;
   }
 
@@ -241,7 +241,7 @@ export class VariableStore {
     const current = this.mustGet(id);
     this.assertOwner(current, actor);
     this.records.delete(id);
-    this.changed();
+    this.changed(current.definition.persistent);
   }
 
   set(id: string, value: unknown, actor: VariableActor = 'user') {
@@ -250,7 +250,7 @@ export class VariableStore {
     assertValue(current.definition.type, value);
     if (current.value === value) return false;
     this.records.set(id, { ...current, value });
-    this.changed();
+    this.changed(current.definition.persistent);
     return true;
   }
 
@@ -286,7 +286,9 @@ export class VariableStore {
         this.records.set(id, { ...record, definition: { ...record.definition, available } });
         changed = true;
       }
-    if (changed) this.changed();
+    if (changed) {
+      this.changed(false);
+    }
   }
 
   serializePersistent(): VariableEnvelope {
@@ -338,9 +340,11 @@ export class VariableStore {
       throw new Error('Plugin cannot write another owner’s variable');
   }
 
-  private changed() {
+  private changed(persistentChanged: boolean) {
     this.revision++;
     const snapshot = this.snapshot();
-    for (const listener of this.listeners) listener(snapshot);
+    for (const listener of this.listeners) {
+      listener(snapshot, persistentChanged);
+    }
   }
 }

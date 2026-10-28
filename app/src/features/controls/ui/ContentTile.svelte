@@ -5,7 +5,7 @@
   import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { ControlConfig } from '../model';
   import { gestures } from '../gestures';
-  import { runtimeView } from '../../../app/runtime/state';
+  import { runtimeVariables } from '../../automation/runtime-variables.svelte';
   import type { TriggerPacket } from '../../automation/scenario-runner';
   import type { Trigger } from '../../automation/scenario';
   import { settings } from '../../settings/state.svelte';
@@ -38,7 +38,7 @@
   let face = $state<HTMLElement>();
   let animation: Animation | undefined;
   const current = $derived(
-    effectiveVariant(control, $runtimeView.variables, settings.variants[control.id] ?? 0).index,
+    effectiveVariant(control, runtimeVariables, settings.variants[control.id] ?? 0).index,
   );
   const translate = $derived(
     pull && !settling

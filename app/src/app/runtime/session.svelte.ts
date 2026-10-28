@@ -133,9 +133,11 @@ export class RuntimeSession {
       Object.entries(this.variables.snapshot().records).map(([id, record]) => [id, record.value]),
     );
     try {
-      this.unsubscribeVariables = this.variables.subscribe((snapshot) => {
+      this.unsubscribeVariables = this.variables.subscribe((snapshot, persistentChanged) => {
         this.publish(snapshot);
-        if (this.owner) this.schedulePersist();
+        if (this.owner && persistentChanged) {
+          this.schedulePersist();
+        }
         for (const [id, record] of Object.entries(snapshot.records)) {
           if (Object.hasOwn(this.lastValues, id) && this.lastValues[id] !== record.value) {
             void this.emitEvent(

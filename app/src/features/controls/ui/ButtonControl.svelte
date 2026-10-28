@@ -11,6 +11,7 @@
   import { gestures } from '../gestures';
   import { effectiveVariant, stateIdAt } from '../button-state';
   import { runtimeView } from '../../../app/runtime/state';
+  import { runtimeVariables } from '../../automation/runtime-variables.svelte';
   import type { TriggerPacket } from '../../automation/scenario-runner';
   import { settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
@@ -53,7 +54,7 @@
     height = $state(0);
   let content = $state<PullContent>();
   const manualIndex = $derived(settings.variants[control.id] ?? 0);
-  const effective = $derived(effectiveVariant(control, $runtimeView.variables, manualIndex));
+  const effective = $derived(effectiveVariant(control, runtimeVariables, manualIndex));
   const current = $derived(effective.index);
   const variant = $derived(control.variants[current] ?? control.variants[0]);
   const resolvedPresentation = $derived(
