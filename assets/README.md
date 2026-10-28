@@ -1,7 +1,7 @@
 # Subway sound pack
 
 Japanese-train audio, motion data and line manifests for the dashboard's Subway skin. The app stages what it
-needs from here at build time (see [app/docs/subway-assets.md](../app/docs/subway-assets.md)). Credits for the
+needs from here at build time. Credits for the
 original recordings and sound materials are in [sources.json](sources.json).
 
 | Line          | Kept content                                                                                                                                                                       |
@@ -26,7 +26,8 @@ The replacement clips have adjusted levels and short fades and need an ear check
 
 ## Rebuild and check
 
-From the repository root (Python, numpy, ffmpeg, Node and Chrome required):
+The pack is built with local scripts that are not tracked in this repository (Python, numpy, ffmpeg, Node and Chrome
+required). From the repository root:
 
 ```powershell
 python tools/build_pack.py
@@ -51,7 +52,7 @@ Shared originals/licence snapshots and the supplied mechanical effect are under 
 the supplied warning is under `raw\yamanote\user-supplied\`.
 Cutters read archived raw audio and write candidates/indexes under the archive's `prepared/` folder;
 they do not change the active pack. Audition selected cuts before copying them into `clips/` and
-adding their provenance to `pack.json` and `sources.json`. See `tools/pack_paths.py` for archive paths.
+adding their provenance to `pack.json` and `sources.json`.
 
 ## Known gaps
 

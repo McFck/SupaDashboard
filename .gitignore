@@ -1,10 +1,6 @@
 # Sound pack build leftovers (the packed audio in assets/ is free to use and tracked).
 assets/lines/*/raw/
 assets/preview/
-tools/bin/
-tools/__pycache__/
-# Stray screenshot artifacts from browser probes
-1440x900x1
-app/1440x900x1
-app/800x600x1
+tools/
+app/docs/
 .claude/settings.local.json
