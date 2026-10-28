@@ -63,6 +63,52 @@
     );
   const hueStrip = (node: HTMLElement) =>
     track(node, (e, r) => apply({ ...hsv, h: clamp01((e.clientX - r.left) / r.width) * 360 }));
+  function squareKey(event: KeyboardEvent) {
+    const step = event.shiftKey ? 0.1 : 0.01;
+    let { s, v } = hsv;
+    switch (event.key) {
+      case 'ArrowLeft':
+        s -= step;
+        break;
+      case 'ArrowRight':
+        s += step;
+        break;
+      case 'ArrowDown':
+        v -= step;
+        break;
+      case 'ArrowUp':
+        v += step;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    apply({ h: hsv.h, s: clamp01(s), v: clamp01(v) });
+  }
+  function hueKey(event: KeyboardEvent) {
+    const step = event.shiftKey ? 10 : 1;
+    let h = hsv.h;
+    switch (event.key) {
+      case 'ArrowLeft':
+      case 'ArrowDown':
+        h -= step;
+        break;
+      case 'ArrowRight':
+      case 'ArrowUp':
+        h += step;
+        break;
+      case 'Home':
+        h = 0;
+        break;
+      case 'End':
+        h = 360;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    apply({ ...hsv, h: Math.max(0, Math.min(360, h)) });
+  }
   function typed(text: string) {
     hexText = text;
     const hex = text.startsWith('#') ? text : `#${text}`;
@@ -109,7 +155,15 @@
         >
           <div
             use:square
-            class="relative h-36 cursor-crosshair touch-none rounded-lg"
+            role="slider"
+            tabindex="0"
+            aria-label="Saturation and brightness"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(hsv.s * 100)}
+            aria-valuetext={`${Math.round(hsv.s * 100)}% saturation, ${Math.round(hsv.v * 100)}% brightness`}
+            onkeydown={squareKey}
+            class="relative h-36 cursor-crosshair touch-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
             style="background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent), hsl({hsv.h} 100% 50%)"
           >
             <span
@@ -120,7 +174,14 @@
           </div>
           <div
             use:hueStrip
-            class="relative h-3 cursor-pointer touch-none rounded-full"
+            role="slider"
+            tabindex="0"
+            aria-label="Hue"
+            aria-valuemin={0}
+            aria-valuemax={360}
+            aria-valuenow={Math.round(hsv.h)}
+            onkeydown={hueKey}
+            class="relative h-3 cursor-pointer touch-none rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
             style="background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)"
           >
             <span
