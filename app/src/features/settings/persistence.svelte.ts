@@ -56,7 +56,11 @@ export async function loadSettings() {
         throw new Error('Saved settings are empty');
       }
       const next = migrate(raw);
-      initial = rawJson ?? '';
+      // The store returns its own key order, so a current-version file is compared in normalized form.
+      // An older file keeps its stored text and is rewritten at once.
+      const current =
+        rawJson !== undefined && (raw as { version?: unknown }).version === next.version;
+      initial = current ? serializeSettings(next) : (rawJson ?? '');
       assign(next);
       return true;
     } catch {
