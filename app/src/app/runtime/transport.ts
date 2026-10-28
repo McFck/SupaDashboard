@@ -1,7 +1,7 @@
 import { emit, emitTo, listen } from '@tauri-apps/api/event';
 import { isTauri } from '@tauri-apps/api/core';
 import { newId } from '../../features/automation/scenario';
-import { REQUEST_TYPES, validMessage, type RuntimeRequest, type SyncMessage } from './protocol';
+import { validMessage, type RuntimeRequest, type SyncMessage } from './protocol';
 
 export type SyncAdapter = { send(message: SyncMessage): void; close(): void };
 export type SyncOptions = {
@@ -32,17 +32,16 @@ export class RuntimeSync {
 
   request(request: RuntimeRequest, timeoutMs = 2000) {
     if (this.closed) return Promise.reject(new Error('Runtime connection is closed'));
-    if (
-      !REQUEST_TYPES.has(request.type) ||
-      !validMessage({
-        kind: 'request',
-        sourceId: this.sourceId,
-        requestId: 'check',
-        revision: this.revision,
-        request,
-      })
-    )
+    const message = {
+      kind: 'request',
+      sourceId: this.sourceId,
+      requestId: 'check',
+      revision: this.revision,
+      request,
+    };
+    if (!validMessage(message)) {
       return Promise.reject(new Error('Invalid runtime request'));
+    }
     const requestId = newId();
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {

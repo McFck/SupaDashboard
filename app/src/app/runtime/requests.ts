@@ -3,13 +3,16 @@ import { get } from 'svelte/store';
 import { settings } from '../../features/settings/state.svelte';
 import { isRecord } from '../../features/automation/plain-data';
 import { newId, TRIGGERS, type Trigger } from '../../features/automation/scenario';
-import type { VariableType, VariableValue } from '../../features/automation/variables';
+import {
+  VARIABLE_TYPES,
+  type VariableType,
+  type VariableValue,
+} from '../../features/automation/variables';
 import type { RuntimeSession } from './session.svelte';
 import { validPageChangePayload, type RuntimeRequest } from './protocol';
 
 const MAX_ITEM_ID = 128;
 const MAX_EVENT_TEXT = 256;
-const VARIABLE_TYPES: readonly string[] = ['boolean', 'integer', 'float', 'string'];
 
 type Payload = Record<string, unknown>;
 
@@ -122,7 +125,7 @@ async function emitEvent(runtime: RuntimeSession, payload: Payload) {
 
 function createVariable(runtime: RuntimeSession, payload: Payload) {
   const { name, type, initialValue } = payload;
-  if (typeof name !== 'string' || !VARIABLE_TYPES.includes(String(type))) {
+  if (typeof name !== 'string' || !VARIABLE_TYPES.includes(type as VariableType)) {
     throw new Error('Invalid variable definition');
   }
   runtime.variables.createUser({

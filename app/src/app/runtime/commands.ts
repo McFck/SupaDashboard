@@ -4,14 +4,14 @@ import { effectiveVariant } from '../../features/controls/button-state';
 import { captureTrigger } from '../../features/automation/capture';
 import type { RunResult, TriggerPacket } from '../../features/automation/scenario-runner';
 import { newId, type Trigger } from '../../features/automation/scenario';
-import type { PageChangePayload } from './protocol';
+import type { PageChangePayload, RemotePageChangeReason } from './protocol';
 import { runtimeView, type RuntimeSnapshot } from './state';
 import { requestRuntime } from './client';
 import { currentRuntime } from './lifecycle';
 
 export async function requestPageChange(
   change: { direction: 'next' | 'prev' } | { page: string },
-  reason: 'dot' | 'swipe' | 'skin',
+  reason: RemotePageChangeReason,
 ) {
   const runtime = currentRuntime();
   if (runtime?.isOwner)

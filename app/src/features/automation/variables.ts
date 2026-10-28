@@ -2,6 +2,7 @@ import { freezeDeep, isRecord } from './plain-data';
 
 export type VariableType = 'boolean' | 'integer' | 'float' | 'string';
 export type VariableValue = boolean | number | string;
+export const VARIABLE_TYPES: readonly VariableType[] = ['boolean', 'integer', 'float', 'string'];
 export type VariableDefinition = {
   id: string;
   name: string;
@@ -76,10 +77,7 @@ function isDefinition(value: unknown): value is VariableDefinition {
     !!value.name.trim() &&
     typeof value.owner === 'string' &&
     !!value.owner &&
-    (value.type === 'boolean' ||
-      value.type === 'integer' ||
-      value.type === 'float' ||
-      value.type === 'string') &&
+    VARIABLE_TYPES.includes(value.type as VariableType) &&
     typeof value.persistent === 'boolean' &&
     typeof value.readOnly === 'boolean' &&
     (value.aliases === undefined ||

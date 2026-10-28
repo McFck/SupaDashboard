@@ -1,8 +1,8 @@
 import { settings } from '../../features/settings/state.svelte';
 import { setVariableMirror } from '../../features/plugins/registry';
-import type { RuntimeRequest } from './protocol';
+import { validSnapshot, type RuntimeRequest } from './protocol';
 import type { RuntimeSync } from './transport';
-import { EMPTY, runtimeView, type RuntimeSnapshot } from './state';
+import { EMPTY, runtimeView } from './state';
 
 let clientSync: RuntimeSync | undefined;
 let remoteRevision = 0;
@@ -14,23 +14,10 @@ export function setRuntimeSync(sync: RuntimeSync) {
   };
 }
 
-export function acceptRuntimeSnapshot(snapshot: unknown, revision: number) {
-  if (
-    !snapshot ||
-    typeof snapshot !== 'object' ||
-    !Number.isSafeInteger(revision) ||
-    revision <= remoteRevision
-  )
+export function acceptRuntimeSnapshot(value: unknown, revision: number) {
+  if (!validSnapshot(value) || !Number.isSafeInteger(revision) || revision <= remoteRevision) {
     return;
-  const value = snapshot as RuntimeSnapshot;
-  if (
-    typeof value.activePage !== 'string' ||
-    !value.variables ||
-    typeof value.variables !== 'object' ||
-    !value.busy ||
-    typeof value.busy !== 'object'
-  )
-    return;
+  }
   remoteRevision = revision;
   setVariableMirror(Object.values(value.variables.records));
   settings.deck.activePage = value.activePage;

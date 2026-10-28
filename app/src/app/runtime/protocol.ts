@@ -1,24 +1,31 @@
 // The messages windows exchange about the runtime, and their validation at the receiving end.
+import type { PageChangeReason } from '../../features/layout/page-controller';
+import type { RuntimeSnapshot } from './state';
 
-export type PageChangeReason = 'dot' | 'swipe' | 'skin';
+const REQUEST_TYPES = [
+  'snapshot',
+  'simulate',
+  'emitEvent',
+  'setVariable',
+  'createVariable',
+  'renameVariable',
+  'setVariablePersistence',
+  'deleteVariable',
+  'stop',
+  'changePage',
+] as const;
+/** Page changes another window may ask the owner for; actions and reconciliation stay in the owner. */
+const REMOTE_PAGE_REASONS = ['dot', 'swipe', 'skin'] as const satisfies readonly PageChangeReason[];
+const MAX_MESSAGE_SIZE = 256 * 1024;
+const MAX_ID_LENGTH = 128;
+
+export type RemotePageChangeReason = (typeof REMOTE_PAGE_REASONS)[number];
 export type PageChangePayload =
-  | { direction: 'next' | 'prev'; reason: PageChangeReason }
-  | { page: string; reason: PageChangeReason };
+  | { direction: 'next' | 'prev'; reason: RemotePageChangeReason }
+  | { page: string; reason: RemotePageChangeReason };
 export type RuntimeRequest =
   | { type: 'changePage'; payload: PageChangePayload }
-  | {
-      type:
-        | 'snapshot'
-        | 'simulate'
-        | 'emitEvent'
-        | 'setVariable'
-        | 'createVariable'
-        | 'renameVariable'
-        | 'setVariablePersistence'
-        | 'deleteVariable'
-        | 'stop';
-      payload?: unknown;
-    };
+  | { type: Exclude<(typeof REQUEST_TYPES)[number], 'changePage'>; payload?: unknown };
 export type SyncMessage =
   | {
       kind: 'request';
@@ -39,71 +46,76 @@ export type SyncMessage =
     }
   | { kind: 'snapshot'; sourceId: string; destination?: string; revision: number; value: unknown };
 
-const MAX_MESSAGE_SIZE = 256 * 1024;
-export const REQUEST_TYPES = new Set([
-  'snapshot',
-  'simulate',
-  'emitEvent',
-  'setVariable',
-  'createVariable',
-  'renameVariable',
-  'setVariablePersistence',
-  'deleteVariable',
-  'stop',
-  'changePage',
-]);
+const isObject = (value: unknown): value is Record<string, any> =>
+  !!value && typeof value === 'object';
 
 export function validPageChangePayload(value: unknown): value is PageChangePayload {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const payload = value as Record<string, unknown>;
-  if (payload.reason !== 'dot' && payload.reason !== 'swipe' && payload.reason !== 'skin')
+  if (!isObject(value) || Array.isArray(value)) {
     return false;
-  if (typeof payload.page === 'string')
-    return (
-      Object.keys(payload).sort().join(',') === 'page,reason' &&
-      payload.page.length > 0 &&
-      payload.page.length <= 128
-    );
+  }
+  if (!(REMOTE_PAGE_REASONS as readonly unknown[]).includes(value.reason)) {
+    return false;
+  }
+  const keys = Object.keys(value).sort().join(',');
+  if (typeof value.page === 'string') {
+    return keys === 'page,reason' && value.page.length > 0 && value.page.length <= MAX_ID_LENGTH;
+  }
+  return keys === 'direction,reason' && (value.direction === 'next' || value.direction === 'prev');
+}
+
+function validRequest(request: unknown) {
   return (
-    Object.keys(payload).sort().join(',') === 'direction,reason' &&
-    (payload.direction === 'next' || payload.direction === 'prev')
+    isObject(request) &&
+    (REQUEST_TYPES as readonly unknown[]).includes(request.type) &&
+    (request.type !== 'changePage' || validPageChangePayload(request.payload))
   );
 }
 
-export function validMessage(value: unknown): value is SyncMessage {
-  if (!value || typeof value !== 'object') return false;
-  let size: number;
+function serializedSize(value: unknown) {
   try {
-    size = JSON.stringify(value).length;
+    return JSON.stringify(value).length;
   } catch {
+    return Infinity;
+  }
+}
+
+export function validMessage(value: unknown): value is SyncMessage {
+  if (!isObject(value) || serializedSize(value) > MAX_MESSAGE_SIZE) {
     return false;
   }
-  if (size > MAX_MESSAGE_SIZE) return false;
-  const message = value as Record<string, any>;
+  const { kind, sourceId, revision, requestId } = value;
   if (
-    typeof message.sourceId !== 'string' ||
-    message.sourceId.length > 128 ||
-    !Number.isSafeInteger(message.revision) ||
-    message.revision < 0
-  )
+    typeof sourceId !== 'string' ||
+    sourceId.length > MAX_ID_LENGTH ||
+    !Number.isSafeInteger(revision) ||
+    revision < 0
+  ) {
     return false;
-  if (message.kind === 'request')
+  }
+  const validRequestId = typeof requestId === 'string' && requestId.length <= MAX_ID_LENGTH;
+  if (kind === 'request') {
+    return validRequestId && validRequest(value.request);
+  }
+  if (kind === 'reply') {
     return (
-      typeof message.requestId === 'string' &&
-      message.requestId.length <= 128 &&
-      message.request &&
-      REQUEST_TYPES.has(message.request.type) &&
-      (message.request.type !== 'changePage' || validPageChangePayload(message.request.payload))
+      validRequestId &&
+      typeof value.destination === 'string' &&
+      typeof value.ok === 'boolean' &&
+      (value.error === undefined || typeof value.error === 'string')
     );
-  if (message.kind === 'reply')
-    return (
-      typeof message.destination === 'string' &&
-      typeof message.requestId === 'string' &&
-      message.requestId.length <= 128 &&
-      typeof message.ok === 'boolean' &&
-      (message.error === undefined || typeof message.error === 'string')
-    );
-  if (message.kind === 'snapshot')
-    return message.destination === undefined || typeof message.destination === 'string';
+  }
+  if (kind === 'snapshot') {
+    return value.destination === undefined || typeof value.destination === 'string';
+  }
   return false;
+}
+
+/** The parts of an owner snapshot a mirror window relies on. */
+export function validSnapshot(value: unknown): value is RuntimeSnapshot {
+  return (
+    isObject(value) &&
+    typeof value.activePage === 'string' &&
+    isObject(value.variables) &&
+    isObject(value.busy)
+  );
 }
