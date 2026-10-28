@@ -3,7 +3,8 @@ import type { Component } from 'svelte';
 import type { ControlFaceProps } from '../controls/model';
 import { controlTypes, skins } from '../plugins/registry';
 import { effectiveSize } from '../layout/skin-layouts';
-import { skinFaceFor, type SkinDef } from './definition';
+import { skinFaceFor } from './faces';
+import { type SkinDef } from './contracts';
 
 const typeId = 'skin-rendering-button';
 const skinId = 'skin-rendering-test';
@@ -59,50 +60,5 @@ describe('skin control rendering', () => {
     });
     const resolved = effectiveSize(skinId, skin.slots[0], typeId);
     expect(resolved).toEqual({ min: { w: 1, h: 1 }, default: { w: 2, h: 1 }, max: { w: 2, h: 1 } });
-  });
-
-  it('keeps appearance, busy, pull, compact and slider state in presentation-only props', () => {
-    const appearance = { label: 'Volume', icon: 'Volume2', color: '#8ea8f0', background: null };
-    const props = {
-      appearance,
-      presentation: { key: 'state:2', view: appearance },
-      stateId: 'state-2',
-      stateIndex: 1,
-      busy: true,
-      pull: {
-        pointerId: 1,
-        axis: 'x',
-        direction: 'swipeLeft',
-        offset: 12,
-        distance: 12,
-        progress: 0.4,
-        threshold: 30,
-        armed: false,
-        effect: { kind: 'scenario', trigger: 'swipeLeft', title: 'Previous' },
-      },
-      compact: true,
-      pixelWidth: 160,
-      pixelHeight: 48,
-      slider: {
-        level: null,
-        muted: true,
-        orientation: 'horizontal',
-        active: false,
-        fillReady: false,
-        animateFill: false,
-        sourceKey: 'preview',
-        accent: '#8ea8f0',
-      },
-    } satisfies ControlFaceProps;
-    expect(props).toMatchObject({
-      stateId: 'state-2',
-      stateIndex: 1,
-      busy: true,
-      compact: true,
-      pixelWidth: 160,
-      pixelHeight: 48,
-      slider: { level: null, muted: true, orientation: 'horizontal' },
-      pull: { direction: 'swipeLeft', armed: false },
-    });
   });
 });

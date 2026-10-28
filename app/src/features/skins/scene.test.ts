@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mapScenePoint, SceneScheduler } from './scene';
+import { mapScenePoint } from './scene-geometry';
+import { SceneScheduler } from './scene';
 
 function clock() {
   let id = 0;

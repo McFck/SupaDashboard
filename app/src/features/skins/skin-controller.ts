@@ -1,13 +1,8 @@
 import { writable, type Writable } from 'svelte/store';
 import type { VariableStore, VariableValue } from '../automation/variables';
 import type { EventAncestry } from '../plugins/contracts';
-import {
-  resolveSkinConfig,
-  validSkinStateValue,
-  type SkinConfig,
-  type SkinDef,
-  type SkinRuntimeContext,
-} from './definition';
+import { resolveSkinConfig, validSkinStateValue } from './definition';
+import { type SkinConfig, type SkinDef, type SkinRuntimeContext } from './contracts';
 
 export class SkinController {
   private readonly configs = new Map<string, Writable<SkinConfig>>();
@@ -34,30 +29,39 @@ export class SkinController {
     if (!this.host.isOwner()) {
       return;
     }
-    for (const skin of this.host.definitions.values()) {
-      const viewId = `${skin.id}.view`;
-      if (!skin.views.some((view) => view.id === this.host.variables.getValue(viewId))) {
-        void this.setVariable(skin, viewId, skin.defaultView);
+    try {
+      for (const skin of this.host.definitions.values()) {
+        this.startSkin(skin);
       }
-      if (!skin.runtime) {
-        continue;
-      }
-      const stored = this.host.getSettings()[skin.id] ?? {};
-      const config = writable<SkinConfig>(resolveSkinConfig(skin, stored));
-      this.configs.set(skin.id, config);
-      this.signatures.set(skin.id, JSON.stringify(stored));
-      const context: SkinRuntimeContext = {
-        config,
-        getState: (key) => this.host.variables.getValue(`${skin.id}.${key}`),
-        setState: (key, value, ancestry) => this.setState(skin.id, key, value, ancestry),
-        setView: (viewId, ancestry) => this.setView(skin.id, viewId, ancestry),
-        emitEvent: (id, parameter, payload, ancestry) =>
-          this.emitEvent(skin.id, id, parameter, payload, ancestry),
-      };
-      const cleanup = skin.runtime(context);
-      if (typeof cleanup === 'function') {
-        this.cleanups.push(cleanup);
-      }
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
+  }
+
+  private startSkin(skin: SkinDef) {
+    const viewId = `${skin.id}.view`;
+    if (!skin.views.some((view) => view.id === this.host.variables.getValue(viewId))) {
+      void this.setVariable(skin, viewId, skin.defaultView);
+    }
+    if (!skin.runtime) {
+      return;
+    }
+    const stored = this.host.getSettings()[skin.id] ?? {};
+    const config = writable<SkinConfig>(resolveSkinConfig(skin, stored));
+    this.configs.set(skin.id, config);
+    this.signatures.set(skin.id, JSON.stringify(stored));
+    const context: SkinRuntimeContext = {
+      config,
+      getState: (key) => this.host.variables.getValue(`${skin.id}.${key}`),
+      setState: (key, value, ancestry) => this.setState(skin.id, key, value, ancestry),
+      setView: (viewId, ancestry) => this.setView(skin.id, viewId, ancestry),
+      emitEvent: (id, parameter, payload, ancestry) =>
+        this.emitEvent(skin.id, id, parameter, payload, ancestry),
+    };
+    const cleanup = skin.runtime(context);
+    if (typeof cleanup === 'function') {
+      this.cleanups.push(cleanup);
     }
   }
 

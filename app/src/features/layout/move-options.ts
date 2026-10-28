@@ -1,6 +1,6 @@
 // Destinations offered by "Move to page…" and "Move to slot…" for one placement.
 import type { Settings } from '../settings/schema';
-import type { SkinDef } from '../skins/definition';
+import type { SkinDef } from '../skins/contracts';
 import { movePlacementToSlot, type LayoutTarget } from './skin-layouts';
 
 export type MoveMode = 'page' | 'slot';

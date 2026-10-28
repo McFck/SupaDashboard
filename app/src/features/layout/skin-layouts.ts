@@ -2,7 +2,7 @@ import type { ControlConfig } from '../controls/model';
 import { firstFree, fits, type Grid, type Item } from './grid';
 import { controlTypes, skins } from '../plugins/registry';
 import type { Page, Settings } from '../settings/schema';
-import type { SkinSlot } from '../skins/definition';
+import type { SkinSlot } from '../skins/contracts';
 import { storedPlacements } from './placements';
 
 export type LayoutTarget = { skinId: string; pageId: string; slotId: string };

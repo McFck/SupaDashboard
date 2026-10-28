@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SkinDef } from '../../skins/definition';
+  import type { SkinDef } from '../../skins/contracts';
   import type { Page } from '../../settings/schema';
   import type { Selection } from '../grid';
   import type { LayoutTarget } from '../skin-layouts';

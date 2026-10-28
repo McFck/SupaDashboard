@@ -29,15 +29,20 @@
 
   // Mirror the dashboard's visibility (the tray can change it too).
   let visible = $state<boolean | null>(null);
+  let visibilityRevision = 0;
   $effect(() => {
     let alive = true;
-    const read = () =>
-      Window.getByLabel('main')
+    const read = () => {
+      const revision = ++visibilityRevision;
+      return Window.getByLabel('main')
         .then((w) => w?.isVisible())
         .then((v) => {
-          if (alive) visible = v ?? null;
+          if (alive && revision === visibilityRevision) {
+            visible = v ?? null;
+          }
         })
         .catch(() => {});
+    };
     read();
     const t = setInterval(read, 800);
     return () => {
@@ -46,11 +51,20 @@
     };
   });
   async function toggle() {
+    const revision = ++visibilityRevision;
     const w = await Window.getByLabel('main');
-    if (!w) return;
-    if (visible) await w.hide();
-    else await w.show();
-    visible = await w.isVisible();
+    if (!w) {
+      return;
+    }
+    if (visible) {
+      await w.hide();
+    } else {
+      await w.show();
+    }
+    const next = await w.isVisible();
+    if (revision === visibilityRevision) {
+      visible = next;
+    }
   }
 </script>
 

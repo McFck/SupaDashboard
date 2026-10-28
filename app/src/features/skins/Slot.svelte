@@ -9,7 +9,7 @@
     setLayoutItems,
     type LayoutTarget,
   } from '../layout/skin-layouts';
-  import { skinFaceFor } from './definition';
+  import { skinFaceFor } from './faces';
   import { controlTypes } from '../plugins/registry';
   import { settings } from '../settings/state.svelte';
   import DeckGrid from '../layout/ui/DeckGrid.svelte';
@@ -48,7 +48,9 @@
     for (const type of Object.keys(host?.skin.controlSkins ?? {})) {
       const control = controlTypes.get(type);
       const face = host && control ? skinFaceFor(host.skin, type, control.face) : undefined;
-      if (face) result[type] = face;
+      if (face) {
+        result[type] = face;
+      }
     }
     return result;
   });
@@ -63,16 +65,22 @@
   }
   const selectedValue = $derived(selected === undefined ? (host?.selected ?? null) : selected);
   function selectSlot(selection: import('../layout/grid').Selection) {
-    if (onselect) onselect(selection, target);
-    else host?.onselect?.(selection, target);
+    if (onselect) {
+      onselect(selection, target);
+    } else {
+      host?.onselect?.(selection, target);
+    }
   }
   function contextSlot(
     selection: Exclude<import('../layout/grid').Selection, null>,
     x: number,
     y: number,
   ) {
-    if (oncontext) oncontext(selection, x, y, target);
-    else host?.oncontext?.(selection, x, y, target);
+    if (oncontext) {
+      oncontext(selection, x, y, target);
+    } else {
+      host?.oncontext?.(selection, x, y, target);
+    }
   }
 </script>
 
