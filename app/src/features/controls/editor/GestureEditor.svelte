@@ -1,8 +1,12 @@
 <script lang="ts">
   import { Button } from '$lib/components/ui/button';
   import type { ControlConfig } from '../model';
-  import { TRIGGER_LABELS, TRIGGERS, type Trigger } from '../../automation/scenario';
-  import { scenarioStepCount } from '../../automation/editor/scenario-edit';
+  import {
+    scenarioStepCount,
+    TRIGGER_LABELS,
+    TRIGGERS,
+    type Trigger,
+  } from '../../automation/scenario';
 
   let { control, onedit }: { control: ControlConfig; onedit: (trigger?: Trigger) => void } =
     $props();

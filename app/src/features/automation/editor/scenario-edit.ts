@@ -7,7 +7,6 @@ import {
   type StateBinding,
   type StateRoles,
   type Trigger,
-  type TriggerList,
 } from '../scenario';
 import { clonePlain } from '../plain-data';
 
@@ -186,58 +185,12 @@ export function withNewStepIds(steps: ActionStep[]): ActionStep[] {
   });
 }
 
-/** Top-level steps of a trigger or event list, common and per-state together. */
-export function listStepCount(list: TriggerList | undefined) {
-  if (!list) {
-    return 0;
-  }
-  const overrides = Object.values(list.byState ?? {}).reduce((sum, steps) => sum + steps.length, 0);
-  return list.steps.length + overrides;
-}
-
 /** A new state that starts with `source`'s appearance, a fresh ID and an empty label. */
 export function newStateFrom(source: Variant): Variant {
   const variant = { ...clonePlain(source), id: newId(), label: '' };
   delete variant.action;
   delete variant.value;
   return variant;
-}
-
-export function scenarioStepCount(steps: ActionStep[]): number {
-  return steps.reduce(
-    (count, step) =>
-      count +
-      1 +
-      (step.kind === 'if' ? scenarioStepCount(step.then) + scenarioStepCount(step.else) : 0),
-    0,
-  );
-}
-
-export function scenarioNodeCount(scenario: Scenario) {
-  return (
-    Object.values(scenario.triggers).reduce(
-      (count, list) =>
-        count +
-        (list
-          ? scenarioStepCount(list.steps) +
-            Object.values(list.byState ?? {}).reduce(
-              (sum, steps) => sum + scenarioStepCount(steps),
-              0,
-            )
-          : 0),
-      0,
-    ) +
-    scenario.events.reduce(
-      (count, event) =>
-        count +
-        scenarioStepCount(event.list.steps) +
-        Object.values(event.list.byState ?? {}).reduce(
-          (sum, steps) => sum + scenarioStepCount(steps),
-          0,
-        ),
-      0,
-    )
-  );
 }
 
 export function scenarioPathKey(path: StepListPath) {

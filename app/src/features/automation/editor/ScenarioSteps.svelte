@@ -12,7 +12,7 @@
   import { Label } from '$lib/components/ui/label';
   import { actions } from '../../plugins/registry';
   import { runtimeView } from '../../../app/runtime/state';
-  import { newId, type ActionStep, type Predicate } from '../scenario';
+  import { newId, scenarioNodeCount, type ActionStep, type Predicate } from '../scenario';
   import ConditionEditor from './ConditionEditor.svelte';
   import ScenarioSteps from './ScenarioSteps.svelte';
   import ActionPicker from './ActionPicker.svelte';
@@ -23,7 +23,6 @@
     moveScenarioStep,
     removeScenarioStep,
     replaceScenarioStep,
-    scenarioNodeCount,
     scenarioPathKey,
     scenarioStepsAt,
     type ScenarioDraft,

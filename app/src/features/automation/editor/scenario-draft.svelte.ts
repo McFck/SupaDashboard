@@ -1,7 +1,13 @@
 // The scenario editor's working copy of one control. Edits stay in the draft until save() writes them back as one
 // settings change with one undo step; a change made elsewhere meanwhile is reported as a conflict.
 import { fromStore } from 'svelte/store';
-import { MAX_SCENARIO_NODES, newId, type EventList, type Trigger } from '../scenario';
+import {
+  MAX_SCENARIO_NODES,
+  newId,
+  scenarioNodeCount,
+  type EventList,
+  type Trigger,
+} from '../scenario';
 import { validateScenario } from '../validate';
 import { clonePlain } from '../plain-data';
 import {
@@ -20,7 +26,6 @@ import {
   createScenarioDraft,
   newStateFrom,
   sameScenarioDraft,
-  scenarioNodeCount,
   setScenarioStateOverride,
   withNewStepIds,
   type ScenarioDraft,

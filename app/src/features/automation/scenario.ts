@@ -91,6 +91,42 @@ export function selectTriggerSteps(
   return list.byState && Object.hasOwn(list.byState, stateId) ? list.byState[stateId] : list.steps;
 }
 
+/** Steps in a list, counting the steps inside Condition branches. */
+export function scenarioStepCount(steps: ActionStep[]): number {
+  let count = 0;
+  for (const step of steps) {
+    count += 1;
+    if (step.kind === 'if') {
+      count += scenarioStepCount(step.then) + scenarioStepCount(step.else);
+    }
+  }
+  return count;
+}
+
+/** Steps of a trigger or event list: common and per-state, with nested branches. */
+export function listStepCount(list: TriggerList | undefined) {
+  if (!list) {
+    return 0;
+  }
+  let count = scenarioStepCount(list.steps);
+  for (const steps of Object.values(list.byState ?? {})) {
+    count += scenarioStepCount(steps);
+  }
+  return count;
+}
+
+/** All steps of a scenario, the quantity MAX_SCENARIO_NODES bounds. */
+export function scenarioNodeCount(scenario: Scenario) {
+  let count = 0;
+  for (const list of Object.values(scenario.triggers)) {
+    count += listStepCount(list);
+  }
+  for (const event of scenario.events) {
+    count += listStepCount(event.list);
+  }
+  return count;
+}
+
 export function actionRef(value: unknown): value is ActionRef {
   return isRecord(value) && typeof value.id === 'string';
 }
