@@ -17,10 +17,12 @@
   // Local HSV so hue survives dragging through grey/black, where the hex alone loses it.
   let hsv = $state({ h: 0, s: 0, v: 0 });
   let hexText = $state('');
+  let lastHex = '';
   $effect(() => {
-    if (open) {
+    if (open && parts.hex !== lastHex) {
       hsv = hexToHsv(parts.hex);
       hexText = parts.hex;
+      lastHex = parts.hex;
     }
   });
   const RAINBOW =
@@ -29,6 +31,7 @@
   function apply(next: { h: number; s: number; v: number }) {
     hsv = next;
     hexText = hsvToHex(next.h, next.s, next.v);
+    lastHex = hexText;
     onchange(withAlpha(hexText, parts.alpha));
   }
   function track(node: HTMLElement, read: (e: PointerEvent, r: DOMRect) => void) {
@@ -65,6 +68,7 @@
     const hex = text.startsWith('#') ? text : `#${text}`;
     if (/^#[0-9a-f]{6}$/i.test(hex)) {
       hsv = hexToHsv(hex);
+      lastHex = hex.toLowerCase();
       onchange(withAlpha(hex.toLowerCase(), parts.alpha));
     }
   }

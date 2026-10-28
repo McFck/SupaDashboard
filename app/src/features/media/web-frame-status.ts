@@ -2,14 +2,13 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export const WEB_FRAME_TIMEOUT_MS = 15_000;
-export type FramePhase = 'starting' | 'completed' | 'destroyed';
 export type FrameNavigation = {
   frameKey: string;
   navigationId: number;
-  phase: FramePhase;
-  success?: boolean;
-  error?: string;
-};
+} & (
+  | { phase: 'starting' | 'destroyed'; success?: never; error?: never }
+  | { phase: 'completed'; success: boolean; error?: string }
+);
 export type WebFrameStatus = 'loading' | 'ready' | 'unavailable';
 export type WebFrameState = {
   frameKey: string;
@@ -40,7 +39,7 @@ export function consumeEligibleTime(remaining: number, elapsed: number) {
 }
 
 type FrameStatusAdapter = {
-  subscribe(listener: (event: FrameNavigation) => void): Promise<() => void> | (() => void);
+  subscribe(listener: (event: unknown) => void): Promise<() => void> | (() => void);
 };
 type FrameWindow = typeof globalThis & { __supadashboardContentFrameAdapter?: FrameStatusAdapter };
 const subscribers = new Set<(event: FrameNavigation) => void>();
@@ -49,13 +48,31 @@ let connection: Promise<boolean> | undefined;
 let stopConnection: (() => void) | undefined;
 
 function validEvent(value: unknown): value is FrameNavigation {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
   const event = value as Record<string, unknown>;
+  if (
+    typeof event.frameKey !== 'string' ||
+    !event.frameKey.startsWith('content:') ||
+    event.frameKey.length <= 'content:'.length ||
+    /\s/.test(event.frameKey) ||
+    typeof event.navigationId !== 'number' ||
+    !Number.isSafeInteger(event.navigationId) ||
+    event.navigationId < 0
+  ) {
+    return false;
+  }
+  if (event.phase === 'completed') {
+    return (
+      typeof event.success === 'boolean' &&
+      (event.error === undefined || (typeof event.error === 'string' && !event.success))
+    );
+  }
   return (
-    typeof event.frameKey === 'string' &&
-    typeof event.navigationId === 'number' &&
-    Number.isSafeInteger(event.navigationId) &&
-    (event.phase === 'starting' || event.phase === 'completed' || event.phase === 'destroyed')
+    (event.phase === 'starting' || event.phase === 'destroyed') &&
+    event.success === undefined &&
+    event.error === undefined
   );
 }
 
@@ -69,7 +86,7 @@ function connect(): Promise<boolean> {
     try {
       if (isTauri()) {
         const window = getCurrentWindow();
-        const unlisten = await window.listen<FrameNavigation>('content-frame-navigation', (event) =>
+        const unlisten = await window.listen<unknown>('content-frame-navigation', (event) =>
           publish(event.payload),
         );
         stopConnection = unlisten;

@@ -117,7 +117,7 @@
   function addSource() {
     editorMode = 'edit';
     draftType = 'image-file';
-    draftId = crypto.randomUUID();
+    draftId = '';
     draftValue = '';
     draftFit = 'cover';
     draftLoop = true;
@@ -465,7 +465,7 @@
               type="url"
               value={draftValue}
               aria-invalid={invalidDraft}
-              onchange={(event) => (draftValue = event.currentTarget.value)}
+              oninput={(event) => (draftValue = event.currentTarget.value)}
             />
           </div>
         {:else}

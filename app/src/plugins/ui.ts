@@ -1,5 +1,6 @@
 // Built-in widgets and skins, registered through the plugin API like any other plugin.
 import type { Plugin } from '../features/plugins/contracts';
+import { DEFAULT_MIXER_MAX_CHANNELS } from '../features/controls/model';
 import ButtonControl from '../features/controls/ui/ButtonControl.svelte';
 import ButtonFace from '../features/controls/ui/ButtonFace.svelte';
 import MediaControl from '../features/controls/ui/MediaControl.svelte';
@@ -79,7 +80,7 @@ export const uiPlugin: Plugin = {
         name: 'Mixer',
         scenario: emptyScenario(),
         variants: [{ id: 'state-1', label: 'Mixer', color: '#b5a0e8' }],
-        options: { channels: 'auto', max: 6, layout: 'auto' },
+        options: { channels: 'auto', max: DEFAULT_MIXER_MAX_CHANNELS, layout: 'auto' },
       }),
     });
     api.registerControl({

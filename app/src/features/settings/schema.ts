@@ -1,5 +1,5 @@
 // Persisted settings shape (v5) and the defaults a fresh install starts from.
-import type { ControlConfig } from '../controls/model';
+import { DEFAULT_MIXER_MAX_CHANNELS, type ControlConfig } from '../controls/model';
 import type { DeckSizing, Item } from '../layout/grid';
 import { normalizeControl } from '../automation/scenario';
 
@@ -112,7 +112,7 @@ export const DEFAULTS: Settings = {
       name: 'Mixer',
       type: 'mixer',
       variants: [{ label: 'Mixer', color: '#b5a0e8' }],
-      options: { channels: 'auto', max: 6, layout: 'auto' },
+      options: { channels: 'auto', max: DEFAULT_MIXER_MAX_CHANNELS, layout: 'auto' },
     }),
     normalizeControl({
       id: 'spotify',

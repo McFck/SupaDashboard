@@ -4,6 +4,8 @@ import type { Scenario, StateBinding, StateRoles, ActionStep } from '../automati
 import { sliderOrientation } from './geometry';
 import type { PullSnapshot } from './interaction';
 
+export const DEFAULT_MIXER_MAX_CHANNELS = 6;
+
 /** Legacy trigger names accepted only while migrating older saved controls. */
 export type Gesture =
   'tap' | 'doubleTap' | 'longPress' | 'swipeUp' | 'swipeDown' | 'swipeLeft' | 'swipeRight';
