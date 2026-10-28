@@ -259,3 +259,57 @@ html.transparent body,
 html.transparent #app {
   background: transparent;
 }
+
+/*
+ * Vertical lists that overflow fade at the edge that has more content. A scroll-driven animation grows the top fade
+ * once the list leaves the top and removes the bottom fade at the end; a list that does not overflow has an inactive
+ * scroll timeline, so both fades stay at 0. UI-kit popups (`data-slot`) are excluded: a mask clips their ring and
+ * shadow, and their own open/close animations must not be replaced.
+ */
+@property --scroll-fade-top {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroll-fade-bottom {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-fade-top {
+  from {
+    --scroll-fade-top: 0px;
+  }
+  to {
+    --scroll-fade-top: 1.5rem;
+  }
+}
+
+@keyframes scroll-fade-bottom {
+  from {
+    --scroll-fade-bottom: 1.5rem;
+  }
+  to {
+    --scroll-fade-bottom: 0px;
+  }
+}
+
+.overflow-y-auto:not([data-slot]),
+.overflow-auto:not([data-slot]) {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--scroll-fade-top),
+    #000 calc(100% - var(--scroll-fade-bottom)),
+    transparent
+  );
+  animation:
+    scroll-fade-top linear both,
+    scroll-fade-bottom linear both;
+  animation-timeline: scroll(self y), scroll(self y);
+  animation-range:
+    0 1.5rem,
+    calc(100% - 1.5rem) 100%;
+}
