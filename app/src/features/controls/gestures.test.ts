@@ -286,6 +286,30 @@ describe('pointer gesture lifecycle', () => {
     }
   });
 
+  it('keeps a tap waiting for its pair when capture is lost after pointerup', () => {
+    vi.useFakeTimers();
+    const node = new PointerNode(),
+      order: string[] = [];
+    const action = gestures(node as unknown as HTMLElement, {
+      onGesture: vi.fn(),
+      onTrigger: (trigger) => order.push(trigger),
+      captureTrigger: (trigger, id) => `${trigger}:${id}`,
+    });
+    send(node, 'pointerdown', 1, 30, 30);
+    send(node, 'pointerup', 1, 30, 30);
+    send(node, 'lostpointercapture', 1, 30, 30);
+    send(node, 'pointerdown', 2, 32, 32);
+    send(node, 'pointerup', 2, 32, 32);
+    send(node, 'lostpointercapture', 2, 32, 32);
+    expect(order).toEqual(['doubleTap']);
+    send(node, 'pointerdown', 3, 30, 30);
+    send(node, 'pointerup', 3, 30, 30);
+    send(node, 'lostpointercapture', 3, 30, 30);
+    vi.advanceTimersByTime(300);
+    expect(order).toEqual(['doubleTap', 'press', 'release']);
+    action.destroy();
+  });
+
   it('ignores a second pointer until the owner releases', () => {
     const node = new PointerNode(),
       onGesture = vi.fn();

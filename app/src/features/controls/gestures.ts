@@ -194,7 +194,9 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
   };
 
   const cancel = (pointerId?: number) => {
-    if (active && (pointerId == null || pointerId === active.state.pointerId)) {
+    // Capture is also lost right after every pointerup; that must not drop a tap waiting for its pair.
+    if (pointerId != null && pointerId !== active?.state.pointerId) return;
+    if (active) {
       clearHold(active);
       const snapshot = active.snapshot;
       active = null;
