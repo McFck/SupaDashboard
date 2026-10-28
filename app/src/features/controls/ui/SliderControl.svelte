@@ -210,7 +210,6 @@ pixelWidth, pixelHeight
                 {pixelHeight}
                 presentation={resolved}
                 presentationImmediate={immediate}
-                doubleTap={!!control.scenario?.triggers.doubleTap}
                 onchange={write}
                 onpullstart={() => content?.beginPull()}
                 onpull={(p) => {

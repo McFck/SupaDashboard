@@ -1,92 +1,14 @@
-// Pointer handling shared by controls. Pull and tap decisions happen only after cancellation checks.
-import {
-  beginPull,
-  DOUBLE_TAP,
-  updatePull,
-  type PullBindings,
-  type PullSnapshot,
-  type PullState,
-} from './pull';
-import type { Gesture } from '../model';
+// DOM adapter for tappable controls: pointer, keyboard and assistive clicks feed one press machine, and a pointer
+// press also tracks a directional pull. Pull and tap decisions happen only after cancellation checks.
+import { captureTriggers, PressMachine, type Captures } from './press';
+import { beginPull, updatePull, type PullBindings, type PullSnapshot, type PullState } from './pull';
 import type { Trigger } from '../../automation/scenario';
 
-/** Delay a single tap only when a double-tap binding exists. Distant taps stay independent. */
-export function tapSequence(emit: (g: Gesture, x: number, y: number, captured?: unknown) => void) {
-  let pending: {
-    x: number;
-    y: number;
-    t: number;
-    captured?: unknown;
-    timer: ReturnType<typeof setTimeout>;
-  } | null = null;
-  const sendEvent = (g: Gesture, x: number, y: number, captured?: unknown) =>
-    captured === undefined ? emit(g, x, y) : emit(g, x, y, captured);
-  function cancel() {
-    if (pending) clearTimeout(pending.timer);
-    pending = null;
-  }
-  function send(g: Gesture, x: number, y: number, doubleTap = false, captured?: unknown) {
-    const previous = pending;
-    if (previous) {
-      cancel();
-      if (
-        g === 'tap' &&
-        doubleTap &&
-        Math.hypot(x - previous.x, y - previous.y) < 24 &&
-        performance.now() - previous.t <= DOUBLE_TAP
-      ) {
-        sendEvent('doubleTap', x, y, captured);
-        return;
-      }
-      sendEvent('tap', previous.x, previous.y, previous.captured);
-    }
-    if (g !== 'tap' || !doubleTap) {
-      emit(g, x, y);
-      return;
-    }
-    pending = {
-      x,
-      y,
-      t: performance.now(),
-      captured,
-      timer: setTimeout(() => {
-        pending = null;
-        sendEvent('tap', x, y, captured);
-      }, DOUBLE_TAP),
-    };
-  }
-  return { send, cancel };
-}
-
-const HOLD_MS = 550;
-const triggerList: readonly Trigger[] = [
-  'press',
-  'release',
-  'longPress',
-  'longPressRelease',
-  'doubleTap',
-  'swipeUp',
-  'swipeDown',
-  'swipeLeft',
-  'swipeRight',
-];
-type Captured = Partial<Record<Trigger, unknown>>;
-type ActivePull = {
+type Pointer = {
   state: PullState;
   bindings: PullBindings;
   snapshot: PullSnapshot | null;
-  captures: Captured;
-  interactionId: string;
-  holdTimer?: ReturnType<typeof setTimeout>;
-  longStarted: boolean;
-};
-type PendingShort = {
-  x: number;
-  y: number;
-  time: number;
-  captures: Captured;
-  doubleTap: boolean;
-  timer: ReturnType<typeof setTimeout>;
+  captures: Captures;
 };
 type GestureHandlers = {
   onTrigger: (trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) => void;
@@ -103,118 +25,53 @@ type GestureHandlers = {
   onStart?: () => void;
 };
 
-function makeInteractionId() {
-  return (
-    globalThis.crypto?.randomUUID?.() ??
-    `gesture-${Date.now()}-${Math.random().toString(36).slice(2)}`
-  );
-}
+const isActivationKey = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ';
 
 /** Pointer action with hold-time and paired short triggers, captured settings, and one release decision. */
 export function gestures(node: HTMLElement, initial: GestureHandlers) {
   let handlers = initial;
-  let active: ActivePull | null = null;
-  let keyboard: {
-    captures: Captured;
-    interactionId: string;
-    startedAt: number;
-    longStarted: boolean;
-    holdTimer: ReturnType<typeof setTimeout>;
-  } | null = null;
-  let pending: PendingShort | null = null;
+  let pointer: Pointer | null = null;
+  let keyboard: Captures | null = null;
   let suppressSyntheticClick = false;
   let clickSuppressionTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const capture = (interactionId: string): Captured => {
-    const result: Captured = {};
-    for (const trigger of triggerList)
-      result[trigger] = handlers.captureTrigger?.(trigger, interactionId);
-    return result;
-  };
-  const dispatch = (trigger: Trigger, captures: Captured, snapshot?: PullSnapshot) => {
+  const dispatch = (trigger: Trigger, captures: Captures, snapshot?: PullSnapshot) => {
     handlers.onTrigger(trigger, captures[trigger], snapshot);
   };
-  const clearHold = (interaction: ActivePull | NonNullable<typeof keyboard>) => {
-    if (interaction.holdTimer) clearTimeout(interaction.holdTimer);
-  };
-  const clearPending = () => {
-    if (pending) clearTimeout(pending.timer);
-    pending = null;
-  };
-  const flushPending = () => {
-    if (!pending) return;
-    const previous = pending;
-    clearPending();
-    dispatch('press', previous.captures);
-    dispatch('release', previous.captures);
-  };
-  const cancelPending = () => clearPending();
-  const deliverShort = (x: number, y: number, captures: Captured) => {
-    const doubleTap = captures.doubleTap !== undefined;
-    if (pending) {
-      const previous = pending;
-      clearPending();
-      const within =
-        Math.hypot(x - previous.x, y - previous.y) < 24 &&
-        performance.now() - previous.time >= 0 &&
-        performance.now() - previous.time <= DOUBLE_TAP;
-      if (within && previous.doubleTap && doubleTap) {
-        dispatch('doubleTap', captures);
-        return;
+  const press = new PressMachine({
+    trigger: (trigger, captures) => {
+      dispatch(trigger, captures);
+      if (trigger === 'longPress' && pointer) {
+        handlers.onPull?.(null);
       }
-      dispatch('press', previous.captures);
-      dispatch('release', previous.captures);
-    }
-    if (!doubleTap) {
+    },
+    tap: ({ captures }) => {
       dispatch('press', captures);
       dispatch('release', captures);
-      return;
-    }
-    const time = performance.now();
-    pending = {
-      x,
-      y,
-      time,
-      captures,
-      doubleTap,
-      timer: setTimeout(() => {
-        if (pending?.captures !== captures) return;
-        pending = null;
-        dispatch('press', captures);
-        dispatch('release', captures);
-      }, DOUBLE_TAP),
-    };
-  };
+    },
+  });
 
   const cancel = (pointerId?: number) => {
     // Capture is also lost right after every pointerup; that must not drop a tap waiting for its pair.
-    if (pointerId != null && pointerId !== active?.state.pointerId) return;
-    if (active) {
-      clearHold(active);
-      const snapshot = active.snapshot;
-      active = null;
+    if (pointerId != null && pointerId !== pointer?.state.pointerId) {
+      return;
+    }
+    press.cancel();
+    keyboard = null;
+    if (pointer) {
+      const snapshot = pointer.snapshot;
+      pointer = null;
       handlers.onCancel?.(snapshot);
       handlers.onPull?.(null);
     }
-    if (keyboard) {
-      clearHold(keyboard);
-      keyboard = null;
-    }
-    cancelPending();
-  };
-  const fireLong = (interaction: ActivePull | NonNullable<typeof keyboard>) => {
-    if (interaction.longStarted) return;
-    interaction.longStarted = true;
-    clearHold(interaction);
-    flushPending();
-    dispatch('longPress', interaction.captures);
-    if ('state' in interaction) handlers.onPull?.(null);
   };
   const down = (e: PointerEvent) => {
-    if (handlers.enabled === false || e.button !== 0 || active || keyboard) return;
+    if (handlers.enabled === false || e.button !== 0 || pointer || keyboard) {
+      return;
+    }
     const rect = node.getBoundingClientRect();
-    const interactionId = makeInteractionId();
-    const interaction: ActivePull = {
+    const { pullBindings } = handlers;
+    pointer = {
       state: beginPull(
         e.pointerId,
         e.clientX,
@@ -223,114 +80,84 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
         rect.width,
         rect.height,
       ),
-      bindings:
-        typeof handlers.pullBindings === 'function'
-          ? handlers.pullBindings()
-          : (handlers.pullBindings ?? {}),
+      bindings: typeof pullBindings === 'function' ? pullBindings() : (pullBindings ?? {}),
       snapshot: null,
-      captures: capture(interactionId),
-      interactionId,
-      longStarted: false,
+      captures: captureTriggers(handlers.captureTrigger),
     };
-    active = interaction;
-    interaction.holdTimer = setTimeout(() => {
-      if (active === interaction && !interaction.state.movedBeyondSlop) fireLong(interaction);
-    }, HOLD_MS);
+    press.start(pointer.captures);
     node.setPointerCapture(e.pointerId);
     handlers.onStart?.();
   };
-  const update = (e: PointerEvent) => {
-    if (!active || e.pointerId !== active.state.pointerId) return active;
-    const beforeSlop = active.state.movedBeyondSlop;
-    const result = updatePull(active.state, e.clientX, e.clientY, active.bindings);
-    active = { ...active, state: result.state, snapshot: result.snapshot };
-    if (!beforeSlop && result.state.movedBeyondSlop) {
-      clearHold(active);
-      flushPending();
-    }
-    if (active.longStarted) handlers.onPull?.(null);
-    else handlers.onPull?.(result.snapshot);
-    return active;
-  };
   const move = (e: PointerEvent) => {
-    update(e);
+    if (!pointer || e.pointerId !== pointer.state.pointerId) {
+      return;
+    }
+    const result = updatePull(pointer.state, e.clientX, e.clientY, pointer.bindings);
+    pointer.state = result.state;
+    pointer.snapshot = result.snapshot;
+    if (result.state.movedBeyondSlop) {
+      press.move();
+    }
+    handlers.onPull?.(press.long ? null : result.snapshot);
   };
   const up = (e: PointerEvent) => {
-    if (!active || e.pointerId !== active.state.pointerId) return;
-    const latest = update(e)!;
-    const { state, snapshot, captures, longStarted } = latest;
-    clearHold(latest);
-    active = null;
-    if (longStarted || (!state.movedBeyondSlop && performance.now() - state.startTime >= HOLD_MS)) {
-      if (!longStarted) fireLong(latest);
-      dispatch('longPressRelease', captures);
-      handlers.onPull?.(null);
+    if (!pointer || e.pointerId !== pointer.state.pointerId) {
       return;
     }
-    if (state.movedBeyondSlop) {
+    move(e);
+    const { snapshot, captures } = pointer;
+    pointer = null;
+    if (press.end({ x: e.clientX, y: e.clientY, captures }) === 'moved') {
       handlers.onPullEnd?.(snapshot, !!snapshot?.armed);
-      if (snapshot?.armed) dispatch(snapshot.direction, captures, snapshot);
-      handlers.onPull?.(null);
-      return;
+      if (snapshot?.armed) {
+        dispatch(snapshot.direction, captures, snapshot);
+      }
     }
-    deliverShort(e.clientX, e.clientY, captures);
     handlers.onPull?.(null);
   };
   const lost = (e: PointerEvent) => cancel(e.pointerId);
   const keydown = (e: KeyboardEvent) => {
-    if (
-      handlers.enabled === false ||
-      (e.key !== 'Enter' && e.key !== ' ') ||
-      e.repeat ||
-      active ||
-      keyboard
-    )
+    if (handlers.enabled === false || !isActivationKey(e) || e.repeat || pointer || keyboard) {
       return;
+    }
     e.preventDefault();
     suppressSyntheticClick = true;
-    if (clickSuppressionTimer) clearTimeout(clickSuppressionTimer);
+    if (clickSuppressionTimer) {
+      clearTimeout(clickSuppressionTimer);
+    }
     clickSuppressionTimer = setTimeout(() => {
       suppressSyntheticClick = false;
     }, 1000);
-    const interactionId = makeInteractionId();
-    const interaction = {
-      captures: capture(interactionId),
-      interactionId,
-      startedAt: performance.now(),
-      longStarted: false,
-      holdTimer: undefined as unknown as ReturnType<typeof setTimeout>,
-    };
-    keyboard = interaction;
-    interaction.holdTimer = setTimeout(() => {
-      if (keyboard === interaction) fireLong(interaction);
-    }, HOLD_MS);
+    keyboard = captureTriggers(handlers.captureTrigger);
+    press.start(keyboard);
   };
   const keyup = (e: KeyboardEvent) => {
-    if (!keyboard || (e.key !== 'Enter' && e.key !== ' ')) return;
+    if (!keyboard || !isActivationKey(e)) {
+      return;
+    }
     e.preventDefault();
-    const interaction = keyboard;
-    clearHold(interaction);
+    const captures = keyboard;
     keyboard = null;
-    if (interaction.longStarted || performance.now() - interaction.startedAt >= HOLD_MS) {
-      if (!interaction.longStarted) fireLong(interaction);
-      dispatch('longPressRelease', interaction.captures);
-    } else deliverShort(0, 0, interaction.captures);
-    if (clickSuppressionTimer) clearTimeout(clickSuppressionTimer);
+    press.end({ x: 0, y: 0, captures });
+    if (clickSuppressionTimer) {
+      clearTimeout(clickSuppressionTimer);
+    }
     clickSuppressionTimer = setTimeout(() => {
       suppressSyntheticClick = false;
     }, 0);
   };
+  // Assistive technology activates with a click that has no pointer sequence (detail 0).
   const click = (e: MouseEvent) => {
     if (
       handlers.enabled === false ||
       e.detail !== 0 ||
       suppressSyntheticClick ||
-      active ||
+      pointer ||
       keyboard
-    )
+    ) {
       return;
-    const interactionId = makeInteractionId();
-    deliverShort(e.clientX, e.clientY, capture(interactionId));
+    }
+    press.tap({ x: e.clientX, y: e.clientY, captures: captureTriggers(handlers.captureTrigger) });
   };
   const blur = () => cancel();
 
@@ -348,11 +175,15 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
   return {
     update: (next: GestureHandlers) => {
       handlers = next;
-      if (handlers.enabled === false) cancel();
+      if (handlers.enabled === false) {
+        cancel();
+      }
     },
     destroy() {
       cancel();
-      if (clickSuppressionTimer) clearTimeout(clickSuppressionTimer);
+      if (clickSuppressionTimer) {
+        clearTimeout(clickSuppressionTimer);
+      }
       node.removeEventListener('pointerdown', down);
       node.removeEventListener('pointermove', move);
       node.removeEventListener('pointerup', up);

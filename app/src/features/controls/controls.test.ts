@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { availableGestures, moveVariant, removeVariant, type ControlConfig } from './model';
 import { buttonIconSize, mixerLayout, pressRippleGeometry, sliderOrientation } from './geometry';
 import {
@@ -15,7 +15,6 @@ import {
   resizePreview,
   type ResizeCorner,
 } from '../layout/drag-geometry';
-import { tapSequence } from './input/gestures';
 
 const prev: ControlConfig = {
   id: 'prev',
@@ -84,47 +83,6 @@ describe('spring motion', () => {
     expect(springDuration(400)).toBe(420);
     expect(springDuration(1000)).toBe(520);
     expect(springDuration(Number.NaN)).toBe(360);
-  });
-});
-
-describe('tap sequences', () => {
-  afterEach(() => vi.useRealTimers());
-  it('keeps unbound taps immediate and emits only the bound double-tap action', () => {
-    vi.useFakeTimers();
-    const emit = vi.fn(),
-      taps = tapSequence(emit);
-    taps.send('tap', 20, 20);
-    expect(emit).toHaveBeenCalledExactlyOnceWith('tap', 20, 20);
-    emit.mockClear();
-    taps.send('tap', 20, 20, true);
-    vi.advanceTimersByTime(180);
-    taps.send('tap', 23, 22, true);
-    vi.advanceTimersByTime(400);
-    expect(emit).toHaveBeenCalledExactlyOnceWith('doubleTap', 23, 22);
-  });
-  it('keeps distant taps separate and flushes single taps after the window', () => {
-    vi.useFakeTimers();
-    const emit = vi.fn(),
-      taps = tapSequence(emit);
-    taps.send('tap', 20, 20, true);
-    vi.advanceTimersByTime(100);
-    taps.send('tap', 100, 20, true);
-    vi.advanceTimersByTime(301);
-    expect(emit.mock.calls).toEqual([
-      ['tap', 20, 20],
-      ['tap', 100, 20],
-    ]);
-  });
-  it('cancels pending taps on teardown and keeps long presses independent', () => {
-    vi.useFakeTimers();
-    const emit = vi.fn(),
-      taps = tapSequence(emit);
-    taps.send('tap', 0, 0, true);
-    taps.cancel();
-    vi.advanceTimersByTime(400);
-    expect(emit).not.toHaveBeenCalled();
-    taps.send('longPress', 0, 0, true);
-    expect(emit).toHaveBeenCalledExactlyOnceWith('longPress', 0, 0);
   });
 });
 

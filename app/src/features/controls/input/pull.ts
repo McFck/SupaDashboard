@@ -163,8 +163,6 @@ export function updatePull(
   };
 }
 
-export const DOUBLE_TAP = 300; // ms
-
 export function shouldAnimateSliderFill(input: {
   level: number | null;
   previousLevel: number | null;
