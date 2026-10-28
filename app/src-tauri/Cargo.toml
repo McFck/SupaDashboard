@@ -8,13 +8,12 @@ rust-version = "1.90"
 
 [lib]
 name = "app_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.12.5", features = ["tray-icon", "image-png", "protocol-asset"] }
@@ -24,7 +23,6 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-persisted-scope = { version = "2", features = ["protocol-asset"] }
-url = "2"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39.1"
@@ -39,6 +37,7 @@ windows = { version = "0.62", features = [
   "Win32_Media_Audio_Endpoints",
   "Win32_System_Com",
   "Win32_System_Threading",
+  "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_HiDpi",

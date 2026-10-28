@@ -1,12 +1,10 @@
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use tauri::{Manager, State, WebviewWindow};
-use url::Url;
+use tauri::{Manager, State, Url, WebviewWindow};
 
 #[derive(Default)]
 pub struct ContentObserverState {
-    #[cfg(windows)]
     installed: Arc<Mutex<std::collections::HashSet<String>>>,
 }
 
@@ -62,58 +60,44 @@ pub async fn content_frames_ready(
     state: State<'_, ContentObserverState>,
 ) -> Result<bool, String> {
     let app_origin = local_application_origin(&window)?;
-    #[cfg(windows)]
+    if state
+        .installed
+        .lock()
+        .map_err(|_| "content observer state is unavailable")?
+        .contains(window.label())
     {
-        if state
-            .installed
-            .lock()
-            .map_err(|_| "content observer state is unavailable")?
-            .contains(window.label())
-        {
-            return Ok(true);
-        }
-        let (sender, mut receiver) = tauri::async_runtime::channel(1);
-        let label = window.label().to_owned();
-        let app = window.app_handle().clone();
-        let installed = state.installed.clone();
-        window
-            .with_webview(move |webview| {
-                let result = windows_observer::install(
-                    &app,
-                    &label,
-                    &app_origin,
-                    webview.controller(),
-                    &installed,
-                );
-                let _ = sender.try_send(result);
-            })
-            .map_err(|error| format!("could not schedule the frame observer: {error}"))?;
-        receiver
-            .recv()
-            .await
-            .ok_or_else(|| "frame observer installation was canceled".to_owned())??;
-        Ok(true)
+        return Ok(true);
     }
-    #[cfg(not(windows))]
-    {
-        let _ = (window, state, app_origin);
-        Ok(false)
-    }
+    let (sender, mut receiver) = tauri::async_runtime::channel(1);
+    let label = window.label().to_owned();
+    let app = window.app_handle().clone();
+    let installed = state.installed.clone();
+    window
+        .with_webview(move |webview| {
+            let result = windows_observer::install(
+                &app,
+                &label,
+                &app_origin,
+                webview.controller(),
+                &installed,
+            );
+            let _ = sender.try_send(result);
+        })
+        .map_err(|error| format!("could not schedule the frame observer: {error}"))?;
+    receiver
+        .recv()
+        .await
+        .ok_or_else(|| "frame observer installation was canceled".to_owned())??;
+    Ok(true)
 }
 
 pub fn forget_window(label: String, app: tauri::AppHandle, state: &ContentObserverState) {
-    #[cfg(windows)]
-    {
-        if let Ok(mut installed) = state.installed.lock() {
-            installed.remove(&label);
-        }
-        let _ = app.run_on_main_thread(move || windows_observer::forget(label));
+    if let Ok(mut installed) = state.installed.lock() {
+        installed.remove(&label);
     }
-    #[cfg(not(windows))]
-    let _ = (label, app, state);
+    let _ = app.run_on_main_thread(move || windows_observer::forget(label));
 }
 
-#[cfg(windows)]
 mod windows_observer {
     use std::{
         cell::RefCell,

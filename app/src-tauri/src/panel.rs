@@ -269,7 +269,6 @@ async fn create_panel(app: AppHandle) -> Result<(), String> {
 
 /// Windows fades decorated windows on show/hide; the tray toggle should be instant.
 fn disable_window_transitions(window: &tauri::WebviewWindow) {
-    #[cfg(windows)]
     if let Ok(hwnd) = window.hwnd() {
         use windows::Win32::Foundation::HWND;
         use windows::Win32::Graphics::Dwm::{
@@ -290,8 +289,6 @@ fn disable_window_transitions(window: &tauri::WebviewWindow) {
             log::warn!("could not disable panel transitions: {error}");
         }
     }
-    #[cfg(not(windows))]
-    let _ = window;
 }
 
 pub async fn preload_panel(app: AppHandle) -> Result<(), String> {

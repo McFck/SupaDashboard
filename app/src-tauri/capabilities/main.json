@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "The dashboard window: drag, resize, always-on-top and reveal itself",
+  "windows": ["main"],
+  "permissions": [
+    "core:window:allow-show",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging"
+  ]
+}

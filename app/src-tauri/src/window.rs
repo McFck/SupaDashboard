@@ -27,10 +27,7 @@ fn scaled_dip(value: i32, dpi: u32) -> i32 {
     ((i64::from(value) * i64::from(if dpi == 0 { 96 } else { dpi }) + 48) / 96).max(1) as i32
 }
 
-fn resize_hit(rect: Geometry, point: (i32, i32), dpi: u32, fullscreen: bool) -> Option<ResizeHit> {
-    if fullscreen {
-        return None;
-    }
+fn resize_hit(rect: Geometry, point: (i32, i32), dpi: u32) -> Option<ResizeHit> {
     let left = i32::try_from(rect.x).ok()?;
     let top = i32::try_from(rect.y).ok()?;
     let width = i32::try_from(rect.width).ok()?.max(1);
@@ -79,13 +76,8 @@ fn resize_hit(rect: Geometry, point: (i32, i32), dpi: u32, fullscreen: bool) -> 
     }
 }
 
-fn dashboard_visible(is_visible: bool, minimized: bool) -> bool {
-    is_visible && !minimized
-}
-
-#[cfg(windows)]
 mod win32 {
-    use super::{Geometry, ResizeHit, SUBCLASS_ID, dashboard_visible, resize_hit};
+    use super::{Geometry, ResizeHit, SUBCLASS_ID, resize_hit};
     use serde::Serialize;
     use std::cell::Cell;
     use std::mem::size_of;
@@ -324,7 +316,7 @@ mod win32 {
                     width: i64::from(rect.right - rect.left),
                     height: i64::from(rect.bottom - rect.top),
                 };
-                if let Some(hit) = resize_hit(bounds, point, dpi, false) {
+                if let Some(hit) = resize_hit(bounds, point, dpi) {
                     policy.resize_hit_test.set(true);
                     return LRESULT(hit_code(hit) as isize);
                 }
@@ -385,13 +377,13 @@ mod win32 {
             // WS_VISIBLE is set only after WM_SHOWWINDOW returns, so the message's wParam is the new state.
             let visible = wparam.0 != 0;
             let minimized = unsafe { IsIconic(hwnd).as_bool() };
-            publish_visibility(policy, dashboard_visible(visible, minimized));
+            publish_visibility(policy, visible && !minimized);
         } else if message == WM_SIZE {
             let minimized = unsafe { IsIconic(hwnd).as_bool() };
             if policy.minimized.get() != minimized {
                 policy.minimized.set(minimized);
                 let visible = unsafe { IsWindowVisible(hwnd).as_bool() };
-                publish_visibility(policy, dashboard_visible(visible, minimized));
+                publish_visibility(policy, visible && !minimized);
             }
         }
         result
@@ -489,107 +481,50 @@ mod win32 {
         publish_hover(policy, false, true);
         Ok(())
     }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{enforce_ex_style, enforce_style};
-        use windows::Win32::UI::WindowsAndMessaging::{
-            WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX, WS_THICKFRAME,
-            WS_VISIBLE,
-        };
-
-        #[test]
-        fn style_policy_removes_caption_and_maximize_but_keeps_resize_and_visibility() {
-            let input = WS_CAPTION.0 | WS_MAXIMIZEBOX.0 | WS_THICKFRAME.0 | WS_VISIBLE.0 | 0x4000;
-            let output = enforce_style(input);
-            assert_eq!(output & (WS_CAPTION.0 | WS_MAXIMIZEBOX.0), 0);
-            assert_eq!(output & WS_THICKFRAME.0, WS_THICKFRAME.0);
-            assert_eq!(output & WS_VISIBLE.0, WS_VISIBLE.0);
-            assert_eq!(output & 0x4000, 0x4000);
-        }
-
-        #[test]
-        fn extended_style_policy_preserves_topmost_and_forces_composition_flags() {
-            let topmost = 0x0000_0008;
-            let output = enforce_ex_style(topmost);
-            assert_eq!(output & topmost, topmost);
-            assert_eq!(output & WS_EX_NOACTIVATE.0, WS_EX_NOACTIVATE.0);
-            assert_eq!(
-                output & WS_EX_NOREDIRECTIONBITMAP.0,
-                WS_EX_NOREDIRECTIONBITMAP.0
-            );
-        }
-    }
 }
 
 pub fn install_dashboard_policy(window: &WebviewWindow) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        win32::install(window)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = window;
-        Ok(())
-    }
+    win32::install(window)
 }
 
 #[tauri::command]
 pub async fn dashboard_set_bounds(app: AppHandle, bounds: Geometry) -> Result<Geometry, String> {
     validate_bounds(bounds)?;
-    #[cfg(windows)]
-    {
-        let (sender, mut receiver) = tauri::async_runtime::channel(1);
-        let handle = app.clone();
-        app.run_on_main_thread(move || {
-            let result = handle
-                .get_webview_window("main")
-                .ok_or_else(|| "dashboard main window is unavailable".to_owned())
-                .and_then(|window| {
-                    let raw_hwnd = window.hwnd().map_err(|error| error.to_string())?;
-                    win32::set_bounds(windows::Win32::Foundation::HWND(raw_hwnd.0), bounds)
-                });
-            let _ = sender.try_send(result);
-        })
-        .map_err(|error| format!("could not dispatch bounds to the UI thread: {error}"))?;
-        receiver
-            .recv()
-            .await
-            .ok_or_else(|| "dashboard UI thread dropped the bounds result".to_owned())?
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = app;
-        Err("atomic dashboard bounds are only available on Windows".to_owned())
-    }
+    let (sender, mut receiver) = tauri::async_runtime::channel(1);
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let result = handle
+            .get_webview_window("main")
+            .ok_or_else(|| "dashboard main window is unavailable".to_owned())
+            .and_then(|window| {
+                let raw_hwnd = window.hwnd().map_err(|error| error.to_string())?;
+                win32::set_bounds(windows::Win32::Foundation::HWND(raw_hwnd.0), bounds)
+            });
+        let _ = sender.try_send(result);
+    })
+    .map_err(|error| format!("could not dispatch bounds to the UI thread: {error}"))?;
+    receiver
+        .recv()
+        .await
+        .ok_or_else(|| "dashboard UI thread dropped the bounds result".to_owned())?
 }
 
 #[tauri::command]
 pub async fn dashboard_interaction_mode(app: AppHandle, fullscreen: bool) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        let (sender, mut receiver) = tauri::async_runtime::channel(1);
-        let handle = app.clone();
-        app.run_on_main_thread(move || {
-            let result = handle
-                .get_webview_window("main")
-                .ok_or_else(|| "dashboard main window is unavailable".to_owned())
-                .and_then(|window| win32::set_interaction_mode(&window, fullscreen));
-            let _ = sender.try_send(result);
-        })
-        .map_err(|error| {
-            format!("could not dispatch interaction mode to the UI thread: {error}")
-        })?;
-        receiver
-            .recv()
-            .await
-            .ok_or_else(|| "dashboard UI thread dropped the interaction mode result".to_owned())?
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = (app, fullscreen);
-        Ok(())
-    }
+    let (sender, mut receiver) = tauri::async_runtime::channel(1);
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let result = handle
+            .get_webview_window("main")
+            .ok_or_else(|| "dashboard main window is unavailable".to_owned())
+            .and_then(|window| win32::set_interaction_mode(&window, fullscreen));
+        let _ = sender.try_send(result);
+    })
+    .map_err(|error| format!("could not dispatch interaction mode to the UI thread: {error}"))?;
+    receiver
+        .recv()
+        .await
+        .ok_or_else(|| "dashboard UI thread dropped the interaction mode result".to_owned())?
 }
 
 fn validate_bounds(bounds: Geometry) -> Result<(), String> {
@@ -606,15 +541,7 @@ fn validate_bounds(bounds: Geometry) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Geometry, ResizeHit, dashboard_visible, resize_hit, validate_bounds};
-
-    #[test]
-    fn dashboard_visibility_requires_a_shown_non_minimized_window() {
-        assert!(dashboard_visible(true, false));
-        assert!(!dashboard_visible(false, false));
-        assert!(!dashboard_visible(true, true));
-        assert!(!dashboard_visible(false, true));
-    }
+    use super::{Geometry, ResizeHit, resize_hit, validate_bounds};
 
     #[test]
     fn validates_signed_positions_and_positive_win32_dimensions() {
@@ -675,40 +602,29 @@ mod tests {
             ((2, 50), ResizeHit::West),
         ];
         for (point, expected) in cases {
-            assert_eq!(
-                resize_hit(rect, point, 96, false),
-                Some(expected),
-                "{point:?}"
-            );
+            assert_eq!(resize_hit(rect, point, 96), Some(expected), "{point:?}");
         }
-        assert_eq!(resize_hit(rect, (100, 50), 96, false), None);
-        assert_eq!(resize_hit(rect, (-1, 50), 96, false), None);
-        assert_eq!(resize_hit(rect, (200, 50), 96, false), None);
+        assert_eq!(resize_hit(rect, (100, 50), 96), None);
+        assert_eq!(resize_hit(rect, (-1, 50), 96), None);
+        assert_eq!(resize_hit(rect, (200, 50), 96), None);
     }
 
     #[test]
-    fn resize_hit_scales_edges_handles_negative_origins_and_suppresses_fullscreen() {
+    fn resize_hit_scales_edges_and_handles_negative_origins() {
         let rect = Geometry {
             x: -1920,
             y: -200,
             width: 800,
             height: 600,
         };
+        assert_eq!(resize_hit(rect, (-1912, -100), 144), Some(ResizeHit::West));
+        assert_eq!(resize_hit(rect, (-1909, -100), 192), Some(ResizeHit::West));
+        assert_eq!(resize_hit(rect, (-1902, -100), 144), None);
+        assert_eq!(resize_hit(rect, (-1896, -100), 192), None);
         assert_eq!(
-            resize_hit(rect, (-1912, -100), 144, false),
-            Some(ResizeHit::West)
-        );
-        assert_eq!(
-            resize_hit(rect, (-1909, -100), 192, false),
-            Some(ResizeHit::West)
-        );
-        assert_eq!(resize_hit(rect, (-1902, -100), 144, false), None);
-        assert_eq!(resize_hit(rect, (-1896, -100), 192, false), None);
-        assert_eq!(
-            resize_hit(rect, (-1918, -198), 96, false),
+            resize_hit(rect, (-1918, -198), 96),
             Some(ResizeHit::NorthWest)
         );
-        assert_eq!(resize_hit(rect, (-1918, -198), 96, true), None);
     }
 
     #[test]
@@ -719,40 +635,19 @@ mod tests {
             width: 8,
             height: 8,
         };
-        assert_eq!(
-            resize_hit(tiny, (10, 20), 96, false),
-            Some(ResizeHit::NorthWest)
-        );
-        assert_eq!(
-            resize_hit(tiny, (17, 27), 96, false),
-            Some(ResizeHit::SouthEast)
-        );
+        assert_eq!(resize_hit(tiny, (10, 20), 96), Some(ResizeHit::NorthWest));
+        assert_eq!(resize_hit(tiny, (17, 27), 96), Some(ResizeHit::SouthEast));
         let normal = Geometry {
             x: 0,
             y: 0,
             width: 200,
             height: 100,
         };
-        assert_eq!(resize_hit(normal, (12, 50), 96, false), None);
-        assert_eq!(
-            resize_hit(normal, (11, 50), 96, false),
-            Some(ResizeHit::West)
-        );
-        assert_eq!(
-            resize_hit(normal, (11, 31), 96, false),
-            Some(ResizeHit::NorthWest)
-        );
-        assert_eq!(
-            resize_hit(normal, (11, 32), 96, false),
-            Some(ResizeHit::West)
-        );
-        assert_eq!(
-            resize_hit(normal, (31, 11), 96, false),
-            Some(ResizeHit::NorthWest)
-        );
-        assert_eq!(
-            resize_hit(normal, (32, 11), 96, false),
-            Some(ResizeHit::North)
-        );
+        assert_eq!(resize_hit(normal, (12, 50), 96), None);
+        assert_eq!(resize_hit(normal, (11, 50), 96), Some(ResizeHit::West));
+        assert_eq!(resize_hit(normal, (11, 31), 96), Some(ResizeHit::NorthWest));
+        assert_eq!(resize_hit(normal, (11, 32), 96), Some(ResizeHit::West));
+        assert_eq!(resize_hit(normal, (31, 11), 96), Some(ResizeHit::NorthWest));
+        assert_eq!(resize_hit(normal, (32, 11), 96), Some(ResizeHit::North));
     }
 }

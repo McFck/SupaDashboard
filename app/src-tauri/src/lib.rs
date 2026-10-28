@@ -1,9 +1,10 @@
+#[cfg(not(windows))]
+compile_error!("SupaDashboard builds for Windows only");
+
 mod content;
-#[cfg(windows)]
 mod media;
 mod monitors;
 mod panel;
-#[cfg(windows)]
 mod volume;
 mod window;
 
@@ -22,7 +23,6 @@ fn toggle_dashboard(app: &AppHandle) {
     }
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -45,7 +45,6 @@ pub fn run() {
             }
             app.manage(content::ContentObserverState::default());
             app.manage(panel::PanelState::default());
-            #[cfg(windows)]
             app.manage(
                 volume::AudioService::start(app.handle().clone()).map_err(std::io::Error::other)?,
             );

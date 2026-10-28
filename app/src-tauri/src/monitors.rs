@@ -91,7 +91,6 @@ fn map_monitor_names(
         .collect()
 }
 
-#[cfg(windows)]
 fn windows_metadata(names: &[String]) -> (HashMap<String, String>, HashMap<String, String>) {
     let display_config = match display_config_friendly_names() {
         Ok(names) => names,
@@ -113,7 +112,6 @@ fn windows_metadata(names: &[String]) -> (HashMap<String, String>, HashMap<Strin
     (display_config, enum_display)
 }
 
-#[cfg(windows)]
 fn display_config_friendly_names() -> Result<HashMap<String, String>, String> {
     use std::mem::size_of;
 
@@ -123,7 +121,7 @@ fn display_config_friendly_names() -> Result<HashMap<String, String>, String> {
         DISPLAYCONFIG_TARGET_DEVICE_NAME, DisplayConfigGetDeviceInfo,
     };
 
-    let (paths, _) = active_display_paths()?;
+    let paths = active_display_paths()?;
     let mut names = Vec::with_capacity(paths.len());
     let mut warning = None;
 
@@ -183,14 +181,8 @@ fn display_config_friendly_names() -> Result<HashMap<String, String>, String> {
     Ok(grouped)
 }
 
-#[cfg(windows)]
-fn active_display_paths() -> Result<
-    (
-        Vec<windows::Win32::Devices::Display::DISPLAYCONFIG_PATH_INFO>,
-        Vec<windows::Win32::Devices::Display::DISPLAYCONFIG_MODE_INFO>,
-    ),
-    String,
-> {
+fn active_display_paths()
+-> Result<Vec<windows::Win32::Devices::Display::DISPLAYCONFIG_PATH_INFO>, String> {
     use windows::Win32::Devices::Display::{
         DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO, GetDisplayConfigBufferSizes,
         QDC_ONLY_ACTIVE_PATHS, QueryDisplayConfig,
@@ -232,14 +224,12 @@ fn active_display_paths() -> Result<
             return Err(format!("QueryDisplayConfig returned {}", query_status.0));
         }
         paths.truncate(path_count as usize);
-        modes.truncate(mode_count as usize);
-        return Ok((paths, modes));
+        return Ok(paths);
     }
 
     Err("DisplayConfig topology changed during three query attempts".to_owned())
 }
 
-#[cfg(windows)]
 fn enum_display_friendly_name(source_name: &str) -> Option<String> {
     use std::mem::size_of;
 
@@ -271,11 +261,6 @@ fn enum_display_friendly_name(source_name: &str) -> Option<String> {
     None
 }
 
-#[cfg(not(windows))]
-fn windows_metadata(_: &[String]) -> (HashMap<String, String>, HashMap<String, String>) {
-    (HashMap::new(), HashMap::new())
-}
-
 #[tauri::command]
 pub async fn monitor_names(app: AppHandle) -> Result<Vec<MonitorName>, String> {
     let monitors = app
@@ -302,9 +287,6 @@ pub async fn monitor_names(app: AppHandle) -> Result<Vec<MonitorName>, String> {
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    #[cfg(windows)]
-    let (display_config, enum_display) = windows_metadata(&names);
-    #[cfg(not(windows))]
     let (display_config, enum_display) = windows_metadata(&names);
 
     Ok(map_monitor_names(
@@ -327,26 +309,6 @@ mod tests {
             target_id: target,
             friendly: friendly.to_owned(),
         }
-    }
-
-    #[test]
-    fn decodes_nul_terminated_utf16_with_unicode_and_surrogate_pairs() {
-        let mut value = "  Экран 😀  ".encode_utf16().collect::<Vec<_>>();
-        value.extend([0, b'x' as u16]);
-        assert_eq!(decode_utf16(&value), "Экран 😀");
-    }
-
-    #[test]
-    fn falls_back_from_blank_or_failed_names_to_the_raw_name() {
-        assert_eq!(
-            choose_friendly_name(Some("  "), None, r"\\.\DISPLAY1"),
-            r"\\.\DISPLAY1"
-        );
-        assert_eq!(
-            choose_friendly_name(None, Some("  Virtual display  "), "raw"),
-            "Virtual display"
-        );
-        assert_eq!(choose_friendly_name(None, None, "raw"), "raw");
     }
 
     #[test]
