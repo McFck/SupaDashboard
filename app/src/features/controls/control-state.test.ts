@@ -99,6 +99,4 @@ describe('effective button state', () => {
       },
     });
   });
-
-
 });
