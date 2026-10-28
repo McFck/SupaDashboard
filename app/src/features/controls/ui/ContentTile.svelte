@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { prefersReducedMotion } from 'svelte/motion';
   import { pullBindingsFor, type PullSnapshot } from '../input/pull';
   import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { ControlConfig } from '../model';
@@ -55,9 +56,7 @@
     settling = true;
     const x = active.axis === 'x' ? active.offset : 0;
     const y = active.axis === 'y' ? active.offset : 0;
-    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches
-      ? 0
-      : springDuration(Math.hypot(x, y));
+    const duration = prefersReducedMotion.current ? 0 : springDuration(Math.hypot(x, y));
     const currentAnimation = face.animate(
       SPRING_SAMPLES.map(({ progress }) => ({
         transform: `translate3d(${x * (1 - progress)}px, ${y * (1 - progress)}px, 0)`,

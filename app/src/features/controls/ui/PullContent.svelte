@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick, type Snippet } from 'svelte';
+  import { prefersReducedMotion } from 'svelte/motion';
   import type { PullSnapshot } from '../input/pull';
   import { springDuration, SPRING_SAMPLES } from '$lib/spring';
   import type { ControlConfig, Variant } from '../model';
@@ -75,9 +76,6 @@
       scale: Number.isFinite(scale) ? scale : 1,
     };
   }
-  function reducedMotion() {
-    return matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }
   function springFrames(from: Pose, to: Pose) {
     return SPRING_SAMPLES.map(({ offset, progress }) => ({
       offset,
@@ -115,7 +113,7 @@
     held = { snapshot: finalPull, sourceIndex: current, targetIndex: targetVariant, committed };
     settling = true;
     if (committed) commit();
-    const duration = reducedMotion() ? 0 : springDuration(Math.abs(finalPull.offset));
+    const duration = prefersReducedMotion.current ? 0 : springDuration(Math.abs(finalPull.offset));
     await tick();
     if (run !== generation || !outgoing) return;
 
