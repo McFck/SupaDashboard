@@ -7,6 +7,7 @@ import {
   fits,
   inside,
   previewDrop,
+  tileRadius,
   type DropPreview,
   type FittedDeck,
   type Grid,
@@ -31,7 +32,6 @@ type CellRect = { x: number; y: number; w: number; h: number };
 const DRAG_SLOP = 6;
 /** Pixel deadband around each half-cell resize snap. */
 const RESIZE_HYSTERESIS = 4;
-const MAX_FRAME_RADIUS = 22;
 
 export type DeckDragHost = {
   deck(): Grid & { items: Item[] };
@@ -126,7 +126,11 @@ export class DeckDrag {
     if (this.current?.mode === 'resize') {
       return this.current.frameRadius;
     }
-    return this.settlingFrame?.radius ?? this.removalResize?.radius ?? MAX_FRAME_RADIUS;
+    return (
+      this.settlingFrame?.radius ??
+      this.removalResize?.radius ??
+      tileRadius(this.host.metrics().cell)
+    );
   });
 
   private worker: DropPreviewWorker | null = null;
@@ -170,7 +174,7 @@ export class DeckDrag {
     const frameRadius =
       interruptedRadius ??
       Math.min(
-        MAX_FRAME_RADIUS,
+        tileRadius(metrics.cell),
         (Math.min(min.w, item.w) * pitch - metrics.gap) / 2,
         (Math.min(min.h, item.h) * pitch - metrics.gap) / 2,
       );
