@@ -2,35 +2,27 @@
   // Volume mixer widget: one pill per channel. Channels are the master volume plus every app currently
   // playing audio ("auto"), or a fixed list chosen in the editor. Tap a channel's icon to mute it.
   import { toast } from 'svelte-sonner';
-  import { mixerLayout } from '../geometry';
+  import { mixerLayout } from '../face-layout';
   import { DEFAULT_MIXER_MAX_CHANNELS, type ControlConfig } from '../model';
   import { findVolumeChannel, setMuted, setVolume, volumeChannels } from '../../media/volume';
   import { appIcons } from '../../plugins/registry';
-  import { settings } from '../../settings/state.svelte';
-  import type { Page } from '../../settings/schema';
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
+  import { ControlTile } from './control-tile.svelte';
 
   type Fixed = { target: string; label?: string; icon?: string };
   let {
     control,
-    page,
-    w = 4,
-    h = 2,
     pixelWidth,
     pixelHeight,
     pressFeedbackDisabled = false,
-    itemId: _itemId,
   }: {
     control: ControlConfig;
-    page?: Page;
-    w?: number;
-    h?: number;
-    pixelWidth?: number;
-    pixelHeight?: number;
+    pixelWidth: number;
+    pixelHeight: number;
     pressFeedbackDisabled?: boolean;
-    itemId?: string;
   } = $props();
+  let feedback = $state<PressFeedback>();
   const options = $derived(
     (control.options ?? {}) as {
       channels?: 'auto' | Fixed[];
@@ -38,12 +30,8 @@
       layout?: 'auto' | 'vertical' | 'horizontal';
     },
   );
-  let width = $state(0),
-    height = $state(0);
-  const variant = $derived(
-    control.variants[settings.variants[control.id] ?? 0] ?? control.variants[0],
-  );
-  const accent = $derived(variant?.color ?? '#b5a0e8');
+  const tile = new ControlTile({ control: () => control });
+  const accent = $derived(tile.variant?.color ?? '#b5a0e8');
 
   const title = (t: string) => (t === 'system' ? 'System' : t.charAt(0).toUpperCase() + t.slice(1));
   const channels = $derived.by(() => {
@@ -64,11 +52,7 @@
   });
   const vertical = $derived(
     (options.layout === 'auto' || !options.layout
-      ? mixerLayout(
-          pixelWidth ?? (width || w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)),
-          pixelHeight ?? (height || h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)),
-          channels.length,
-        )
+      ? mixerLayout(pixelWidth, pixelHeight, channels.length)
       : options.layout) === 'vertical',
   );
 
@@ -88,12 +72,11 @@
 
 <div
   data-dashboard-tile
-  bind:clientWidth={width}
-  bind:clientHeight={height}
   style:--accent={accent}
   class="relative h-full w-full"
 >
   <PressFeedback
+    bind:this={feedback}
     disabled={pressFeedbackDisabled}
     class="tile flex h-full w-full p-3"
   >
@@ -125,6 +108,7 @@
                 label={ch.label}
                 onchange={(v) => set(ch.target, v)}
                 onmute={() => mute(ch.target)}
+                {feedback}
               />
             </div>
           {/each}

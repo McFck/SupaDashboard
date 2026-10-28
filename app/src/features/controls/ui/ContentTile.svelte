@@ -1,18 +1,13 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { effectiveVariant } from '../button-state';
-  import { pullBindingsFor, type PullSnapshot } from '../interaction';
+  import { prefersReducedMotion } from 'svelte/motion';
+  import { pullBindingsFor, type PullSnapshot } from '../input/pull';
   import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { ControlConfig } from '../model';
-  import { gestures } from '../gestures';
-  import { runtimeVariables } from '../../automation/runtime-variables.svelte';
-  import type { TriggerPacket } from '../../automation/scenario-runner';
+  import { gestures } from '../input/gestures';
   import type { Trigger } from '../../automation/scenario';
-  import { settings } from '../../settings/state.svelte';
   import PressFeedback from './PressFeedback.svelte';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
-
-  const { captureRuntimeTrigger, dispatchRuntimePacket } = getRuntimeCommands();
+  import { ControlTile } from './control-tile.svelte';
 
   let {
     control,
@@ -36,10 +31,10 @@
   let pull = $state<PullSnapshot | null>(null);
   let settling = $state(false);
   let face = $state<HTMLElement>();
+  let feedback = $state<PressFeedback>();
   let animation: Animation | undefined;
-  const current = $derived(
-    effectiveVariant(control, runtimeVariables, settings.variants[control.id] ?? 0).index,
-  );
+  const tile = new ControlTile({ control: () => control, itemId: () => itemId });
+
   const translate = $derived(
     pull && !settling
       ? `translate3d(${pull.axis === 'x' ? pull.offset : 0}px, ${pull.axis === 'y' ? pull.offset : 0}px, 0)`
@@ -61,9 +56,7 @@
     settling = true;
     const x = active.axis === 'x' ? active.offset : 0;
     const y = active.axis === 'y' ? active.offset : 0;
-    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches
-      ? 0
-      : springDuration(Math.hypot(x, y));
+    const duration = prefersReducedMotion.current ? 0 : springDuration(Math.hypot(x, y));
     const currentAnimation = face.animate(
       SPRING_SAMPLES.map(({ progress }) => ({
         transform: `translate3d(${x * (1 - progress)}px, ${y * (1 - progress)}px, 0)`,
@@ -80,9 +73,9 @@
       })
       .catch(() => {});
   }
-  function trigger(_trigger: Trigger, captured?: unknown) {
-    onCommitted?.(_trigger);
-    void dispatchRuntimePacket(captured as TriggerPacket | undefined);
+  function trigger(committed: Trigger, captured?: unknown) {
+    onCommitted?.(committed);
+    tile.run(captured);
   }
   onDestroy(() => {
     animation?.cancel();
@@ -97,6 +90,7 @@
   class="relative h-full w-full min-h-0 min-w-0"
 >
   <PressFeedback
+    bind:this={feedback}
     disabled={pressFeedbackDisabled || passThrough}
     class="tile-content"
   >
@@ -115,17 +109,16 @@
           tabindex="-1"
           disabled={pressFeedbackDisabled}
           use:gestures={{
-            onGesture: () => {},
             onTrigger: trigger,
-            captureTrigger: (event, interactionId) =>
-              captureRuntimeTrigger(control.id, itemId ?? '', event, interactionId),
+            captureTrigger: tile.capture,
             enabled: !pressFeedbackDisabled,
-            pullBindings: () => pullBindingsFor(control, current),
+            pullBindings: () => pullBindingsFor(control, tile.current),
             onPull: (value) => {
               if (!settling) pull = value;
             },
             onPullEnd: (value) => settle(value),
             onCancel: settle,
+            feedback,
           }}
           class="content-tile-input"
         ></button>

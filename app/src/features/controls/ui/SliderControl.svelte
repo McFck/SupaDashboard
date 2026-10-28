@@ -2,38 +2,22 @@
   import type { Component } from 'svelte';
   // One level slider widget. Its long side is the value axis; swipes across it use the gesture map.
   import { toast } from 'svelte-sonner';
-  import { pullBindingsFor, type PullSnapshot } from '../interaction';
-  import { sliderOrientation } from '../geometry';
-  import type {
-    ControlConfig,
-    ControlFaceProps,
-    Gesture,
-    TilePresentation,
-    Variant,
-  } from '../model';
-  import { effectiveVariant, stateIdAt } from '../button-state';
-  import { runtimeView } from '../../../app/runtime/state';
-  import { runtimeVariables } from '../../automation/runtime-variables.svelte';
+  import { pullBindingsFor, type PullSnapshot } from '../input/pull';
+  import { sliderOrientation } from '../face-layout';
+  import type { ControlConfig, ControlFaceProps, TilePresentation, Variant } from '../model';
+  import { stateIdAt } from '../variants';
   import type { Trigger } from '../../automation/scenario';
-  import type { TriggerPacket } from '../../automation/scenario-runner';
   import { onDestroy } from 'svelte';
   import { value as valueOf } from '../../plugins/registry';
-  import { settings } from '../../settings/state.svelte';
-  import type { Page } from '../../settings/schema';
   import { findVolumeChannel, setVolume, volumeChannels } from '../../media/volume';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
-
-  const { captureRuntimeTrigger, dispatchRuntimePacket } = getRuntimeCommands();
+  import { ControlTile } from './control-tile.svelte';
 
   let {
     control,
-    page,
     compact = false,
-    w = 1,
-    h = 3,
     pixelWidth,
     pixelHeight,
     presentation,
@@ -42,21 +26,17 @@
     itemId,
   }: {
     control: ControlConfig;
-    page?: Page;
     compact?: boolean;
-    w?: number;
-    h?: number;
-    pixelWidth?: number;
-    pixelHeight?: number;
+    pixelWidth: number;
+    pixelHeight: number;
     presentation?: TilePresentation;
     face?: Component<ControlFaceProps>;
     pressFeedbackDisabled?: boolean;
     itemId?: string;
   } = $props();
-  const manualIndex = $derived(settings.variants[control.id] ?? 0);
-  const effective = $derived(effectiveVariant(control, runtimeVariables, manualIndex));
-  const current = $derived(effective.index);
-  const variant = $derived(control.variants[current] ?? control.variants[0]);
+  const tile = new ControlTile({ control: () => control, itemId: () => itemId });
+  const current = $derived(tile.current);
+  const variant = $derived(tile.variant);
   const volumeTarget = $derived(
     variant.value?.id === 'volume' ? String(variant.value.args?.target ?? 'system') : null,
   );
@@ -71,16 +51,9 @@
       ? `${variant.value.id}:${JSON.stringify(variant.value.args ?? {})}`
       : `${control.id}:unavailable`,
   );
-  let width = $state(0),
-    height = $state(0);
-  const vertical = $derived(
-    !compact &&
-      sliderOrientation(
-        pixelWidth ?? (width || w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)),
-        pixelHeight ?? (height || h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)),
-      ) === 'vertical',
-  );
+  const vertical = $derived(!compact && sliderOrientation(pixelWidth, pixelHeight) === 'vertical');
   let content = $state<PullContent>();
+  let feedback = $state<PressFeedback>();
   /** Level a not-yet-active variant would show; only volume sources can be read without subscribing. */
   function previewLevel(v: Variant) {
     if (v.value?.id !== 'volume') return null;
@@ -165,26 +138,18 @@
       dragging = false;
     })();
   }
-  function onTrigger(trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) {
-    const packet = captured as TriggerPacket | undefined;
-    if (snapshot) {
-      void content?.release(trigger as Gesture, snapshot, () => {
-        void dispatchRuntimePacket(packet);
-      });
-      return;
-    }
-    void dispatchRuntimePacket(packet);
+  function onTrigger(_trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) {
+    tile.run(captured, snapshot, content);
   }
 </script>
 
 <div
   data-dashboard-tile
-  bind:clientWidth={width}
-  bind:clientHeight={height}
   style:--accent={variant.color ?? '#8ea8f0'}
   class="relative h-full w-full"
 >
   <PressFeedback
+    bind:this={feedback}
     disabled={pressFeedbackDisabled}
     class={compact ? 'min-w-48 rounded-lg' : 'tile'}
   >
@@ -217,27 +182,24 @@
                 {compact}
                 stateId={stateIdAt(control, stateIndex)}
                 {stateIndex}
-                busy={($runtimeView.busy[control.id] ?? 0) > 0}
+                busy={tile.busy}
                 {pull}
-                pixelWidth={(pixelWidth ?? width) ||
-                  w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)}
-                pixelHeight={(pixelHeight ?? height) ||
-                  h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)}
+                {pixelWidth}
+                {pixelHeight}
                 presentation={resolved}
                 presentationImmediate={immediate}
-                doubleTap={!!control.scenario?.triggers.doubleTap}
                 onchange={write}
                 onpullstart={() => content?.beginPull()}
                 onpull={(p) => {
                   pull = p;
                 }}
                 onpullend={(p, armed) => {
-                  if (p && !armed) void content?.release(undefined, p);
+                  if (p && !armed) void content?.release(p);
                 }}
                 oncancel={(p) => content?.cancelPull(p)}
-                capturetrigger={(trigger, interactionId) =>
-                  captureRuntimeTrigger(control.id, itemId ?? '', trigger, interactionId)}
+                capturetrigger={tile.capture}
                 ontrigger={onTrigger}
+                {feedback}
               />
             {:else}
               <SliderTrack
@@ -254,10 +216,8 @@
                 {stateIndex}
                 busy={false}
                 pull={null}
-                pixelWidth={(pixelWidth ?? width) ||
-                  w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)}
-                pixelHeight={(pixelHeight ?? height) ||
-                  h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)}
+                {pixelWidth}
+                {pixelHeight}
                 presentation={resolved}
                 presentationImmediate
                 onchange={() => {}}

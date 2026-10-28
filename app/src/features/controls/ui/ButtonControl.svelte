@@ -1,35 +1,20 @@
 <script lang="ts">
   import type { Component } from 'svelte';
-  import { pullBindingsFor, type PullSnapshot } from '../interaction';
-  import type {
-    ControlConfig,
-    ControlFaceProps,
-    Gesture,
-    TilePresentation,
-    Variant,
-  } from '../model';
-  import { gestures } from '../gestures';
-  import { effectiveVariant, stateIdAt } from '../button-state';
-  import { runtimeView } from '../../../app/runtime/state';
-  import { runtimeVariables } from '../../automation/runtime-variables.svelte';
-  import type { TriggerPacket } from '../../automation/scenario-runner';
-  import { settings } from '../../settings/state.svelte';
-  import type { Page } from '../../settings/schema';
+  import { pullBindingsFor, type PullSnapshot } from '../input/pull';
+  import type { ControlConfig, ControlFaceProps, TilePresentation, Variant } from '../model';
+  import { gestures } from '../input/gestures';
+  import { stateIdAt } from '../variants';
+  import type { Trigger } from '../../automation/scenario';
+  import { ControlTile } from './control-tile.svelte';
   import ButtonFace from './ButtonFace.svelte';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import StateView from './StateView.svelte';
   import { buttonLabelVisible } from '../face-layout';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
-
-  const { captureRuntimeTrigger, dispatchRuntimePacket } = getRuntimeCommands();
 
   let {
     control,
-    page,
     compact = false,
-    w = 1,
-    h = 1,
     pixelWidth,
     pixelHeight,
     presentation,
@@ -38,12 +23,9 @@
     itemId,
   }: {
     control: ControlConfig;
-    page?: Page;
     compact?: boolean;
-    w?: number;
-    h?: number;
-    pixelWidth?: number;
-    pixelHeight?: number;
+    pixelWidth: number;
+    pixelHeight: number;
     presentation?: TilePresentation;
     face?: Component<ControlFaceProps>;
     pressFeedbackDisabled?: boolean;
@@ -53,23 +35,14 @@
   let width = $state(0),
     height = $state(0);
   let content = $state<PullContent>();
-  const manualIndex = $derived(settings.variants[control.id] ?? 0);
-  const effective = $derived(effectiveVariant(control, runtimeVariables, manualIndex));
-  const current = $derived(effective.index);
-  const variant = $derived(control.variants[current] ?? control.variants[0]);
+  let feedback = $state<PressFeedback>();
+  const tile = new ControlTile({ control: () => control, itemId: () => itemId });
+  const current = $derived(tile.current);
   const resolvedPresentation = $derived(
-    presentation ?? { key: `state:${effective.stateId}`, view: effective.view },
+    presentation ?? { key: `state:${tile.effective.stateId}`, view: tile.effective.view },
   );
-  const accent = $derived(resolvedPresentation.view.color ?? variant.color ?? '#67c9eb');
-  const busy = $derived(($runtimeView.busy[control.id] ?? 0) > 0);
-  const fallbackWidth = $derived(w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14));
-  const fallbackHeight = $derived(h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14));
-  const faceLabelHidden = $derived(
-    !buttonLabelVisible(
-      width || pixelWidth || fallbackWidth,
-      height || pixelHeight || fallbackHeight,
-    ),
-  );
+  const accent = $derived(resolvedPresentation.view.color ?? tile.variant.color ?? '#67c9eb');
+  const faceLabelHidden = $derived(!buttonLabelVisible(width || pixelWidth, height || pixelHeight));
   const Face = $derived(face ?? ButtonFace);
   function presentationFor(view: Variant): TilePresentation {
     const index = control.variants.indexOf(view);
@@ -78,19 +51,8 @@
       ? resolvedPresentation
       : { key: `state:${stateIdAt(control, index)}`, view };
   }
-  function onTrigger(
-    trigger: import('../../automation/scenario').Trigger,
-    captured?: unknown,
-    snapshot?: PullSnapshot,
-  ) {
-    const packet = captured as TriggerPacket | undefined;
-    if (snapshot) {
-      void content?.release(trigger as Gesture, snapshot, () => {
-        void dispatchRuntimePacket(packet);
-      });
-      return;
-    }
-    void dispatchRuntimePacket(packet);
+  function onTrigger(_trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) {
+    tile.run(captured, snapshot, content);
   }
 </script>
 
@@ -100,10 +62,8 @@
   bind:clientWidth={width}
   bind:clientHeight={height}
   use:gestures={{
-    onGesture: () => {},
     onTrigger,
-    captureTrigger: (trigger, interactionId) =>
-      captureRuntimeTrigger(control.id, itemId ?? '', trigger, interactionId),
+    captureTrigger: tile.capture,
     enabled: !pressFeedbackDisabled,
     pullBindings: () => pullBindingsFor(control, current),
     onStart: () => content?.beginPull(),
@@ -111,15 +71,17 @@
       pull = p;
     },
     onPullEnd: (p, armed) => {
-      if (p && !armed) void content?.release(undefined, p);
+      if (p && !armed) void content?.release(p);
     },
     onCancel: (p) => content?.cancelPull(p),
+    feedback,
   }}
-  aria-label={(resolvedPresentation.view.label ?? variant.label) || undefined}
+  aria-label={(resolvedPresentation.view.label ?? tile.variant.label) || undefined}
   style:--accent={accent}
   class="relative h-full w-full min-h-0 min-w-0 select-none touch-none overflow-hidden outline-none"
 >
   <PressFeedback
+    bind:this={feedback}
     disabled={pressFeedbackDisabled}
     class={compact ? 'min-w-12 rounded-lg text-zinc-100 hover:bg-white/5' : 'tile'}
   >
@@ -144,11 +106,11 @@
                   presentation={presentationFor(v)}
                   stateId={stateIdAt(control, index)}
                   stateIndex={index}
-                  {busy}
+                  busy={tile.busy}
                   {pull}
                   {compact}
-                  pixelWidth={(pixelWidth ?? width) || fallbackWidth}
-                  pixelHeight={(pixelHeight ?? height) || fallbackHeight}
+                  {pixelWidth}
+                  {pixelHeight}
                 />
               </div>
             {/snippet}

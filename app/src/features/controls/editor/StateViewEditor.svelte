@@ -7,7 +7,8 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { MAX_VARIANTS, type TileAppearance, type Variant } from '../model';
-  import { renderTemplate } from '../../automation/templates';
+  import { variantView } from '../control-state';
+  import { stateIdAt, variantIndexForState } from '../variants';
   import { runtimeView } from '../../../app/runtime/state';
   import ButtonFace from '../ui/ButtonFace.svelte';
   import StateView from '../ui/StateView.svelte';
@@ -39,43 +40,19 @@
   } = $props();
   const states = $derived(
     variants.map((variant, index) => ({
-      value: variant.id ?? `state-${index + 1}`,
+      value: stateIdAt({ variants }, index),
       label: variant.label || `State ${index + 1}`,
     })),
   );
   let selectedId = $state('');
   let previewId = $state('');
-  const selectedIndex = $derived(
-    Math.max(
-      0,
-      variants.findIndex((variant, index) => (variant.id ?? `state-${index + 1}`) === selectedId),
-    ),
-  );
+  const selectedIndex = $derived(variantIndexForState({ variants }, selectedId) ?? 0);
   const selected = $derived(variants[selectedIndex]);
   const preview = $derived(
-    variants.find(
-      (variant, index) => (variant.id ?? `state-${index + 1}`) === (previewId || selectedId),
-    ) ?? selected,
+    variants[variantIndexForState({ variants }, previewId || selectedId) ?? -1] ?? selected,
   );
-  const previewKey = $derived(preview?.id ?? `state-${Math.max(0, variants.indexOf(preview)) + 1}`);
-  function resolveView(variant: Variant | undefined): TileAppearance {
-    const label = renderTemplate(variant?.label ?? '', (name) => {
-      const key = name.trim().toLocaleLowerCase();
-      const record = Object.values($runtimeView.variables.records).find((item) =>
-        [item.definition.name, ...(item.definition.aliases ?? [])].some(
-          (alias) => alias.trim().toLocaleLowerCase() === key,
-        ),
-      );
-      return record?.value;
-    });
-    return {
-      label: label.text,
-      icon: variant?.icon,
-      color: variant?.color,
-      background: variant?.background,
-    };
-  }
-  const previewView = $derived(resolveView(preview));
+  const previewKey = $derived(stateIdAt({ variants }, Math.max(0, variants.indexOf(preview))));
+  const previewView = $derived(variantView(preview, $runtimeView.variables));
   const roleOptions = (excluded: string, current: string) => [
     ...states.filter((state) => state.value !== excluded),
     ...(current && !states.some((state) => state.value === current)
@@ -94,7 +71,7 @@
     if (selected) onvariant(selectedIndex, { ...selected, ...patch });
   }
   function stateView(index: number): TileAppearance {
-    return resolveView(variants[index]);
+    return variantView(variants[index], $runtimeView.variables);
   }
 </script>
 
@@ -102,9 +79,7 @@
   {#if roles}
     <div class="grid grid-cols-2 gap-3">
       {#each [{ id: roles.off, label: 'Off' }, { id: roles.on, label: 'On' }] as role (role.label)}
-        {@const index = variants.findIndex(
-          (variant, i) => (variant.id ?? `state-${i + 1}`) === role.id,
-        )}
+        {@const index = variantIndexForState({ variants }, role.id) ?? -1}
         {#if index >= 0}
           {@const appearance = stateView(index)}
           <button

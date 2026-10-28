@@ -3,18 +3,18 @@
   import type { Component } from 'svelte';
   import {
     beginPull,
-    classify,
-    shouldAnimateSliderFill,
     type PullAxis,
     type PullBindings,
     type PullSnapshot,
     type PullState,
     updatePull,
-  } from '../interaction';
-  import type { Gesture, ControlFaceProps, TilePresentation } from '../model';
-  import { tapSequence } from '../gestures';
-  import { TRIGGERS, type Trigger } from '../../automation/scenario';
-  import { onDestroy, onMount, tick } from 'svelte';
+  } from '../input/pull';
+  import type { ControlFaceProps, TilePresentation } from '../model';
+  import { captureTriggers, PressMachine, type Captures, type Tap } from '../input/press';
+  import type { PressFeedbackHandle } from '../input/gestures';
+  import type { Trigger } from '../../automation/scenario';
+  import { onDestroy, tick, untrack } from 'svelte';
+  import { prefersReducedMotion } from 'svelte/motion';
   import SliderFace from './SliderFace.svelte';
   import StateView from './StateView.svelte';
   import { sliderFaceText } from '../face-layout';
@@ -34,9 +34,7 @@
     bindings: PullBindings;
     snapshot: PullSnapshot | null;
     lastValue: number | null;
-    captures: Partial<Record<Trigger, unknown>>;
-    longStarted: boolean;
-    holdTimer?: ReturnType<typeof setTimeout>;
+    captures: Captures;
   };
   let {
     level,
@@ -49,7 +47,6 @@
     label,
     presentation,
     presentationImmediate = false,
-    doubleTap = false,
     face = SliderFace,
     stateId = 'state-1',
     stateIndex = 0,
@@ -64,9 +61,9 @@
     onpullstart,
     onpullend,
     oncancel,
-    ongesture,
     capturetrigger,
     ontrigger,
+    feedback,
   }: {
     level: number | null;
     muted?: boolean;
@@ -86,16 +83,15 @@
     compact?: boolean;
     pixelWidth?: number;
     pixelHeight?: number;
-    doubleTap?: boolean;
     onchange: (v: number) => void;
     onmute?: () => void;
     onpull?: (p: PullSnapshot | null) => void;
     onpullstart?: () => void;
     onpullend?: (p: PullSnapshot | null, armed: boolean) => void;
     oncancel?: (p: PullSnapshot | null) => void;
-    ongesture?: (g: Gesture, snapshot?: PullSnapshot) => void;
     capturetrigger?: (trigger: Trigger, interactionId: string) => unknown;
     ontrigger?: (trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) => void;
+    feedback?: PressFeedbackHandle;
   } = $props();
 
   let el = $state<HTMLElement>();
@@ -103,12 +99,10 @@
     height = $state(0);
   let drag: ActiveDrag | null = null;
   let active = $state(false);
-  let lastTapRect: TrackRect | null = null;
   let fillReady = $state(false);
-  let reducedMotion = $state(false);
-  let previousLevel = $state<number | null>(null);
-  let previousSourceKey = $state<string | undefined>();
-  let previousVertical = $state<boolean | undefined>();
+  let previousLevel: number | null = null;
+  let previousSourceKey: string | undefined;
+  let previousVertical: boolean | undefined;
   let readinessGeneration = 0,
     frameA = 0,
     frameB = 0;
@@ -137,7 +131,8 @@
     });
   }
 
-  $effect(() => {
+  // Runs before the DOM update, so a new source or orientation never animates the fill from the old level.
+  $effect.pre(() => {
     const value = level,
       source = sourceKey,
       orientation = vertical;
@@ -146,21 +141,12 @@
       fillReady = false;
       cancelReadiness();
     }
-    if (value != null && (identityChanged || previousLevel == null || !fillReady))
+    if (value != null && (identityChanged || previousLevel == null || !untrack(() => fillReady))) {
       void enableReadiness();
+    }
     previousSourceKey = source;
     previousVertical = orientation;
     previousLevel = value;
-  });
-
-  onMount(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = () => {
-      reducedMotion = media.matches;
-    };
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
   });
 
   const rectNow = (): TrackRect => {
@@ -186,14 +172,26 @@
   };
   const valueAxis = (isVertical: boolean): PullAxis => (isVertical ? 'y' : 'x');
 
+  // A short press sets the value where it landed (or mutes on the icon); it can pair into a double tap.
+  const press = new PressMachine<Tap & { rect: TrackRect }>({
+    trigger: (trigger, captures) => ontrigger?.(trigger, captures[trigger]),
+    tap: ({ x, y, rect }) => {
+      const onIcon = vertical
+        ? y > rect.bottom - Math.min(rect.width, 48)
+        : x < rect.left + Math.min(rect.height, 48);
+      if (onIcon && onmute) {
+        onmute();
+      } else if (level != null) {
+        onchange(fromPointer({ clientX: x, clientY: y }, rect, vertical));
+      }
+    },
+  });
+
   function down(e: PointerEvent) {
-    if (e.button !== 0 || drag) return;
+    if (e.button !== 0 || drag) {
+      return;
+    }
     const rect = rectNow();
-    const interactionId =
-      globalThis.crypto?.randomUUID?.() ??
-      `slider-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const captures: Partial<Record<Trigger, unknown>> = {};
-    for (const trigger of TRIGGERS) captures[trigger] = capturetrigger?.(trigger, interactionId);
     drag = {
       state: beginPull(
         e.pointerId,
@@ -208,31 +206,32 @@
       bindings: { ...pullBindings },
       snapshot: null,
       lastValue: level,
-      captures,
-      longStarted: false,
+      captures: captureTriggers(capturetrigger),
     };
-    const interaction = drag;
-    interaction.holdTimer = setTimeout(() => {
-      if (drag === interaction && !interaction.state.movedBeyondSlop) {
-        interaction.longStarted = true;
-        ontrigger?.('longPress', interaction.captures.longPress);
-      }
-    }, 550);
+    press.start(drag.captures);
+    feedback?.start(e);
     el!.setPointerCapture(e.pointerId);
   }
-  function update(e: PointerEvent) {
-    if (!drag || e.pointerId !== drag.state.pointerId) return;
-    const beforeSlop = drag.state.movedBeyondSlop;
+  function move(e: PointerEvent) {
+    if (!drag || e.pointerId !== drag.state.pointerId) {
+      return;
+    }
     const previousAxis = drag.state.lockedAxis;
     const result = updatePull(drag.state, e.clientX, e.clientY, drag.bindings);
     const axis = result.state.lockedAxis;
-    if (!beforeSlop && result.state.movedBeyondSlop && drag.holdTimer) clearTimeout(drag.holdTimer);
-    drag = { ...drag, state: result.state, snapshot: result.snapshot };
-    if (drag.longStarted) {
+    drag.state = result.state;
+    drag.snapshot = result.snapshot;
+    if (result.state.movedBeyondSlop) {
+      press.move();
+      feedback?.end(false);
+    }
+    if (press.long) {
       onpull?.(null);
       return;
     }
-    if (axis && axis !== valueAxis(drag.vertical) && previousAxis == null) onpullstart?.();
+    if (axis && axis !== valueAxis(drag.vertical) && previousAxis == null) {
+      onpullstart?.();
+    }
     if (axis === valueAxis(drag.vertical) && result.state.movedBeyondSlop) {
       active = true;
       if (level != null) {
@@ -248,82 +247,51 @@
       onpull?.(axis ? result.snapshot : null);
     }
   }
-  function move(e: PointerEvent) {
-    update(e);
-  }
   function up(e: PointerEvent) {
-    if (!drag || e.pointerId !== drag.state.pointerId) return;
-    update(e);
-    if (!drag || e.pointerId !== drag.state.pointerId) return;
+    if (!drag || e.pointerId !== drag.state.pointerId) {
+      return;
+    }
+    move(e);
+    feedback?.end(true);
     const finished = drag;
     drag = null;
     active = false;
-    if (finished.holdTimer) clearTimeout(finished.holdTimer);
-    if (
-      finished.longStarted ||
-      (!finished.state.movedBeyondSlop && performance.now() - finished.state.startTime >= 550)
-    ) {
-      if (!finished.longStarted) ontrigger?.('longPress', finished.captures.longPress);
-      ontrigger?.('longPressRelease', finished.captures.longPressRelease);
-      onpull?.(null);
-      return;
-    }
-    if (finished.state.movedBeyondSlop) {
-      if (finished.state.lockedAxis !== valueAxis(finished.vertical)) {
-        onpullend?.(finished.snapshot, !!finished.snapshot?.armed);
-        if (finished.snapshot?.armed) {
-          if (ontrigger)
-            ontrigger(
-              finished.snapshot.direction,
-              finished.captures[finished.snapshot.direction],
-              finished.snapshot,
-            );
-          else ongesture?.(finished.snapshot.direction, finished.snapshot);
-        }
+    const outcome = press.end({
+      x: e.clientX,
+      y: e.clientY,
+      captures: finished.captures,
+      rect: finished.rect,
+    });
+    const { snapshot } = finished;
+    if (outcome === 'moved' && finished.state.lockedAxis !== valueAxis(finished.vertical)) {
+      onpullend?.(snapshot, !!snapshot?.armed);
+      if (snapshot?.armed) {
+        ontrigger?.(snapshot.direction, finished.captures[snapshot.direction], snapshot);
       }
-      onpull?.(null);
-      return;
     }
-    lastTapRect = finished.rect;
-    const gesture = classify(0, 0, performance.now() - finished.state.startTime);
-    taps.send(gesture, e.clientX, e.clientY, doubleTap, finished.captures);
     onpull?.(null);
   }
   function cancel(pointerId?: number) {
-    if (!drag || (pointerId != null && pointerId !== drag.state.pointerId)) return;
+    if (!drag || (pointerId != null && pointerId !== drag.state.pointerId)) {
+      return;
+    }
     const finished = drag;
     drag = null;
     active = false;
-    if (finished.holdTimer) clearTimeout(finished.holdTimer);
-    if (finished.state.lockedAxis !== valueAxis(finished.vertical)) oncancel?.(finished.snapshot);
+    press.cancel();
+    feedback?.end(false);
+    if (finished.state.lockedAxis !== valueAxis(finished.vertical)) {
+      oncancel?.(finished.snapshot);
+    }
     onpull?.(null);
-    taps.cancel();
   }
 
-  const taps = tapSequence((g, x, y, captured) => {
-    const captures = captured as Partial<Record<Trigger, unknown>> | undefined;
-    if (g === 'doubleTap' && ontrigger) {
-      ontrigger('doubleTap', captures?.doubleTap);
-      return;
-    }
-    if (g === 'tap') {
-      const r = lastTapRect;
-      if (!r) return;
-      const onIcon = vertical
-        ? y > r.bottom - Math.min(r.width, 48)
-        : x < r.left + Math.min(r.height, 48);
-      if (onIcon && onmute) return onmute();
-      if (level != null) return onchange(fromPointer({ clientX: x, clientY: y }, r, vertical));
-    }
-    ongesture?.(g);
-  });
   $effect(() => {
     const orientation = vertical;
     if (drag && drag.vertical !== orientation) cancel(drag.state.pointerId);
   });
   onDestroy(() => {
-    taps.cancel();
-    if (drag?.holdTimer) clearTimeout(drag.holdTimer);
+    press.cancel();
     drag = null;
     cancelReadiness();
   });
@@ -343,17 +311,7 @@
   const Face = $derived(face ?? SliderFace);
   const faceText = $derived(sliderFaceText(width || pixelWidth, height || pixelHeight, vertical));
   const animateFill = $derived(
-    shouldAnimateSliderFill({
-      level,
-      previousLevel,
-      sourceKey,
-      previousSourceKey: previousSourceKey ?? '',
-      vertical,
-      previousVertical: previousVertical ?? vertical,
-      ready: fillReady,
-      dragging: active,
-      reducedMotion,
-    }),
+    fillReady && Number.isFinite(level) && !active && !prefersReducedMotion.current,
   );
 </script>
 

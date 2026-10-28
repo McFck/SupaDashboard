@@ -5,6 +5,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import type { Variant } from '../model';
+  import { stateIdAt } from '../variants';
   import type { Scalar, StateBinding } from '../../automation/scenario';
   import { runtimeView } from '../../../app/runtime/state';
   import { parseVariableText, type VariableType } from '../../automation/variables';
@@ -35,7 +36,7 @@
   );
   const states = $derived(
     variants.map((variant, index) => ({
-      value: variant.id ?? `state-${index + 1}`,
+      value: stateIdAt({ variants }, index),
       label: variant.label || `State ${index + 1}`,
     })),
   );

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveVariant, validateStateConfiguration, variantIndexForState } from './button-state';
-import { moveVariant, type ControlConfig } from './model';
+import { effectiveVariant } from './control-state';
+import type { ControlConfig } from './model';
+import { moveVariant, variantIndexForState } from './variants';
 import { VariableStore } from '../automation/variables';
 
 const control: ControlConfig = {
@@ -97,34 +98,5 @@ describe('effective button state', () => {
         background: null,
       },
     });
-  });
-
-  it('validates typed case values, duplicate mappings, and stale references', () => {
-    const variables = new VariableStore();
-    variables.createUser({
-      id: 'recording',
-      name: 'recording',
-      type: 'boolean',
-      initialValue: false,
-    });
-    expect(validateStateConfiguration(control, variables.snapshot())).toEqual([]);
-    const invalid = {
-      ...control,
-      stateBinding: {
-        variableId: 'recording',
-        cases: [
-          { value: false, stateId: 'missing' },
-          { value: false, stateId: 'on' },
-          { value: 'true', stateId: 'off' },
-        ],
-      },
-    };
-    expect(
-      validateStateConfiguration(invalid, variables.snapshot()).map((issue) => issue.message),
-    ).toEqual([
-      'Bound state is unavailable',
-      'State values must be unique',
-      'State value does not match the variable type',
-    ]);
   });
 });

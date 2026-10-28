@@ -1,6 +1,8 @@
 <script lang="ts">
+  // Press feedback for a tile: a ripple from the press point and a tap pulse. The control's press machine drives it
+  // through start/end, so feedback and actions share one slop and one notion of a tap.
   import { onDestroy, type Snippet } from 'svelte';
-  import { pressRippleGeometry } from '../geometry';
+  import { prefersReducedMotion } from 'svelte/motion';
 
   let {
     disabled = false,
@@ -8,22 +10,39 @@
     children,
   }: { disabled?: boolean; class?: string; children: Snippet } = $props();
   type Ripple = { x: number; y: number; diameter: number; key: number };
+  /** Pointer-local ripple bounds corrected for a uniform scale around the tile center. */
+  function pressRippleGeometry(
+    width: number,
+    height: number,
+    clientX: number,
+    clientY: number,
+    rect: { left: number; top: number },
+    scale = 1,
+  ) {
+    const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    const x = width / 2 + (clientX - rect.left - width / 2) / safeScale;
+    const y = height / 2 + (clientY - rect.top - height / 2) / safeScale;
+    const diameter = Math.max(
+      1,
+      2 *
+        Math.max(
+          Math.hypot(x, y),
+          Math.hypot(width - x, y),
+          Math.hypot(x, height - y),
+          Math.hypot(width - x, height - y),
+        ),
+    );
+    return { x, y, diameter };
+  }
   let root = $state<HTMLElement>(),
     surface = $state<HTMLElement>(),
     rippleNode = $state<HTMLElement>();
   let ripple = $state<Ripple | null>(null);
-  let pointerId: number | null = null;
-  let startX = 0,
-    startY = 0,
-    pressing = false,
-    slopEnded = false;
+  let pressing = false;
   let scaleAnimation: Animation | null = null,
     rippleAnimation: Animation | null = null;
   let generation = 0;
 
-  function reducedMotion() {
-    return matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }
   function computedScale() {
     if (!surface) return 1;
     const transform = getComputedStyle(surface).transform;
@@ -37,15 +56,8 @@
     rippleAnimation?.cancel();
     rippleAnimation = null;
   }
-  function removeWindowListeners() {
-    if (typeof window === 'undefined') return;
-    window.removeEventListener('pointermove', move, true);
-    window.removeEventListener('pointerup', up, true);
-    window.removeEventListener('pointercancel', cancel, true);
-    window.removeEventListener('lostpointercapture', cancel, true);
-  }
   function tap() {
-    if (!surface || reducedMotion()) {
+    if (!surface || prefersReducedMotion.current) {
       ripple = null;
       return;
     }
@@ -77,16 +89,11 @@
         .catch(() => {});
     }
   }
-  function down(event: PointerEvent) {
-    if (
-      disabled ||
-      event.button !== 0 ||
-      event.isPrimary === false ||
-      pointerId != null ||
-      !root ||
-      !surface
-    )
+  /** A press started on this tile. */
+  export function start(event: PointerEvent) {
+    if (disabled || event.button !== 0 || event.isPrimary === false || !root || !surface) {
       return;
+    }
     const rect = root.getBoundingClientRect();
     const width = root.clientWidth || rect.width,
       height = root.clientHeight || rect.height;
@@ -96,59 +103,29 @@
     generation++;
     stopAnimations();
     surface.style.transform = 'none';
-    pointerId = event.pointerId;
-    startX = event.clientX;
-    startY = event.clientY;
     pressing = true;
-    slopEnded = false;
-    ripple = reducedMotion() ? null : { ...origin, key: generation };
-    window.addEventListener('pointermove', move, true);
-    window.addEventListener('pointerup', up, true);
-    window.addEventListener('pointercancel', cancel, true);
-    window.addEventListener('lostpointercapture', cancel, true);
+    ripple = prefersReducedMotion.current ? null : { ...origin, key: generation };
   }
-  function move(event: PointerEvent) {
-    if (
-      event.pointerId !== pointerId ||
-      !pressing ||
-      Math.hypot(event.clientX - startX, event.clientY - startY) < 8
-    )
+  /** The press ended. Feedback plays only for a tap; a press that moved or was cancelled just drops its ripple. */
+  export function end(tapped: boolean) {
+    if (!pressing) {
       return;
-    pressing = false;
-    slopEnded = true;
-    ripple = null;
-    rippleAnimation?.cancel();
-    rippleAnimation = null;
-    scaleAnimation?.cancel();
-    scaleAnimation = null;
-    surface!.style.transform = 'none';
-  }
-  function finish(event: PointerEvent, cancelled: boolean) {
-    if (event.pointerId !== pointerId) return;
-    // Feedback plays only for a real tap; a gesture start never shows a press or ripple.
-    if (pressing && !cancelled && !slopEnded) tap();
-    pressing = false;
-    if (cancelled) {
-      ripple = null;
-      rippleAnimation?.cancel();
-      rippleAnimation = null;
     }
-    pointerId = null;
-    removeWindowListeners();
-  }
-  function up(event: PointerEvent) {
-    finish(event, false);
-  }
-  function cancel(event: PointerEvent) {
-    finish(event, true);
+    pressing = false;
+    if (tapped) {
+      tap();
+      return;
+    }
+    ripple = null;
+    stopAnimations();
+    if (surface) {
+      surface.style.transform = 'none';
+    }
   }
   function abort() {
     generation++;
-    removeWindowListeners();
     stopAnimations();
-    pointerId = null;
     pressing = false;
-    slopEnded = false;
     ripple = null;
     if (surface) surface.style.transform = 'none';
   }
@@ -162,7 +139,6 @@
 <div
   bind:this={root}
   data-dashboard-tile
-  onpointerdowncapture={down}
   style="-webkit-app-region: no-drag"
   class="relative h-full w-full"
 >
