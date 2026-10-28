@@ -1,13 +1,8 @@
 import { writable, type Writable } from 'svelte/store';
 import type { VariableStore, VariableValue } from '../automation/variables';
 import type { EventAncestry } from '../plugins/contracts';
-import {
-  resolveSkinConfig,
-  validSkinStateValue,
-  type SkinConfig,
-  type SkinDef,
-  type SkinRuntimeContext,
-} from './definition';
+import { resolveSkinConfig, validSkinStateValue } from './definition';
+import { type SkinConfig, type SkinDef, type SkinRuntimeContext } from './contracts';
 
 export class SkinController {
   private readonly configs = new Map<string, Writable<SkinConfig>>();

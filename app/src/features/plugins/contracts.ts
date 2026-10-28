@@ -3,7 +3,7 @@
 import type { Component } from 'svelte';
 import type { ControlConfig, ControlFaceProps } from '../controls/model';
 import type { ActionStep, Trigger } from '../automation/scenario';
-import type { SkinDef } from '../skins/definition';
+import type { SkinDef } from '../skins/contracts';
 import type { VariableDefinition, VariableRecord, VariableValue } from '../automation/variables';
 
 /** A reference to an action plus its arguments, as stored in settings. */

@@ -9,7 +9,7 @@
     setLayoutItems,
     type LayoutTarget,
   } from '../layout/skin-layouts';
-  import { skinFaceFor } from './definition';
+  import { skinFaceFor } from './faces';
   import { controlTypes } from '../plugins/registry';
   import { settings } from '../settings/state.svelte';
   import DeckGrid from '../layout/ui/DeckGrid.svelte';

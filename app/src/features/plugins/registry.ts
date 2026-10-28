@@ -19,7 +19,8 @@ import type {
 import { settings } from '../settings/state.svelte';
 import type { VariableRecord, VariableStore } from '../automation/variables';
 import { normalizePluginState, type PluginState } from './plugin-store';
-import { validateSkinDefinition, type SkinDef as SkinDefinition } from '../skins/definition';
+import { validateSkinDefinition } from '../skins/definition';
+import { type SkinDef as SkinDefinition } from '../skins/contracts';
 
 export const actions = new Map<string, ActionDef>();
 export const values = new Map<string, ValueDef>();

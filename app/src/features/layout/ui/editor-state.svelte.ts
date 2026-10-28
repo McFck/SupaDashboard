@@ -5,7 +5,7 @@ import { runtimeView } from '../../../app/runtime/state';
 import { layoutPreview, saveLayoutPreview } from '../../../panel/ui/preferences.svelte';
 import { skins } from '../../plugins/registry';
 import { settings } from '../../settings/state.svelte';
-import type { SkinDef } from '../../skins/definition';
+import type { SkinDef } from '../../skins/contracts';
 import type { Selection } from '../grid';
 import { pageAfterRemoval, pageById } from '../pages';
 import { layoutFor, type LayoutTarget } from '../skin-layouts';

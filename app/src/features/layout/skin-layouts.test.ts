@@ -11,7 +11,7 @@ import {
   effectiveSize,
 } from './skin-layouts';
 import { storedPlacements } from './placements';
-import type { SkinDef } from '../skins/definition';
+import type { SkinDef } from '../skins/contracts';
 
 const skinId = 'r5-layout-test';
 const typeId = 'r5-layout-button';

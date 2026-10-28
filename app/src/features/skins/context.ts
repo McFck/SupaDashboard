@@ -1,9 +1,9 @@
 import { getContext } from 'svelte';
 import type { ControlConfig, TilePresentation } from '../controls/model';
-import type { SkinConfig, SkinDef } from './definition';
+import type { SkinConfig, SkinDef } from './contracts';
 import type { Page } from '../settings/schema';
 import type { VariableValue } from '../automation/variables';
-import type { SceneInput, SceneRect } from './scene';
+import type { SceneInput, SceneRect } from './scene-contracts';
 import type { Selection } from '../layout/grid';
 import type { LayoutTarget } from '../layout/skin-layouts';
 

@@ -2,9 +2,11 @@
   import { setContext } from 'svelte';
   import { onDestroy, onMount } from 'svelte';
   import type { ControlConfig, TilePresentation } from '../controls/model';
-  import { fitSkinDesign, resolveSkinConfig, type SkinDef } from './definition';
+  import { fitSkinDesign } from './geometry';
+  import { resolveSkinConfig } from './definition';
+  import { type SkinDef } from './contracts';
   import { SkinInputRecognizer, type SkinCorner, type SkinGesture } from './input';
-  import type { SceneInput, SceneRect } from './scene';
+  import type { SceneInput, SceneRect } from './scene-contracts';
   import { runtimeView } from '../../app/runtime/state';
   import { settings } from '../settings/state.svelte';
   import type { Page } from '../settings/schema';

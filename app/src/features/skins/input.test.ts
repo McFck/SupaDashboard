@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SkinInputRecognizer } from './input';
-import type { SceneInput, SceneRect } from './scene';
+import type { SceneInput, SceneRect } from './scene-contracts';
 
 const rect: SceneRect = { left: 20, top: 40, width: 1000, height: 480 };
 const point = (

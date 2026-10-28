@@ -1,53 +1,4 @@
-export type SceneMode = 'live' | 'frozen';
-export type SceneInput = {
-  kind: 'down' | 'move' | 'up' | 'cancel';
-  x: number;
-  y: number;
-  pointerId: number;
-  pointerType: string;
-  button: number;
-  time: number;
-  screenX?: number;
-  screenY?: number;
-};
-export type SceneRect = { left: number; top: number; width: number; height: number };
-
-export function mapScenePoint(
-  clientX: number,
-  clientY: number,
-  rect: SceneRect,
-  width: number,
-  height: number,
-) {
-  if (
-    ![clientX, clientY, rect.left, rect.top, rect.width, rect.height, width, height].every(
-      Number.isFinite,
-    ) ||
-    rect.width <= 0 ||
-    rect.height <= 0 ||
-    width <= 0 ||
-    height <= 0
-  )
-    return null;
-  const x = ((clientX - rect.left) * width) / rect.width;
-  const y = ((clientY - rect.top) * height) / rect.height;
-  return x < 0 || y < 0 || x >= width || y >= height ? null : { x, y };
-}
-export type SceneFrame<Data = unknown> = {
-  ctx: CanvasRenderingContext2D;
-  width: number;
-  height: number;
-  time: number;
-  mode: SceneMode;
-  view: string;
-  data: Data;
-};
-export type SkinSceneRenderer<Data = unknown> = {
-  draw(frame: SceneFrame<Data>): boolean;
-  input?(event: SceneInput): void;
-  dispose?(): void;
-};
-export type SkinSceneFactory<Data = unknown> = () => SkinSceneRenderer<Data>;
+import type { SceneMode } from './scene-contracts';
 
 export class SceneScheduler {
   private pending: number | null = null;
@@ -133,3 +84,5 @@ export class SceneScheduler {
     });
   }
 }
+
+export type { SkinSceneFactory, SkinSceneRenderer } from './scene-contracts';

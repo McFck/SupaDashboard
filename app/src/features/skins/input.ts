@@ -1,4 +1,4 @@
-import type { SceneInput, SceneRect } from './scene';
+import type { SceneInput, SceneRect } from './scene-contracts';
 
 export type SkinGesture = 'tripleTap' | 'cornerHold' | 'off';
 export type SkinCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';

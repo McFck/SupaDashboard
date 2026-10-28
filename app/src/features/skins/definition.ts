@@ -1,113 +1,6 @@
-import type { Component } from 'svelte';
-import type { Readable } from 'svelte/store';
-import type { ActionDef, ActionRef, EventDef, Param } from '../plugins/contracts';
-import type { ControlFaceProps } from '../controls/model';
-import type { Page } from '../settings/schema';
-import type { VariableType, VariableValue } from '../automation/variables';
-
-export type SkinRect = { x: number; y: number; w: number; h: number };
-export type SkinDesignFit = { scale: number; offsetX: number; offsetY: number };
-
-export function fitSkinDesign(
-  width: number,
-  height: number,
-  designWidth: number,
-  designHeight: number,
-): SkinDesignFit | null {
-  if (
-    ![width, height, designWidth, designHeight].every(Number.isFinite) ||
-    width <= 0 ||
-    height <= 0 ||
-    designWidth <= 0 ||
-    designHeight <= 0
-  )
-    return null;
-  const scale = Math.min(width / designWidth, height / designHeight);
-  if (!Number.isFinite(scale) || scale <= 0) return null;
-  return {
-    scale,
-    offsetX: (width - designWidth * scale) / 2,
-    offsetY: (height - designHeight * scale) / 2,
-  };
-}
-
-export type SkinGrid =
-  'page' | { rows: number; cols: number; size: number; gap: number; sizing: 'auto' | 'manual' };
-export type SkinSlot = {
-  id: string;
-  style: 'region' | 'anchored';
-  kind: 'grid' | 'strip';
-  rect?: SkinRect;
-  accepts?: string[];
-  max?: number;
-  size?: { w: number; h: number };
-  grid: SkinGrid;
-};
-export type SkinView = { id: string; title: string; slots: string[] };
-export type SkinStateField = {
-  key: string;
-  type: VariableType;
-  initialValue: VariableValue;
-  persistent?: boolean;
-};
-export type SkinPageNavigation = 'swipe' | 'skin';
-export type SkinAlter = 'layout' | 'logic';
-export type SkinConfig = Readonly<Record<string, unknown>>;
-export type SkinRuntimeContext = {
-  config: Readable<SkinConfig>;
-  getState(key: string): VariableValue | undefined;
-  setState(
-    key: string,
-    value: VariableValue,
-    ancestry?: { depth: number; listeners: string[] },
-  ): Promise<boolean>;
-  setView(viewId: string, ancestry?: { depth: number; listeners: string[] }): Promise<boolean>;
-  emitEvent(
-    id: string,
-    parameter?: string,
-    payload?: unknown,
-    ancestry?: { depth: number; listeners: string[] },
-  ): Promise<void>;
-};
-export type SkinControlFace = {
-  component: Component<ControlFaceProps>;
-  sizes?: Record<
-    string,
-    {
-      min: { w: number; h: number };
-      default: { w: number; h: number };
-      max?: { w: number; h: number };
-    }
-  >;
-};
-
-export type SkinDef = {
-  plugin?: string;
-  id: string;
-  title: string;
-  component: Component<{ page: Page }>;
-  alters?: SkinAlter[];
-  design?: { width: number; height: number };
-  slots: SkinSlot[];
-  views: SkinView[];
-  defaultView: string;
-  pageNavigation?: SkinPageNavigation;
-  controlSkins?: Record<string, SkinControlFace>;
-  settings?: Param[];
-  quickActions?: ActionRef[];
-  state?: SkinStateField[];
-  events?: Omit<EventDef, 'plugin'>[];
-  runtime?: (context: SkinRuntimeContext) => void | (() => void);
-};
-
-export function skinFaceFor(
-  skin: SkinDef,
-  typeId: string,
-  defaultFace?: Component<ControlFaceProps>,
-) {
-  if (!defaultFace) return undefined;
-  return skin.controlSkins?.[typeId]?.component ?? defaultFace;
-}
+import type { ActionDef, ActionRef, Param } from '../plugins/contracts';
+import type { VariableType } from '../automation/variables';
+import type { SkinDef, SkinSlot } from './contracts';
 
 export function validSkinStateValue(type: VariableType, value: unknown) {
   return type === 'boolean'
@@ -118,6 +11,8 @@ export function validSkinStateValue(type: VariableType, value: unknown) {
         ? typeof value === 'number' && Number.isFinite(value)
         : typeof value === 'string';
 }
+
+export type { SkinDef, SkinRuntimeContext, SkinStateField } from './contracts';
 
 export function validSkinParam(param: Param, value: unknown, args?: Record<string, unknown>) {
   if (param.type === 'boolean') return typeof value === 'boolean';
