@@ -2,7 +2,7 @@
   // Volume mixer widget: one pill per channel. Channels are the master volume plus every app currently
   // playing audio ("auto"), or a fixed list chosen in the editor. Tap a channel's icon to mute it.
   import { toast } from 'svelte-sonner';
-  import { mixerLayout } from '../geometry';
+  import { mixerLayout } from '../face-layout';
   import { DEFAULT_MIXER_MAX_CHANNELS, type ControlConfig } from '../model';
   import { findVolumeChannel, setMuted, setVolume, volumeChannels } from '../../media/volume';
   import { appIcons } from '../../plugins/registry';

@@ -3,7 +3,7 @@
   // One level slider widget. Its long side is the value axis; swipes across it use the gesture map.
   import { toast } from 'svelte-sonner';
   import { pullBindingsFor, type PullSnapshot } from '../input/pull';
-  import { sliderOrientation } from '../geometry';
+  import { sliderOrientation } from '../face-layout';
   import type {
     ControlConfig,
     ControlFaceProps,

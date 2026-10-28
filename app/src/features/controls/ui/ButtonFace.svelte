@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { buttonIconSize } from '../geometry';
+  import { buttonIconSize } from '../face-layout';
   import type { ControlFaceProps } from '../model';
   import Icon from './Icon.svelte';
 

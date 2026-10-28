@@ -3,7 +3,6 @@
   // through start/end, so feedback and actions share one slop and one notion of a tap.
   import { onDestroy, type Snippet } from 'svelte';
   import { prefersReducedMotion } from 'svelte/motion';
-  import { pressRippleGeometry } from '../geometry';
 
   let {
     disabled = false,
@@ -11,6 +10,30 @@
     children,
   }: { disabled?: boolean; class?: string; children: Snippet } = $props();
   type Ripple = { x: number; y: number; diameter: number; key: number };
+  /** Pointer-local ripple bounds corrected for a uniform scale around the tile center. */
+  function pressRippleGeometry(
+    width: number,
+    height: number,
+    clientX: number,
+    clientY: number,
+    rect: { left: number; top: number },
+    scale = 1,
+  ) {
+    const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    const x = width / 2 + (clientX - rect.left - width / 2) / safeScale;
+    const y = height / 2 + (clientY - rect.top - height / 2) / safeScale;
+    const diameter = Math.max(
+      1,
+      2 *
+        Math.max(
+          Math.hypot(x, y),
+          Math.hypot(width - x, y),
+          Math.hypot(x, height - y),
+          Math.hypot(width - x, height - y),
+        ),
+    );
+    return { x, y, diameter };
+  }
   let root = $state<HTMLElement>(),
     surface = $state<HTMLElement>(),
     rippleNode = $state<HTMLElement>();

@@ -1,7 +1,7 @@
 // Control configuration as stored in settings, and the props control faces receive.
 import type { ActionRef, ValueRef } from '../plugins/contracts';
 import type { Scenario, StateBinding, StateRoles } from '../automation/scenario';
-import { sliderOrientation } from './geometry';
+import { sliderOrientation } from './face-layout';
 import type { PullSnapshot } from './input/pull';
 
 export const DEFAULT_MIXER_MAX_CHANNELS = 6;
