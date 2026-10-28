@@ -9,6 +9,7 @@ import type { Page, Settings } from '../settings/schema';
 
 type DisplayRequest = { monitor: string | null; fullscreen: boolean; alwaysOnTop: boolean };
 type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
+type ResizeEvent = { resizing: boolean; revision: number };
 
 /** Native resize loops swallow pointer hover, so the edge cues stay up until resize events go quiet. */
 const RESIZE_QUIET_MS = 400;
@@ -39,6 +40,7 @@ export class DashboardWindow {
   );
 
   private nativeHoverRevision = -1;
+  private nativeResizeRevision = -1;
   private resizeQuiet: ReturnType<typeof setTimeout> | undefined;
   private lastSuccessfulRequest: DisplayRequest | null = null;
   private lastFailedRequest: DisplayRequest | null = null;
@@ -168,11 +170,16 @@ export class DashboardWindow {
         }),
       );
       this.keep(
-        await listen<boolean>('dashboard-resize', (event) => {
-          this.nativeResizing = event.payload;
+        await listen<ResizeEvent>('dashboard-resize', (event) => {
+          const { resizing, revision } = event.payload;
+          if (this.disposed || revision <= this.nativeResizeRevision) {
+            return;
+          }
+          this.nativeResizeRevision = revision;
+          this.nativeResizing = resizing;
           clearTimeout(this.resizeQuiet);
           this.resizeQuiet = undefined;
-          this.windowResizing = event.payload;
+          this.windowResizing = resizing;
         }),
       );
     } catch (error) {

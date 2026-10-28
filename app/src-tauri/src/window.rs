@@ -135,6 +135,13 @@ mod win32 {
     #[derive(Clone, Serialize)]
     struct VisibilityEvent {
         visible: bool,
+        revision: u64,
+    }
+
+    #[derive(Clone, Serialize)]
+    struct ResizeEvent {
+        resizing: bool,
+        revision: u64,
     }
 
     pub fn install(window: &WebviewWindow) -> Result<(), String> {
@@ -217,28 +224,44 @@ mod win32 {
         }
     }
 
+    fn next_revision(state: &PolicyState) -> u64 {
+        let revision = state.revision.get().wrapping_add(1);
+        state.revision.set(revision);
+        revision
+    }
+
+    /// Each emit runs as its own task, so events can arrive out of order. Every payload carries the next value of
+    /// one counter and the frontend drops a revision older than the last one it applied for that event.
+    fn emit<T: Serialize + Clone + Send + 'static>(
+        state: &PolicyState,
+        event: &'static str,
+        payload: T,
+    ) {
+        let app = state.app.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = app.emit_to("main", event, payload);
+        });
+    }
+
     fn publish_hover(state: &PolicyState, hovered: bool, clear_client: bool) {
         if state.hovered.get() == hovered && !clear_client {
             return;
         }
         state.hovered.set(hovered);
-        state.revision.set(state.revision.get().wrapping_add(1));
-        let app = state.app.clone();
         let payload = HoverEvent {
             hovered,
-            revision: state.revision.get(),
+            revision: next_revision(state),
             clear_client,
         };
-        tauri::async_runtime::spawn(async move {
-            let _ = app.emit_to("main", "dashboard-hover", payload);
-        });
+        emit(state, "dashboard-hover", payload);
     }
 
     fn publish_visibility(state: &PolicyState, visible: bool) {
-        let app = state.app.clone();
-        tauri::async_runtime::spawn(async move {
-            let _ = app.emit_to("main", "dashboard-visibility", VisibilityEvent { visible });
-        });
+        let payload = VisibilityEvent {
+            visible,
+            revision: next_revision(state),
+        };
+        emit(state, "dashboard-visibility", payload);
     }
 
     fn publish_resize(state: &PolicyState, resizing: bool) {
@@ -246,10 +269,11 @@ mod win32 {
             return;
         }
         state.resizing.set(resizing);
-        let app = state.app.clone();
-        tauri::async_runtime::spawn(async move {
-            let _ = app.emit_to("main", "dashboard-resize", resizing);
-        });
+        let payload = ResizeEvent {
+            resizing,
+            revision: next_revision(state),
+        };
+        emit(state, "dashboard-resize", payload);
     }
 
     unsafe extern "system" fn dashboard_subclass(

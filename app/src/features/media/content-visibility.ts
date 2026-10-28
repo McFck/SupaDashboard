@@ -52,10 +52,19 @@ export function watchIntersection(
 function tauriBridge(): DashboardVisibilityBridge {
   const window = getCurrentWindow();
   return {
-    listen: (callback) =>
-      window.listen<{ visible: boolean }>('dashboard-visibility', (event) =>
-        callback(event.payload.visible),
-      ),
+    listen: (callback) => {
+      // Native emits can arrive out of order; an older revision than the last applied one is stale.
+      let revision = -1;
+      return window.listen<{ visible: boolean; revision: number }>(
+        'dashboard-visibility',
+        (event) => {
+          if (event.payload.revision > revision) {
+            revision = event.payload.revision;
+            callback(event.payload.visible);
+          }
+        },
+      );
+    },
     isVisible: () => window.isVisible(),
   };
 }
