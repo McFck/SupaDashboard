@@ -29,8 +29,9 @@ import { ContentController } from '../../features/media/content-controller';
 import { SkinController } from '../../features/skins/skin-controller';
 import { startClock } from '../../features/automation/clock';
 import { EMPTY, type RuntimeSnapshot } from './state';
-import type { VariablePersistence } from './variable-persistence';
+import { VariableSaver, type VariablePersistence } from './variable-persistence';
 import { ExecutionEngine } from '../../features/automation/execution-engine';
+import type { ControlConfig } from '../../features/controls/model';
 
 export type RuntimeOptions = {
   variables?: VariableStore;
@@ -39,13 +40,43 @@ export type RuntimeOptions = {
   onQueueFull?: (controlId: string, trigger: Trigger | 'event') => void;
 };
 
-function fingerprint(control: import('../../features/controls/model').ControlConfig) {
+function fingerprint(control: ControlConfig) {
   return JSON.stringify({
     scenario: control.scenario,
     stateBinding: control.stateBinding,
     stateRoles: control.stateRoles,
     states: control.variants.map((variant) => variant.id),
   });
+}
+
+/** The state a control shows now: its variable binding first, else its manual state. */
+export function controlStateId(
+  control: ControlConfig,
+  variables: Parameters<typeof effectiveVariant>[1],
+) {
+  return effectiveVariant(control, variables, settings.variants[control.id] ?? 0).stateId;
+}
+
+/** Resolves a state by ID, by index (older settings), or relative to `current` for migrated next/prev gestures. */
+function stateIndex(control: ControlConfig, current: number, stateId: string) {
+  const count = control.variants.length;
+  if (stateId === 'next') {
+    return (current + 1) % count;
+  }
+  if (stateId === 'prev') {
+    return (current - 1 + count) % count;
+  }
+  const index = control.variants.findIndex((_, i) => stateIdAt(control, i) === stateId);
+  if (index < 0 && /^\d+$/.test(stateId) && Number(stateId) < count) {
+    return Number(stateId);
+  }
+  return index;
+}
+
+function valuesOf(snapshot: VariableSnapshot) {
+  return Object.fromEntries(
+    Object.entries(snapshot.records).map(([id, record]) => [id, record.value]),
+  );
 }
 
 let current: RuntimeSession | undefined;
@@ -59,28 +90,27 @@ export class RuntimeSession {
   readonly variables: VariableStore;
   readonly events = new EventRegistry();
   readonly snapshots = writable<RuntimeSnapshot>(EMPTY);
-  private readonly execution: ExecutionEngine;
+  readonly execution: ExecutionEngine;
   private readonly runner: ScenarioRunner;
   private readonly quickActions = new Set<AbortController>();
   private readonly content: ContentController;
-  private readonly pages: PageController;
-  private readonly skins: SkinController;
-  private readonly unsubscribeVariables: () => void = () => {};
-  private readonly detachRegistry: () => void = () => {};
-  private readonly stopRemoteSettings: () => void = () => {};
-  private readonly stopSettingsEffect: () => void = () => {};
-  private readonly persistence?: VariablePersistence;
+  readonly pages: PageController;
+  readonly skins: SkinController;
+  private unsubscribeVariables: () => void = () => {};
+  private detachRegistry: () => void = () => {};
+  private stopRemoteSettings: () => void = () => {};
+  private stopSettingsEffect: () => void = () => {};
+  private readonly saver: VariableSaver;
   private readonly onFailure: (failure: ScenarioFailure) => void;
   private revision = 0;
-  private persistTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly stopClock: () => void = () => {};
+  private stopClock: () => void = () => {};
   private disposed = false;
   private lastValues: Record<string, VariableValue> = {};
   private variableAncestry = new Map<string, EventAncestry>();
 
   constructor(options: RuntimeOptions = {}) {
     this.variables = options.variables ?? new VariableStore();
-    this.persistence = options.persistence;
+    this.saver = new VariableSaver(this.variables, options.persistence);
     this.onFailure = options.onFailure ?? (() => {});
     this.content = new ContentController(() => this.publish(this.variables.snapshot()));
     this.pages = new PageController({
@@ -129,65 +159,9 @@ export class RuntimeSession {
       onFailure: this.onFailure,
       onQueueFull: options.onQueueFull,
     });
-    this.lastValues = Object.fromEntries(
-      Object.entries(this.variables.snapshot().records).map(([id, record]) => [id, record.value]),
-    );
+    this.lastValues = valuesOf(this.variables.snapshot());
     try {
-      this.unsubscribeVariables = this.variables.subscribe((snapshot, persistentChanged) => {
-        this.publish(snapshot);
-        if (persistentChanged) {
-          this.schedulePersist();
-        }
-        for (const [id, record] of Object.entries(snapshot.records)) {
-          if (Object.hasOwn(this.lastValues, id) && this.lastValues[id] !== record.value) {
-            void this.emitEvent(
-              'variables.changed',
-              id,
-              {
-                id,
-                oldValue: this.lastValues[id],
-                value: record.value,
-                type: record.definition.type,
-              },
-              this.variableAncestry.get(id),
-            ).catch(() => {});
-          }
-        }
-        this.lastValues = Object.fromEntries(
-          Object.entries(snapshot.records).map(([id, record]) => [id, record.value]),
-        );
-      });
-      this.detachRegistry = setRegistryRuntime({
-        variables: this.variables,
-        registerEvent: (definition) => {
-          this.events.register(definition);
-        },
-        emitEvent: (id, parameter, payload, ancestry) =>
-          this.emitEvent(id, parameter, payload, ancestry),
-      });
-      this.skins.start();
-      this.stopRemoteSettings = onRemoteSettings((next) => {
-        this.reconcile(next.controls);
-        this.reconcilePages(next.deck.pages);
-        this.skins.reconcile(next.skinSettings);
-      });
-      this.stopSettingsEffect = $effect.root(() => {
-        $effect(() => {
-          const next = settings.controls;
-          const signature = JSON.stringify(
-            next.map((control) => [control.id, fingerprint(control)]),
-          );
-          void signature;
-          this.reconcile(next);
-        });
-        $effect(() => {
-          const pages = settings.deck.pages;
-          this.reconcilePages(pages);
-        });
-      });
-      this.publish(this.variables.snapshot());
-      this.stopClock = startClock(this.variables);
-      current = this;
+      this.start();
     } catch (error) {
       try {
         this.stopResources();
@@ -197,6 +171,64 @@ export class RuntimeSession {
       this.content.dispose();
       throw error;
     }
+  }
+
+  /** Attaches the session to settings, the plugin registry and its clock; undone by stopResources. */
+  private start() {
+    this.unsubscribeVariables = this.variables.subscribe((snapshot, persistentChanged) =>
+      this.variablesChanged(snapshot, persistentChanged),
+    );
+    this.detachRegistry = setRegistryRuntime({
+      variables: this.variables,
+      registerEvent: (definition) => {
+        this.events.register(definition);
+      },
+      emitEvent: (id, parameter, payload, ancestry) =>
+        this.emitEvent(id, parameter, payload, ancestry),
+    });
+    this.skins.start();
+    this.stopRemoteSettings = onRemoteSettings((next) => {
+      this.reconcile(next.controls);
+      this.pages.reconcile(next.deck.pages);
+      this.skins.reconcile(next.skinSettings);
+    });
+    this.stopSettingsEffect = $effect.root(() => {
+      $effect(() => {
+        const next = settings.controls;
+        const signature = JSON.stringify(next.map((control) => [control.id, fingerprint(control)]));
+        void signature;
+        this.reconcile(next);
+      });
+      $effect(() => {
+        const pages = settings.deck.pages;
+        this.pages.reconcile(pages);
+      });
+    });
+    this.publish(this.variables.snapshot());
+    this.stopClock = startClock(this.variables);
+    current = this;
+  }
+
+  /** Publishes, schedules a save and emits variables.changed for every value that changed. */
+  private variablesChanged(snapshot: VariableSnapshot, persistentChanged: boolean) {
+    this.publish(snapshot);
+    if (persistentChanged) {
+      this.saver.schedule();
+    }
+    for (const [id, record] of Object.entries(snapshot.records)) {
+      if (Object.hasOwn(this.lastValues, id) && this.lastValues[id] !== record.value) {
+        const payload = {
+          id,
+          oldValue: this.lastValues[id],
+          value: record.value,
+          type: record.definition.type,
+        };
+        void this.emitEvent('variables.changed', id, payload, this.variableAncestry.get(id)).catch(
+          () => {},
+        );
+      }
+    }
+    this.lastValues = valuesOf(snapshot);
   }
 
   get isOwner() {
@@ -248,9 +280,13 @@ export class RuntimeSession {
   ) {
     const control = controlById(controlId);
     if (!control) return Promise.resolve({ status: 'rejected' as const });
-    const current =
-      this.getState(controlId) ?? stateIdAt(control, settings.variants[controlId] ?? 0);
-    const packet = captureTrigger(control, itemId, trigger, interactionId, current);
+    const packet = captureTrigger(
+      control,
+      itemId,
+      trigger,
+      interactionId,
+      controlStateId(control, this.variables),
+    );
     return packet
       ? this.dispatch(packet, options)
       : Promise.resolve({ status: 'completed' as const });
@@ -258,27 +294,16 @@ export class RuntimeSession {
 
   getState(controlId: string) {
     const control = controlById(controlId);
-    if (!control) return undefined;
-    return effectiveVariant(control, this.variables, settings.variants[controlId] ?? 0).stateId;
+    return control && controlStateId(control, this.variables);
   }
 
   setState(controlId: string, stateId: string) {
     if (this.disposed) throw new Error('Runtime is unavailable');
     const control = controlById(controlId);
     if (!control || !control.variants.length) throw new Error('Button state is unavailable');
-    const count = control.variants.length,
-      current = settings.variants[controlId] ?? 0;
-    // Migrated gestures step relative to the current state.
-    const index =
-      stateId === 'next'
-        ? (current + 1) % count
-        : stateId === 'prev'
-          ? (current - 1 + count) % count
-          : control.variants.findIndex((_, i) => stateIdAt(control, i) === stateId);
-    const resolved =
-      index < 0 && /^\d+$/.test(stateId) && Number(stateId) < count ? Number(stateId) : index;
-    if (resolved < 0) throw new Error('Button state is unavailable');
-    settings.variants[controlId] = resolved;
+    const index = stateIndex(control, settings.variants[controlId] ?? 0, stateId);
+    if (index < 0) throw new Error('Button state is unavailable');
+    settings.variants[controlId] = index;
   }
 
   contentCommand(controlId: string, command: 'next' | 'prev' | 'goto' | 'reload', index?: number) {
@@ -318,16 +343,8 @@ export class RuntimeSession {
     return this.pages.changeInDirection(direction, reason, ancestry);
   }
 
-  updateSkinConfig(skinId: string, stored?: Record<string, unknown>) {
-    return this.skins.updateConfig(skinId, stored);
-  }
-
   setVariable(id: string, value: VariableValue, ancestry?: EventAncestry) {
     return this.writeVariable(id, value, 'user', ancestry);
-  }
-
-  setSkinView(skinId: string, viewId: string, ancestry?: EventAncestry) {
-    return this.skins.setView(skinId, viewId, ancestry);
   }
 
   async emitEvent(id: string, parameter?: string, payload?: unknown, ancestry?: EventAncestry) {
@@ -338,15 +355,12 @@ export class RuntimeSession {
       payload,
       settings.controls,
       async (target, eventParameter, eventPayload, path) => {
-        const state =
-          this.getState(target.control.id) ??
-          stateIdAt(target.control, settings.variants[target.control.id] ?? 0);
         const packet = captureEvent(
           target.control,
           '',
           target.listener,
           newId(),
-          state,
+          controlStateId(target.control, this.variables),
           Date.now(),
           eventParameter,
           eventPayload,
@@ -364,10 +378,6 @@ export class RuntimeSession {
           kind: 'cycle',
         }),
     );
-  }
-
-  async stopControl(controlId: string) {
-    return this.execution.stopControl(controlId);
   }
 
   reconcile(controls: Settings['controls']) {
@@ -390,7 +400,7 @@ export class RuntimeSession {
       failure = error;
     }
     try {
-      await this.flushPersistence();
+      await this.saver.flush();
     } finally {
       this.content.dispose();
     }
@@ -404,9 +414,7 @@ export class RuntimeSession {
     if (current === this) {
       current = undefined;
     }
-    if (this.persistTimer) {
-      clearTimeout(this.persistTimer);
-    }
+    this.saver.cancel();
     const failures: unknown[] = [];
     for (const cleanup of [
       this.stopClock,
@@ -454,27 +462,5 @@ export class RuntimeSession {
       busy: this.execution.busy(),
       content: this.content.snapshot(),
     });
-  }
-
-  reconcilePages(pages = settings.deck.pages) {
-    this.pages.reconcile(pages);
-  }
-
-  private schedulePersist() {
-    if (!this.persistence || this.disposed) return;
-    if (this.persistTimer) clearTimeout(this.persistTimer);
-    this.persistTimer = setTimeout(() => {
-      this.persistTimer = undefined;
-      void this.flushPersistence();
-    }, 200);
-  }
-
-  private async flushPersistence() {
-    if (!this.persistence) return;
-    try {
-      await this.persistence.save(this.variables.serializePersistent());
-    } catch {
-      /* persistence errors are surfaced by the owner boot adapter */
-    }
   }
 }

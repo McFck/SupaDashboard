@@ -18,7 +18,6 @@ function fakeRuntime() {
     changePageInDirection: vi.fn(),
     dispatchTrigger: vi.fn(async () => ({ status: 'completed' })),
     emitEvent: vi.fn(async () => {}),
-    stopControl: vi.fn(async () => {}),
     setVariable: vi.fn(async () => true),
   };
   const touched = () =>

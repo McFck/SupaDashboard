@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VariableStore } from '../../features/automation/variables';
 
 const load = vi.hoisted(() => ({ calls: 0, next: undefined as Promise<unknown> | undefined }));
-vi.mock('./variable-persistence', () => ({
+vi.mock('./variable-persistence', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./variable-persistence')>()),
   loadVariableState: () => {
     load.calls++;
     return (

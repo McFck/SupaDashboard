@@ -1,13 +1,12 @@
 import { get } from 'svelte/store';
-import { settings, controlById } from '../../features/settings/state.svelte';
-import { effectiveVariant } from '../../features/controls/button-state';
+import { controlById } from '../../features/settings/state.svelte';
 import { captureTrigger } from '../../features/automation/capture';
 import type { RunResult, TriggerPacket } from '../../features/automation/scenario-runner';
 import { newId, type Trigger } from '../../features/automation/scenario';
 import type { PageChangePayload, RemotePageChangeReason } from './protocol';
 import { runtimeView, type RuntimeSnapshot } from './state';
 import { requestRuntime } from './client';
-import { currentRuntime } from './session.svelte';
+import { controlStateId, currentRuntime } from './session.svelte';
 
 export async function requestPageChange(
   change: { direction: 'next' | 'prev' } | { page: string },
@@ -52,10 +51,13 @@ export function captureRuntimeTrigger(
   if (!control) return undefined;
   const runtime = currentRuntime();
   const variables = runtime?.variables ?? get(runtimeView).variables;
-  const stateId =
-    runtime?.getState(controlId) ??
-    effectiveVariant(control, variables, settings.variants[controlId] ?? 0).stateId;
-  return captureTrigger(control, itemId, trigger, interactionId, stateId);
+  return captureTrigger(
+    control,
+    itemId,
+    trigger,
+    interactionId,
+    controlStateId(control, variables),
+  );
 }
 
 /** Run a packet already captured on pointerdown; only the local runtime owner can execute it. */
@@ -82,7 +84,7 @@ export async function simulateRuntimeEvent(eventId: string, parameter?: string) 
 
 export async function stopRuntimeControl(controlId: string) {
   const runtime = currentRuntime();
-  if (runtime) return runtime.stopControl(controlId);
+  if (runtime) return runtime.execution.stopControl(controlId);
   return requestRuntime({ type: 'stop', payload: { controlId } });
 }
 
@@ -103,12 +105,12 @@ function videoPosition(controlId: string, source: string) {
 }
 
 function updateSkinConfig(skinId: string, stored?: Record<string, unknown>) {
-  return currentRuntime()?.updateSkinConfig(skinId, stored);
+  return currentRuntime()?.skins.updateConfig(skinId, stored);
 }
 
 async function setSkinView(skinId: string, viewId: string) {
   const runtime = currentRuntime();
-  return runtime?.isOwner ? runtime.setSkinView(skinId, viewId) : false;
+  return runtime?.isOwner ? runtime.skins.setView(skinId, viewId) : false;
 }
 
 export const runtimeCommands = {

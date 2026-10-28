@@ -383,7 +383,7 @@ describe('automation runtime', () => {
     expect(JSON.parse(serializeSettings()).deck.activePage).toBe('page-1');
     expect(runtime.changePage('page-2')).toBe(true);
     settings.deck.pages = settings.deck.pages.filter((page) => page.id !== 'page-2');
-    runtime.reconcilePages();
+    runtime.pages.reconcile(settings.deck.pages);
     await tick();
     expect(settings.deck.activePage).toBe('page-3');
     const writesBefore = serializeSettings();
@@ -603,14 +603,14 @@ describe('automation runtime', () => {
       ...settings.skinSettings,
       [skinId]: { enabled: false, future: '保持' },
     };
-    runtime.updateSkinConfig(skinId, settings.skinSettings[skinId]);
+    runtime.skins.updateConfig(skinId, settings.skinSettings[skinId]);
     await tick();
     expect(observed).toEqual([true, false]);
     expect(runtime.variables.getValue(`${skinId}.configured`)).toBe(false);
 
     const ancestry = { depth: 2, listeners: ['button\u0000change'] };
     const emit = vi.spyOn(runtime, 'emitEvent').mockResolvedValue();
-    await runtime.setSkinView(skinId, 'cab', ancestry);
+    await runtime.skins.setView(skinId, 'cab', ancestry);
     await hookContext.setState('configured', true, ancestry);
     await hookContext.emitEvent(`${skinId}.changed`, 'fixture', { ok: true }, ancestry);
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('cab');

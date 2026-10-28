@@ -43,7 +43,7 @@ export async function handleRuntimeRequest(runtime: RuntimeSession, request: Run
       if (typeof payload.controlId !== 'string') {
         throw new Error('Invalid stop request');
       }
-      await runtime.stopControl(payload.controlId);
+      await runtime.execution.stopControl(payload.controlId);
       return { stopped: true };
 
     case 'setVariable':

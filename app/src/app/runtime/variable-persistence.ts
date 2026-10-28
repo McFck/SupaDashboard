@@ -10,6 +10,41 @@ export type VariablePersistence = {
 };
 
 const VARIABLE_KEY = 'supadashboard:variables:v1';
+const SAVE_DELAY_MS = 200;
+
+/** Saves the persistent variables shortly after the last change, so a burst of edits writes once. */
+export class VariableSaver {
+  private timer: ReturnType<typeof setTimeout> | undefined;
+
+  constructor(
+    private readonly variables: VariableStore,
+    private readonly persistence: VariablePersistence | undefined,
+  ) {}
+
+  schedule() {
+    if (!this.persistence) {
+      return;
+    }
+    this.cancel();
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      void this.flush();
+    }, SAVE_DELAY_MS);
+  }
+
+  cancel() {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+  }
+
+  async flush() {
+    try {
+      await this.persistence?.save(this.variables.serializePersistent());
+    } catch {
+      /* persistence errors are surfaced by the owner boot adapter */
+    }
+  }
+}
 
 export async function loadVariableState(): Promise<{
   variables: VariableStore;
