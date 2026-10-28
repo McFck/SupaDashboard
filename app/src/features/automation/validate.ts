@@ -1,3 +1,4 @@
+import type { ActionRef } from '../plugins/contracts';
 import { compileExpression } from './expression';
 import { isRecord } from './plain-data';
 import {
@@ -8,133 +9,169 @@ import {
   type ScenarioIssue,
 } from './scenario';
 
+const DELAY_MESSAGE = 'Wait duration must be an integer from 0 to 86400000';
+const OPERATORS: readonly unknown[] = ['eq', 'ne', 'gt', 'lt'];
+
+/** Reports every problem in a stored scenario without changing it, in tree order. */
 export function validateScenario(value: unknown): ScenarioIssue[] {
-  const issues: ScenarioIssue[] = [];
-  const ids = new Set<string>();
-  let count = 0;
-  const inspectLegacy = (steps: unknown[], path: string, depth: number) => {
-    for (let i = 0; i < steps.length; i++) {
-      const legacy = steps[i];
-      const stepPath = `${path}.${i}`;
-      count++;
-      if (count > MAX_SCENARIO_NODES)
-        issues.push({ path: stepPath, message: 'Scenario exceeds 1000 steps' });
-      if (depth > MAX_SCENARIO_DEPTH) {
-        issues.push({ path: stepPath, message: 'Scenario exceeds 16 levels' });
-        continue;
-      }
-      if (!actionRef(legacy)) continue;
-      if (legacy.id === 'sequence') {
-        if (Array.isArray(legacy.args?.steps))
-          inspectLegacy(legacy.args.steps, stepPath, depth + 1);
-        else issues.push({ path: stepPath, message: 'Action sequence is invalid' });
-      } else if (legacy.id === 'delay') {
-        if (!isValidDelay(legacy.args?.ms))
-          issues.push({
-            path: stepPath,
-            message: 'Wait duration must be an integer from 0 to 86400000',
-          });
-      }
+  const walk = new ScenarioWalk();
+  const scenario = isRecord(value) ? value : {};
+  if (isRecord(scenario.triggers)) {
+    for (const [trigger, list] of Object.entries(scenario.triggers)) {
+      walk.list(list, `triggers.${trigger}`);
     }
-  };
-  const visit = (steps: unknown, path: string, depth: number) => {
-    if (!Array.isArray(steps)) {
-      issues.push({ path, message: 'Expected a step list' });
+  }
+  if (Array.isArray(scenario.events)) {
+    scenario.events.forEach((event, i) => {
+      if (isRecord(event)) {
+        walk.list(event.list, `events.${i}`);
+      }
+    });
+  }
+  return walk.issues;
+}
+
+function validOperand(operand: unknown) {
+  if (!isRecord(operand)) {
+    return false;
+  }
+  if (operand.kind === 'literal') {
+    const value = operand.value;
+    return (
+      typeof value === 'boolean' ||
+      typeof value === 'string' ||
+      (typeof value === 'number' && Number.isFinite(value)) ||
+      value === null
+    );
+  }
+  if (operand.kind === 'variable') {
+    return typeof operand.id === 'string' && !!operand.id;
+  }
+  return operand.kind === 'state' && typeof operand.controlId === 'string' && !!operand.controlId;
+}
+
+function conditionIssue(condition: unknown): string | undefined {
+  if (!isRecord(condition)) {
+    return 'Condition is invalid';
+  }
+  if (condition.kind === 'expression') {
+    if (typeof condition.source !== 'string') {
+      return 'Expression is invalid';
+    }
+    try {
+      compileExpression(condition.source);
+    } catch (error) {
+      return error instanceof Error ? error.message : 'Expression is invalid';
+    }
+    return undefined;
+  }
+  if (condition.kind !== 'compare') {
+    return 'Condition is invalid';
+  }
+  const { op, left, right } = condition;
+  if (!OPERATORS.includes(op) || !validOperand(left) || !validOperand(right)) {
+    return 'Condition is invalid';
+  }
+  if ((left.kind === 'state' || right.kind === 'state') && op !== 'eq' && op !== 'ne') {
+    return 'State values support equality only';
+  }
+  return undefined;
+}
+
+class ScenarioWalk {
+  readonly issues: ScenarioIssue[] = [];
+  private readonly ids = new Set<string>();
+  private count = 0;
+
+  list(list: unknown, path: string) {
+    if (!isRecord(list)) {
       return;
     }
-    for (let i = 0; i < steps.length; i++) {
-      const stepPath = `${path}.${i}`;
-      const step = steps[i];
-      count++;
-      if (count > MAX_SCENARIO_NODES)
-        issues.push({ path: stepPath, message: 'Scenario exceeds 1000 steps' });
-      if (depth > MAX_SCENARIO_DEPTH)
-        issues.push({ path: stepPath, message: 'Scenario exceeds 16 levels' });
-      if (!isRecord(step) || typeof step.id !== 'string' || !step.id) {
-        issues.push({ path: stepPath, message: 'Step ID is missing' });
-        continue;
+    this.steps(list.steps, `${path}.steps`, 1);
+    if (isRecord(list.byState)) {
+      for (const [stateId, steps] of Object.entries(list.byState)) {
+        this.steps(steps, `${path}.byState.${stateId}`, 1);
       }
-      if (ids.has(step.id)) issues.push({ path: stepPath, message: 'Step IDs must be unique' });
-      ids.add(step.id);
-      if (step.kind === 'action') {
-        if (!actionRef(step.action))
-          issues.push({ path: stepPath, message: 'Action reference is invalid' });
-        else if (step.action.id === 'delay') {
-          if (!isValidDelay(step.action.args?.ms))
-            issues.push({
-              path: stepPath,
-              message: 'Wait duration must be an integer from 0 to 86400000',
-            });
-        } else if (step.action.id === 'sequence') {
-          if (!Array.isArray(step.action.args?.steps))
-            issues.push({ path: stepPath, message: 'Action sequence is invalid' });
-          else inspectLegacy(step.action.args.steps, stepPath, depth + 1);
-        }
-      } else if (step.kind === 'delay') {
-        if (!isValidDelay(step.ms))
-          issues.push({
-            path: stepPath,
-            message: 'Wait duration must be an integer from 0 to 86400000',
-          });
-      } else if (step.kind === 'if') {
-        if (!isRecord(step.condition))
-          issues.push({ path: stepPath, message: 'Condition is invalid' });
-        else if (step.condition.kind === 'expression') {
-          if (typeof step.condition.source !== 'string')
-            issues.push({ path: stepPath, message: 'Expression is invalid' });
-          else
-            try {
-              compileExpression(step.condition.source);
-            } catch (error) {
-              issues.push({
-                path: stepPath,
-                message: error instanceof Error ? error.message : 'Expression is invalid',
-              });
-            }
-        } else if (step.condition.kind === 'compare') {
-          const validOperand = (operand: unknown) =>
-            isRecord(operand) &&
-            ((operand.kind === 'literal' &&
-              (typeof operand.value === 'boolean' ||
-                typeof operand.value === 'string' ||
-                (typeof operand.value === 'number' && Number.isFinite(operand.value)) ||
-                operand.value === null)) ||
-              (operand.kind === 'variable' && typeof operand.id === 'string' && !!operand.id) ||
-              (operand.kind === 'state' &&
-                typeof operand.controlId === 'string' &&
-                !!operand.controlId));
-          if (
-            !['eq', 'ne', 'gt', 'lt'].includes(step.condition.op) ||
-            !validOperand(step.condition.left) ||
-            !validOperand(step.condition.right)
-          )
-            issues.push({ path: stepPath, message: 'Condition is invalid' });
-          else if (
-            (step.condition.left.kind === 'state' || step.condition.right.kind === 'state') &&
-            step.condition.op !== 'eq' &&
-            step.condition.op !== 'ne'
-          )
-            issues.push({ path: stepPath, message: 'State values support equality only' });
-        } else issues.push({ path: stepPath, message: 'Condition is invalid' });
-        visit(step.then, `${stepPath}.then`, depth + 1);
-        visit(step.else, `${stepPath}.else`, depth + 1);
-      } else issues.push({ path: stepPath, message: 'Step type is unavailable' });
     }
-  };
-  const walkList = (list: unknown, path: string) => {
-    if (!isRecord(list)) return;
-    visit(list.steps, `${path}.steps`, 1);
-    if (isRecord(list.byState))
-      for (const [stateId, steps] of Object.entries(list.byState))
-        visit(steps, `${path}.byState.${stateId}`, 1);
-  };
-  const scenario = isRecord(value) ? value : {};
-  if (isRecord(scenario.triggers))
-    for (const [trigger, list] of Object.entries(scenario.triggers))
-      walkList(list, `triggers.${trigger}`);
-  if (Array.isArray(scenario.events))
-    scenario.events.forEach((event, i) => {
-      if (isRecord(event)) walkList(event.list, `events.${i}`);
+  }
+
+  private steps(steps: unknown, path: string, depth: number) {
+    if (!Array.isArray(steps)) {
+      this.add(path, 'Expected a step list');
+      return;
+    }
+    steps.forEach((step, i) => this.step(step, `${path}.${i}`, depth));
+  }
+
+  private step(step: unknown, path: string, depth: number) {
+    this.countNode(path, depth);
+    if (!isRecord(step) || typeof step.id !== 'string' || !step.id) {
+      this.add(path, 'Step ID is missing');
+      return;
+    }
+    if (this.ids.has(step.id)) {
+      this.add(path, 'Step IDs must be unique');
+    }
+    this.ids.add(step.id);
+    if (step.kind === 'action') {
+      if (actionRef(step.action)) {
+        this.builtInAction(step.action, path, depth);
+      } else {
+        this.add(path, 'Action reference is invalid');
+      }
+    } else if (step.kind === 'delay') {
+      if (!isValidDelay(step.ms)) {
+        this.add(path, DELAY_MESSAGE);
+      }
+    } else if (step.kind === 'if') {
+      const issue = conditionIssue(step.condition);
+      if (issue) {
+        this.add(path, issue);
+      }
+      this.steps(step.then, `${path}.then`, depth + 1);
+      this.steps(step.else, `${path}.else`, depth + 1);
+    } else {
+      this.add(path, 'Step type is unavailable');
+    }
+  }
+
+  /** Legacy built-in `delay` and `sequence` actions still run, so their arguments are checked. */
+  private builtInAction(ref: ActionRef, path: string, depth: number) {
+    if (ref.id === 'delay' && !isValidDelay(ref.args?.ms)) {
+      this.add(path, DELAY_MESSAGE);
+    } else if (ref.id === 'sequence') {
+      const steps = ref.args?.steps;
+      if (Array.isArray(steps)) {
+        this.sequenceSteps(steps, path, depth + 1);
+      } else {
+        this.add(path, 'Action sequence is invalid');
+      }
+    }
+  }
+
+  private sequenceSteps(steps: unknown[], path: string, depth: number) {
+    steps.forEach((ref, i) => {
+      const stepPath = `${path}.${i}`;
+      if (!this.countNode(stepPath, depth) && actionRef(ref)) {
+        this.builtInAction(ref, stepPath, depth);
+      }
     });
-  return issues;
+  }
+
+  /** Counts one node against the scenario limits; returns whether it is nested too deep. */
+  private countNode(path: string, depth: number) {
+    this.count++;
+    if (this.count > MAX_SCENARIO_NODES) {
+      this.add(path, 'Scenario exceeds 1000 steps');
+    }
+    const tooDeep = depth > MAX_SCENARIO_DEPTH;
+    if (tooDeep) {
+      this.add(path, 'Scenario exceeds 16 levels');
+    }
+    return tooDeep;
+  }
+
+  private add(path: string, message: string) {
+    this.issues.push({ path, message });
+  }
 }
