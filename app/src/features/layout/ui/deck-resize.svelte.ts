@@ -1,7 +1,7 @@
 // Resize constraints, live outline and its cancellable settle animation.
 import { tick } from 'svelte';
 import { springDuration } from '$lib/spring';
-import { clampResizeRect, fits, tileRadius, type Item } from '../grid';
+import { clampResizeRect, fits, tileRadius, type Item, type Rect } from '../grid';
 import {
   itemBox,
   resizeFromCornerHysteretic,
@@ -14,7 +14,6 @@ import { prefersReducedMotion } from 'svelte/motion';
 import type { DeckDragHost, DragBase } from './deck-drag.svelte';
 
 type CellSize = { w: number; h: number };
-type CellRect = { x: number; y: number; w: number; h: number };
 type ResizeFrameHandle = {
   settleTo(target: Box, duration?: number): Promise<void>;
   cancelSettle(): void;
@@ -24,15 +23,14 @@ export type ResizeDrag = DragBase & {
   corner: ResizeCorner;
   min: CellSize;
   max: CellSize;
-  pixelObstacles: CellRect[];
-  cellObstacles: CellRect[];
+  pixelObstacles: Rect[];
+  cellObstacles: Rect[];
   frameRadius: number;
   target: Item;
   validResize: Item;
   ghost: Box;
   ok: boolean;
 };
-const RESIZE_HYSTERESIS = 4;
 
 export class DeckResize {
   current = $state<ResizeDrag | null>(null);
@@ -201,7 +199,6 @@ export class DeckResize {
         drag.target,
         drag.min,
         drag.max,
-        RESIZE_HYSTERESIS,
       ),
     };
     const safe = clampResizeRect(snapped, drag.cellObstacles, drag.corner, drag.min);

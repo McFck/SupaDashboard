@@ -25,11 +25,11 @@ type GestureHandlers = {
   /** Current pull preview. This never runs a bound action or changes a variant. */
   onPull?: (pull: PullSnapshot | null) => void;
   /** Called once on pointerup after slop, including blocked and unarmed releases. */
-  onPullEnd?: (snapshot: PullSnapshot | null, armed: boolean) => void;
+  onPullEnd?: (snapshot: PullSnapshot | null) => void;
   /** Called for cancellation/lost capture, never for a commit. */
   onCancel?: (snapshot: PullSnapshot | null) => void;
   /** Direction bindings are captured at pointerdown so an active pull cannot change meaning. */
-  pullBindings?: PullBindings | (() => PullBindings);
+  pullBindings?: () => PullBindings;
   onStart?: () => void;
   feedback?: PressFeedbackHandle;
 };
@@ -82,15 +82,8 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
     const rect = node.getBoundingClientRect();
     const { pullBindings } = handlers;
     pointer = {
-      state: beginPull(
-        e.pointerId,
-        e.clientX,
-        e.clientY,
-        performance.now(),
-        rect.width,
-        rect.height,
-      ),
-      bindings: typeof pullBindings === 'function' ? pullBindings() : (pullBindings ?? {}),
+      state: beginPull(e.pointerId, e.clientX, e.clientY, rect.width, rect.height),
+      bindings: pullBindings?.() ?? {},
       snapshot: null,
       captures: captureTriggers(handlers.captureTrigger),
     };
@@ -121,7 +114,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
     const { snapshot, captures } = pointer;
     pointer = null;
     if (press.end({ x: e.clientX, y: e.clientY, captures }) === 'moved') {
-      handlers.onPullEnd?.(snapshot, !!snapshot?.armed);
+      handlers.onPullEnd?.(snapshot);
       if (snapshot?.armed) {
         dispatch(snapshot.direction, captures, snapshot);
       }
@@ -174,17 +167,20 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
   };
   const blur = () => cancel();
 
-  node.addEventListener('pointerdown', down);
-  node.addEventListener('pointermove', move);
-  node.addEventListener('pointerup', up);
-  node.addEventListener('pointercancel', lost);
-  node.addEventListener('lostpointercapture', lost);
-  node.addEventListener('keydown', keydown);
-  node.addEventListener('keyup', keyup);
-  node.addEventListener('click', click);
-  node.addEventListener('blur', blur);
-  const browserWindow = typeof window === 'undefined' ? undefined : window;
-  browserWindow?.addEventListener('blur', blur);
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  node.addEventListener('pointerdown', down, { signal });
+  node.addEventListener('pointermove', move, { signal });
+  node.addEventListener('pointerup', up, { signal });
+  node.addEventListener('pointercancel', lost, { signal });
+  node.addEventListener('lostpointercapture', lost, { signal });
+  node.addEventListener('keydown', keydown, { signal });
+  node.addEventListener('keyup', keyup, { signal });
+  node.addEventListener('click', click, { signal });
+  node.addEventListener('blur', blur, { signal });
+  if (typeof window !== 'undefined') {
+    window.addEventListener('blur', blur, { signal });
+  }
   return {
     update: (next: GestureHandlers) => {
       handlers = next;
@@ -197,16 +193,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
       if (clickSuppressionTimer) {
         clearTimeout(clickSuppressionTimer);
       }
-      node.removeEventListener('pointerdown', down);
-      node.removeEventListener('pointermove', move);
-      node.removeEventListener('pointerup', up);
-      node.removeEventListener('pointercancel', lost);
-      node.removeEventListener('lostpointercapture', lost);
-      node.removeEventListener('keydown', keydown);
-      node.removeEventListener('keyup', keyup);
-      node.removeEventListener('click', click);
-      node.removeEventListener('blur', blur);
-      browserWindow?.removeEventListener('blur', blur);
+      listeners.abort();
       handlers.onPull?.(null);
     },
   };

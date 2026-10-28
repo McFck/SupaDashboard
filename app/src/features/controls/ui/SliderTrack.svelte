@@ -193,14 +193,7 @@
     }
     const rect = rectNow();
     drag = {
-      state: beginPull(
-        e.pointerId,
-        e.clientX,
-        e.clientY,
-        performance.now(),
-        rect.width,
-        rect.height,
-      ),
+      state: beginPull(e.pointerId, e.clientX, e.clientY, rect.width, rect.height),
       rect,
       vertical,
       bindings: { ...pullBindings },

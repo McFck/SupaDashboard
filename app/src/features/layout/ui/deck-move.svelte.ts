@@ -200,14 +200,6 @@ export class DeckMove {
           current.requestedX = current.requestedY = null;
           return;
         }
-        const answersThisRequest =
-          reply.generation === current.generation &&
-          reply.revision === current.layoutSignature &&
-          reply.x === target.x &&
-          reply.y === target.y;
-        if (!answersThisRequest) {
-          return;
-        }
         current.placement = reply.preview;
         current.pending = false;
         current.readyForRelease = false;

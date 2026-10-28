@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
   import type { ControlConfig } from '../model';
+  import { newId } from '../../automation/scenario';
   import { runtimeView } from '../../../app/runtime/state';
   import { readWebOptions, webUrl } from '../../media/content';
   import { watchDashboardVisibility, watchIntersection } from '../../media/content-visibility';
@@ -55,7 +56,7 @@
   function startAttempt(url: string | undefined) {
     generation++;
     attemptUrl = url;
-    frameKey = `content:${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+    frameKey = `content:${newId()}`;
     frameState = initialWebFrameState(frameKey);
     timeoutRemaining = WEB_FRAME_TIMEOUT_MS;
     refreshRemaining = options.refresh * 1000;

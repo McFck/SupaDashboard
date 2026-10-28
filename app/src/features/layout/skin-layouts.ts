@@ -257,7 +257,7 @@ function validItem(item: Item) {
   );
 }
 
-export function validSlotItems(
+function validSlotItems(
   source: Settings,
   skinId: string,
   slot: SkinSlot,

@@ -5,7 +5,7 @@ export type DeckSizing = 'auto' | 'manual';
 export type FittedDeck = { cell: number; gap: number; width: number; height: number };
 /** What the layout editor has selected: a widget, an empty cell, or nothing. */
 export type Selection = { item: string } | { cell: { x: number; y: number } } | null;
-type Rect = Pick<Item, 'x' | 'y' | 'w' | 'h'>;
+export type Rect = Pick<Item, 'x' | 'y' | 'w' | 'h'>;
 
 const overlaps = (a: Rect, b: Rect) =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -156,15 +156,16 @@ const maskOf = (rect: Rect, cols: number) => {
     for (let x = rect.x; x < rect.x + rect.w; x++) mask |= 1n << BigInt(y * cols + x);
   return mask;
 };
-const bitCount = (value: bigint) => {
-  let count = 0;
-  for (let bits = value; bits; bits &= bits - 1n) count++;
-  return count;
-};
 const compareId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+const area = (item: Rect) => item.w * item.h;
+const order = (a: Reinsert, b: Reinsert) =>
+  area(b.item) - area(a.item) ||
+  Math.max(b.item.w, b.item.h) - Math.max(a.item.w, a.item.h) ||
+  a.item.y - b.item.y ||
+  a.item.x - b.item.x ||
+  compareId(a.item.id, b.item.id);
 type Reinsert = {
   item: Item;
-  ordinal: number;
   candidates: { x: number; y: number; mask: bigint }[];
 };
 
@@ -191,7 +192,11 @@ export function previewDrop(
   const blockedIds = new Set(blockers.map((i) => i.id));
   const stationary = items.filter((i) => i.id !== id && !blockedIds.has(i.id));
   let occupied = maskOf(moved, grid.cols);
-  for (const item of stationary) occupied |= maskOf(item, grid.cols);
+  let free = grid.cols * grid.rows - area(moved);
+  for (const item of stationary) {
+    occupied |= maskOf(item, grid.cols);
+    free -= area(item);
+  }
   const relocations: Reinsert[] = blockers.map((item) => {
     const candidates = [];
     for (let cy = 0; cy + item.h <= grid.rows; cy++)
@@ -216,17 +221,14 @@ export function previewDrop(
         a.y - b.y ||
         a.x - b.x,
     );
-    return { item, ordinal: items.indexOf(item), candidates };
+    return { item, candidates };
   });
-  const allCells = BigInt(grid.rows * grid.cols);
-  const boardMask = (1n << allCells) - 1n;
   const failed = new Set<string>();
   const chosen = new Map<string, { x: number; y: number }>();
 
-  function search(remaining: Reinsert[], mask: bigint): boolean {
+  function search(remaining: Reinsert[], mask: bigint, free: number): boolean {
     if (!remaining.length) return true;
-    const free = bitCount(boardMask ^ mask);
-    if (remaining.reduce((sum, entry) => sum + entry.item.w * entry.item.h, 0) > free) return false;
+    if (remaining.reduce((sum, entry) => sum + area(entry.item), 0) > free) return false;
     const memoKey =
       JSON.stringify(remaining.map((entry) => entry.item.id).sort(compareId)) +
       ':' +
@@ -241,12 +243,6 @@ export function previewDrop(
         failed.add(memoKey);
         return false;
       }
-      const order = (a: Reinsert, b: Reinsert) =>
-        b.item.w * b.item.h - a.item.w * a.item.h ||
-        Math.max(b.item.w, b.item.h) - Math.max(a.item.w, a.item.h) ||
-        a.item.y - b.item.y ||
-        a.item.x - b.item.x ||
-        compareId(a.item.id, b.item.id);
       if (
         !selected ||
         available.length < legal.length ||
@@ -259,14 +255,13 @@ export function previewDrop(
     const rest = remaining.filter((entry) => entry !== selected);
     for (const candidate of legal) {
       chosen.set(selected!.item.id, { x: candidate.x, y: candidate.y });
-      if (search(rest, mask | candidate.mask)) return true;
+      if (search(rest, mask | candidate.mask, free - area(selected!.item))) return true;
     }
-    chosen.delete(selected!.item.id);
     failed.add(memoKey);
     return false;
   }
 
-  if (!search(relocations, occupied)) return { kind: 'invalid', reason: 'occupied' };
+  if (!search(relocations, occupied, free)) return { kind: 'invalid', reason: 'occupied' };
   const next = items.map((item) =>
     item.id === id ? moved : chosen.has(item.id) ? { ...item, ...chosen.get(item.id)! } : item,
   );

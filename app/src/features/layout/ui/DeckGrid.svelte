@@ -34,9 +34,6 @@
   type GridLayout = Pick<Page, 'rows' | 'cols' | 'size' | 'sizing' | 'gap'> & { items: Item[] };
   type ContextTarget = { item: string } | { cell: { x: number; y: number } };
 
-  /** Snap distance applied to keyboard resizes, in pixels. */
-  const RESIZE_HYSTERESIS = 4;
-
   let {
     page,
     layout,
@@ -215,7 +212,6 @@
       item,
       min,
       max,
-      RESIZE_HYSTERESIS,
     );
     const obstacles = deck.items
       .filter((other) => other.id !== item.id)

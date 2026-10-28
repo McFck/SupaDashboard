@@ -49,7 +49,7 @@ export type ControlFaceProps = {
 };
 
 /** A gesture either runs an action or switches the control to another variant. */
-export type GestureBinding = ActionRef | { variant: 'next' | 'prev' | number };
+type GestureBinding = ActionRef | { variant: 'next' | 'prev' | number };
 
 /** Most states a control can have. */
 export const MAX_VARIANTS = 4;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildExistingControlRows, searchExistingControls } from './existing-controls';
+import { buildExistingControlRows } from './existing-controls';
 import { pageItems } from './placements';
 
 const types = new Map([
@@ -29,20 +29,6 @@ describe('existing controls', () => {
       icon: 'Puzzle',
       available: false,
     });
-  });
-
-  it('searches trimmed names, type IDs, and registered type titles case-insensitively', () => {
-    const rows = buildExistingControlRows(
-      [
-        { id: 'one', name: 'Kitchen Light', type: 'button' },
-        { id: 'two', name: 'Volume', type: 'slider' },
-      ],
-      [],
-      types,
-    );
-    expect(searchExistingControls(rows, '  KITCHEN ').map((row) => row.id)).toEqual(['one']);
-    expect(searchExistingControls(rows, ' SLIDER ').map((row) => row.id)).toEqual(['two']);
-    expect(searchExistingControls(rows, 'button').map((row) => row.id)).toEqual(['one']);
   });
 
   it('counts uses from page and skin placements while keeping page-local items separate', () => {
