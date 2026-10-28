@@ -3,7 +3,7 @@
   // playing audio ("auto"), or a fixed list chosen in the editor. Tap a channel's icon to mute it.
   import { toast } from 'svelte-sonner';
   import { mixerLayout } from '../geometry';
-  import type { ControlConfig } from '../model';
+  import { DEFAULT_MIXER_MAX_CHANNELS, type ControlConfig } from '../model';
   import { findVolumeChannel, setMuted, setVolume, volumeChannels } from '../../media/volume';
   import { appIcons } from '../../plugins/registry';
   import { settings } from '../../settings/state.svelte';
@@ -51,7 +51,7 @@
       options.channels === 'auto' || !options.channels
         ? $volumeChannels.map((c) => ({ target: c.target }))
         : options.channels;
-    return list.slice(0, options.max ?? 8).map((f) => {
+    return list.slice(0, options.max ?? DEFAULT_MIXER_MAX_CHANNELS).map((f) => {
       const c = findVolumeChannel($volumeChannels, f.target);
       return {
         ...f,
