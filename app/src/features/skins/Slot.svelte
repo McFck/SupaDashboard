@@ -9,7 +9,6 @@
     setLayoutItems,
     type LayoutTarget,
   } from '../layout/skin-layouts';
-  import { skinFaceFor } from './faces';
   import { controlTypes } from '../plugins/registry';
   import { settings } from '../settings/state.svelte';
   import DeckGrid from '../layout/ui/DeckGrid.svelte';
@@ -46,10 +45,9 @@
   const faceMap = $derived.by(() => {
     const result: Record<string, Component<ControlFaceProps>> = {};
     for (const type of Object.keys(host?.skin.controlSkins ?? {})) {
-      const control = controlTypes.get(type);
-      const face = host && control ? skinFaceFor(host.skin, type, control.face) : undefined;
-      if (face) {
-        result[type] = face;
+      const defaultFace = controlTypes.get(type)?.face;
+      if (host && defaultFace) {
+        result[type] = host.skin.controlSkins?.[type]?.component ?? defaultFace;
       }
     }
     return result;

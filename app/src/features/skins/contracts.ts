@@ -6,7 +6,6 @@ import type { Page } from '../settings/schema';
 import type { VariableType, VariableValue } from '../automation/variables';
 
 export type SkinRect = { x: number; y: number; w: number; h: number };
-export type SkinDesignFit = { scale: number; offsetX: number; offsetY: number };
 
 export type SkinGrid =
   'page' | { rows: number; cols: number; size: number; gap: number; sizing: 'auto' | 'manual' };
@@ -27,8 +26,6 @@ export type SkinStateField = {
   initialValue: VariableValue;
   persistent?: boolean;
 };
-export type SkinPageNavigation = 'swipe' | 'skin';
-export type SkinAlter = 'layout' | 'logic';
 export type SkinConfig = Readonly<Record<string, unknown>>;
 export type SkinRuntimeContext = {
   config: Readable<SkinConfig>;
@@ -63,12 +60,12 @@ export type SkinDef = {
   id: string;
   title: string;
   component: Component<{ page: Page }>;
-  alters?: SkinAlter[];
+  alters?: ('layout' | 'logic')[];
   design?: { width: number; height: number };
   slots: SkinSlot[];
   views: SkinView[];
   defaultView: string;
-  pageNavigation?: SkinPageNavigation;
+  pageNavigation?: 'swipe' | 'skin';
   controlSkins?: Record<string, SkinControlFace>;
   settings?: Param[];
   quickActions?: ActionRef[];

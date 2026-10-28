@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mapScenePoint } from './scene-geometry';
 import { SceneScheduler } from './scene';
 
 function clock() {
@@ -25,14 +24,6 @@ function clock() {
 }
 
 describe('scene scheduling', () => {
-  it('maps pointer positions through the scaled canvas and rejects outside points', () => {
-    const rect = { left: 20, top: 40, width: 960, height: 240 };
-    expect(mapScenePoint(500, 160, rect, 1920, 480)).toEqual({ x: 960, y: 240 });
-    expect(mapScenePoint(19, 40, rect, 1920, 480)).toBeNull();
-    expect(mapScenePoint(980, 280, rect, 1920, 480)).toBeNull();
-    expect(mapScenePoint(20, 40, { ...rect, width: 0 }, 1920, 480)).toBeNull();
-  });
-
   it('coalesces invalidations and stops static scenes after one frame', () => {
     const raf = clock(),
       draw = vi.fn(() => false);

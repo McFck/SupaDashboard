@@ -1,7 +1,8 @@
 import type { Item } from '../layout/grid';
 import type { Page, Settings } from './schema';
 import { DEFAULT_PAGE } from './defaults';
-import { isRecord, object, positiveInteger } from './validation';
+import { isRecord } from '../automation/plain-data';
+import { object, positiveInteger } from './upgrade';
 
 function normalizeItems(raw: unknown, itemIds: Set<string>): Item[] {
   if (!Array.isArray(raw)) {
@@ -89,22 +90,16 @@ function normalizePage(
 
 function normalizeSkinLayouts(raw: unknown, itemIds: Set<string>) {
   const layouts: Settings['skinLayouts'] = {};
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+  if (!isRecord(raw)) {
     return layouts;
   }
   for (const [skinId, rawPages] of Object.entries(raw)) {
-    if (
-      !skinId ||
-      skinId === 'deck' ||
-      !rawPages ||
-      typeof rawPages !== 'object' ||
-      Array.isArray(rawPages)
-    ) {
+    if (!skinId || skinId === 'deck' || !isRecord(rawPages)) {
       continue;
     }
     const pages: Record<string, Record<string, Item[]>> = {};
     for (const [pageId, rawSlots] of Object.entries(rawPages)) {
-      if (!pageId || !rawSlots || typeof rawSlots !== 'object' || Array.isArray(rawSlots)) {
+      if (!pageId || !isRecord(rawSlots)) {
         continue;
       }
       const slots: Record<string, Item[]> = {};

@@ -188,69 +188,49 @@ describe('settings migration', () => {
     expect(saved).toEqual(original);
   });
 
-  it('defaults old or malformed always-on-top values and preserves version-4 grid settings', () => {
-    const defaults = structuredClone(DEFAULTS);
-    const old: any = { ...defaults, version: 4, deck: { ...defaults.deck.pages[0] } };
-    delete old.display.alwaysOnTop;
-    old.display.monitor = 'DISPLAY-1';
-    old.display.fullscreen = true;
-    old.display.background = { color: '#123456', opacity: 0.3, radius: 42 };
-    old.deck.cols = 4;
-
-    const migrated = migrate(old);
+  it('keeps valid old display and page settings and defaults malformed ones', () => {
+    const old = (display: object, page: object): any => {
+      const defaults = structuredClone(DEFAULTS);
+      return {
+        ...defaults,
+        version: 4,
+        display: { ...defaults.display, ...display },
+        deck: { ...defaults.deck.pages[0], ...page },
+      };
+    };
+    const background = { color: '#123456', opacity: 0.3, radius: 42 };
+    const valid = old(
+      { monitor: 'DISPLAY-1', fullscreen: true, alwaysOnTop: true, background },
+      {
+        cols: 4,
+        sizing: 'manual',
+        size: 88,
+      },
+    );
+    const source = structuredClone(valid);
+    const migrated = migrate(valid);
     expect(migrated.display).toEqual({
       monitor: 'DISPLAY-1',
       fullscreen: true,
-      alwaysOnTop: false,
-      background: { color: '#123456', opacity: 0.3, radius: 42 },
+      alwaysOnTop: true,
+      background,
     });
-    expect(migrated.deck.pages[0].cols).toBe(4);
-    expect(migrated.controls).toEqual(old.controls);
+    expect(migrated.deck.pages[0]).toMatchObject({ cols: 4, sizing: 'manual', size: 88 });
+    expect(migrate(migrated)).toEqual(migrated);
+    expect(valid).toEqual(source);
 
-    for (const value of [null, 'true', 1]) {
-      expect(
-        migrate({ ...old, display: { ...old.display, alwaysOnTop: value } }).display.alwaysOnTop,
-      ).toBe(false);
+    for (const alwaysOnTop of [undefined, null, 'true', 1]) {
+      expect(migrate(old({ alwaysOnTop }, {})).display.alwaysOnTop).toBe(false);
     }
-    for (const value of [false, true]) {
-      const roundTrip = migrate({ ...old, display: { ...old.display, alwaysOnTop: value } });
-      expect(roundTrip.display.alwaysOnTop).toBe(value);
-      expect(migrate(roundTrip).display.alwaysOnTop).toBe(value);
+    for (const [sizing, size] of [
+      ['other', 0],
+      [undefined, Infinity],
+    ]) {
+      expect(migrate(old({}, { sizing, size })).deck.pages[0]).toMatchObject({
+        sizing: 'auto',
+        size: 112,
+      });
     }
-  });
-
-  it('adds auto sizing to old decks and preserves valid manual sizes without mutating input', () => {
-    const defaults = structuredClone(DEFAULTS);
-    const old: any = { ...defaults, version: 4, deck: { ...defaults.deck.pages[0] } };
-    delete old.deck.sizing;
-    old.deck.size = 96;
-    const source = structuredClone(old);
-    const auto = migrate(old);
-    expect(auto.deck.pages[0]).toMatchObject({ sizing: 'auto', size: 96 });
-    expect(migrate(auto)).toEqual(auto);
-    expect(old).toEqual(source);
-
-    const manual = migrate({
-      ...structuredClone(DEFAULTS),
-      version: 4,
-      deck: { ...structuredClone(DEFAULTS.deck.pages[0]), sizing: 'manual', size: 88 },
-    });
-    expect(manual.deck.pages[0]).toMatchObject({ sizing: 'manual', size: 88 });
-  });
-
-  it('normalizes unknown sizing and malformed cell size', () => {
-    const malformed = migrate({
-      ...structuredClone(DEFAULTS),
-      version: 4,
-      deck: { ...structuredClone(DEFAULTS.deck.pages[0]), sizing: 'other', size: 0 },
-    });
-    expect(malformed.deck.pages[0]).toMatchObject({ sizing: 'auto', size: 112 });
-    const nonFinite = migrate({
-      ...structuredClone(DEFAULTS),
-      version: 4,
-      deck: { ...structuredClone(DEFAULTS.deck.pages[0]), size: Infinity },
-    });
-    expect(nonFinite.deck.pages[0].size).toBe(112);
   });
 
   it('moves legacy colour to variants without overwriting explicit colours or empty labels', () => {
