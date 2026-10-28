@@ -4,7 +4,6 @@ import type { RunResult, ScenarioFailure, TriggerPacket } from './scenario-runne
 type Job = {
   packet: TriggerPacket;
   fingerprint: string;
-  notify: boolean;
   resolve(result: RunResult): void;
   controller?: AbortController;
   done?: { promise: Promise<RunResult>; resolve(result: RunResult): void };
@@ -32,7 +31,7 @@ export class ExecutionEngine {
     return Object.fromEntries(this.busyCounts);
   }
 
-  dispatch(packet: TriggerPacket, options: { notify?: boolean } = {}): Promise<RunResult> {
+  dispatch(packet: TriggerPacket): Promise<RunResult> {
     if (this.disposed) {
       return Promise.resolve({ status: 'rejected' });
     }
@@ -47,7 +46,7 @@ export class ExecutionEngine {
       this.lanes.set(laneKey, lane);
     }
     if (lane.queue.length >= 32) {
-      if (options.notify !== false && !this.queueFullReported.has(laneKey)) {
+      if (!this.queueFullReported.has(laneKey)) {
         this.queueFullReported.add(laneKey);
         try {
           this.host.onQueueFull?.(packet.controlId, packet.trigger);
@@ -61,7 +60,6 @@ export class ExecutionEngine {
       lane.queue.push({
         packet: structuredClone(packet),
         fingerprint,
-        notify: options.notify !== false,
         resolve,
       });
       void this.drain(lane);
@@ -149,7 +147,7 @@ export class ExecutionEngine {
         } catch {
           result = { status: 'failed' };
         }
-        if (job.notify && result.status === 'failed' && result.failure) {
+        if (result.status === 'failed' && result.failure) {
           try {
             this.host.onFailure?.(result.failure);
           } catch {

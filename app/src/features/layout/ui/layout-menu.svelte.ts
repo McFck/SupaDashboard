@@ -1,6 +1,6 @@
 import { toast } from 'svelte-sonner';
 import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
-import { getRuntimeCommands } from '../../../app/runtime/context';
+import type { RuntimeCommands } from '../../../app/runtime/commands';
 import type { Trigger } from '../../automation/scenario';
 import { settings } from '../../settings/state.svelte';
 import type { Selection } from '../grid';
@@ -33,7 +33,7 @@ export class LayoutMenu {
 
   constructor(
     private readonly editor: LayoutEditorState,
-    private readonly runtime: ReturnType<typeof getRuntimeCommands>,
+    private readonly runtime: RuntimeCommands,
     private readonly host: {
       openScenario(controlId: string, itemId: string, trigger: Trigger): void;
       openMove(mode: MoveMode, target: LayoutTarget, itemId: string): void;

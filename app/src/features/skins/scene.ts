@@ -101,5 +101,3 @@ export class SceneScheduler {
     });
   }
 }
-
-export type { SkinSceneFactory, SkinSceneRenderer } from './scene-contracts';

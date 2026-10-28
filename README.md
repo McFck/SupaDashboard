@@ -6,11 +6,12 @@ the whole look; the optional Subway skin recreates Japanese train information sc
 
 ## Repository
 
-| Path                          | Contents                                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------------------------ |
-| [`app/`](app/README.md)       | The application: Svelte frontend, Tauri/Rust backend, tests and browser checks              |
-| [`assets/`](assets/README.md) | Subway sound pack: line manifests, audio clips, motion data and source credits             |
-| [`tools/`](tools/README.md)   | Building and validating the sound pack, and preparing recordings from the archive          |
+| Path                          | Contents                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| [`app/`](app/README.md)       | The application: Svelte frontend, Tauri/Rust backend, tests and browser checks |
+| [`assets/`](assets/README.md) | Subway sound pack: line manifests, audio clips, motion data and source credits |
+
+The sound pack is built with local scripts that are not tracked here.
 
 ## Quick start
 

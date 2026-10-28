@@ -12,9 +12,9 @@
   import { runtimeView } from '../../../app/runtime/state';
   import { parseVariableText, type VariableType, type VariableRecord } from '../variables';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
+  import { runtimeCommands } from '../../../app/runtime/commands';
 
-  const { requestRuntime } = getRuntimeCommands();
+  const { requestRuntime } = runtimeCommands;
 
   let query = $state('');
   let creating = $state(false);

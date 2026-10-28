@@ -60,7 +60,7 @@ and a second acceleration. It is not a timetable or a production train physics m
 The demo uses a foreground timer; background-tab scheduling is not a production guarantee.
 No fixed-length acceleration or braking recording controls the trip duration.
 
-## Rebuild / verify
+## Rebuild / verify (local scripts, not tracked in this repository)
 
 ```
 python tools/import_motion.py <TM13000Sound.zip> <OC30000.zip>

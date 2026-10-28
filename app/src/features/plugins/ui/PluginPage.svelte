@@ -13,9 +13,7 @@
   import { settings } from '../../settings/state.svelte';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
 
-  const { updateSkinConfig } = getRuntimeCommands();
   let { plugin, onback }: { plugin: Plugin; onback: () => void } = $props();
   const pluginSkins = $derived([...skins.values()].filter((skin) => skin.plugin === plugin.id));
   let removing = $state(false);
@@ -50,7 +48,6 @@
       return;
     labelEdit(`Change ${skin.title} ${param.label}`);
     settings.skinSettings = { ...settings.skinSettings, [skin.id]: next };
-    updateSkinConfig(skin.id, settings.skinSettings[skin.id]);
   }
   function date(value?: string) {
     return value && Number.isFinite(Date.parse(value))

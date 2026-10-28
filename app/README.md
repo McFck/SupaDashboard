@@ -38,16 +38,8 @@ tests/
 
 Dependency rules: `features/plugins/contracts.ts` is type-only, so plugins and models import it without starting
 the registry. `lib/` imports no feature code; features import it as `$lib/...`. Unit tests sit beside the code they
-test. The application runtime lives in `app/runtime/`. UI that only reads snapshots imports its `state.ts`.
-`client.ts` handles the panel connection and remote requests; `variable-persistence.ts` loads and saves variables.
-`features/automation/execution-engine.ts` owns queue lanes, cancellation, queue limits, and busy counts. It uses
-an injected executor and control-fingerprint lookup, with no Svelte, settings, registry, or storage imports.
-`app/runtime/session.svelte.ts` owns settings observation, variables, events, persistence, and disposal. It
-composes the engine, page/content/skin controllers, and clock service. `lifecycle.ts` coordinates asynchronous
-startup and shutdown, including retries and stopping during startup. `commands.ts` handles UI commands and
-local/remote routing. Bootstrap provides these commands through Svelte context; UI components use the typed
-helper in `context.ts` rather than accessing the session. The standalone media harness supplies the same context.
-`app/runtime.svelte.ts` keeps the previous exports for compatibility, including the `AutomationRuntime` name.
+test. The application runtime lives in `app/runtime/`; see the local `docs/architecture.md` for the module map, the
+runtime and window model, and the persistence guarantees.
 
 ## Windows
 
@@ -78,15 +70,15 @@ hide/resume behavior needs an isolated Tauri check and is not established by bro
 
 ## Pieces
 
-| Piece         | Where                              | What it is                                                                                                                                                                                                                                                 |
-| ------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Widgets       | `src/features/controls/ui/`        | `button`, `slider` (pill; tall = vertical), `mixer` (several pills: master + apps)                                                                                                                                                                         |
-| Layout        | `src/features/layout/grid.ts`      | deck items with x/y/w/h, collision, drop/swap (tested)                                                                                                                                                                                                     |
-| Actions       | `src/features/plugins/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, `open`, `delay`, and `sequence` |
-| Media sources | same                               | where media commands go: core `system` (current Windows player); plugins add more                                                                                                                                                                          |
-| Values        | same                               | what a slider controls: `volume {target: "system" \| process name}`                                                                                                                                                                                        |
-| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets + skins), `spotify` (media source, icon, mixer icon, `spotify.open`)                                                                                                                                                        |
-| Native        | `src-tauri/src/`                   | `media.rs` (Windows media sessions), `volume.rs` (master + per-app volume, mute, mixer list), tray + windows in `lib.rs`                                                                                                                                   |
+| Piece         | Where                              | What it is                                                                                                                                                                                                                            |
+| ------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Widgets       | `src/features/controls/ui/`        | `button`, `slider` (pill; tall = vertical), `mixer` (several pills: master + apps)                                                                                                                                                    |
+| Layout        | `src/features/layout/grid.ts`      | deck items with x/y/w/h, collision, drop/swap (tested)                                                                                                                                                                                |
+| Actions       | `src/features/plugins/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, and `open` |
+| Media sources | same                               | where media commands go: core `system` (current Windows player); plugins add more                                                                                                                                                     |
+| Values        | same                               | what a slider controls: `volume {target: "system" \| process name}`                                                                                                                                                                   |
+| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets + skins), `spotify` (media source, icon, mixer icon, `spotify.open`)                                                                                                                                   |
+| Native        | `src-tauri/src/`                   | `audio/` (volume, mixer, media sessions), `dashboard/`, `panel/`, `content/`, `tray.rs`, `monitors.rs`                                                                                                                                |
 
 Deck settings: `%APPDATA%\dev.supadashboard.app\settings.json` (version 5; older versions migrate on load). Pages share controls and scenario definitions; page selection is runtime state for the current dashboard launch. Persistent variables are stored separately in `variables.json`.
 
@@ -117,7 +109,7 @@ deterministic simulated run. Immersion audio uses the bundled motion profiles an
 creates audio only in the visible dashboard owner. The shared mixer exposes it as **Subway**, independently of
 Windows app channels. Mixer gain and mute persist as `subway.mixVolume` and `subway.mixMuted`; the skin's
 announcement-volume setting affects voice cues only. The Sakaisuji motion profile is generic Osaka Metro sound,
-not a Hankyu recording. See [Subway assets](docs/subway-assets.md) for the content and timing limits.
+not a Hankyu recording. The content and timing limits are in the local `docs/subway-assets.md`.
 
 ### Gestures
 

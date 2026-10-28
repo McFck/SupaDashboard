@@ -4,7 +4,7 @@ import { fromStore } from 'svelte/store';
 import { effectiveVariant } from '../control-state';
 import type { PullSnapshot } from '../input/pull';
 import type { ControlConfig } from '../model';
-import { getRuntimeCommands } from '../../../app/runtime/context';
+import { runtimeCommands } from '../../../app/runtime/commands';
 import { runtimeView } from '../../../app/runtime/state';
 import { runtimeVariables } from '../../automation/runtime-variables.svelte';
 import type { Trigger } from '../../automation/scenario';
@@ -17,7 +17,7 @@ type PullRelease = { release(snapshot: PullSnapshot, commit: () => void): unknow
 
 export class ControlTile {
   readonly #host: Host;
-  readonly #commands = getRuntimeCommands();
+  readonly #commands = runtimeCommands;
   readonly #runtime = fromStore(runtimeView);
 
   readonly effective = $derived.by(() => {

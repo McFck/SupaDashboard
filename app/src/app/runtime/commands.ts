@@ -104,10 +104,6 @@ function videoPosition(controlId: string, source: string) {
   return currentRuntime()?.videoPosition(controlId, source);
 }
 
-function updateSkinConfig(skinId: string, stored?: Record<string, unknown>) {
-  return currentRuntime()?.skins.updateConfig(skinId, stored);
-}
-
 async function setSkinView(skinId: string, viewId: string) {
   const runtime = currentRuntime();
   return runtime?.isOwner ? runtime.skins.setView(skinId, viewId) : false;
@@ -124,7 +120,6 @@ export const runtimeCommands = {
   contentCommand,
   rememberVideoPosition,
   videoPosition,
-  updateSkinConfig,
   setSkinView,
 };
 export type RuntimeCommands = typeof runtimeCommands;

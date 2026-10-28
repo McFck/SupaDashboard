@@ -6,7 +6,7 @@ import type { SceneInput, SceneRect } from './scene-contracts';
 import { SkinInputRecognizer, type SkinCorner, type SkinGesture } from './input';
 import { resolveSkinConfig } from './definition';
 import { settings } from '../settings/state.svelte';
-import type { getRuntimeCommands } from '../../app/runtime/context';
+import type { RuntimeCommands } from '../../app/runtime/commands';
 
 type HostOptions = Pick<
   SkinHostContext,
@@ -53,10 +53,7 @@ export class SkinHostController implements SkinHostContext {
 
   constructor(
     private readonly source: HostOptions,
-    private readonly commands: Pick<
-      ReturnType<typeof getRuntimeCommands>,
-      'requestPageChange' | 'setSkinView'
-    >,
+    private readonly commands: Pick<RuntimeCommands, 'requestPageChange' | 'setSkinView'>,
     private readonly preview: (view: string) => void,
   ) {
     $effect(() => {

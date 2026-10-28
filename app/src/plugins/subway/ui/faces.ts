@@ -3,7 +3,7 @@ import type {
   SliderFaceState,
   TileAppearance,
 } from '../../../features/controls/model';
-import type { PullSnapshot } from '../../../features/controls/interaction';
+import type { PullSnapshot } from '../../../features/controls/input/pull';
 
 const LINE_ACCENTS: Record<string, string> = {
   yamanote: '#79b52c',

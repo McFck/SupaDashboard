@@ -1,4 +1,4 @@
-import type { SkinSceneFactory, SkinSceneRenderer } from '../../../features/skins/scene';
+import type { SkinSceneFactory, SkinSceneRenderer } from '../../../features/skins/scene-contracts';
 import { createHibiyaRenderer, scheduleHibiyaPair } from './lcd/hibiya';
 import { createSakaisujiRenderer } from './lcd/sakaisuji';
 import { createYamanoteRenderer } from './lcd/yamanote';

@@ -15,8 +15,6 @@ export function validSkinStateValue(type: VariableType, value: unknown) {
   }
 }
 
-export type { SkinDef, SkinRuntimeContext, SkinStateField } from './contracts';
-
 export function validSkinParam(param: Param, value: unknown, args?: Record<string, unknown>) {
   if (param.type === 'boolean') {
     return typeof value === 'boolean';
