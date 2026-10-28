@@ -9,7 +9,6 @@ import { captureTrigger } from '../../features/automation/capture';
 import { mediaSourceKey } from '../../features/media/content';
 import { VariableStore } from '../../features/automation/variables';
 import { acceptRuntimeSnapshot } from './client';
-import { bootRuntime, stopRuntime } from './lifecycle';
 import { RuntimeSession } from './session.svelte';
 import { runtimeView } from './state';
 import type { ControlConfig } from '../../features/controls/model';
@@ -40,7 +39,6 @@ const packet = (controlConfig: ControlConfig, trigger: Trigger = 'press') =>
 let runtime: RuntimeSession | undefined;
 
 afterEach(async () => {
-  await stopRuntime();
   await runtime?.dispose();
   runtime = undefined;
   Object.assign(settings, structuredClone(priorSettings));
@@ -501,8 +499,7 @@ describe('automation runtime', () => {
       },
     };
     settings.controls = [self, other];
-    const owner = await bootRuntime({ variables: new VariableStore() });
-    runtime = owner.runtime;
+    runtime = new RuntimeSession({ variables: new VariableStore() });
     const context = {
       signal: new AbortController().signal,
       eventAncestry: { depth: 0, listeners: [] },
@@ -548,7 +545,7 @@ describe('automation runtime', () => {
       Promise.resolve().then(() => next.run({}, { ...context, signal: aborted.signal })),
     ).rejects.toThrow('runtime is unavailable');
 
-    await stopRuntime();
+    await runtime.dispose();
     runtime = undefined;
     await expect(Promise.resolve().then(() => next.run({}, context))).rejects.toThrow(
       'runtime is unavailable',

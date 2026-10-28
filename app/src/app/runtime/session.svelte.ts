@@ -48,6 +48,13 @@ function fingerprint(control: import('../../features/controls/model').ControlCon
   });
 }
 
+let current: RuntimeSession | undefined;
+
+/** This window's live owner session; undefined in the panel and once the owner starts stopping. */
+export function currentRuntime() {
+  return current;
+}
+
 export class RuntimeSession {
   readonly variables: VariableStore;
   readonly events = new EventRegistry();
@@ -180,6 +187,7 @@ export class RuntimeSession {
       });
       this.publish(this.variables.snapshot());
       this.stopClock = startClock(this.variables);
+      current = this;
     } catch (error) {
       try {
         this.stopResources();
@@ -393,6 +401,9 @@ export class RuntimeSession {
 
   private stopResources() {
     this.disposed = true;
+    if (current === this) {
+      current = undefined;
+    }
     if (this.persistTimer) {
       clearTimeout(this.persistTimer);
     }

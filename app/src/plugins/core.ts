@@ -5,7 +5,7 @@ import { get } from 'svelte/store';
 import { settings } from '../features/settings/state.svelte';
 import { pageItems } from '../features/layout/pages';
 import { hasPlacement } from '../features/layout/skin-layouts';
-import { currentRuntime } from '../app/runtime/lifecycle';
+import { currentRuntime } from '../app/runtime/session.svelte';
 import { appOwners, mediaSources } from '../features/plugins/registry';
 import type { ActionRef, Param, Plugin } from '../features/plugins/contracts';
 import { parseVariableText } from '../features/automation/variables';

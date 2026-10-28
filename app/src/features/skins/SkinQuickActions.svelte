@@ -2,7 +2,7 @@
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
   import { actions } from '../plugins/registry';
-  import { currentRuntime } from '../../app/runtime/lifecycle';
+  import { currentRuntime } from '../../app/runtime/session.svelte';
   import type { ActionDef, ActionRef } from '../plugins/contracts';
   import { resolveQuickActions, validSkinParam } from './definition';
   import ParamField from '../plugins/ui/ParamField.svelte';
