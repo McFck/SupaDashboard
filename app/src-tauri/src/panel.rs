@@ -13,8 +13,7 @@ struct PanelLifecycle {
     creating: bool,
     ready: bool,
     generation: u64,
-    reveal_requested: bool,
-    focus_requested: bool,
+    pending_reveal: Option<bool>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -41,13 +40,11 @@ impl PanelLifecycle {
     fn creation_failed(&mut self) {
         self.creating = false;
         self.ready = false;
-        self.reveal_requested = false;
-        self.focus_requested = false;
+        self.pending_reveal = None;
     }
 
     fn request_open(&mut self) -> (u64, bool) {
-        self.reveal_requested = true;
-        self.focus_requested = true;
+        self.pending_reveal = Some(true);
         (self.generation, self.ready)
     }
 
@@ -55,7 +52,7 @@ impl PanelLifecycle {
         self.generation = self.generation.saturating_add(1);
         self.ready = false;
         if was_visible {
-            self.reveal_requested = true;
+            self.pending_reveal.get_or_insert(false);
         }
         self.generation
     }
@@ -65,7 +62,7 @@ impl PanelLifecycle {
             return ReadyAction::Stale;
         }
         self.ready = true;
-        if self.reveal_requested {
+        if self.pending_reveal.is_some() {
             ReadyAction::Reveal
         } else {
             ReadyAction::Hidden
@@ -73,30 +70,30 @@ impl PanelLifecycle {
     }
 
     fn pending_focus(&self, generation: u64) -> Option<bool> {
-        (generation == self.generation && self.ready && self.reveal_requested)
-            .then_some(self.focus_requested)
+        if generation == self.generation && self.ready {
+            self.pending_reveal
+        } else {
+            None
+        }
     }
 
     fn finish_reveal(&mut self, generation: u64) -> bool {
-        if generation != self.generation || !self.ready || !self.reveal_requested {
+        if self.pending_focus(generation).is_none() {
             return false;
         }
-        self.reveal_requested = false;
-        self.focus_requested = false;
+        self.pending_reveal = None;
         true
     }
 
     fn close_requested(&mut self) {
-        self.reveal_requested = false;
-        self.focus_requested = false;
+        self.pending_reveal = None;
     }
 
     fn destroyed(&mut self) {
         self.creating = false;
         self.ready = false;
         self.generation = self.generation.saturating_add(1);
-        self.reveal_requested = false;
-        self.focus_requested = false;
+        self.pending_reveal = None;
     }
 }
 
@@ -147,15 +144,16 @@ pub async fn panel_ready(
     match action {
         ReadyAction::Stale => Ok(false),
         ReadyAction::Hidden => Ok(true),
-        ReadyAction::Reveal => reveal_panel(window, &state, generation).await,
+        ReadyAction::Reveal => reveal_panel(window, &state, generation),
     }
 }
 
-async fn reveal_panel(
+fn reveal_panel(
     window: WebviewWindow,
     state: &PanelState,
     generation: u64,
 ) -> Result<bool, String> {
+    // Window calls can race a close request; recheck before showing, focusing and completing the reveal.
     if state.lock().pending_focus(generation).is_none() {
         return Ok(false);
     }
@@ -181,7 +179,7 @@ async fn reveal_panel(
     }
 }
 
-pub async fn create_panel(app: AppHandle) -> Result<(), String> {
+fn create_panel(app: AppHandle) -> Result<(), String> {
     if app.get_webview_window("panel").is_some() {
         return Ok(());
     }
@@ -252,12 +250,12 @@ fn disable_window_transitions(window: &tauri::WebviewWindow) {
     }
 }
 
-async fn open_panel(app: AppHandle) -> Result<(), String> {
+fn open_panel(app: AppHandle) -> Result<(), String> {
     let state = app.state::<PanelState>();
     let (generation, ready) = state.lock().request_open();
     if let Some(window) = app.get_webview_window("panel") {
         if ready {
-            reveal_panel(window, &state, generation).await?;
+            reveal_panel(window, &state, generation)?;
         } else {
             // A page that never sent panel_ready (for example after a dev reload) would leave the open request
             // pending forever; reloading makes it handshake again and reveal.
@@ -265,13 +263,13 @@ async fn open_panel(app: AppHandle) -> Result<(), String> {
         }
         return Ok(());
     }
-    create_panel(app).await
+    create_panel(app)
 }
 
 /// Opens in the background; the tray cannot await.
 pub fn spawn_open(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        if let Err(error) = open_panel(app).await {
+        if let Err(error) = open_panel(app) {
             log::error!("control panel open failed: {error}");
         }
     });
@@ -280,7 +278,7 @@ pub fn spawn_open(app: AppHandle) {
 /// Builds the hidden panel at startup so the first tray click reveals a warm page.
 pub fn spawn_preload(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        if let Err(error) = create_panel(app).await {
+        if let Err(error) = create_panel(app) {
             log::error!("control panel preload failed: {error}");
         }
     });

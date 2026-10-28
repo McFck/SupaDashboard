@@ -310,7 +310,11 @@ fn on_destroy(
     subclass_id: usize,
     reference_data: usize,
 ) -> LRESULT {
-    clear_pointer_state(policy);
+    // Keep the original hover-before-resize revision order when the window is destroyed.
+    policy.tracking_leave.set(false);
+    policy.events.hover(false, true);
+    policy.resize_hit_test.set(false);
+    policy.events.resize(false);
     let _ = unsafe { RemoveWindowSubclass(hwnd, Some(dashboard_subclass), subclass_id) };
     let result = unsafe { DefSubclassProc(hwnd, WM_NCDESTROY, wparam, lparam) };
     unsafe { drop(Box::from_raw(reference_data as *mut PolicyState)) };
