@@ -21,6 +21,19 @@ const deckSize = (deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>) => ({
   height: deck.rows * deck.size + (deck.rows + 1) * deck.gap,
 });
 
+/** 48 CSS pixels per rendered cell; gap also supplies the deck's outer padding. */
+export function minimumWindowSize(
+  deck: Pick<Page, 'cols' | 'rows' | 'gap'>,
+  scale: number,
+  bottomInset = 0,
+) {
+  const factor = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  return {
+    width: Math.ceil((deck.cols * 48 + (deck.cols + 1) * deck.gap) * factor),
+    height: Math.ceil((deck.rows * 48 + (deck.rows + 1) * deck.gap + bottomInset) * factor),
+  };
+}
+
 export const validGeometry = (g: Geometry | null | undefined): g is Geometry =>
   !!g &&
   [g.x, g.y, g.width, g.height].every(Number.isSafeInteger) &&

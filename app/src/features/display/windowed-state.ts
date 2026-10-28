@@ -6,12 +6,14 @@ import {
   type WindowStateStore,
 } from '../../platform/window';
 import type { Page } from '../settings/schema';
+import { PhysicalSize } from '@tauri-apps/api/dpi';
 import type { ControlledWindow } from './controlled-window';
 import {
   clampGeometryToWorkArea,
   monitorWithLargestIntersection,
   sameGeometry,
   startupPlacement,
+  minimumWindowSize,
 } from './geometry';
 import type { Geometry, MonitorGeometry } from './geometry';
 
@@ -24,11 +26,60 @@ export class WindowedBounds {
   normal: Geometry | null = null;
   monitor: string | null = null;
   private timer?: ReturnType<typeof setTimeout>;
+  private grid: Pick<Page, 'cols' | 'rows' | 'gap'> = { cols: 1, rows: 1, gap: 0 };
+  private bottomInset = 0;
 
   constructor(
     private readonly win: ControlledWindow,
     private readonly store: WindowStateStore,
   ) {}
+
+  configureMinimum(grid: Pick<Page, 'cols' | 'rows' | 'gap'>, bottomInset: number) {
+    this.grid = { cols: grid.cols, rows: grid.rows, gap: grid.gap };
+    this.bottomInset = bottomInset;
+  }
+
+  private minimum(target: MonitorGeometry | undefined, scale = 1) {
+    const size = minimumWindowSize(this.grid, target?.scaleFactor ?? scale, this.bottomInset);
+    // A deck larger than the monitor must still leave the whole window reachable.
+    return target
+      ? {
+          width: Math.min(size.width, target.workArea.size.width),
+          height: Math.min(size.height, target.workArea.size.height),
+        }
+      : size;
+  }
+
+  fit(bounds: Geometry, target: MonitorGeometry | undefined, center = false) {
+    const minimum = this.minimum(target);
+    const expanded = {
+      ...bounds,
+      width: Math.max(bounds.width, minimum.width),
+      height: Math.max(bounds.height, minimum.height),
+    };
+    return target ? (clampGeometryToWorkArea(expanded, target, center) ?? expanded) : expanded;
+  }
+
+  async setNativeMinimum(target?: MonitorGeometry) {
+    const minimum = this.minimum(target, await this.win.win.scaleFactor());
+    await this.win.win.setMinSize(new PhysicalSize(minimum.width, minimum.height));
+    this.win.step();
+  }
+
+  /** Grid and DPI changes can raise the minimum while an already-open window is small. */
+  async enforceMinimum() {
+    const snapshot = await connectedMonitors();
+    const actual = await this.win.readBounds();
+    this.win.step();
+    const monitor =
+      monitorWithLargestIntersection(actual, snapshot.screens) ?? snapshot.current ?? undefined;
+    const bounds = this.fit(actual, monitor);
+    if (!sameGeometry(bounds, actual)) {
+      await this.restore({ ...snapshot, monitor, bounds });
+    } else {
+      await this.win.moving(() => this.setNativeMinimum(monitor));
+    }
+  }
 
   /** Where the window opens: the saved rectangle, or the deck's natural size, on the chosen monitor. */
   async startupPlacement(preferred: string | null, deck: Page) {
@@ -37,10 +88,12 @@ export class WindowedBounds {
       connectedMonitors(),
       this.win.readBounds(),
     ]);
+    const placement = startupPlacement(screens, preferred, saved, primary, actual, deck);
     return {
       screens,
       current,
-      ...startupPlacement(screens, preferred, saved, primary, actual, deck),
+      ...placement,
+      bounds: this.fit(placement.bounds, placement.monitor),
     };
   }
 
@@ -51,6 +104,7 @@ export class WindowedBounds {
       if (!this.win.live()) {
         return false;
       }
+      await this.setNativeMinimum(selected);
       const placed = await this.win.place(bounds);
       if (!this.win.live()) {
         return false;
@@ -105,10 +159,7 @@ export class WindowedBounds {
   /** While fullscreen on another monitor, the retained windowed rectangle follows, centered on the new monitor. */
   async followMonitor(target: MonitorGeometry) {
     if (this.normal && target.name !== this.monitor) {
-      await this.save(
-        clampGeometryToWorkArea(this.normal, target, true) ?? this.normal,
-        target.name,
-      );
+      await this.save(this.fit(this.normal, target, true), target.name);
     }
   }
 
@@ -120,11 +171,10 @@ export class WindowedBounds {
       try {
         win.step();
         await win.setTopmost(alwaysOnTop);
+        await this.setNativeMinimum(target);
         const current = await win.readBounds();
         win.step();
-        const placed = await win.placeIfDifferent(
-          clampGeometryToWorkArea(current, target, center) ?? current,
-        );
+        const placed = await win.placeIfDifferent(this.fit(current, target, center));
         win.step();
         await this.saveQuietly(placed, target.name);
       } catch (error) {

@@ -29,7 +29,10 @@
   let pageHost: HTMLDivElement;
   let gaps = $state<DragGaps>();
 
-  const dashboard = new DashboardWindow(() => settings.display);
+  const dashboard = new DashboardWindow(
+    () => settings.display,
+    () => ({ page: $state.snapshot(page), bottomInset: showDots ? 34 : 0 }),
+  );
   const pager = new Pager({
     shell: () => shell,
     pages: () => settings.deck.pages,
@@ -60,7 +63,7 @@
     document.addEventListener('fullscreenchange', resize);
     const dragGaps = new DragGaps(shell, pageHost, () => pager.busy);
     gaps = dragGaps;
-    dashboard.start($state.snapshot(page));
+    dashboard.start();
 
     return () => {
       dashboard.destroy();
@@ -95,6 +98,11 @@
   $effect(() => {
     void [settings.display.monitor, settings.display.fullscreen, settings.display.alwaysOnTop];
     dashboard.requestChanged();
+  });
+
+  $effect(() => {
+    void [page.id, page.cols, page.rows, page.gap, showDots];
+    dashboard.gridChanged();
   });
 
   function goToPage(pageId: string) {
