@@ -20,6 +20,40 @@ export class ExpressionError extends Error {
   }
 }
 
+const ESCAPES: Readonly<Record<string, string>> = {
+  n: '\n',
+  r: '\r',
+  t: '\t',
+  '\\': '\\',
+  '"': '"',
+  "'": "'",
+};
+
+/** Reads the quoted string starting at `at`; returns its value and the index after the closing quote. */
+function readString(source: string, at: number) {
+  const quote = source[at];
+  let value = '';
+  for (let i = at + 1; i < source.length;) {
+    const ch = source[i++];
+    if (ch === quote) {
+      return { value, end: i };
+    }
+    if (ch !== '\\') {
+      value += ch;
+      continue;
+    }
+    if (i >= source.length) {
+      break;
+    }
+    const escaped = source[i++];
+    if (!Object.hasOwn(ESCAPES, escaped)) {
+      throw new ExpressionError(`Invalid string escape at ${i - 2}`);
+    }
+    value += ESCAPES[escaped];
+  }
+  throw new ExpressionError(`Unclosed string at ${at}`);
+}
+
 function tokenize(source: string): Token[] {
   if (source.length > MAX_EXPRESSION_SOURCE) throw new ExpressionError('Expression is too long');
   const tokens: Token[] = [];
@@ -53,34 +87,9 @@ function tokenize(source: string): Token[] {
       continue;
     }
     if (source[i] === '"' || source[i] === "'") {
-      const quote = source[i++];
-      let value = '',
-        closed = false;
-      while (i < source.length) {
-        const ch = source[i++];
-        if (ch === quote) {
-          closed = true;
-          break;
-        }
-        if (ch !== '\\') {
-          value += ch;
-          continue;
-        }
-        if (i >= source.length) break;
-        const escaped = source[i++];
-        const escapes: Record<string, string> = {
-          n: '\n',
-          r: '\r',
-          t: '\t',
-          '\\': '\\',
-          '"': '"',
-          "'": "'",
-        };
-        if (!(escaped in escapes)) throw new ExpressionError(`Invalid string escape at ${i - 2}`);
-        value += escapes[escaped];
-      }
-      if (!closed) throw new ExpressionError(`Unclosed string at ${at}`);
-      tokens.push({ kind: 'literal', value, at });
+      const string = readString(source, at);
+      tokens.push({ kind: 'literal', value: string.value, at });
+      i = string.end;
       continue;
     }
     const number = /^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/i.exec(source.slice(i));
