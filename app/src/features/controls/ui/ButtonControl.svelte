@@ -1,13 +1,13 @@
 <script lang="ts">
   import type { Component } from 'svelte';
-  import { pullBindingsFor, type PullSnapshot } from '../interaction';
+  import { pullBindingsFor, type PullSnapshot } from '../input/pull';
   import type {
     ControlConfig,
     ControlFaceProps,
     TilePresentation,
     Variant,
   } from '../model';
-  import { gestures } from '../gestures';
+  import { gestures } from '../input/gestures';
   import { effectiveVariant, stateIdAt } from '../button-state';
   import { runtimeView } from '../../../app/runtime/state';
   import { runtimeVariables } from '../../automation/runtime-variables.svelte';

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick, type Snippet } from 'svelte';
-  import type { PullSnapshot } from '../interaction';
+  import type { PullSnapshot } from '../input/pull';
   import { springDuration, SPRING_SAMPLES } from '$lib/spring';
   import type { ControlConfig, Variant } from '../model';
 

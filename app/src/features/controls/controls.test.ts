@@ -6,7 +6,7 @@ import {
   pullBindingsFor,
   shouldAnimateSliderFill,
   updatePull,
-} from './interaction';
+} from './input/pull';
 import { springDuration, springProgress, SPRING_SAMPLES } from '$lib/spring';
 import {
   projectMoveOrigin,
@@ -15,7 +15,7 @@ import {
   resizePreview,
   type ResizeCorner,
 } from '../layout/drag-geometry';
-import { tapSequence } from './gestures';
+import { tapSequence } from './input/gestures';
 
 const prev: ControlConfig = {
   id: 'prev',

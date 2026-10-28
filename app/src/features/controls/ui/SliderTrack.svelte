@@ -9,9 +9,9 @@
     type PullSnapshot,
     type PullState,
     updatePull,
-  } from '../interaction';
+  } from '../input/pull';
   import type { ControlFaceProps, TilePresentation } from '../model';
-  import { tapSequence } from '../gestures';
+  import { tapSequence } from '../input/gestures';
   import { TRIGGERS, type Trigger } from '../../automation/scenario';
   import { onDestroy, onMount, tick } from 'svelte';
   import SliderFace from './SliderFace.svelte';

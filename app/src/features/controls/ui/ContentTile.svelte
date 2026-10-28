@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { effectiveVariant } from '../button-state';
-  import { pullBindingsFor, type PullSnapshot } from '../interaction';
+  import { pullBindingsFor, type PullSnapshot } from '../input/pull';
   import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { ControlConfig } from '../model';
-  import { gestures } from '../gestures';
+  import { gestures } from '../input/gestures';
   import { runtimeVariables } from '../../automation/runtime-variables.svelte';
   import type { TriggerPacket } from '../../automation/scenario-runner';
   import type { Trigger } from '../../automation/scenario';

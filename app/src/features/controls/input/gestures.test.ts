@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { gestures } from './gestures';
-import type { PullBindings } from './interaction';
-import type { Trigger } from '../automation/scenario';
+import type { PullBindings } from './pull';
+import type { Trigger } from '../../automation/scenario';
 
 class PointerNode extends EventTarget {
   setPointerCapture = vi.fn();

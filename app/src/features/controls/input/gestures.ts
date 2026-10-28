@@ -6,9 +6,9 @@ import {
   type PullBindings,
   type PullSnapshot,
   type PullState,
-} from './interaction';
-import type { Gesture } from './model';
-import type { Trigger } from '../automation/scenario';
+} from './pull';
+import type { Gesture } from '../model';
+import type { Trigger } from '../../automation/scenario';
 
 /** Delay a single tap only when a double-tap binding exists. Distant taps stay independent. */
 export function tapSequence(emit: (g: Gesture, x: number, y: number, captured?: unknown) => void) {

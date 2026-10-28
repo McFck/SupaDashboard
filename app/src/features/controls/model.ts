@@ -2,7 +2,7 @@
 import type { ActionRef, ValueRef } from '../plugins/contracts';
 import type { Scenario, StateBinding, StateRoles, ActionStep } from '../automation/scenario';
 import { sliderOrientation } from './geometry';
-import type { PullSnapshot } from './interaction';
+import type { PullSnapshot } from './input/pull';
 
 export const DEFAULT_MIXER_MAX_CHANNELS = 6;
 
