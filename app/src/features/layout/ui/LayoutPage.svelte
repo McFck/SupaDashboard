@@ -18,7 +18,7 @@
   import MoveWidgetDialog from './MoveWidgetDialog.svelte';
   import { LayoutEditorState } from './editor-state.svelte';
   import { frame } from '../../../panel/ui/preferences.svelte';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
+  import { runtimeCommands } from '../../../app/runtime/commands';
 
   /** Keeps the canvas visible beside the inspector. */
   const CANVAS_MIN_WIDTH = 32;
@@ -45,7 +45,7 @@
     },
   });
   const move = new WidgetMove(editor);
-  const menu = new LayoutMenu(editor, getRuntimeCommands(), {
+  const menu = new LayoutMenu(editor, runtimeCommands, {
     openScenario,
     openMove: (mode, target, itemId) => move.openMoveDialog(mode, target, itemId),
   });

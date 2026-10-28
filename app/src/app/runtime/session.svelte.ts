@@ -233,11 +233,11 @@ export class RuntimeSession {
     return !this.disposed;
   }
 
-  dispatch(packet: TriggerPacket, options: { notify?: boolean } = {}): Promise<RunResult> {
+  dispatch(packet: TriggerPacket): Promise<RunResult> {
     if (!this.isOwner) {
       return Promise.resolve({ status: 'rejected' });
     }
-    return this.execution.dispatch(packet, options);
+    return this.execution.dispatch(packet);
   }
 
   /** Skin quick actions belong to no control: they skip the control lanes and stop with the session. */

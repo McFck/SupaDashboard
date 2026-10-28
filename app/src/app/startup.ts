@@ -11,8 +11,7 @@ import { corePlugin } from '../plugins/core';
 import { spotifyPlugin } from '../plugins/spotify';
 import { subwayPlugin } from '../plugins/subway';
 import { uiPlugin } from '../plugins/ui';
-import { runtimeCommands } from './runtime/commands';
-import { RUNTIME_COMMANDS } from './runtime/context';
+
 import { startRuntimeServices, stopRuntimeServices, type WindowView } from './runtime/services';
 import Root from './Root.svelte';
 
@@ -120,7 +119,6 @@ export async function startApp() {
   mount(Root, {
     target: document.getElementById('app')!,
     props: { view },
-    context: new Map([[RUNTIME_COMMANDS, runtimeCommands]]),
   });
 
   await tick();

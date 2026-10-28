@@ -1,5 +1,5 @@
 import type { Option, Param, Plugin } from '../../features/plugins/contracts';
-import type { SkinStateField } from '../../features/skins/definition';
+import type { SkinStateField } from '../../features/skins/contracts';
 import SubwayButton from './ui/SubwayButton.svelte';
 import SubwaySlider from './ui/SubwaySlider.svelte';
 import SubwaySkin from './ui/SubwaySkin.svelte';

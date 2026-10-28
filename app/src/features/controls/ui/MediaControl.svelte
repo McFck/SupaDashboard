@@ -22,9 +22,9 @@
   import { preloadNextMedia } from '../../media/media-cache';
   import ContentTile from './ContentTile.svelte';
   import MediaFrame from './MediaFrame.svelte';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
+  import { runtimeCommands } from '../../../app/runtime/commands';
 
-  const { contentCommand, rememberVideoPosition, videoPosition } = getRuntimeCommands();
+  const { contentCommand, rememberVideoPosition, videoPosition } = runtimeCommands;
 
   type MediaLayer = {
     key: string;

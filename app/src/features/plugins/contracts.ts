@@ -39,7 +39,7 @@ export type Param = {
   key: string;
   label: string;
   /** 'select' = dropdown of `suggestions` only; 'text' = free text with suggestions. */
-  type: 'text' | 'number' | 'select' | 'actions' | 'boolean';
+  type: 'text' | 'number' | 'select' | 'boolean';
   /** Offered values. A function is re-read each time the editor opens. */
   suggestions?: Option[] | ((args?: Record<string, unknown>) => Option[]);
   /** Reloads whatever `suggestions` reads; called when the dropdown opens. */

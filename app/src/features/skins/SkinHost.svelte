@@ -4,7 +4,7 @@
   import type { SkinDef } from './contracts';
   import type { Page } from '../settings/schema';
   import { SKIN_HOST_CONTEXT } from './context';
-  import { getRuntimeCommands } from '../../app/runtime/context';
+  import { runtimeCommands } from '../../app/runtime/commands';
   import { SkinHostController } from './skin-host.svelte';
   let {
     skin,
@@ -71,7 +71,7 @@
         return oncontext;
       },
     },
-    getRuntimeCommands(),
+    runtimeCommands,
     (view) => {
       previewViewId = view;
     },

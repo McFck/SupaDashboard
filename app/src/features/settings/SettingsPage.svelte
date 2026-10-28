@@ -20,9 +20,6 @@
     CURRENT_POSITION,
     monitorSelectOptions,
   } from '../display/monitor-options';
-  import { getRuntimeCommands } from '../../app/runtime/context';
-
-  const { updateSkinConfig } = getRuntimeCommands();
 
   let screens = $state<Monitor[]>([]);
   let nativeNames = $state<unknown[]>([]);
@@ -78,9 +75,6 @@
       }
       commit('Reset everything');
       Object.assign(settings, structuredClone(DEFAULTS));
-      for (const skin of skins.values()) {
-        updateSkinConfig(skin.id, settings.skinSettings[skin.id] ?? {});
-      }
     } finally {
       resetting = false;
     }

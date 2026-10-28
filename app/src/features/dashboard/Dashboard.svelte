@@ -8,14 +8,14 @@
   import { pageById } from '../layout/pages';
   import { runtimeView } from '../../app/runtime/state';
   import { setMediaContentPages } from '../media/content-visibility';
-  import { getRuntimeCommands } from '../../app/runtime/context';
+  import { runtimeCommands } from '../../app/runtime/commands';
   import { DashboardWindow } from './dashboard-window.svelte';
   import { DragGaps } from './drag-gaps.svelte';
   import { pageOffset } from './page-motion';
   import { Pager } from './pager.svelte';
   import PageDots from './PageDots.svelte';
 
-  const { requestPageChange } = getRuntimeCommands();
+  const { requestPageChange } = runtimeCommands;
 
   const skin = $derived(skins.get(settings.skin) ?? skins.get('deck')!);
   const page = $derived(
