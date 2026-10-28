@@ -8,7 +8,7 @@
   import Icon from '../../controls/ui/Icon.svelte';
   import { actions, actionsByPlugin } from '../../plugins/registry';
   import PluginMark from '../../plugins/ui/PluginMark.svelte';
-  import { animateGroupLayout } from '$lib/components/ui/disclosure/motion';
+  import { animateGroupLayout } from '$lib/components/ui/disclosure/group-layout';
 
   let {
     value,

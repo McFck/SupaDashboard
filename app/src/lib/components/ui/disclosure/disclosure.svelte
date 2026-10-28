@@ -2,7 +2,8 @@
   import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
   import { Collapsible } from 'bits-ui';
   import { cn } from '$lib/utils';
-  import { animateGroupLayout, cancelGroupLayout, contentFrames, contentPose, MotionLifecycle } from './motion';
+  import { animateGroupLayout, cancelGroupLayout } from './group-layout';
+  import { contentFrames, contentPose, MotionLifecycle } from './motion';
 
   let { open = false, onOpenChange = () => {}, list, disabled = false, trigger, children, class: className = '', triggerClass: triggerClassName = '' }: {
     open?: boolean;
