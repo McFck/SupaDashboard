@@ -30,7 +30,7 @@ import { SkinController } from '../../features/skins/skin-controller';
 import { startClock } from '../../features/automation/clock';
 import { EMPTY, type RuntimeSnapshot } from './state';
 import { VariableSaver, type VariablePersistence } from './variable-persistence';
-import { controlStateId } from './control-state';
+import { effectiveVariant } from '../../features/controls/control-state';
 import { ExecutionEngine } from '../../features/automation/execution-engine';
 import type { ControlConfig } from '../../features/controls/model';
 import { stateIdAt } from '../../features/controls/variants';
@@ -41,6 +41,14 @@ export type RuntimeOptions = {
   onFailure?: (failure: ScenarioFailure) => void;
   onQueueFull?: (controlId: string, trigger: Trigger | 'event') => void;
 };
+
+/** The state a control shows now: its variable binding first, else its manual state. */
+export function controlStateId(
+  control: ControlConfig,
+  variables: Parameters<typeof effectiveVariant>[1],
+) {
+  return effectiveVariant(control, variables, settings.variants[control.id] ?? 0).stateId;
+}
 
 /** Resolves a state by ID, by index (older settings), or relative to `current` for migrated next/prev gestures. */
 function stateIndex(control: ControlConfig, current: number, stateId: string) {
