@@ -1,5 +1,5 @@
 import type { ActionRef } from '../plugins/contracts';
-import { compileExpression } from './expression';
+import { compileExpression } from './expression-parser';
 import { isRecord } from './plain-data';
 import {
   actionRef,

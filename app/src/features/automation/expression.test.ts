@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateExpression, evaluatePredicate, ExpressionError } from './expression';
+import { evaluateExpression, evaluatePredicate } from './expression';
+import { ExpressionError } from './expression-parser';
 
 describe('safe conditions', () => {
   it('parses precedence, typed comparisons, parentheses and short-circuits', () => {
