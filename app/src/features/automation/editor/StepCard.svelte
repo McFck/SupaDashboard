@@ -159,7 +159,7 @@
       {:else}
         {#if step.kind === 'action'}
           {#if actions.has(step.action.id)}
-            <div class="grid gap-3 border-l-2 border-white/10 pl-3">
+            <div class="grid gap-3">
               {#each actions.get(step.action.id)?.params ?? [] as param (param.key)}
                 <ParamField
                   {param}
