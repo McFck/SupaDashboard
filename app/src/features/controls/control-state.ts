@@ -1,5 +1,5 @@
 // The state a control shows: its variable binding when one matches, otherwise the manually chosen state.
-import type { ControlConfig, TileAppearance } from './model';
+import type { ControlConfig, TileAppearance, Variant } from './model';
 import { stateIdAt, variantIndexForState } from './variants';
 import { renderTemplate } from '../automation/templates';
 import { VariableStore, type VariableSnapshot, type VariableValue } from '../automation/variables';
@@ -53,15 +53,23 @@ export function effectiveVariant(
   const boundState = caseState(control, boundValue);
   const index = boundState ? (variantIndexForState(control, boundState) ?? fallback) : fallback;
   const variant = control.variants[index];
-  const template = renderTemplate(variant?.label ?? '', (name) => getName(runtimeVariables, name));
   return {
     index,
     stateId: variant ? stateIdAt(control, index) : '',
-    view: {
-      label: template.text,
-      icon: variant?.icon,
-      color: variant?.color,
-      background: variant?.background,
-    },
+    view: variantView(variant, runtimeVariables),
+  };
+}
+
+/** A state's appearance with its label template filled from the variables. */
+export function variantView(
+  variant: Variant | undefined,
+  runtimeVariables: RuntimeVariables | undefined,
+): TileAppearance {
+  const template = renderTemplate(variant?.label ?? '', (name) => getName(runtimeVariables, name));
+  return {
+    label: template.text,
+    icon: variant?.icon,
+    color: variant?.color,
+    background: variant?.background,
   };
 }

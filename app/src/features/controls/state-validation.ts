@@ -8,9 +8,7 @@ export function validateStateConfiguration(
   variables?: VariableSnapshot,
 ) {
   const issues: { path: string; message: string }[] = [];
-  const states = new Set(
-    control.variants.map((_, index) => stateIdAt(control as ControlConfig, index)),
-  );
+  const states = new Set(control.variants.map((_, index) => stateIdAt(control, index)));
   if (control.stateRoles) {
     if (
       !states.has(control.stateRoles.off) ||

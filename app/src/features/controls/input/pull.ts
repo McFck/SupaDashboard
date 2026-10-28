@@ -1,6 +1,7 @@
 // Pointer interaction for controls: gesture classification and directional pulls.
 import { selectTriggerSteps, type ActionStep } from '../../automation/scenario';
 import type { ControlConfig, SwipeGesture } from '../model';
+import { stateIdAt, variantIndexForState } from '../variants';
 
 export type PullAxis = 'x' | 'y';
 
@@ -21,10 +22,8 @@ function simpleSelfVariant(
     const count = control.variants.length;
     return count ? (current + (requested === 'next' ? 1 : -1) + count) % count : 0;
   }
-  const byId = control.variants.findIndex(
-    (variant, index) => (variant.id ?? `state-${index + 1}`) === requested,
-  );
-  if (byId >= 0) return byId;
+  const byId = variantIndexForState(control, requested);
+  if (byId !== undefined) return byId;
   if (/^\d+$/.test(requested)) {
     const index = Number(requested);
     return index >= 0 && index < control.variants.length ? index : undefined;
@@ -66,7 +65,7 @@ export function pullBindingsFor(
 ): PullBindings {
   const result: PullBindings = {};
   const directions: SwipeGesture[] = ['swipeUp', 'swipeDown', 'swipeLeft', 'swipeRight'];
-  const stateId = control.variants[current]?.id ?? `state-${current + 1}`;
+  const stateId = stateIdAt(control, current);
   for (const direction of directions) {
     if (eligible && !eligible.includes(direction)) continue;
     const list = control.scenario?.triggers[direction];

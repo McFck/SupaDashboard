@@ -2,12 +2,13 @@
 import type { ActionStep } from '../automation/scenario';
 import type { ControlConfig } from './model';
 
-export function stateIdAt(control: ControlConfig, index: number) {
+/** The one id rule: a state without a stored id is named by its position. */
+export function stateIdAt(control: Pick<ControlConfig, 'variants'>, index: number) {
   return control.variants[index]?.id ?? `state-${index + 1}`;
 }
 
-export function variantIndexForState(control: ControlConfig, stateId: string) {
-  const index = control.variants.findIndex((variant, i) => stateIdAt(control, i) === stateId);
+export function variantIndexForState(control: Pick<ControlConfig, 'variants'>, stateId: string) {
+  const index = control.variants.findIndex((_, i) => stateIdAt(control, i) === stateId);
   return index < 0 ? undefined : index;
 }
 
@@ -22,26 +23,26 @@ export function moveVariant(
   if (from === to || from < 0 || to < 0 || from >= n || to >= n) return current;
   const [moved] = control.variants.splice(from, 1);
   control.variants.splice(to, 0, moved);
-  const remap = (i: number) =>
-    i === from
-      ? to
-      : from < to && i > from && i <= to
-        ? i - 1
-        : from > to && i >= to && i < from
-          ? i + 1
-          : i;
-  return remap(current);
+  if (current === from) {
+    return to;
+  }
+  if (from < to && current > from && current <= to) {
+    return current - 1;
+  }
+  if (from > to && current >= to && current < from) {
+    return current + 1;
+  }
+  return current;
 }
 
 /** Remove a state and repair only references scoped to that control. */
 export function removeVariant(control: ControlConfig, current: number, index: number): number {
   const n = control.variants.length;
   if (n < 2 || index < 0 || index >= n) return current;
-  const removedId = control.variants[index].id ?? `state-${index + 1}`;
-  const replacement = control.variants[Math.min(index, n - 2)];
-  const replacementId = replacement.id ?? `state-${Math.min(index, n - 2) + 1}`;
+  const replacementIndex = Math.min(index, n - 2);
+  const removedId = stateIdAt(control, index);
+  const replacementId = stateIdAt(control, replacementIndex);
   control.variants.splice(index, 1);
-  const remap = (i: number) => (i === index ? Math.min(index, n - 2) : i > index ? i - 1 : i);
 
   const visit = (steps: ActionStep[] = []) => {
     for (const step of steps) {
@@ -78,5 +79,8 @@ export function removeVariant(control: ControlConfig, current: number, index: nu
     (control.stateRoles.off === removedId || control.stateRoles.on === removedId)
   )
     delete control.stateRoles;
-  return remap(current);
+  if (current === index) {
+    return replacementIndex;
+  }
+  return current > index ? current - 1 : current;
 }
