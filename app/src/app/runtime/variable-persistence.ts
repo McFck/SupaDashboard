@@ -1,5 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { load } from '@tauri-apps/plugin-store';
+import { toast } from 'svelte-sonner';
+import { storeIsReadable } from '$lib/store';
 import { VariableStore } from '../../features/automation/variables';
 
 export type VariablePersistence = {
@@ -12,35 +14,65 @@ export async function loadVariableState(): Promise<{
   variables: VariableStore;
   persistence: VariablePersistence;
 }> {
-  if (isTauri()) {
-    const store = await load('variables.json', { defaults: {}, autoSave: false });
-    const variables = new VariableStore(await store.get('variables'));
-    return {
-      variables,
-      persistence: {
-        save: async (envelope) => {
+  let raw: unknown;
+  let envelope: unknown;
+  let store: Awaited<ReturnType<typeof load>> | undefined;
+  let unreadable = false;
+  let corruptJson = false;
+  try {
+    if (isTauri()) {
+      store = await load('variables.json', { defaults: {}, autoSave: false });
+      raw = envelope = await store.get('variables');
+      corruptJson = raw === null;
+      unreadable = raw === undefined && !(await storeIsReadable(store));
+    } else {
+      raw = localStorage.getItem(VARIABLE_KEY);
+      try {
+        envelope = raw === null ? undefined : JSON.parse(raw as string);
+        corruptJson = raw !== null && envelope === null;
+      } catch {
+        corruptJson = true;
+      }
+    }
+  } catch {
+    unreadable = true;
+  }
+
+  const variables = new VariableStore(envelope);
+  let recovery = variables.needsRecovery || corruptJson;
+  const recoveryKey = `variables.recovery:${crypto.randomUUID()}`;
+  if (unreadable || recovery) {
+    toast.error('Could not load saved variables');
+  }
+
+  let writing = Promise.resolve();
+  const persistence: VariablePersistence = {
+    save(envelope) {
+      const write = async () => {
+        if (unreadable) {
+          throw new Error('Variable saving is disabled because the original could not be read');
+        }
+        if (store) {
+          if (recovery) {
+            await store.set(recoveryKey, raw);
+          }
           await store.set('variables', envelope);
           await store.save();
-        },
-      },
-    };
-  }
-  let envelope: unknown;
-  try {
-    envelope = JSON.parse(localStorage.getItem(VARIABLE_KEY) ?? 'null');
-  } catch {
-    envelope = null;
-  }
-  let variables: VariableStore;
-  try {
-    variables = new VariableStore(envelope);
-  } catch {
-    variables = new VariableStore();
-  }
-  return {
-    variables,
-    persistence: {
-      save: async (value) => localStorage.setItem(VARIABLE_KEY, JSON.stringify(value)),
+        } else {
+          if (recovery) {
+            localStorage.setItem(`${VARIABLE_KEY}:${recoveryKey}`, raw as string);
+          }
+          localStorage.setItem(VARIABLE_KEY, JSON.stringify(envelope));
+        }
+        recovery = false;
+      };
+      // Failed writes must not poison the queue or let older snapshots finish last.
+      writing = writing.then(write, write).catch((error) => {
+        toast.error('Could not save variables', { id: 'variables-save' });
+        throw error;
+      });
+      return writing;
     },
   };
+  return { variables, persistence };
 }

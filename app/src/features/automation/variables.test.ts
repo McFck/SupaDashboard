@@ -19,6 +19,44 @@ const def = (
 });
 
 describe('typed variables', () => {
+  it.each([{}, { version: 9, records: [] }, { version: 1, records: {} }])(
+    'starts with an empty recoverable store for an unsupported envelope: %j',
+    (raw) => {
+      const store = new VariableStore(raw);
+      expect(store.snapshot().records).toEqual({});
+      expect(store.needsRecovery).toBe(true);
+    },
+  );
+
+  it('restores valid records around damaged entries without losing the first duplicate ID or name', () => {
+    const good = { definition: def('good', 'Good', 'integer', 0), value: 42 };
+    const tail = { definition: def('tail', 'Tail', 'string', ''), value: 'kept' };
+    const raw = {
+      version: 1,
+      records: [
+        good,
+        null,
+        { definition: def('bad-value', 'Bad value', 'integer', 0), value: 'oops' },
+        { definition: def('bad-initial', 'Bad initial', 'integer', 'oops'), value: 1 },
+        { definition: { ...def('bad-name', 'Name', 'string', ''), name: null }, value: '' },
+        { definition: { ...def('bad-alias', 'Alias', 'string', ''), aliases: {} }, value: '' },
+        { definition: def('good', 'Duplicate ID', 'integer', 0), value: 99 },
+        { definition: def('duplicate-name', 'Good', 'integer', 0), value: 99 },
+        tail,
+      ],
+    };
+    const original = structuredClone(raw);
+    const store = new VariableStore(raw);
+    expect(store.getValue('good')).toBe(42);
+    expect(store.getValue('tail')).toBe('kept');
+    expect(store.serializePersistent().records.map((record) => record.definition.id)).toEqual([
+      'good',
+      'tail',
+    ]);
+    expect(store.needsRecovery).toBe(true);
+    expect(raw).toEqual(original);
+  });
+
   it('validates each type and parses only complete input', () => {
     expect(parseVariableText('boolean', 'true')).toBe(true);
     expect(parseVariableText('boolean', 'false')).toBe(false);

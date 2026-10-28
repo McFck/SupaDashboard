@@ -73,43 +73,77 @@ function nameKey(name: string) {
   return normalizeName(name).toLocaleLowerCase();
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isDefinition(value: unknown): value is VariableDefinition {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    !!value.id &&
+    typeof value.name === 'string' &&
+    !!value.name.trim() &&
+    typeof value.owner === 'string' &&
+    !!value.owner &&
+    (value.type === 'boolean' ||
+      value.type === 'integer' ||
+      value.type === 'float' ||
+      value.type === 'string') &&
+    typeof value.persistent === 'boolean' &&
+    typeof value.readOnly === 'boolean' &&
+    (value.aliases === undefined ||
+      (Array.isArray(value.aliases) &&
+        value.aliases.every((alias: unknown) => typeof alias === 'string' && !!alias.trim()))) &&
+    (value.suggestions === undefined ||
+      (Array.isArray(value.suggestions) &&
+        value.suggestions.every(
+          (option: unknown) =>
+            isRecord(option) &&
+            typeof option.value === 'string' &&
+            typeof option.label === 'string',
+        )))
+  );
+}
+
 export class VariableStore {
+  readonly needsRecovery: boolean = false;
   private records = new Map<string, VariableRecord>();
   private revision = 0;
   private listeners = new Set<(snapshot: VariableSnapshot) => void>();
 
   constructor(envelope?: unknown) {
-    if (envelope === undefined || envelope === null) return;
-    if (
-      !envelope ||
-      typeof envelope !== 'object' ||
-      (envelope as any).version !== 1 ||
-      !Array.isArray((envelope as any).records)
-    )
-      throw new Error('Variable data has an unsupported format');
-    for (const raw of (envelope as any).records) {
-      const definition = raw?.definition;
-      if (
-        !definition ||
-        typeof definition.id !== 'string' ||
-        typeof definition.owner !== 'string' ||
-        !['boolean', 'integer', 'float', 'string'].includes(definition.type) ||
-        (typeof raw.value !== 'boolean' &&
-          typeof raw.value !== 'number' &&
-          typeof raw.value !== 'string')
-      )
-        continue;
-      assertValue(definition.type, raw.value);
-      const record = this.normalizeRecord({
-        ...raw,
-        definition: { ...definition, available: definition.owner === 'user' },
-      });
-      this.assertUniqueName(
-        record.definition.name,
-        record.definition.aliases,
-        record.definition.id,
-      );
-      this.records.set(record.definition.id, record);
+    if (envelope === undefined || envelope === null) {
+      return;
+    }
+    if (!isRecord(envelope) || envelope.version !== 1 || !Array.isArray(envelope.records)) {
+      this.needsRecovery = true;
+      return;
+    }
+    for (const raw of envelope.records) {
+      try {
+        if (!isRecord(raw) || !isDefinition(raw.definition)) {
+          throw new Error('Malformed variable record');
+        }
+        const definition = raw.definition;
+        assertValue(definition.type, definition.initialValue);
+        assertValue(definition.type, raw.value);
+        if (this.records.has(definition.id)) {
+          throw new Error('Duplicate variable ID');
+        }
+        const record = this.normalizeRecord({
+          definition: { ...definition, available: definition.owner === 'user' },
+          value: raw.value,
+        });
+        this.assertUniqueName(
+          record.definition.name,
+          record.definition.aliases,
+          record.definition.id,
+        );
+        this.records.set(record.definition.id, record);
+      } catch {
+        this.needsRecovery = true;
+      }
     }
   }
 
