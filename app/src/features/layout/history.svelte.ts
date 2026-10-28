@@ -58,9 +58,31 @@ export class SnapshotHistory<T> {
     if (!wasPending) this.publish();
   }
 
+  /** A discrete command: closes the open step, then records the change that follows as its own step. */
   commit(label: string, current: T) {
+    this.close(current);
+    this.label(label);
+  }
+
+  /** A continuous edit (slider, colour drag) calls this per tick; one label extends one debounced step. */
+  edit(label: string, current: T) {
+    if (label !== this.pendingLabel) {
+      this.close(current);
+    }
+    this.label(label);
+  }
+
+  /** Records `current` (pending or not yet observed changes) as its own step under the label it was made with. */
+  private close(current: T) {
+    if (JSON.stringify(current) !== JSON.stringify(this.states[this.cursor])) {
+      this.pending = structuredClone(current);
+    }
+    this.flush();
+  }
+
+  /** Names the next change; the name lapses if nothing changes within the debounce. */
+  private label(label: string) {
     this.pendingLabel = label;
-    this.observe(current);
     if (!this.pending) {
       clearTimeout(this.timer);
       this.timer = setTimeout(() => {
@@ -175,6 +197,9 @@ export function startHistory() {
 
 export function commit(label: string): void {
   timeline?.commit(label, editableSnapshot($state.snapshot(settings)));
+}
+export function labelEdit(label: string): void {
+  timeline?.edit(label, editableSnapshot($state.snapshot(settings)));
 }
 export function undo(): void {
   dismissUndoToast();

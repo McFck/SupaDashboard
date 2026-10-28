@@ -67,8 +67,9 @@ describe('settings history', () => {
       400,
       2,
     );
-    current.value = 1;
     stack.commit('Delete Mixer', current);
+    current.value = 1;
+    stack.observe(current);
     vi.advanceTimersByTime(400);
     expect(status.undoLabel).toBe('Delete Mixer');
     expect(recorded).toEqual(['Delete Mixer']);
@@ -142,11 +143,56 @@ describe('settings history', () => {
       () => {},
       recorded,
     );
-    current.value = 1;
     stack.commit('Delete Mixer', current);
+    current.value = 1;
+    stack.observe(current);
     stack.undo();
     expect(current.value).toBe(0);
     expect(recorded).not.toHaveBeenCalled();
+  });
+
+  it('gives two commands within the debounce their own undo steps', () => {
+    let current = { pages: ['one'] };
+    let status = { canUndo: false, canRedo: false, undoLabel: '', redoLabel: '' };
+    const stack = new SnapshotHistory(
+      current,
+      (next) => (current = next),
+      (next) => (status = next),
+    );
+    stack.commit('Add page', current);
+    current = { pages: ['one', 'two'] };
+    stack.observe(current);
+    vi.advanceTimersByTime(100);
+    stack.commit('Rename page', current);
+    current = { pages: ['one', 'renamed'] };
+    stack.observe(current);
+    vi.advanceTimersByTime(400);
+    expect(status.undoLabel).toBe('Rename page');
+    stack.undo();
+    expect(current.pages).toEqual(['one', 'two']);
+    expect(status.undoLabel).toBe('Add page');
+    stack.undo();
+    expect(current.pages).toEqual(['one']);
+  });
+
+  it('keeps one undo step for a continuous labelled edit', () => {
+    let current = { radius: 0 };
+    let status = { canUndo: false, canRedo: false, undoLabel: '', redoLabel: '' };
+    const stack = new SnapshotHistory(
+      current,
+      (next) => (current = next),
+      (next) => (status = next),
+    );
+    for (const radius of [1, 2, 3]) {
+      stack.edit('Canvas radius', current);
+      current = { radius };
+      stack.observe(current);
+      vi.advanceTimersByTime(50);
+    }
+    vi.advanceTimersByTime(400);
+    stack.undo();
+    expect(current.radius).toBe(0);
+    expect(status.canUndo).toBe(false);
   });
 
   it('does not carry a no-op commit label into a later edit', () => {

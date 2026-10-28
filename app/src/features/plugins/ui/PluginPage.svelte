@@ -8,7 +8,7 @@
   import { pluginState, setPluginEnabled, skins, suggestionsOf } from '../registry';
   import type { Param, Plugin } from '../contracts';
   import ParamField from './ParamField.svelte';
-  import { commit } from '../../layout/history.svelte';
+  import { labelEdit } from '../../layout/history.svelte';
   import { resolveSkinConfig, validSkinParam } from '../../skins/definition';
   import { settings } from '../../settings/state.svelte';
   import Row from '../../../panel/ui/Row.svelte';
@@ -48,7 +48,7 @@
       Object.keys(current).every((key) => Object.is(current[key], next[key]))
     )
       return;
-    commit(`Change ${skin.title} ${param.label}`);
+    labelEdit(`Change ${skin.title} ${param.label}`);
     settings.skinSettings = { ...settings.skinSettings, [skin.id]: next };
     updateSkinConfig(skin.id, settings.skinSettings[skin.id]);
   }

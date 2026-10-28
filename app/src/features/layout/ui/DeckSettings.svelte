@@ -7,7 +7,7 @@
   import { settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
   import { clampToGrid } from '../grid';
-  import { commit } from '../history.svelte';
+  import { commit, labelEdit } from '../history.svelte';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
 
@@ -29,12 +29,12 @@
 
   function setCanvasColour(value: string) {
     const { hex, alpha } = splitAlpha(value);
-    commit('Canvas colour');
+    labelEdit('Canvas colour');
     settings.display.background = { ...settings.display.background, color: hex, opacity: alpha };
   }
 
   function setCanvasRadius(radius: number) {
-    commit('Canvas radius');
+    labelEdit('Canvas radius');
     settings.display.background = { ...settings.display.background, radius };
   }
 
