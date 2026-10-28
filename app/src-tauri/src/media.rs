@@ -6,8 +6,8 @@ use windows::Media::Control::{
 
 /// `target` None / "any" = the session Windows considers current; otherwise a case-insensitive
 /// match on the app id (e.g. "spotify").
-fn session(target: Option<&str>) -> windows::core::Result<Option<Session>> {
-    let manager = Manager::RequestAsync()?.join()?;
+async fn session(target: Option<&str>) -> windows::core::Result<Option<Session>> {
+    let manager = Manager::RequestAsync()?.await?;
     match target.filter(|t| !t.is_empty() && *t != "any") {
         None => Ok(manager.GetCurrentSession().ok()),
         Some(t) => {
@@ -28,8 +28,8 @@ fn session(target: Option<&str>) -> windows::core::Result<Option<Session>> {
 
 #[tauri::command]
 pub async fn media_command(target: Option<String>, command: String) -> Result<bool, String> {
-    let run = || -> windows::core::Result<bool> {
-        let Some(s) = session(target.as_deref())? else {
+    let result: windows::core::Result<bool> = async {
+        let Some(s) = session(target.as_deref()).await? else {
             return Ok(false);
         };
         let op = match command.as_str() {
@@ -45,7 +45,8 @@ pub async fn media_command(target: Option<String>, command: String) -> Result<bo
                 ));
             }
         };
-        op.join()
-    };
-    run().map_err(|e| e.to_string())
+        op.await
+    }
+    .await;
+    result.map_err(|e| e.to_string())
 }
