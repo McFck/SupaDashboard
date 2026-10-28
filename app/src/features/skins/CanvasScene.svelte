@@ -28,7 +28,32 @@
 
   let canvas: HTMLCanvasElement;
   const controller = new CanvasSceneController(
-    () => ({ canvas, create, width, height, view, data, revision, opaque }),
+    {
+      get canvas() {
+        return canvas;
+      },
+      get create() {
+        return create;
+      },
+      get width() {
+        return width;
+      },
+      get height() {
+        return height;
+      },
+      get view() {
+        return view;
+      },
+      get data() {
+        return data;
+      },
+      get revision() {
+        return revision;
+      },
+      get opaque() {
+        return opaque;
+      },
+    },
     getSkinHostContext(),
   );
   onMount(() => controller.mount());

@@ -22,7 +22,7 @@ export class CanvasSceneController<Data> {
   readonly pointer: ScenePointer;
 
   constructor(
-    private readonly source: () => {
+    private readonly source: {
       canvas: HTMLCanvasElement;
       create: SkinSceneFactory<Data>;
       width: number;
@@ -35,8 +35,8 @@ export class CanvasSceneController<Data> {
     private readonly host?: SkinHostContext,
   ) {
     this.pointer = new ScenePointer({
-      canvas: () => this.source().canvas,
-      size: () => this.source(),
+      canvas: () => this.source.canvas,
+      size: () => this.source,
       active: () => this.mode === 'live' && this.eligible(),
       context: host,
       renderer: () => this.renderer,
@@ -45,7 +45,7 @@ export class CanvasSceneController<Data> {
       lastSkinId: string | undefined,
       lastPageId: string | undefined;
     $effect(() => {
-      const { view } = this.source();
+      const { view } = this.source;
       const mode = this.mode,
         skinId = host?.skin.id,
         pageId = host?.page.id;
@@ -64,7 +64,7 @@ export class CanvasSceneController<Data> {
       lastPageId = pageId;
     });
     $effect(() => {
-      const { revision, view } = this.source();
+      const { revision, view } = this.source;
       void revision;
       void view;
       this.resizeBacking();
@@ -79,7 +79,7 @@ export class CanvasSceneController<Data> {
   }
 
   private eligible() {
-    const { width, height } = this.source();
+    const { width, height } = this.source;
     return (
       (this.mode === 'frozen' || this.runtimeOwner) &&
       !!this.host?.visible &&
@@ -94,13 +94,13 @@ export class CanvasSceneController<Data> {
   }
 
   private canPaint() {
-    const { opaque, width, height } = this.source();
+    const { opaque, width, height } = this.source;
     // Prepaint opaque pages once before their first transition, then keep hidden pages idle.
     return (
       this.eligible() ||
       (opaque &&
         !this.painted &&
-        untrack(() => this.source().data != null) &&
+        untrack(() => this.source.data != null) &&
         this.mode === 'live' &&
         this.runtimeOwner &&
         this.documentVisible &&
@@ -112,7 +112,7 @@ export class CanvasSceneController<Data> {
   }
 
   private resizeBacking = () => {
-    const { canvas, width, height } = this.source();
+    const { canvas, width, height } = this.source;
     if (!canvas || !width || !height) {
       return;
     }
@@ -158,7 +158,7 @@ export class CanvasSceneController<Data> {
   };
 
   private draw(ctx: CanvasRenderingContext2D, time: number) {
-    const { canvas, width, height, opaque, view, data } = this.source();
+    const { canvas, width, height, opaque, view, data } = this.source;
     // Resizing clears the canvas; resize in the same frame as the replacement paint.
     if (canvas.width !== this.rasterWidth) {
       canvas.width = this.rasterWidth;
@@ -178,7 +178,7 @@ export class CanvasSceneController<Data> {
   }
 
   mount() {
-    const { canvas, create } = this.source();
+    const { canvas, create } = this.source;
     this.renderer = create();
     const ctx = canvas.getContext('2d');
     if (!ctx) {

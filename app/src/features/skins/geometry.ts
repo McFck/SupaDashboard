@@ -12,10 +12,13 @@ export function fitSkinDesign(
     height <= 0 ||
     designWidth <= 0 ||
     designHeight <= 0
-  )
+  ) {
     return null;
+  }
   const scale = Math.min(width / designWidth, height / designHeight);
-  if (!Number.isFinite(scale) || scale <= 0) return null;
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return null;
+  }
   return {
     scale,
     offsetX: (width - designWidth * scale) / 2,

@@ -7,6 +7,8 @@ export function skinFaceFor(
   typeId: string,
   defaultFace?: Component<ControlFaceProps>,
 ) {
-  if (!defaultFace) return undefined;
+  if (!defaultFace) {
+    return undefined;
+  }
   return skin.controlSkins?.[typeId]?.component ?? defaultFace;
 }

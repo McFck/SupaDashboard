@@ -39,18 +39,38 @@
   } = $props();
 
   const controller = new SkinHostController(
-    () => ({
-      skin,
-      page,
-      mode,
-      visible,
-      pageRenderVisible,
-      resolvePresentation,
-      previewViewId,
-      selected,
-      onselect,
-      oncontext,
-    }),
+    {
+      get skin() {
+        return skin;
+      },
+      get page() {
+        return page;
+      },
+      get mode() {
+        return mode;
+      },
+      get visible() {
+        return visible;
+      },
+      get pageRenderVisible() {
+        return pageRenderVisible;
+      },
+      get resolvePresentation() {
+        return resolvePresentation;
+      },
+      get previewViewId() {
+        return previewViewId;
+      },
+      get selected() {
+        return selected;
+      },
+      get onselect() {
+        return onselect;
+      },
+      get oncontext() {
+        return oncontext;
+      },
+    },
     getRuntimeCommands(),
     (view) => {
       previewViewId = view;

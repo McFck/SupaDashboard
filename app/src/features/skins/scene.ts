@@ -17,24 +17,32 @@ export class SceneScheduler {
   ) {}
 
   invalidate() {
-    if (this.disposed) return;
+    if (this.disposed) {
+      return;
+    }
     this.dirty = true;
     this.schedule();
   }
 
   setMode(mode: SceneMode) {
-    if (this.disposed || this.mode === mode) return;
+    if (this.disposed || this.mode === mode) {
+      return;
+    }
     this.mode = mode;
     this.origin = null;
     this.invalidate();
   }
 
   setActive(active: boolean) {
-    if (this.disposed || this.active === active) return;
+    if (this.disposed || this.active === active) {
+      return;
+    }
     this.active = active;
     if (!active) {
       this.dirty = true;
-      if (this.pending !== null) this.cancelPending();
+      if (this.pending !== null) {
+        this.cancelPending();
+      }
       return;
     }
     this.origin = null;
@@ -42,14 +50,18 @@ export class SceneScheduler {
   }
 
   dispose() {
-    if (this.disposed) return;
+    if (this.disposed) {
+      return;
+    }
     this.disposed = true;
     this.cancelPending();
     this.disposeRenderer();
   }
 
   private cancelPending() {
-    if (this.pending === null) return;
+    if (this.pending === null) {
+      return;
+    }
     this.cancel(this.pending);
     this.pending = null;
   }
@@ -60,21 +72,26 @@ export class SceneScheduler {
       !this.active ||
       this.disposed ||
       (!this.dirty && this.mode === 'frozen')
-    )
+    ) {
       return;
+    }
     this.pending = this.request((time) => {
       this.pending = null;
       if (!this.active || this.disposed) {
         this.dirty = true;
         return;
       }
-      if (!this.dirty && this.mode === 'frozen') return;
-      const elapsed =
-        this.mode === 'frozen'
-          ? 0
-          : this.origin === null
-            ? ((this.origin = time), 0)
-            : time - this.origin;
+      if (!this.dirty && this.mode === 'frozen') {
+        return;
+      }
+      let elapsed = 0;
+      if (this.mode !== 'frozen') {
+        if (this.origin === null) {
+          this.origin = time;
+        } else {
+          elapsed = time - this.origin;
+        }
+      }
       this.dirty = false;
       const animate = this.draw(elapsed);
       if (this.mode === 'live' && animate) {

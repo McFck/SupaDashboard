@@ -38,14 +38,14 @@ export class SkinHostController implements SkinHostContext {
   );
   readonly viewId = $derived.by(() => {
     const skin = this.skin;
-    const value = this.mode === 'editor' ? this.source().previewViewId : this.state.view;
+    const value = this.mode === 'editor' ? this.source.previewViewId : this.state.view;
     return typeof value === 'string' && skin.views.some((view) => view.id === value)
       ? value
       : skin.defaultView;
   });
 
   constructor(
-    private readonly source: () => HostOptions,
+    private readonly source: HostOptions,
     private readonly commands: Pick<
       ReturnType<typeof getRuntimeCommands>,
       'requestPageChange' | 'setSkinView'
@@ -70,28 +70,28 @@ export class SkinHostController implements SkinHostContext {
   }
 
   get skin() {
-    return this.source().skin;
+    return this.source.skin;
   }
   get mode() {
-    return this.source().mode;
+    return this.source.mode;
   }
   get visible() {
-    return this.source().visible;
+    return this.source.visible;
   }
   get pageRenderVisible() {
-    return this.source().pageRenderVisible;
+    return this.source.pageRenderVisible;
   }
   get selected() {
-    return this.source().selected;
+    return this.source.selected;
   }
   get onselect() {
-    return this.source().onselect;
+    return this.source.onselect;
   }
   get oncontext() {
-    return this.source().oncontext;
+    return this.source.oncontext;
   }
   get resolvePresentation() {
-    return this.source().resolvePresentation;
+    return this.source.resolvePresentation;
   }
   get designScale() {
     return this.skin.design ? (this.fit?.scale ?? 0) : 1;
@@ -106,7 +106,7 @@ export class SkinHostController implements SkinHostContext {
     return resolveSkinConfig(this.skin, settings.skinSettings[this.skin.id] ?? {});
   }
   get page() {
-    return Object.assign({}, this.source().page, {
+    return Object.assign({}, this.source.page, {
       next: () =>
         this.mode === 'runtime'
           ? this.commands.requestPageChange({ direction: 'next' }, 'skin')

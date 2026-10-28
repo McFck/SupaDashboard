@@ -15,8 +15,9 @@ export function mapScenePoint(
     rect.height <= 0 ||
     width <= 0 ||
     height <= 0
-  )
+  ) {
     return null;
+  }
   const x = ((clientX - rect.left) * width) / rect.width;
   const y = ((clientY - rect.top) * height) / rect.height;
   return x < 0 || y < 0 || x >= width || y >= height ? null : { x, y };
