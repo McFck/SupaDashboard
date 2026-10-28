@@ -11,7 +11,8 @@
   import { getRuntimeCommands } from '../../app/runtime/context';
   import { DashboardWindow } from './dashboard-window.svelte';
   import { DragGaps } from './drag-gaps.svelte';
-  import { Pager, pageOffset, pageOrderKey } from './pager.svelte';
+  import { pageOffset } from './page-motion';
+  import { Pager, pageOrderKey } from './pager.svelte';
   import PageDots from './PageDots.svelte';
 
   const { requestPageChange } = getRuntimeCommands();
@@ -112,7 +113,7 @@
   data-hovered={dashboard.showChrome}
   style:border-radius="{dashboard.appliedFullscreen ? 0 : bg.radius}px"
   bind:this={shell}
-  onpointerdowncapture={pager.pointerDown}
+  onpointerdowncapture={pager.input.pointerDown}
   onpointerenter={() => (dashboard.domHovered = true)}
   onpointerleave={() => (dashboard.domHovered = false)}
 >
@@ -138,7 +139,7 @@
             aria-hidden={!frame.active}
             inert={!frame.active}
             style:transform={pageOffset(frame.offset)}
-            use:pager.register={frame.id}
+            use:pager.motion.register={frame.id}
           >
             <SkinHost
               {skin}

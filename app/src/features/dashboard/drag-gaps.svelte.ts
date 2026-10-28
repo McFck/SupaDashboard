@@ -1,9 +1,9 @@
 // The transparent dashboard is dragged by its empty areas. This measures them: the shell minus every widget,
 // control and chrome element, recomputed whenever any of those moves or resizes.
 import { complementRectangles, type LocalRect } from './gap-geometry';
+import { INTERACTIVE } from './swipe-input';
 
-const INTERACTIVE =
-  '[data-skin-input], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]';
+const EXCLUDED = `[data-skin-input], .tile, ${INTERACTIVE}`;
 const CHROME = '.dashboard-page-dots, .dashboard-page-dots button';
 const OBSERVED_ATTRIBUTES = [
   'data-visible-page',
@@ -64,9 +64,7 @@ export class DragGaps {
       ...(skinRoot ? [skinRoot] : []),
       ...this.shell.querySelectorAll(CHROME),
     ]);
-    skinRoot
-      ?.querySelectorAll(`[data-dashboard-tile], ${INTERACTIVE}`)
-      .forEach((node) => next.add(node));
+    skinRoot?.querySelectorAll(EXCLUDED).forEach((node) => next.add(node));
     for (const node of this.observed) {
       if (!next.has(node)) {
         this.resizeObserver.unobserve(node);
@@ -109,7 +107,7 @@ export class DragGaps {
       }
     };
     skinRoot.querySelectorAll('[data-dashboard-tile]').forEach(exclude);
-    skinRoot.querySelectorAll(INTERACTIVE).forEach(exclude);
+    skinRoot.querySelectorAll(EXCLUDED).forEach(exclude);
     this.shell.querySelectorAll(CHROME).forEach(exclude);
     this.rects = complementRectangles(
       surface.width,

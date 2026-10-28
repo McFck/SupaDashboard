@@ -46,3 +46,33 @@ export function pageSwipe(dx: number, width: number, index: number, count: numbe
     targetIndex: Math.abs(dx) >= pageSwipeThreshold(width) ? neighborIndex : index,
   };
 }
+
+export type PagerFrame = { id: string; offset: number; active: boolean; mediaVisible: boolean };
+
+/** The page at rest plus its neighbours parked one width to either side. */
+export function restingFrames(order: readonly string[], pageId: string, width: number) {
+  const index = order.indexOf(pageId);
+  const frames: PagerFrame[] = [{ id: pageId, offset: 0, active: true, mediaVisible: true }];
+  if (index > 0) {
+    frames.unshift({ id: order[index - 1], offset: -width, active: false, mediaVisible: false });
+  }
+  if (index >= 0 && index + 1 < order.length) {
+    frames.push({ id: order[index + 1], offset: width, active: false, mediaVisible: false });
+  }
+  return frames;
+}
+
+/** The source page following the pointer, with the neighbour on the side it moves towards. */
+export function swipeFrames(order: readonly string[], index: number, width: number, dx: number) {
+  const { offset, side, neighborIndex } = pageSwipe(dx, width, index, order.length);
+  const frames: PagerFrame[] = [{ id: order[index], offset, active: true, mediaVisible: true }];
+  if (side) {
+    frames.push({
+      id: order[neighborIndex],
+      offset: side * width + offset,
+      active: false,
+      mediaVisible: true,
+    });
+  }
+  return { frames, side };
+}
