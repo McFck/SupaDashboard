@@ -4,7 +4,13 @@ import type { SkinDef } from '../skins/contracts';
 import { movePlacementToSlot, type LayoutTarget } from './skin-layouts';
 
 export type MoveMode = 'page' | 'slot';
-export type MoveOption = { value: string; label: string; disabled: boolean; target: LayoutTarget };
+export type MoveOption = {
+  value: string;
+  label: string;
+  detail?: string;
+  disabled: boolean;
+  target: LayoutTarget;
+};
 
 /**
  * Page mode keeps the slot and lists other pages; slot mode lists every slot of the visible view on every page.
@@ -32,7 +38,8 @@ export function moveOptions(
       return [
         {
           value: `${page.id}::${slotId}`,
-          label: mode === 'page' ? page.name : `${page.name} · ${slotId}`,
+          label: page.name,
+          detail: mode === 'page' ? undefined : slotId,
           disabled: !movePlacementToSlot(source, itemId, target),
           target,
         },

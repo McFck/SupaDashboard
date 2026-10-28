@@ -1,6 +1,7 @@
 <script lang="ts">
   import Plus from '@lucide/svelte/icons/plus';
   import Trash from '@lucide/svelte/icons/trash-2';
+  import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
@@ -27,7 +28,9 @@
     { value: '', label: 'None' },
     ...variables.map((record) => ({
       value: record.definition.id,
-      label: `${record.definition.available === false ? 'Unavailable · ' : ''}${record.definition.name} · ${record.definition.type}`,
+      label: record.definition.name,
+      detail: record.definition.type,
+      unavailable: record.definition.available === false,
       plugin: record.definition.owner,
     })),
   ]);
@@ -108,7 +111,7 @@
     return [
       ...states,
       ...(stateId && !states.some((state) => state.value === stateId)
-        ? [{ value: stateId, label: `Unavailable · ${stateId}` }]
+        ? [{ value: stateId, label: stateId, unavailable: true }]
         : []),
     ];
   }
@@ -124,8 +127,10 @@
       aria-label="State variable"
       onchange={setVariable}
     />
-    {#if binding && !variable}<span class="text-xs text-muted-foreground"
-        >Unavailable · {binding.variableId}</span
+    {#if binding && !variable}<span class="flex min-w-0 items-center gap-2 text-xs"
+        ><span class="truncate">{binding.variableId}</span><Badge variant="outline"
+          >Unavailable</Badge
+        ></span
       >{/if}
   </div>
   {#if binding}

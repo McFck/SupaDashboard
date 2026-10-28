@@ -28,7 +28,7 @@
     return [
       { value: '', label: 'Any parameter' },
       ...suggestions,
-      ...(missing ? [{ value: saved, label: `Unavailable · ${saved}` }] : []),
+      ...(missing ? [{ value: saved, label: saved, unavailable: true }] : []),
     ];
   });
 

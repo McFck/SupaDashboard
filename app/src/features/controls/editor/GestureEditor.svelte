@@ -1,4 +1,7 @@
 <script lang="ts">
+  import ListOrdered from '@lucide/svelte/icons/list-ordered';
+  import Zap from '@lucide/svelte/icons/zap';
+  import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
   import type { ControlConfig } from '../model';
   import {
@@ -38,9 +41,16 @@
     onclick={() => onedit('press')}
   >
     <span>Edit scenario</span>
-    <span class="text-xs tabular-nums text-muted-foreground"
-      >{configured.length} · {totalSteps}</span
-    >
+    <span class="flex items-center gap-1">
+      <Badge
+        variant="secondary"
+        class="tabular-nums"><Zap /><span class="sr-only">Triggers </span>{configured.length}</Badge
+      >
+      <Badge
+        variant="secondary"
+        class="tabular-nums"><ListOrdered /><span class="sr-only">Steps </span>{totalSteps}</Badge
+      >
+    </span>
   </Button>
   {#each configured as trigger (trigger)}
     <Button

@@ -3,6 +3,7 @@
   import type { Component } from 'svelte';
   import * as Select from '$lib/components/ui/select';
   import { Hint } from '$lib/components/ui/tooltip';
+  import OptionTags from './OptionTags.svelte';
   import PluginMark, { pluginTitle } from './PluginMark.svelte';
 
   type Option = {
@@ -13,6 +14,8 @@
     iconHint?: string;
     disabled?: boolean;
     plugin?: string;
+    detail?: string;
+    unavailable?: boolean;
   };
   let {
     value,
@@ -67,6 +70,10 @@
     {#if selected?.iconLabel}<span class="sr-only">{selected.iconLabel}</span>{/if}
     <span class="min-w-0 flex-1 truncate text-left">{selected?.label ?? placeholder}</span>
     <span class="ml-2 inline-flex shrink-0 items-center gap-2">
+      <OptionTags
+        detail={selected?.detail}
+        unavailable={selected?.unavailable}
+      />
       {#if selected?.icon && selected.iconHint}
         <Hint text={selected.iconHint}>
           {#snippet children(props)}<span
@@ -99,6 +106,10 @@
           {#if o.iconLabel}<span class="sr-only">{o.iconLabel}</span>{/if}
           <span class="min-w-0 flex-1 truncate">{o.label}</span>
           <span class="ml-2 inline-flex shrink-0 items-center gap-2">
+            <OptionTags
+              detail={o.detail}
+              unavailable={o.unavailable}
+            />
             {#if o.icon && o.iconHint}
               <Hint text={o.iconHint}>
                 {#snippet children(props)}<span

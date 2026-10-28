@@ -56,7 +56,7 @@
   const roleOptions = (excluded: string, current: string) => [
     ...states.filter((state) => state.value !== excluded),
     ...(current && !states.some((state) => state.value === current)
-      ? [{ value: current, label: `Unavailable · ${current}` }]
+      ? [{ value: current, label: current, unavailable: true }]
       : []),
   ];
 

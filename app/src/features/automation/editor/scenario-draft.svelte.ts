@@ -248,7 +248,7 @@ export class ScenarioDraftEditor {
 
   eventLabel(event: EventList) {
     const title = this.eventDefinition(event.eventId)?.title ?? event.eventId;
-    return event.parameter ? `${title} · ${event.parameter}` : title;
+    return event.parameter ? `${title}: ${event.parameter}` : title;
   }
 
   // ---- per-state overrides ----

@@ -8,7 +8,13 @@ import type { VariableDefinition, VariableRecord, VariableValue } from '../autom
 /** A reference to an action plus its arguments, as stored in settings. */
 export type ActionRef = { id: string; args?: Record<string, unknown> };
 
-export type Option = { value: string; label: string; plugin?: string };
+export type Option = {
+  value: string;
+  label: string;
+  plugin?: string;
+  detail?: string;
+  unavailable?: boolean;
+};
 export type EventAncestry = { depth: number; listeners: string[] };
 
 export type ActionContext = {
