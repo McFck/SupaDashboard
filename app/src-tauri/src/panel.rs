@@ -107,7 +107,7 @@ fn create_panel(app: AppHandle) -> Result<(), String> {
         .title("SupaDashboard · Control panel")
         .inner_size(1360.0, 860.0)
         .min_inner_size(960.0, 620.0)
-        .decorations(true)
+        .decorations(false)
         .visible(false)
         .focused(false)
         .theme(Some(tauri::Theme::Dark))
