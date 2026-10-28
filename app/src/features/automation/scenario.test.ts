@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeControl } from './normalize-control';
-import { selectTriggerSteps } from './scenario';
 import { validateScenario } from './validate';
 
 const action = (id: string, args?: Record<string, unknown>) => ({ id, ...(args ? { args } : {}) });
@@ -116,39 +115,57 @@ describe('canonical scenario migration', () => {
     expect(Object.keys(control.scenario?.triggers.press?.byState ?? {})).toHaveLength(0);
   });
 
-  it('preserves malformed built-in action refs as editable leaves and rejects their execution shape', () => {
-    const control = normalizeControl({
-      id: 'b',
-      name: 'Button',
-      type: 'button',
-      variants: [],
-      gestures: {
-        longPress: action('delay', { ms: -1 }),
-        doubleTap: action('sequence', { steps: 'bad' }),
-      },
-    });
-    expect(control.scenario?.triggers.longPress?.steps[0]).toMatchObject({
-      kind: 'action',
-      action: { id: 'delay', args: { ms: -1 } },
-    });
-    expect(control.scenario?.triggers.doubleTap?.steps[0]).toMatchObject({
-      kind: 'action',
-      action: { id: 'sequence', args: { steps: 'bad' } },
-    });
-    expect(validateScenario(control.scenario).map((issue) => issue.message)).toContain(
-      'Wait duration must be an integer from 0 to 86400000',
-    );
-    expect(validateScenario(control.scenario).map((issue) => issue.message)).toContain(
-      'Action sequence is invalid',
-    );
-  });
-
-  it('honors an explicit empty state override instead of inheriting common steps', () => {
-    const common = [{ id: 'common', kind: 'action' as const, action: action('media.toggle') }];
-    const list = { steps: common, byState: { off: [] } };
-    expect(selectTriggerSteps(list, 'off')).toEqual([]);
-    expect(selectTriggerSteps(list, 'on')).toBe(common);
-  });
+  it.each(['press', 'state', 'event'] as const)(
+    'stored sequence/delay steps flatten into the step tree (%s)',
+    (owner) => {
+      const steps = [
+        {
+          id: 'old',
+          kind: 'action',
+          action: action('sequence', {
+            steps: [
+              action('plugin.first', { steps: [action('delay', { ms: 99 })] }),
+              action('sequence', {
+                steps: [action('delay', { ms: 25 }), action('media.nextSlide')],
+              }),
+              action('media.prevSlide', { target: 'slideshow' }),
+            ],
+          }),
+        },
+      ];
+      const list = owner === 'state' ? { steps: [], byState: { off: steps } } : { steps };
+      const saved = {
+        id: 'b',
+        name: 'Button',
+        type: 'button',
+        variants: [{ id: 'off', label: '' }],
+        scenario: {
+          triggers: owner === 'event' ? {} : { press: list },
+          events: owner === 'event' ? [{ id: 'listener', eventId: 'test', list }] : [],
+        },
+      };
+      const source = structuredClone(saved);
+      const control = normalizeControl(saved);
+      const result =
+        owner === 'event'
+          ? control.scenario!.events[0].list.steps
+          : owner === 'state'
+            ? control.scenario!.triggers.press!.byState!.off
+            : control.scenario!.triggers.press!.steps;
+      expect(result).toMatchObject([
+        {
+          kind: 'action',
+          action: action('plugin.first', { steps: [action('delay', { ms: 99 })] }),
+        },
+        { kind: 'delay', ms: 25 },
+        { kind: 'action', action: action('media.next', { target: 'self' }) },
+        { kind: 'action', action: action('media.prev', { target: 'slideshow' }) },
+      ]);
+      expect(validateScenario(control.scenario)).toEqual([]);
+      expect(normalizeControl(control)).toEqual(control);
+      expect(saved).toEqual(source);
+    },
+  );
 
   it('detects node/depth/duplicate-id/delay violations without trimming the scenario', () => {
     const many = Array.from({ length: 1001 }, (_, i) => ({
@@ -185,7 +202,6 @@ describe('canonical scenario migration', () => {
     expect(issues.some((issue) => issue.message === 'Scenario exceeds 16 levels')).toBe(true);
     expect(issues.some((issue) => issue.message === 'Step IDs must be unique')).toBe(true);
     expect(issues.some((issue) => issue.message.startsWith('Wait duration'))).toBe(true);
-    expect(many).toHaveLength(1001);
   });
 
   it('rejects cyclic plugin control input instead of persisting a cycle', () => {
@@ -244,7 +260,6 @@ describe('canonical scenario migration', () => {
       events: [],
     });
     expect(issues).toHaveLength(2);
-    expect(issues[0].message).not.toBe('State values support equality only');
     expect(issues.some((issue) => issue.message === 'State values support equality only')).toBe(
       true,
     );

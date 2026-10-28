@@ -11,7 +11,6 @@ export type VariableDefinition = {
   persistent: boolean;
   readOnly: boolean;
   initialValue: VariableValue;
-  suggestions?: { value: string; label: string }[];
   aliases?: string[];
   available?: boolean;
 };
@@ -24,7 +23,6 @@ export type VariableSnapshot = {
   revision: number;
   records: Readonly<Record<string, Readonly<VariableRecord>>>;
 };
-export type VariableActor = 'user' | string;
 
 function normalizeName(value: string) {
   const name = value.trim();
@@ -82,15 +80,7 @@ function isDefinition(value: unknown): value is VariableDefinition {
     typeof value.readOnly === 'boolean' &&
     (value.aliases === undefined ||
       (Array.isArray(value.aliases) &&
-        value.aliases.every((alias: unknown) => typeof alias === 'string' && !!alias.trim()))) &&
-    (value.suggestions === undefined ||
-      (Array.isArray(value.suggestions) &&
-        value.suggestions.every(
-          (option: unknown) =>
-            isRecord(option) &&
-            typeof option.value === 'string' &&
-            typeof option.label === 'string',
-        )))
+        value.aliases.every((alias: unknown) => typeof alias === 'string' && !!alias.trim())))
   );
 }
 
@@ -166,7 +156,7 @@ export class VariableStore {
     return record ? copyRecord(record) : undefined;
   }
 
-  define(definition: Omit<VariableDefinition, 'available'>, actor: VariableActor = 'user') {
+  define(definition: Omit<VariableDefinition, 'available'>, actor: string = 'user') {
     if (!definition.id) throw new Error('Variable ID is required');
     const owner = definition.owner;
     if (actor === 'user' ? owner !== 'user' : owner !== actor)
@@ -204,7 +194,7 @@ export class VariableStore {
     );
   }
 
-  rename(id: string, nextName: string, actor: VariableActor = 'user') {
+  rename(id: string, nextName: string, actor: string = 'user') {
     const current = this.mustGet(id);
     this.assertOwner(current, actor);
     const name = normalizeName(nextName);
@@ -216,7 +206,7 @@ export class VariableStore {
     this.changed(current.definition.persistent);
   }
 
-  setPersistent(id: string, persistent: boolean, actor: VariableActor = 'user') {
+  setPersistent(id: string, persistent: boolean, actor: string = 'user') {
     const current = this.mustGet(id);
     this.assertOwner(current, actor);
     if (current.definition.persistent === persistent) return false;
@@ -225,14 +215,14 @@ export class VariableStore {
     return true;
   }
 
-  remove(id: string, actor: VariableActor = 'user') {
+  remove(id: string, actor: string = 'user') {
     const current = this.mustGet(id);
     this.assertOwner(current, actor);
     this.records.delete(id);
     this.changed(current.definition.persistent);
   }
 
-  set(id: string, value: unknown, actor: VariableActor = 'user') {
+  set(id: string, value: unknown, actor: string = 'user') {
     const current = this.mustGet(id);
     this.assertWritable(current, actor);
     assertValue(current.definition.type, value);
@@ -240,43 +230,6 @@ export class VariableStore {
     this.records.set(id, { ...current, value });
     this.changed(current.definition.persistent);
     return true;
-  }
-
-  setText(id: string, text: string, actor: VariableActor = 'user') {
-    const record = this.mustGet(id);
-    return this.set(id, parseVariableText(record.definition.type, text), actor);
-  }
-
-  toggle(id: string, actor: VariableActor = 'user') {
-    const record = this.mustGet(id);
-    if (record.definition.type !== 'boolean') throw new Error('Toggle requires a Boolean variable');
-    return this.set(id, !record.value, actor);
-  }
-
-  increment(id: string, by = 1, actor: VariableActor = 'user') {
-    const record = this.mustGet(id);
-    if (record.definition.type !== 'integer' && record.definition.type !== 'float')
-      throw new Error('Increment requires a numeric variable');
-    if (!Number.isFinite(by)) throw new Error('Increment must be finite');
-    const value = Number(record.value) + by;
-    if (record.definition.type === 'integer' && !Number.isSafeInteger(value))
-      throw new Error('Integer is outside the safe range');
-    if (record.definition.type === 'float' && !Number.isFinite(value))
-      throw new Error('Number must be finite');
-    assertValue(record.definition.type, value);
-    return this.set(id, value, actor);
-  }
-
-  setOwnerAvailable(owner: string, available: boolean) {
-    let changed = false;
-    for (const [id, record] of this.records)
-      if (record.definition.owner === owner && record.definition.available !== available) {
-        this.records.set(id, { ...record, definition: { ...record.definition, available } });
-        changed = true;
-      }
-    if (changed) {
-      this.changed(false);
-    }
   }
 
   serializePersistent(): VariableEnvelope {
@@ -297,7 +250,6 @@ export class VariableStore {
         ...record.definition,
         name: normalizeName(record.definition.name),
         aliases: record.definition.aliases?.map(normalizeName),
-        suggestions: record.definition.suggestions?.map((option) => ({ ...option })),
       },
       value: record.value,
     };
@@ -318,11 +270,11 @@ export class VariableStore {
     return record;
   }
 
-  private assertOwner(record: VariableRecord, actor: VariableActor) {
+  private assertOwner(record: VariableRecord, actor: string) {
     if (record.definition.owner !== actor) throw new Error('Variable belongs to another owner');
   }
 
-  private assertWritable(record: VariableRecord, actor: VariableActor) {
+  private assertWritable(record: VariableRecord, actor: string) {
     if (actor === 'user' && record.definition.readOnly) throw new Error('Variable is read-only');
     if (actor !== 'user' && record.definition.owner !== actor)
       throw new Error('Plugin cannot write another owner’s variable');

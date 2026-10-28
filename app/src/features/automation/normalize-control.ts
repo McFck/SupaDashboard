@@ -1,6 +1,5 @@
-import type { ActionRef } from '../plugins/contracts';
 import type { ControlConfig } from '../controls/model';
-import { migrateLegacy } from './legacy-scenario';
+import { migrateLegacy, stepsFromAction } from './legacy-scenario';
 import { isRecord } from './plain-data';
 import {
   TRIGGERS,
@@ -53,23 +52,30 @@ function normalizeSteps(
   path: string,
   makeId: (base: string) => string,
 ): ActionStep[] {
-  if (!Array.isArray(input)) return [];
-  return input.map((raw, index) => {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  return input.flatMap((raw, index): ActionStep[] => {
     const step = isRecord(raw) ? raw : {};
-    const id =
-      typeof step.id === 'string' && step.id ? makeId(step.id) : makeId(`${path}-${index + 1}`);
-    if (step.kind === 'action')
-      return { id, kind: 'action', action: structuredClone(step.action) } as ActionStep;
-    if (step.kind === 'delay') return { id, kind: 'delay', ms: step.ms } as ActionStep;
-    if (step.kind === 'if')
-      return {
-        id,
-        kind: 'if',
-        condition: structuredClone(step.condition),
-        then: normalizeSteps(step.then, `${path}-${index + 1}-then`, makeId),
-        else: normalizeSteps(step.else, `${path}-${index + 1}-else`, makeId),
-      } as ActionStep;
-    return { id, kind: 'action', action: structuredClone(raw) as ActionRef };
+    const base = typeof step.id === 'string' && step.id ? step.id : `${path}-${index + 1}`;
+    if (step.kind === 'action') {
+      return stepsFromAction(step.action, base, makeId);
+    }
+    if (step.kind === 'delay') {
+      return [{ id: makeId(base), kind: 'delay', ms: step.ms } as ActionStep];
+    }
+    if (step.kind === 'if') {
+      return [
+        {
+          id: makeId(base),
+          kind: 'if',
+          condition: structuredClone(step.condition),
+          then: normalizeSteps(step.then, `${path}-${index + 1}-then`, makeId),
+          else: normalizeSteps(step.else, `${path}-${index + 1}-else`, makeId),
+        } as ActionStep,
+      ];
+    }
+    return stepsFromAction(raw, base, makeId);
   });
 }
 

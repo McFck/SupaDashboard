@@ -18,11 +18,6 @@ const control = (id: string, ...events: EventList[]): ControlConfig => ({
 });
 
 describe('event registry', () => {
-  it('accepts function parameter suggestions', () => {
-    expect(() =>
-      new EventRegistry().register({ id: 'x.e', title: 'E', parameterSuggestions: () => [] }),
-    ).not.toThrow();
-  });
   it('matches any, exact and empty parameters and emits once per listener', async () => {
     const registry = new EventRegistry();
     registry.register({ id: 'counter.changed', title: 'Counter changed', plugin: 'core' });
@@ -41,19 +36,6 @@ describe('event registry', () => {
     dispatched.length = 0;
     await registry.emit('counter.changed', '', null, controls, dispatch);
     expect(dispatched).toEqual(['any', 'empty', 'same']);
-  });
-
-  it('keeps missing event references unavailable and supports plugin cleanup', () => {
-    const registry = new EventRegistry();
-    const stop = registry.register({ id: 'x.ready', title: 'Ready', plugin: 'x' });
-    expect(registry.get('x.ready')?.title).toBe('Ready');
-    registry.unregisterPlugin('x');
-    expect(registry.get('x.ready')).toBeUndefined();
-    expect(
-      control('c', { id: 'l', eventId: 'x.ready', list: { steps: [] } }).scenario?.events[0]
-        .eventId,
-    ).toBe('x.ready');
-    stop();
   });
 
   it('caps causal depth, avoids listener re-entry and validates payloads', async () => {

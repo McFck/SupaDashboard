@@ -106,41 +106,6 @@ describe('typed variables', () => {
     expect(() => store.remove('clock.time')).toThrow('another owner');
   });
 
-  it('notifies only for actual changes and exposes immutable snapshots', () => {
-    const store = new VariableStore();
-    store.createUser({ id: 'flag', name: 'flag', type: 'boolean', initialValue: false });
-    const revisions: number[] = [];
-    const stop = store.subscribe((snapshot) => revisions.push(snapshot.revision));
-    expect(store.set('flag', false)).toBe(false);
-    expect(store.toggle('flag')).toBe(true);
-    expect(store.setText('flag', 'true')).toBe(false);
-    expect(revisions).toHaveLength(1);
-    const snapshot = store.snapshot();
-    expect(Object.isFrozen(snapshot)).toBe(true);
-    expect(Object.isFrozen(snapshot.records.flag)).toBe(true);
-    expect(Object.isFrozen(snapshot.records.flag.definition)).toBe(true);
-    stop();
-    store.set('flag', false);
-    expect(revisions).toHaveLength(1);
-  });
-
-  it('increments numeric types safely and rejects wrong operations without mutation', () => {
-    const store = new VariableStore();
-    store.createUser({
-      id: 'i',
-      name: 'count',
-      type: 'integer',
-      initialValue: Number.MAX_SAFE_INTEGER,
-    });
-    expect(() => store.increment('i')).toThrow('safe range');
-    expect(store.getValue('i')).toBe(Number.MAX_SAFE_INTEGER);
-    store.createUser({ id: 'f', name: 'ratio', type: 'float', initialValue: 1.5 });
-    expect(store.increment('f', 0.25)).toBe(true);
-    expect(store.getValue('f')).toBe(1.75);
-    expect(() => store.toggle('f')).toThrow('Boolean');
-    expect(() => store.set('i', '2')).toThrow('does not match');
-  });
-
   it('persists only persistent records and restores plugin owners as unavailable', () => {
     const store = new VariableStore();
     store.createUser({ id: 'recording', name: 'recording', type: 'boolean', initialValue: false });
@@ -172,7 +137,5 @@ describe('typed variables', () => {
     const restored = new VariableStore(saved);
     expect(restored.getValue('plugin.value')).toBe(0.5);
     expect(restored.get('plugin.value')?.definition.available).toBe(false);
-    restored.setOwnerAvailable('plugin', true);
-    expect(restored.get('plugin.value')?.definition.available).toBe(true);
   });
 });

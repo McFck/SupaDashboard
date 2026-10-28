@@ -2,28 +2,19 @@
   import { untrack } from 'svelte';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import { Button } from '$lib/components/ui/button';
-  import * as Dialog from '$lib/components/ui/dialog';
   import * as Disclosure from '$lib/components/ui/disclosure';
   import { Input } from '$lib/components/ui/input';
   import Icon from '../../controls/ui/Icon.svelte';
-  import { actions, actionsByPlugin } from '../../plugins/registry';
-  import PluginMark from '../../plugins/ui/PluginMark.svelte';
+  import { actionsByPlugin } from '../../plugins/registry';
   import { animateGroupLayout } from '$lib/components/ui/disclosure/group-layout';
 
-  let {
-    value,
-    onpick,
-    inline = false,
-  }: { value: string; onpick: (id: string) => void; inline?: boolean } = $props();
+  let { value, onpick }: { value: string; onpick: (id: string) => void } = $props();
   const allGroups = $derived(actionsByPlugin());
-  const selectedAction = $derived(actions.get(value));
-  let open = $state(false);
   let query = $state('');
   let manualOpen: string[] = $state(
     untrack(() => {
-      const plugin =
-        inline &&
-        allGroups.find((group) => group.actions.some((action) => action.id === value))?.plugin.id;
+      const plugin = allGroups.find((group) => group.actions.some((action) => action.id === value))
+        ?.plugin.id;
       return plugin ? [plugin] : [];
     }),
   );
@@ -41,15 +32,6 @@
   });
   const matchCount = $derived(groups.reduce((sum, group) => sum + group.matches.length, 0));
 
-  function dialogChanged(next: boolean) {
-    if (!next) return;
-    query = '';
-    const selectedPlugin = allGroups.find((group) =>
-      group.actions.some((action) => action.id === value),
-    )?.plugin.id;
-    manualOpen = selectedPlugin ? [selectedPlugin] : [];
-  }
-
   function search(event: Event) {
     const next = (event.currentTarget as HTMLInputElement).value;
     if (next === query) return;
@@ -62,15 +44,10 @@
       ? [...manualOpen.filter((value) => value !== id), id]
       : manualOpen.filter((value) => value !== id);
   }
-
-  function pick(id: string) {
-    onpick(id);
-    open = false;
-  }
 </script>
 
 {#snippet pickerBody()}
-  <div class="flex min-h-0 min-w-0 flex-col {inline ? 'gap-3' : 'gap-4'}">
+  <div class="flex min-h-0 min-w-0 flex-col gap-3">
     <div class="relative min-w-0">
       <Input
         value={query}
@@ -91,9 +68,7 @@
     </div>
     <div
       bind:this={results}
-      class="picker-results flex min-h-0 min-w-0 shrink-0 flex-col
-      {inline ? '' : 'shrink overflow-y-auto [scrollbar-gutter:stable]'}"
-      style={inline ? undefined : 'height: min(55dvh, 420px)'}
+      class="picker-results flex min-h-0 min-w-0 shrink-0 flex-col"
     >
       {#if groups.length === 0}<div class="py-3 text-center text-sm text-muted-foreground">
           No actions
@@ -105,7 +80,7 @@
           open={groupOpen}
           onOpenChange={(next) => setManualOpen(group.plugin.id, next)}
           disabled={!!query.trim()}
-          triggerClass={inline ? 'min-h-10 p-2' : ''}
+          triggerClass="min-h-10 p-2"
           class="last:border-b-0"
         >
           {#snippet trigger()}
@@ -137,7 +112,7 @@
                   value
                     ? 'bg-accent ring-1 ring-border'
                     : ''}"
-                  onclick={() => pick(action.id)}>{action.title}</Button
+                  onclick={() => onpick(action.id)}>{action.title}</Button
                 >
               {/each}
             </div>
@@ -148,33 +123,4 @@
   </div>
 {/snippet}
 
-{#if inline}
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col">{@render pickerBody()}</div>
-{:else}
-  <Dialog.Root
-    bind:open
-    onOpenChange={dialogChanged}
-  >
-    <Dialog.Trigger>
-      {#snippet child({ props })}
-        <Button
-          {...props}
-          variant="outline"
-          class="w-full min-w-0 justify-between font-normal"
-        >
-          <span class="min-w-0 truncate"
-            >{(selectedAction?.title ?? value) || 'Choose an action'}</span
-          >
-          <PluginMark plugin={selectedAction?.plugin} />
-          <ChevronDown class="shrink-0 opacity-50" />
-        </Button>
-      {/snippet}
-    </Dialog.Trigger>
-    <Dialog.Content
-      class="flex min-h-0 max-h-[calc(100dvh-2rem)] flex-col gap-4 overflow-y-auto p-4 sm:max-w-lg"
-    >
-      <Dialog.Header><Dialog.Title>Choose an action</Dialog.Title></Dialog.Header>
-      {@render pickerBody()}
-    </Dialog.Content>
-  </Dialog.Root>
-{/if}
+<div class="flex min-h-0 min-w-0 flex-1 flex-col">{@render pickerBody()}</div>

@@ -92,7 +92,6 @@
     >
   </div>
   <ActionPicker
-    inline
     value={current?.kind === 'action' ? current.action.id : ''}
     onpick={(id) => onchoose(actionStep(id))}
   />
