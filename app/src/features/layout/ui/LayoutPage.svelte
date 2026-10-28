@@ -9,7 +9,7 @@
   import type { Selection } from '../grid';
   import { registeredEvents, skins } from '../../plugins/registry';
   import { controlById, settings } from '../../settings/state.svelte';
-  import { MAX_PAGES, pageAfterRemoval, pageById } from '../pages';
+  import { MAX_PAGES } from '../pages';
   import * as pageCommands from '../page-commands';
   import ScenarioEditor from '../../automation/editor/ScenarioEditor.svelte';
   import Inspector from './Inspector.svelte';
@@ -18,9 +18,9 @@
   import InspectorPane from './InspectorPane.svelte';
   import MoveWidgetDialog from './MoveWidgetDialog.svelte';
   import { layoutFor, type LayoutTarget } from '../skin-layouts';
-  import type { SkinDef } from '../../skins/definition';
+  import { LayoutEditorState } from './editor-state.svelte';
   import ContextMenu, { type MenuAction } from '../../../panel/ui/ContextMenu.svelte';
-  import { frame, layoutPreview, saveLayoutPreview } from '../../../panel/ui/preferences.svelte';
+  import { frame } from '../../../panel/ui/preferences.svelte';
   import { clipboard } from '../widget-clipboard.svelte';
   import { cloneControl, planInsertion, type WidgetCopy } from '../widget-insert';
   import { moveOptions as buildMoveOptions, type MoveMode } from '../move-options';
@@ -51,7 +51,6 @@
 
   let { active = true }: { active?: boolean } = $props();
 
-  let selection = $state<Selection>(null);
   let scenarioOpen = $state(false);
   let scenarioRequest = $state<{ controlId: string; itemId: string; trigger?: Trigger } | null>(
     null,
@@ -65,49 +64,23 @@
   let moveDialogOpen = $state(false);
   let moveRequest = $state<MoveRequest | null>(null);
 
-  const initialPageId =
-    $runtimeView.activePage || settings.deck.activePage || settings.deck.pages[0].id;
-  const initialSkinId = skins.has(settings.skin) ? settings.skin : 'deck';
-  const initialSkin = skins.get(initialSkinId) ?? skins.get('deck')!;
-  const initialViewId = initialSkin.views.some(
-    (view) => view.id === layoutPreview.views[initialSkinId],
-  )
-    ? layoutPreview.views[initialSkinId]
-    : initialSkin.defaultView;
-
-  let selectedPageId = $state(initialPageId);
-  let selectedSkinId = $state(initialSkinId);
-  let previewViewId = $state(initialViewId);
-  let selectionTarget = $state<LayoutTarget>(
-    defaultTarget(initialSkin, initialPageId, initialViewId),
-  );
-  let previousSkinId = initialSkinId;
-  let previousViewId = initialViewId;
-  let previousActiveSkinId = settings.skin;
-  let previousSelectedPageId = initialPageId;
-  let previousPageOrder = settings.deck.pages.map((entry) => entry.id);
-  /** Bumped whenever pages are added, removed or reordered, so awaited actions can detect a stale page. */
-  let pageGeneration = 0;
-
-  const page = $derived(pageById(settings.deck.pages, selectedPageId)!);
-  const editorSkin = $derived(skins.get(selectedSkinId) ?? skins.get('deck')!);
-  const visibleSlots = $derived(
-    editorSkin.views.find((view) => view.id === previewViewId)?.slots ?? [],
-  );
-  const editorTarget = $derived.by(() => {
-    const valid =
-      selectionTarget.skinId === editorSkin.id &&
-      selectionTarget.pageId === page.id &&
-      editorSkin.slots.some((slot) => slot.id === selectionTarget.slotId) &&
-      visibleSlots.includes(selectionTarget.slotId);
-    if (valid) {
-      return selectionTarget;
-    }
-    return {
-      skinId: editorSkin.id,
-      pageId: page.id,
-      slotId: visibleSlots[0] ?? editorSkin.slots[0]?.id ?? 'main',
-    };
+  const editor = new LayoutEditorState({
+    pagesChanged(ids) {
+      closeCurrentMenu();
+      const request = moveRequest;
+      if (
+        request &&
+        (!ids.includes(request.sourceTarget.pageId) ||
+          !moveOptions.some((option) => option.value === request.destinationKey))
+      ) {
+        closeMoveDialog();
+      }
+    },
+    leave() {
+      closeCurrentMenu();
+      scenarioOpen = false;
+      closeMoveDialog();
+    },
   });
   const moveOptions = $derived(
     moveRequest ? optionsFor(moveRequest.mode, moveRequest.sourceTarget, moveRequest.itemId) : [],
@@ -153,100 +126,6 @@
     return () => cancelAnimationFrame(frameId);
   });
 
-  // Pages were added, removed or reordered.
-  $effect(() => {
-    const ids = settings.deck.pages.map((entry) => entry.id);
-    const changed =
-      ids.length !== previousPageOrder.length ||
-      ids.some((id, index) => id !== previousPageOrder[index]);
-    if (!changed) {
-      return;
-    }
-    const prior = previousPageOrder;
-    previousPageOrder = ids;
-    pageGeneration++;
-    if (!ids.includes(selectedPageId)) {
-      selectedPageId = pageAfterRemoval(settings.deck.pages, selectedPageId, prior) ?? ids[0];
-    }
-    closeCurrentMenu();
-    const request = moveRequest;
-    const requestStale =
-      request &&
-      (!ids.includes(request.sourceTarget.pageId) ||
-        !moveOptions.some((option) => option.value === request.destinationKey));
-    if (requestStale) {
-      closeMoveDialog();
-    }
-  });
-
-  // Another page was selected.
-  $effect(() => {
-    const current = selectedPageId;
-    if (current === previousSelectedPageId) {
-      return;
-    }
-    previousSelectedPageId = current;
-    selection = null;
-    selectionTarget = defaultTarget(editorSkin, page.id, previewViewId);
-    closeCurrentMenu();
-    scenarioOpen = false;
-    closeMoveDialog();
-  });
-
-  // The dashboard switched skins: preview the new one.
-  $effect(() => {
-    const skinId = settings.skin;
-    if (skinId === previousActiveSkinId) {
-      return;
-    }
-    previousActiveSkinId = skinId;
-    const skin = skins.get(skinId);
-    if (!skin) {
-      return;
-    }
-    selectedSkinId = skin.id;
-    const storedView = layoutPreview.views[skin.id];
-    previewViewId = skin.views.some((view) => view.id === storedView)
-      ? storedView
-      : skin.defaultView;
-    selectionTarget = defaultTarget(skin, page.id, previewViewId);
-    clearEditorTransient();
-  });
-
-  // The previewed skin or view changed: remember the view and keep the selection inside it.
-  $effect(() => {
-    const skinId = selectedSkinId;
-    const viewId = previewViewId;
-    if (skinId === previousSkinId && viewId === previousViewId) {
-      return;
-    }
-    previousSkinId = skinId;
-    previousViewId = viewId;
-    const skin = skins.get(skinId);
-    const view = skin?.views.find((entry) => entry.id === viewId);
-    if (!skin || !view) {
-      return;
-    }
-    layoutPreview.views[skinId] = viewId;
-    if (!view.slots.includes(selectionTarget.slotId) || selectionTarget.skinId !== skinId) {
-      selectionTarget = defaultTarget(skin, page.id, viewId);
-    }
-    clearEditorTransient();
-    saveLayoutPreview();
-  });
-
-  // Drop a selection whose placement left the edited slot.
-  $effect(() => {
-    const selectedId = selection && 'item' in selection ? selection.item : undefined;
-    if (!selectedId) {
-      return;
-    }
-    const slot = layoutFor(settings, editorTarget.skinId, editorTarget.pageId, editorTarget.slotId);
-    if (!slot?.items.some((item) => item.id === selectedId)) {
-      selection = null;
-    }
-  });
-
   // Close the context menu once its target is no longer what it was opened for.
   $effect(() => {
     const payload = context;
@@ -254,9 +133,9 @@
       return;
     }
     const stillTargeted =
-      sameTarget(selection, payload.target) &&
-      payload.pageId === page.id &&
-      payload.layoutTarget.skinId === editorSkin.id &&
+      sameTarget(editor.selection, payload.target) &&
+      payload.pageId === editor.page.id &&
+      payload.layoutTarget.skinId === editor.skin.id &&
       targetExists(payload);
     if (!stillTargeted) {
       closeMenu(payload.generation);
@@ -276,13 +155,6 @@
     closeCurrentMenu();
     closeMoveDialog();
   });
-
-  function defaultTarget(skin: SkinDef, pageId: string, viewId: string): LayoutTarget {
-    const view =
-      skin.views.find((entry) => entry.id === viewId) ??
-      skin.views.find((entry) => entry.id === skin.defaultView);
-    return { skinId: skin.id, pageId, slotId: view?.slots[0] ?? skin.slots[0]?.id ?? 'main' };
-  }
 
   function sameTarget(current: Selection, target: Target) {
     if (!current) {
@@ -316,22 +188,8 @@
     );
   }
 
-  function clearEditorTransient() {
-    selection = null;
-    closeCurrentMenu();
-    scenarioOpen = false;
-    closeMoveDialog();
-  }
-
-  function select(next: Selection, target?: LayoutTarget) {
-    selection = next;
-    if (target) {
-      selectionTarget = target;
-    }
-  }
-
   function openDeckSettings() {
-    select(null);
+    editor.select(null);
   }
 
   function openScenario(controlId: string, itemId: string, trigger: Trigger = 'press') {
@@ -358,13 +216,6 @@
 
   // ---- pages ----
 
-  function showPage(pageId: string | undefined) {
-    if (pageId) {
-      selectedPageId = pageId;
-      selection = null;
-    }
-  }
-
   function duplicatePage(pageId: string) {
     if (settings.deck.pages.length >= MAX_PAGES) {
       return;
@@ -374,16 +225,16 @@
       toast.error('Unable to duplicate page');
       return;
     }
-    showPage(copyId);
+    editor.showPage(copyId);
   }
 
   async function deletePage(pageId: string) {
-    const generation = pageGeneration;
+    const generation = editor.pageGeneration;
     if (!(await confirm({ title: 'Delete page?', action: 'Delete', destructive: true }))) {
       return;
     }
-    if (pageGeneration === generation) {
-      showPage(pageCommands.deletePage(pageId));
+    if (editor.pageGeneration === generation) {
+      editor.showPage(pageCommands.deletePage(pageId));
     }
   }
 
@@ -391,7 +242,7 @@
 
   function optionsFor(mode: MoveMode, sourceTarget: LayoutTarget, itemId: string) {
     const skin = skins.get(sourceTarget.skinId);
-    const slots = skin?.views.find((view) => view.id === previewViewId)?.slots ?? [];
+    const slots = skin?.views.find((view) => view.id === editor.viewId)?.slots ?? [];
     return buildMoveOptions(settings, skin, slots, mode, sourceTarget, itemId);
   }
 
@@ -426,21 +277,21 @@
       toast.error(NO_ROOM);
       return;
     }
-    selectedPageId = destination.pageId;
-    selectionTarget = destination;
+    editor.pageId = destination.pageId;
+    editor.selectionTarget = destination;
     closeMoveDialog();
     await tick();
-    select({ item: moved.id }, destination);
+    editor.select({ item: moved.id }, destination);
   }
 
   function moveSourceStillShown(request: MoveRequest) {
     const { skinId, pageId, slotId } = request.sourceTarget;
     const source = layoutFor(settings, skinId, pageId, slotId);
     return (
-      selectedPageId === pageId &&
-      editorSkin.id === skinId &&
+      editor.pageId === pageId &&
+      editor.skin.id === skinId &&
       !!source?.items.some((item) => item.id === request.itemId) &&
-      visibleSlots.includes(slotId)
+      editor.visibleSlots.includes(slotId)
     );
   }
 
@@ -448,19 +299,15 @@
 
   /** Plays the removal animation, then deletes the placement if the editor still shows it. */
   function removeItemFromPage(id: string, target: LayoutTarget) {
-    const pageId = target.pageId;
-    const skinId = editorSkin.id;
-    const viewId = previewViewId;
-    const generation = pageGeneration;
-    const stillShown = () =>
-      page.id === pageId &&
-      editorSkin.id === skinId &&
-      previewViewId === viewId &&
-      pageGeneration === generation &&
-      visibleSlots.includes(target.slotId);
+    const stillShown = editor.watch(target);
     void removeWithDust(target, id, stillShown).then((removed) => {
-      if (removed && selection && 'item' in selection && selection.item === id) {
-        selection = null;
+      if (
+        removed &&
+        editor.selection &&
+        'item' in editor.selection &&
+        editor.selection.item === id
+      ) {
+        editor.selection = null;
       }
     });
   }
@@ -481,10 +328,11 @@
     if (ignored) {
       return;
     }
-    const itemId = selection && 'item' in selection ? selection.item : undefined;
+    const itemId =
+      editor.selection && 'item' in editor.selection ? editor.selection.item : undefined;
     if (itemId) {
       event.preventDefault();
-      removeItemFromPage(itemId, selectionTarget);
+      removeItemFromPage(itemId, editor.selectionTarget);
       return;
     }
     const focusedTab =
@@ -492,7 +340,7 @@
       document.activeElement.matches('[data-page-tab][aria-selected="true"]');
     if (focusedTab && settings.deck.pages.length > 1) {
       event.preventDefault();
-      void deletePage(selectedPageId);
+      void deletePage(editor.pageId);
     }
   }
 
@@ -508,22 +356,12 @@
 
   // ---- paste, duplicate, replace ----
 
-  /** Whether the editor still shows `slot` of `pageId`, so an insertion there is what the user looked at. */
-  function editable(pageId: string, slot: LayoutTarget) {
-    return (
-      pageId === page.id &&
-      pageId === slot.pageId &&
-      editorSkin.id === slot.skinId &&
-      visibleSlots.includes(slot.slotId)
-    );
-  }
-
   function placed(id: string | undefined, slot: LayoutTarget) {
     if (!id) {
       toast.error(NO_ROOM);
       return;
     }
-    select({ item: id }, slot);
+    editor.select({ item: id }, slot);
   }
 
   function insert(
@@ -533,11 +371,11 @@
     slot: LayoutTarget,
     label = 'Paste widget',
   ) {
-    placed(editable(pageId, slot) ? pasteInSlot(slot, copy, target, label) : undefined, slot);
+    placed(editor.shows(pageId, slot) ? pasteInSlot(slot, copy, target, label) : undefined, slot);
   }
 
   async function paste(copy: WidgetCopy, target: Target, pageId: string, slot: LayoutTarget) {
-    if (!editable(pageId, slot) || !planInsertion(settings, copy, target, slot)) {
+    if (!editor.shows(pageId, slot) || !planInsertion(settings, copy, target, slot)) {
       toast.error(NO_ROOM);
       return;
     }
@@ -550,7 +388,7 @@
       return;
     }
     const current = layoutFor(settings, slot.skinId, slot.pageId, slot.slotId);
-    if (page.id !== pageId || !current?.items.some((item) => item.id === id)) {
+    if (editor.page.id !== pageId || !current?.items.some((item) => item.id === id)) {
       return;
     }
     insert(copy, target, pageId, slot, 'Paste over widget');
@@ -575,17 +413,17 @@
     target: Target,
     x: number,
     y: number,
-    layoutTarget: LayoutTarget = editorTarget,
+    layoutTarget: LayoutTarget = editor.target,
   ) {
     const snapshot: Target =
       'item' in target ? { item: target.item } : { cell: { ...target.cell } };
     context = {
-      pageId: page.id,
+      pageId: editor.page.id,
       layoutTarget,
       target: snapshot,
       x,
       y,
-      actions: menuActions(snapshot, page.id, layoutTarget).map((action) => ({ ...action })),
+      actions: menuActions(snapshot, editor.page.id, layoutTarget).map((action) => ({ ...action })),
       generation: ++menuGeneration,
     };
     menuOpen = true;
@@ -608,7 +446,7 @@
         }
       },
     };
-    const edit: MenuAction = { label: 'Edit', run: () => select(target, slot) };
+    const edit: MenuAction = { label: 'Edit', run: () => editor.select(target, slot) };
     if (!item || !control) {
       return 'cell' in target ? [edit, pasteAction] : [];
     }
@@ -651,7 +489,7 @@
       {
         label: 'Duplicate',
         run: () =>
-          placed(editable(pageId, slot) ? duplicateInSlot(slot, item.id) : undefined, slot),
+          placed(editor.shows(pageId, slot) ? duplicateInSlot(slot, item.id) : undefined, slot),
       },
       { label: 'Delete', danger: true, run: () => removeItemFromPage(item.id, slot) },
     );
@@ -677,9 +515,9 @@
   >
     <PageTabs
       pages={settings.deck.pages}
-      bind:selectedPageId
+      bind:selectedPageId={editor.pageId}
       {active}
-      onadd={() => showPage(pageCommands.addPage(page.id))}
+      onadd={() => editor.showPage(pageCommands.addPage(editor.page.id))}
       onreorder={pageCommands.reorderPage}
       onrename={pageCommands.renamePage}
       onduplicate={duplicatePage}
@@ -707,13 +545,13 @@
           class="relative grid h-full min-h-0 w-full min-w-0 place-items-center p-6"
           class:canvas-enter={active && wasInactive}
         >
-          {#key `${page.id}:${editorSkin.id}`}
+          {#key `${editor.page.id}:${editor.skin.id}`}
             <SkinLayoutEditor
-              skin={editorSkin}
-              {page}
-              bind:previewViewId
-              selected={selection}
-              onselect={select}
+              skin={editor.skin}
+              page={editor.page}
+              bind:previewViewId={editor.viewId}
+              selected={editor.selection}
+              onselect={(next, target) => editor.select(next, target)}
               oncontext={openMenu}
             />
           {/key}
@@ -724,12 +562,12 @@
       {active}
       width={inspectorWidth}
     >
-      {#key `${page.id}:${selection && 'item' in selection ? selection.item : 'collection'}`}
+      {#key `${editor.page.id}:${editor.selection && 'item' in editor.selection ? editor.selection.item : 'collection'}`}
         <Inspector
-          {page}
-          {selection}
-          layoutTarget={editorTarget}
-          onselect={select}
+          page={editor.page}
+          selection={editor.selection}
+          layoutTarget={editor.target}
+          onselect={(next, target) => editor.select(next, target)}
           oneditScenario={openScenario}
         />
       {/key}
