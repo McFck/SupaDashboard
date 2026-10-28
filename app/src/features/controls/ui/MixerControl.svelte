@@ -52,11 +52,7 @@
   });
   const vertical = $derived(
     (options.layout === 'auto' || !options.layout
-      ? mixerLayout(
-          pixelWidth,
-          pixelHeight,
-          channels.length,
-        )
+      ? mixerLayout(pixelWidth, pixelHeight, channels.length)
       : options.layout) === 'vertical',
   );
 

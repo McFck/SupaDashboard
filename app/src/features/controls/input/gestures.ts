@@ -1,7 +1,13 @@
 // DOM adapter for tappable controls: pointer, keyboard and assistive clicks feed one press machine, and a pointer
 // press also tracks a directional pull. Pull and tap decisions happen only after cancellation checks.
 import { captureTriggers, PressMachine, type Captures } from './press';
-import { beginPull, updatePull, type PullBindings, type PullSnapshot, type PullState } from './pull';
+import {
+  beginPull,
+  updatePull,
+  type PullBindings,
+  type PullSnapshot,
+  type PullState,
+} from './pull';
 import type { Trigger } from '../../automation/scenario';
 
 type Pointer = {

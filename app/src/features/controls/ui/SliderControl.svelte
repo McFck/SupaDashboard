@@ -4,12 +4,7 @@
   import { toast } from 'svelte-sonner';
   import { pullBindingsFor, type PullSnapshot } from '../input/pull';
   import { sliderOrientation } from '../face-layout';
-  import type {
-    ControlConfig,
-    ControlFaceProps,
-    TilePresentation,
-    Variant,
-  } from '../model';
+  import type { ControlConfig, ControlFaceProps, TilePresentation, Variant } from '../model';
   import { stateIdAt } from '../variants';
   import type { Trigger } from '../../automation/scenario';
   import { onDestroy } from 'svelte';
@@ -56,12 +51,7 @@
       ? `${variant.value.id}:${JSON.stringify(variant.value.args ?? {})}`
       : `${control.id}:unavailable`,
   );
-  const vertical = $derived(
-    !compact &&
-      sliderOrientation(
-pixelWidth, pixelHeight
-      ) === 'vertical',
-  );
+  const vertical = $derived(!compact && sliderOrientation(pixelWidth, pixelHeight) === 'vertical');
   let content = $state<PullContent>();
   let feedback = $state<PressFeedback>();
   /** Level a not-yet-active variant would show; only volume sources can be read without subscribing. */

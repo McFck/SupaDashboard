@@ -46,9 +46,7 @@
   );
   let selectedId = $state('');
   let previewId = $state('');
-  const selectedIndex = $derived(
-    variantIndexForState({ variants }, selectedId) ?? 0,
-  );
+  const selectedIndex = $derived(variantIndexForState({ variants }, selectedId) ?? 0);
   const selected = $derived(variants[selectedIndex]);
   const preview = $derived(
     variants[variantIndexForState({ variants }, previewId || selectedId) ?? -1] ?? selected,

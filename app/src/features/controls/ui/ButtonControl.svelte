@@ -1,12 +1,7 @@
 <script lang="ts">
   import type { Component } from 'svelte';
   import { pullBindingsFor, type PullSnapshot } from '../input/pull';
-  import type {
-    ControlConfig,
-    ControlFaceProps,
-    TilePresentation,
-    Variant,
-  } from '../model';
+  import type { ControlConfig, ControlFaceProps, TilePresentation, Variant } from '../model';
   import { gestures } from '../input/gestures';
   import { stateIdAt } from '../variants';
   import type { Trigger } from '../../automation/scenario';
