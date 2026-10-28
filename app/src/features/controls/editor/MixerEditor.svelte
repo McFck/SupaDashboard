@@ -7,7 +7,7 @@
   import * as ToggleGroup from '$lib/components/ui/toggle-group';
   import { DEFAULT_MIXER_MAX_CHANNELS } from '../model';
   import IconPicker from './IconPicker.svelte';
-  import { mixer } from '../../../plugins/core';
+  import { mixer } from '../../../plugins/core-volume';
   import { controlById } from '../../settings/state.svelte';
   import { commit, labelEdit } from '../../layout/history.svelte';
 

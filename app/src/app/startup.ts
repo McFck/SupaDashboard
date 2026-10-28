@@ -4,7 +4,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { install, installEnabled } from '../features/plugins/registry';
 import { redo, startHistory, undo } from '../features/layout/history.svelte';
-import { loadSettings } from '../features/settings/state.svelte';
+import { loadSettings } from '../features/settings/persistence.svelte';
 import { initVolumeSync } from '../features/media/volume';
 import { followRemovals } from '../features/layout/removal';
 import { corePlugin } from '../plugins/core';

@@ -279,7 +279,7 @@ describe('plugin bookkeeping', () => {
     const registry = await import('./registry');
     const { corePlugin } = await import('../../plugins/core');
     const { settings } = await import('../settings/state.svelte');
-    const { DEFAULTS } = await import('../settings/schema');
+    const { DEFAULTS } = await import('../settings/defaults');
     registry.install(corePlugin);
     registry.install({
       id: 'fixture-provider',

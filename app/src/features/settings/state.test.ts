@@ -19,8 +19,9 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
 
 import { toast } from 'svelte-sonner';
-import { loadSettings, settings } from './state.svelte';
-import { DEFAULTS } from './schema';
+import { settings } from './state.svelte';
+import { loadSettings } from './persistence.svelte';
+import { DEFAULTS } from './defaults';
 
 afterEach(() => {
   Object.assign(settings, structuredClone(DEFAULTS));

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { controlTypes, skins } from '../plugins/registry';
-import { DEFAULTS } from '../settings/schema';
+import { DEFAULTS } from '../settings/defaults';
 import {
   canSetLayoutItems,
   layoutFor,

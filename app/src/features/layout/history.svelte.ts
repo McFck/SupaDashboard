@@ -1,5 +1,6 @@
 import { toast } from 'svelte-sonner';
-import { onRemoteSettings, settings } from '../settings/state.svelte';
+import { settings } from '../settings/state.svelte';
+import { onRemoteSettings } from '../settings/persistence.svelte';
 import type { Deck, Settings } from '../settings/schema';
 
 type Status = { canUndo: boolean; canRedo: boolean; undoLabel: string; redoLabel: string };

@@ -1,0 +1,139 @@
+import type { Item } from '../layout/grid';
+import type { Page, Settings } from './schema';
+import { DEFAULT_PAGE } from './defaults';
+import { isRecord, object, positiveInteger } from './validation';
+
+function normalizeItems(raw: unknown, itemIds: Set<string>): Item[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.flatMap((item: unknown) => {
+    if (
+      !isRecord(item) ||
+      typeof item.control !== 'string' ||
+      !item.control ||
+      typeof item.x !== 'number' ||
+      !Number.isSafeInteger(item.x) ||
+      item.x < 0 ||
+      typeof item.y !== 'number' ||
+      !Number.isSafeInteger(item.y) ||
+      item.y < 0 ||
+      !positiveInteger(item.w) ||
+      !positiveInteger(item.h)
+    ) {
+      return [];
+    }
+    return [
+      {
+        ...item,
+        id: uniqueId(item.id, itemIds, 'item'),
+        control: item.control,
+        x: item.x,
+        y: item.y,
+        w: item.w,
+        h: item.h,
+      },
+    ];
+  });
+}
+
+function uniqueId(value: unknown, used: Set<string>, base: string) {
+  if (typeof value === 'string' && value.trim() && !used.has(value)) {
+    used.add(value);
+    return value;
+  }
+  let index = 1,
+    id = `${base}-${index}`;
+  while (used.has(id)) id = `${base}-${++index}`;
+  used.add(id);
+  return id;
+}
+
+function normalizePage(
+  raw: unknown,
+  index: number,
+  pageIds: Set<string>,
+  itemIds: Set<string>,
+): Page {
+  const source = object(raw);
+  const fallback = DEFAULT_PAGE;
+  const id = uniqueId(source.id, pageIds, 'page');
+  const rows = positiveInteger(source.rows) ? source.rows : fallback.rows;
+  const cols = positiveInteger(source.cols) ? source.cols : fallback.cols;
+  const size =
+    typeof source.size === 'number' && Number.isFinite(source.size) && source.size > 0
+      ? source.size
+      : fallback.size;
+  const gap =
+    typeof source.gap === 'number' && Number.isFinite(source.gap) && source.gap >= 0
+      ? source.gap
+      : fallback.gap;
+  const items = normalizeItems(source.items, itemIds);
+  const name =
+    typeof source.name === 'string' && source.name.trim()
+      ? source.name.trim()
+      : `Page ${index + 1}`;
+  return {
+    id,
+    name,
+    rows,
+    cols,
+    size,
+    gap,
+    sizing: source.sizing === 'manual' ? 'manual' : 'auto',
+    items,
+  };
+}
+
+function normalizeSkinLayouts(raw: unknown, itemIds: Set<string>) {
+  const layouts: Settings['skinLayouts'] = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return layouts;
+  for (const [skinId, rawPages] of Object.entries(raw)) {
+    if (
+      !skinId ||
+      skinId === 'deck' ||
+      !rawPages ||
+      typeof rawPages !== 'object' ||
+      Array.isArray(rawPages)
+    )
+      continue;
+    const pages: Record<string, Record<string, Item[]>> = {};
+    for (const [pageId, rawSlots] of Object.entries(rawPages)) {
+      if (!pageId || !rawSlots || typeof rawSlots !== 'object' || Array.isArray(rawSlots)) continue;
+      const slots: Record<string, Item[]> = {};
+      for (const [slotId, rawItems] of Object.entries(rawSlots)) {
+        if (!slotId || !Array.isArray(rawItems)) continue;
+        slots[slotId] = normalizeItems(rawItems, itemIds);
+      }
+      pages[pageId] = slots;
+    }
+    layouts[skinId] = pages;
+  }
+  return layouts;
+}
+
+export function normalizeLayout(saved: Record<string, unknown>) {
+  const deck = object(saved.deck);
+  if (deck.pages !== undefined && !Array.isArray(deck.pages)) {
+    throw new Error('Deck pages must be an array');
+  }
+  const rawPages: unknown[] =
+    (saved.version === 5 || saved.version === 6) && Array.isArray(deck.pages)
+      ? deck.pages
+      : [{ ...structuredClone(DEFAULT_PAGE), ...deck, id: 'page-1', name: 'Page 1' }];
+  const pages: Page[] = [];
+  const pageIds = new Set<string>(),
+    itemIds = new Set<string>();
+  for (const [index, raw] of rawPages.entries())
+    pages.push(normalizePage(raw, index, pageIds, itemIds));
+  if (!pages.length) pages.push(structuredClone(DEFAULT_PAGE));
+
+  // Item IDs share one namespace with page IDs and every skin placement.
+  itemIds.clear();
+  for (const id of pageIds) itemIds.add(id);
+  for (const page of pages)
+    for (const item of page.items) item.id = uniqueId(item.id, itemIds, 'item');
+  const skinLayouts = normalizeSkinLayouts(saved.skinLayouts, itemIds);
+  const activePage = pages.find((page) => page.id === deck.activePage)?.id ?? pages[0].id;
+  return { deck: { pages, activePage }, skinLayouts, pageIds, itemIds };
+}

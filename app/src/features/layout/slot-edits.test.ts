@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { controlTypes } from '../plugins/registry';
 import { settings } from '../settings/state.svelte';
-import { DEFAULTS } from '../settings/schema';
+import { DEFAULTS } from '../settings/defaults';
 import type { ControlConfig } from '../controls/model';
 import { deletePage } from './page-commands';
 import { hasPlacement } from './placements';

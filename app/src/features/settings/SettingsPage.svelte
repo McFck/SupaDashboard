@@ -10,7 +10,7 @@
   import { monitors } from '../../platform/window';
   import { skins } from '../plugins/registry';
   import { settings } from './state.svelte';
-  import { DEFAULTS } from './schema';
+  import { DEFAULTS } from './defaults';
   import { commit } from '../layout/history.svelte';
   import Choice from '../plugins/ui/Choice.svelte';
   import Row from '../../panel/ui/Row.svelte';

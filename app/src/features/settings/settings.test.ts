@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { serializeSettings } from './state.svelte';
-import { DEFAULTS } from './schema';
-import { migrate } from './migrate';
+import { DEFAULTS } from './defaults';
+import { migrate } from './normalize';
 
 describe('settings migration', () => {
   it.each([
