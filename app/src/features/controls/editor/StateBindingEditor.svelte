@@ -7,7 +7,7 @@
   import type { Variant } from '../model';
   import type { Scalar, StateBinding } from '../../automation/scenario';
   import { runtimeView } from '../../../app/runtime/state';
-  import type { VariableType } from '../../automation/variables';
+  import { parseVariableText, type VariableType } from '../../automation/variables';
   import Choice from '../../plugins/ui/Choice.svelte';
 
   let {
@@ -97,16 +97,11 @@
         : typeof binding.cases[index]?.value === 'number'
           ? 'float'
           : 'string');
-    const value: Scalar =
-      type === 'boolean'
-        ? raw === 'true'
-        : type === 'integer'
-          ? Number.parseInt(raw, 10)
-          : type === 'float'
-            ? Number(raw)
-            : raw;
-    if (typeof value === 'number' && !Number.isFinite(value)) return;
-    updateCase(index, { value });
+    try {
+      updateCase(index, { value: parseVariableText(type, raw) });
+    } catch {
+      // Keep incomplete numeric input local until it is a valid scalar.
+    }
   }
   function stateOptions(stateId: string) {
     return [
@@ -143,7 +138,7 @@
           onclick={addCase}><Plus /> Add mapping</Button
         >
       </div>
-      {#each binding.cases as item, index (`${typeof item.value}:${String(item.value)}:${index}`)}
+      {#each binding.cases as item, index (index)}
         <div
           class="grid min-w-0 gap-2 rounded-lg border bg-card p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
         >
