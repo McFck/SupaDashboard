@@ -37,13 +37,17 @@ export function registerCoreControls(api: PluginApi) {
       args: Record<string, unknown>,
       context?: import('../features/plugins/contracts').ActionContext,
     ) => {
-      if (!context) throw new Error('Button state runtime is unavailable');
+      if (!context) {
+        throw new Error('Button state runtime is unavailable');
+      }
       const target = String(args.target ?? 'self');
       const controlId = target === 'self' ? context.controlId : target;
       const stateId = settings.controls.find((control) => control.id === controlId)?.stateRoles?.[
         role
       ];
-      if (!stateId) throw new Error(`This control has no ${role} state`);
+      if (!stateId) {
+        throw new Error(`This control has no ${role} state`);
+      }
       await context.setVariant(target, stateId);
     };
   api.registerAction({
@@ -51,7 +55,9 @@ export function registerCoreControls(api: PluginApi) {
     title: 'Change button state',
     params: [controlParam, stateParam],
     run: async (args, context) => {
-      if (!context) throw new Error('Button state runtime is unavailable');
+      if (!context) {
+        throw new Error('Button state runtime is unavailable');
+      }
       await context.setVariant(String(args.target ?? 'self'), String(args.variant ?? 'next'));
     },
   });
@@ -72,11 +78,15 @@ export function registerCoreControls(api: PluginApi) {
     title: 'Toggle button Off / On',
     params: [controlParam],
     run: async (args, context) => {
-      if (!context) throw new Error('Button state runtime is unavailable');
+      if (!context) {
+        throw new Error('Button state runtime is unavailable');
+      }
       const target = String(args.target ?? 'self'),
         id = target === 'self' ? context.controlId : target;
       const roles = settings.controls.find((control) => control.id === id)?.stateRoles;
-      if (!roles) throw new Error('This control has no Off / On states');
+      if (!roles) {
+        throw new Error('This control has no Off / On states');
+      }
       const current = context.getVariant(target);
       await context.setVariant(target, current === roles.on ? roles.off : roles.on);
     },

@@ -6,7 +6,7 @@ export function registerUiContentActions(api: PluginApi) {
   for (const [id, title, command] of [
     ['media.nextSlide', 'Next slide', 'next'],
     ['media.prevSlide', 'Previous slide', 'prev'],
-  ] as const)
+  ] as const) {
     api.registerAction({
       id,
       title,
@@ -20,7 +20,9 @@ export function registerUiContentActions(api: PluginApi) {
         },
       ],
       run: (args, context) => {
-        if (!context || context.signal.aborted) return;
+        if (!context || context.signal.aborted) {
+          return;
+        }
         return currentRuntime()?.contentCommand(
           typeof args.target === 'string' && args.target !== 'self'
             ? args.target
@@ -29,6 +31,7 @@ export function registerUiContentActions(api: PluginApi) {
         );
       },
     });
+  }
   api.registerAction({
     id: 'web.reload',
     title: 'Reload web page',
@@ -42,11 +45,11 @@ export function registerUiContentActions(api: PluginApi) {
       },
     ],
     run: (args, context) => {
-      if (!context || context.signal.aborted) return;
+      if (!context || context.signal.aborted) {
+        return;
+      }
       return currentRuntime()?.contentCommand(
-        typeof args.target === 'string' && args.target !== 'self'
-          ? args.target
-          : context.controlId,
+        typeof args.target === 'string' && args.target !== 'self' ? args.target : context.controlId,
         'reload',
       );
     },

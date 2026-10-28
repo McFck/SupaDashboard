@@ -69,7 +69,9 @@ export async function loadSettings() {
     ) {
       return;
     }
-    for (const listener of remoteSettingsListeners) listener(next);
+    for (const listener of remoteSettingsListeners) {
+      listener(next);
+    }
     assign(next, settings.deck.activePage);
     persistence.saved = json;
   };
@@ -87,12 +89,16 @@ export async function loadSettings() {
         return;
       }
     }
-    if (!applyInitial(raw, rawJson ?? undefined)) return;
+    if (!applyInitial(raw, rawJson ?? undefined)) {
+      return;
+    }
     persistence = new SettingsPersistence(async (json) => {
       localStorage.setItem(browserKey, json);
     }, initial);
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== browserKey || !event.newValue) return;
+      if (event.key !== browserKey || !event.newValue) {
+        return;
+      }
       try {
         applyRemote(JSON.parse(event.newValue));
       } catch {
@@ -113,7 +119,9 @@ export async function loadSettings() {
     loadFailed();
     return;
   }
-  if (!applyInitial(raw, raw === undefined ? undefined : JSON.stringify(raw))) return;
+  if (!applyInitial(raw, raw === undefined ? undefined : JSON.stringify(raw))) {
+    return;
+  }
   persistence = new SettingsPersistence(async (json) => {
     writingJson = json;
     try {
@@ -125,7 +133,9 @@ export async function loadSettings() {
   }, initial);
   // Another window (dashboard <-> control panel) changed something: take it over.
   await store.onKeyChange('settings', (value) => {
-    if (!value) return;
+    if (!value) {
+      return;
+    }
     try {
       applyRemote(value);
     } catch {

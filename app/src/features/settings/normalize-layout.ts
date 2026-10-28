@@ -44,7 +44,9 @@ function uniqueId(value: unknown, used: Set<string>, base: string) {
   }
   let index = 1,
     id = `${base}-${index}`;
-  while (used.has(id)) id = `${base}-${++index}`;
+  while (used.has(id)) {
+    id = `${base}-${++index}`;
+  }
   used.add(id);
   return id;
 }
@@ -87,7 +89,9 @@ function normalizePage(
 
 function normalizeSkinLayouts(raw: unknown, itemIds: Set<string>) {
   const layouts: Settings['skinLayouts'] = {};
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return layouts;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return layouts;
+  }
   for (const [skinId, rawPages] of Object.entries(raw)) {
     if (
       !skinId ||
@@ -95,14 +99,19 @@ function normalizeSkinLayouts(raw: unknown, itemIds: Set<string>) {
       !rawPages ||
       typeof rawPages !== 'object' ||
       Array.isArray(rawPages)
-    )
+    ) {
       continue;
+    }
     const pages: Record<string, Record<string, Item[]>> = {};
     for (const [pageId, rawSlots] of Object.entries(rawPages)) {
-      if (!pageId || !rawSlots || typeof rawSlots !== 'object' || Array.isArray(rawSlots)) continue;
+      if (!pageId || !rawSlots || typeof rawSlots !== 'object' || Array.isArray(rawSlots)) {
+        continue;
+      }
       const slots: Record<string, Item[]> = {};
       for (const [slotId, rawItems] of Object.entries(rawSlots)) {
-        if (!slotId || !Array.isArray(rawItems)) continue;
+        if (!slotId || !Array.isArray(rawItems)) {
+          continue;
+        }
         slots[slotId] = normalizeItems(rawItems, itemIds);
       }
       pages[pageId] = slots;
@@ -124,15 +133,23 @@ export function normalizeLayout(saved: Record<string, unknown>) {
   const pages: Page[] = [];
   const pageIds = new Set<string>(),
     itemIds = new Set<string>();
-  for (const [index, raw] of rawPages.entries())
+  for (const [index, raw] of rawPages.entries()) {
     pages.push(normalizePage(raw, index, pageIds, itemIds));
-  if (!pages.length) pages.push(structuredClone(DEFAULT_PAGE));
+  }
+  if (!pages.length) {
+    pages.push(structuredClone(DEFAULT_PAGE));
+  }
 
   // Item IDs share one namespace with page IDs and every skin placement.
   itemIds.clear();
-  for (const id of pageIds) itemIds.add(id);
-  for (const page of pages)
-    for (const item of page.items) item.id = uniqueId(item.id, itemIds, 'item');
+  for (const id of pageIds) {
+    itemIds.add(id);
+  }
+  for (const page of pages) {
+    for (const item of page.items) {
+      item.id = uniqueId(item.id, itemIds, 'item');
+    }
+  }
   const skinLayouts = normalizeSkinLayouts(saved.skinLayouts, itemIds);
   const activePage = pages.find((page) => page.id === deck.activePage)?.id ?? pages[0].id;
   return { deck: { pages, activePage }, skinLayouts, pageIds, itemIds };

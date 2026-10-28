@@ -20,8 +20,12 @@ export function registerCoreUtilities(api: PluginApi) {
     title: 'Run several actions (macro)',
     params: [{ key: 'steps', label: 'Steps', type: 'actions', default: [] }],
     run: async (a, context) => {
-      if (!context) throw new Error('Action sequence runtime is unavailable');
-      if (context.signal.aborted) return;
+      if (!context) {
+        throw new Error('Action sequence runtime is unavailable');
+      }
+      if (context.signal.aborted) {
+        return;
+      }
       await context.runSteps(
         ((a.steps as ActionRef[]) ?? []).map((action, index) => ({
           id: `sequence-${index + 1}`,
@@ -43,6 +47,7 @@ export function registerCoreAppIcons(api: PluginApi) {
     ['vlc', 'Clapperboard'],
     ['teams', 'Users'],
     ['zoom', 'Video'],
-  ] as const)
+  ] as const) {
     api.registerAppIcon(app, icon);
+  }
 }

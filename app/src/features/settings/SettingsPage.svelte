@@ -47,7 +47,9 @@
       invoke<unknown[]>('monitor_names'),
       primaryMonitor(),
     ]);
-    if (!alive || generation !== refreshGeneration) return;
+    if (!alive || generation !== refreshGeneration) {
+      return;
+    }
     screens = monitorResult.status === 'fulfilled' ? monitorResult.value : [];
     nativeNames =
       nativeResult.status === 'fulfilled' && Array.isArray(nativeResult.value)
@@ -66,15 +68,19 @@
   });
 
   async function reset() {
-    if (resetting) return;
+    if (resetting) {
+      return;
+    }
     resetting = true;
     try {
-      if (!(await confirm({ title: 'Reset everything?', action: 'Reset', destructive: true })))
+      if (!(await confirm({ title: 'Reset everything?', action: 'Reset', destructive: true }))) {
         return;
+      }
       commit('Reset everything');
       Object.assign(settings, structuredClone(DEFAULTS));
-      for (const skin of skins.values())
+      for (const skin of skins.values()) {
         updateSkinConfig(skin.id, settings.skinSettings[skin.id] ?? {});
+      }
     } finally {
       resetting = false;
     }

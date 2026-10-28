@@ -19,6 +19,8 @@ export const newId = (prefix: string, taken: string[]) => {
       .replace(/^-|-$/g, '') || 'item';
   let id = base,
     n = 2;
-  while (taken.includes(id)) id = `${base}-${n++}`;
+  while (taken.includes(id)) {
+    id = `${base}-${n++}`;
+  }
   return id;
 };

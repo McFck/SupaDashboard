@@ -24,17 +24,22 @@ export function registerCoreAutomation(api: PluginApi) {
   };
   const variable = (id: unknown) => {
     const record = api.listVariables().find((entry) => entry.definition.id === id);
-    if (!record) throw new Error('Variable is unavailable');
+    if (!record) {
+      throw new Error('Variable is unavailable');
+    }
     return record;
   };
   api.registerAction({
     id: 'page.next',
     title: 'Next page',
     run: (_args, context) => {
-      if (!context || context.signal.aborted)
+      if (!context || context.signal.aborted) {
         throw new Error('Page navigation runtime is unavailable');
+      }
       const runtime = currentRuntime();
-      if (!runtime?.isOwner) throw new Error('Page navigation runtime is unavailable');
+      if (!runtime?.isOwner) {
+        throw new Error('Page navigation runtime is unavailable');
+      }
       runtime.changePageInDirection('next', 'action', context.eventAncestry);
     },
   });
@@ -42,10 +47,13 @@ export function registerCoreAutomation(api: PluginApi) {
     id: 'page.prev',
     title: 'Previous page',
     run: (_args, context) => {
-      if (!context || context.signal.aborted)
+      if (!context || context.signal.aborted) {
         throw new Error('Page navigation runtime is unavailable');
+      }
       const runtime = currentRuntime();
-      if (!runtime?.isOwner) throw new Error('Page navigation runtime is unavailable');
+      if (!runtime?.isOwner) {
+        throw new Error('Page navigation runtime is unavailable');
+      }
       runtime.changePageInDirection('prev', 'action', context.eventAncestry);
     },
   });
@@ -54,13 +62,17 @@ export function registerCoreAutomation(api: PluginApi) {
     title: 'Go to page',
     params: [pageParam],
     run: (args, context) => {
-      if (!context || context.signal.aborted)
+      if (!context || context.signal.aborted) {
         throw new Error('Page navigation runtime is unavailable');
+      }
       const pageId = args.page;
-      if (typeof pageId !== 'string' || !settings.deck.pages.some((page) => page.id === pageId))
+      if (typeof pageId !== 'string' || !settings.deck.pages.some((page) => page.id === pageId)) {
         throw new Error('Page is unavailable');
+      }
       const runtime = currentRuntime();
-      if (!runtime?.isOwner) throw new Error('Page navigation runtime is unavailable');
+      if (!runtime?.isOwner) {
+        throw new Error('Page navigation runtime is unavailable');
+      }
       runtime.changePage(pageId, 'action', context.eventAncestry);
     },
   });
@@ -70,7 +82,9 @@ export function registerCoreAutomation(api: PluginApi) {
     params: [variableParam, { key: 'value', label: 'Value', type: 'text', default: '' }],
     bindableVariable: (args) => String(args.variable ?? '') || undefined,
     run: async (args, context) => {
-      if (!context) throw new Error('Variable runtime is unavailable');
+      if (!context) {
+        throw new Error('Variable runtime is unavailable');
+      }
       const record = variable(args.variable);
       await context.setVariable(
         record.definition.id,
@@ -84,10 +98,13 @@ export function registerCoreAutomation(api: PluginApi) {
     params: [variableParam],
     bindableVariable: (args) => String(args.variable ?? '') || undefined,
     run: async (args, context) => {
-      if (!context) throw new Error('Variable runtime is unavailable');
+      if (!context) {
+        throw new Error('Variable runtime is unavailable');
+      }
       const record = variable(args.variable);
-      if (record.definition.type !== 'boolean')
+      if (record.definition.type !== 'boolean') {
         throw new Error('Toggle requires a Boolean variable');
+      }
       await context.setVariable(record.definition.id, !record.value);
     },
   });
@@ -97,17 +114,21 @@ export function registerCoreAutomation(api: PluginApi) {
     params: [variableParam, { key: 'by', label: 'By', type: 'number', default: 1 }],
     bindableVariable: (args) => String(args.variable ?? '') || undefined,
     run: async (args, context) => {
-      if (!context) throw new Error('Variable runtime is unavailable');
+      if (!context) {
+        throw new Error('Variable runtime is unavailable');
+      }
       const record = variable(args.variable),
         by = Number(args.by ?? 1);
       if (
         (record.definition.type !== 'integer' && record.definition.type !== 'float') ||
         !Number.isFinite(by)
-      )
+      ) {
         throw new Error('Increment requires a numeric variable and finite value');
+      }
       const next = Number(record.value) + by;
-      if (record.definition.type === 'integer' && !Number.isSafeInteger(next))
+      if (record.definition.type === 'integer' && !Number.isSafeInteger(next)) {
         throw new Error('Integer is outside the safe range');
+      }
       await context.setVariable(record.definition.id, next);
     },
   });
@@ -119,7 +140,9 @@ export function registerCoreAutomation(api: PluginApi) {
       { key: 'parameter', label: 'Parameter', type: 'text', default: '' },
     ],
     run: async (args, context) => {
-      if (!context) throw new Error('Event runtime is unavailable');
+      if (!context) {
+        throw new Error('Event runtime is unavailable');
+      }
       const id = String(args.eventId ?? '');
       await context.emitEvent(id, String(args.parameter ?? '') || undefined);
     },
@@ -128,6 +151,7 @@ export function registerCoreAutomation(api: PluginApi) {
     ['clock.time', 'clock.time', 'string', ''],
     ['clock.date', 'clock.date', 'string', ''],
     ['clock.day', 'clock.day', 'string', ''],
-  ] as const)
+  ] as const) {
     api.registerVariable({ id, name, type, initialValue, persistent: false, readOnly: true });
+  }
 }

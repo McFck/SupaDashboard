@@ -19,7 +19,9 @@ let liveChannels: Channel[] = [];
 const stopVolumeTargets = volumeChannels.subscribe((list) => {
   liveChannels = list.filter((c) => c.target !== 'system');
 });
-if (import.meta.hot) import.meta.hot.dispose(stopVolumeTargets);
+if (import.meta.hot) {
+  import.meta.hot.dispose(stopVolumeTargets);
+}
 export const mixer = async () => {
   await initVolumeSync();
   return get(volumeChannels);
@@ -31,41 +33,58 @@ function usedTargets() {
   );
   const out: unknown[] = [];
   for (const c of settings.controls) {
-    if (!placed.has(c.id)) continue;
+    if (!placed.has(c.id)) {
+      continue;
+    }
     const refs: unknown[] = [
       ...c.variants.flatMap((v) => [v.value, v.action]),
       ...Object.values(c.gestures ?? {}),
     ];
     const visit = (steps: unknown) => {
-      if (!Array.isArray(steps)) return;
+      if (!Array.isArray(steps)) {
+        return;
+      }
       for (const step of steps) {
         if (step && typeof step === 'object' && 'kind' in step) {
           const row = step as { kind?: string; action?: unknown; then?: unknown; else?: unknown };
-          if (row.kind === 'action') refs.push(row.action);
-          else if (row.kind === 'if') {
+          if (row.kind === 'action') {
+            refs.push(row.action);
+          } else if (row.kind === 'if') {
             visit(row.then);
             visit(row.else);
           }
-        } else refs.push(step);
+        } else {
+          refs.push(step);
+        }
       }
     };
-    for (const list of Object.values(c.scenario?.triggers ?? {}))
+    for (const list of Object.values(c.scenario?.triggers ?? {})) {
       if (list) {
         visit(list.steps);
-        for (const steps of Object.values(list.byState ?? {})) visit(steps);
+        for (const steps of Object.values(list.byState ?? {})) {
+          visit(steps);
+        }
       }
+    }
     for (const listener of c.scenario?.events ?? []) {
       visit(listener.list.steps);
-      for (const steps of Object.values(listener.list.byState ?? {})) visit(steps);
+      for (const steps of Object.values(listener.list.byState ?? {})) {
+        visit(steps);
+      }
     }
     // Only volume refs name an audio app; other actions use `target` for controls (e.g. 'self').
     for (const ref of refs) {
       const r = ref as { id?: string; args?: Record<string, unknown> } | null;
-      if (r && typeof r === 'object' && (r.id === 'volume' || r.id?.startsWith('volume.')))
+      if (r && typeof r === 'object' && (r.id === 'volume' || r.id?.startsWith('volume.'))) {
         out.push(r.args?.target);
+      }
     }
     const channels = c.options?.channels;
-    if (Array.isArray(channels)) for (const ch of channels) out.push(ch?.target);
+    if (Array.isArray(channels)) {
+      for (const ch of channels) {
+        out.push(ch?.target);
+      }
+    }
   }
   return out.filter((t): t is string => typeof t === 'string' && t !== '' && t !== 'system');
 }
@@ -96,7 +115,9 @@ export function registerCoreVolume(api: PluginApi) {
     run: async (a) => {
       const t = (a.target as string) || 'system';
       const now = await readVolume(t);
-      if (now != null) await setVolume(t, now + Number(a.by ?? 0.05));
+      if (now != null) {
+        await setVolume(t, now + Number(a.by ?? 0.05));
+      }
     },
   });
   api.registerAction({
@@ -106,7 +127,9 @@ export function registerCoreVolume(api: PluginApi) {
     run: async (a) => {
       const t = (a.target as string) || 'system';
       const channel = findVolumeChannel(await mixer(), t);
-      if (channel) await setMuted(t, !channel.muted);
+      if (channel) {
+        await setMuted(t, !channel.muted);
+      }
     },
   });
 }

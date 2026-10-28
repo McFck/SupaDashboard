@@ -57,7 +57,7 @@ export function migrate(input: unknown): Settings {
       Object.values(skin).flatMap((page) => Object.values(page)),
     ),
   ];
-  for (const items of placementLists)
+  for (const items of placementLists) {
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
       if (!seen.has(item.control)) {
@@ -65,10 +65,14 @@ export function migrate(input: unknown): Settings {
         continue;
       }
       const source = controls.find((c: ControlConfig) => c.id === item.control);
-      if (!source) continue;
+      if (!source) {
+        continue;
+      }
       let id = `${source.id}-2`,
         suffix = 3;
-      while (globalIds.has(id)) id = `${source.id}-${suffix++}`;
+      while (globalIds.has(id)) {
+        id = `${source.id}-${suffix++}`;
+      }
       globalIds.add(id);
       controls.push({ ...structuredClone(source), id });
       if (Object.hasOwn(variants, source.id)) {
@@ -76,6 +80,7 @@ export function migrate(input: unknown): Settings {
       }
       items[index] = { ...item, control: id };
     }
+  }
 
   const display = object(saved.display);
   const background = object(display.background);
