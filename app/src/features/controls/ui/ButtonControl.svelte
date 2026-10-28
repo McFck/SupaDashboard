@@ -8,20 +8,14 @@
     Variant,
   } from '../model';
   import { gestures } from '../input/gestures';
-  import { effectiveVariant } from '../control-state';
   import { stateIdAt } from '../variants';
-  import { runtimeView } from '../../../app/runtime/state';
-  import { runtimeVariables } from '../../automation/runtime-variables.svelte';
-  import type { TriggerPacket } from '../../automation/scenario-runner';
-  import { settings } from '../../settings/state.svelte';
+  import type { Trigger } from '../../automation/scenario';
+  import { ControlTile } from './control-tile.svelte';
   import ButtonFace from './ButtonFace.svelte';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import StateView from './StateView.svelte';
   import { buttonLabelVisible } from '../face-layout';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
-
-  const { captureRuntimeTrigger, dispatchRuntimePacket } = getRuntimeCommands();
 
   let {
     control,
@@ -47,20 +41,13 @@
     height = $state(0);
   let content = $state<PullContent>();
   let feedback = $state<PressFeedback>();
-  const manualIndex = $derived(settings.variants[control.id] ?? 0);
-  const effective = $derived(effectiveVariant(control, runtimeVariables, manualIndex));
-  const current = $derived(effective.index);
-  const variant = $derived(control.variants[current] ?? control.variants[0]);
+  const tile = new ControlTile({ control: () => control, itemId: () => itemId });
+  const current = $derived(tile.current);
   const resolvedPresentation = $derived(
-    presentation ?? { key: `state:${effective.stateId}`, view: effective.view },
+    presentation ?? { key: `state:${tile.effective.stateId}`, view: tile.effective.view },
   );
-  const accent = $derived(resolvedPresentation.view.color ?? variant.color ?? '#67c9eb');
-  const busy = $derived(($runtimeView.busy[control.id] ?? 0) > 0);
-  const faceLabelHidden = $derived(
-    !buttonLabelVisible(
-width || pixelWidth, height || pixelHeight
-    ),
-  );
+  const accent = $derived(resolvedPresentation.view.color ?? tile.variant.color ?? '#67c9eb');
+  const faceLabelHidden = $derived(!buttonLabelVisible(width || pixelWidth, height || pixelHeight));
   const Face = $derived(face ?? ButtonFace);
   function presentationFor(view: Variant): TilePresentation {
     const index = control.variants.indexOf(view);
@@ -69,19 +56,8 @@ width || pixelWidth, height || pixelHeight
       ? resolvedPresentation
       : { key: `state:${stateIdAt(control, index)}`, view };
   }
-  function onTrigger(
-    trigger: import('../../automation/scenario').Trigger,
-    captured?: unknown,
-    snapshot?: PullSnapshot,
-  ) {
-    const packet = captured as TriggerPacket | undefined;
-    if (snapshot) {
-      void content?.release(snapshot, () => {
-        void dispatchRuntimePacket(packet);
-      });
-      return;
-    }
-    void dispatchRuntimePacket(packet);
+  function onTrigger(_trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) {
+    tile.run(captured, snapshot, content);
   }
 </script>
 
@@ -92,8 +68,7 @@ width || pixelWidth, height || pixelHeight
   bind:clientHeight={height}
   use:gestures={{
     onTrigger,
-    captureTrigger: (trigger, interactionId) =>
-      captureRuntimeTrigger(control.id, itemId ?? '', trigger, interactionId),
+    captureTrigger: tile.capture,
     enabled: !pressFeedbackDisabled,
     pullBindings: () => pullBindingsFor(control, current),
     onStart: () => content?.beginPull(),
@@ -106,7 +81,7 @@ width || pixelWidth, height || pixelHeight
     onCancel: (p) => content?.cancelPull(p),
     feedback,
   }}
-  aria-label={(resolvedPresentation.view.label ?? variant.label) || undefined}
+  aria-label={(resolvedPresentation.view.label ?? tile.variant.label) || undefined}
   style:--accent={accent}
   class="relative h-full w-full min-h-0 min-w-0 select-none touch-none overflow-hidden outline-none"
 >
@@ -136,7 +111,7 @@ width || pixelWidth, height || pixelHeight
                   presentation={presentationFor(v)}
                   stateId={stateIdAt(control, index)}
                   stateIndex={index}
-                  {busy}
+                  busy={tile.busy}
                   {pull}
                   {compact}
                   {pixelWidth}

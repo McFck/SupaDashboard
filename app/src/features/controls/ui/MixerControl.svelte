@@ -6,9 +6,9 @@
   import { DEFAULT_MIXER_MAX_CHANNELS, type ControlConfig } from '../model';
   import { findVolumeChannel, setMuted, setVolume, volumeChannels } from '../../media/volume';
   import { appIcons } from '../../plugins/registry';
-  import { settings } from '../../settings/state.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
+  import { ControlTile } from './control-tile.svelte';
 
   type Fixed = { target: string; label?: string; icon?: string };
   let {
@@ -30,10 +30,8 @@
       layout?: 'auto' | 'vertical' | 'horizontal';
     },
   );
-  const variant = $derived(
-    control.variants[settings.variants[control.id] ?? 0] ?? control.variants[0],
-  );
-  const accent = $derived(variant?.color ?? '#b5a0e8');
+  const tile = new ControlTile({ control: () => control });
+  const accent = $derived(tile.variant?.color ?? '#b5a0e8');
 
   const title = (t: string) => (t === 'system' ? 'System' : t.charAt(0).toUpperCase() + t.slice(1));
   const channels = $derived.by(() => {

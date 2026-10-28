@@ -1,18 +1,12 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { effectiveVariant } from '../control-state';
   import { pullBindingsFor, type PullSnapshot } from '../input/pull';
   import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { ControlConfig } from '../model';
   import { gestures } from '../input/gestures';
-  import { runtimeVariables } from '../../automation/runtime-variables.svelte';
-  import type { TriggerPacket } from '../../automation/scenario-runner';
   import type { Trigger } from '../../automation/scenario';
-  import { settings } from '../../settings/state.svelte';
   import PressFeedback from './PressFeedback.svelte';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
-
-  const { captureRuntimeTrigger, dispatchRuntimePacket } = getRuntimeCommands();
+  import { ControlTile } from './control-tile.svelte';
 
   let {
     control,
@@ -38,9 +32,8 @@
   let face = $state<HTMLElement>();
   let feedback = $state<PressFeedback>();
   let animation: Animation | undefined;
-  const current = $derived(
-    effectiveVariant(control, runtimeVariables, settings.variants[control.id] ?? 0).index,
-  );
+  const tile = new ControlTile({ control: () => control, itemId: () => itemId });
+
   const translate = $derived(
     pull && !settling
       ? `translate3d(${pull.axis === 'x' ? pull.offset : 0}px, ${pull.axis === 'y' ? pull.offset : 0}px, 0)`
@@ -81,9 +74,9 @@
       })
       .catch(() => {});
   }
-  function trigger(_trigger: Trigger, captured?: unknown) {
-    onCommitted?.(_trigger);
-    void dispatchRuntimePacket(captured as TriggerPacket | undefined);
+  function trigger(committed: Trigger, captured?: unknown) {
+    onCommitted?.(committed);
+    tile.run(captured);
   }
   onDestroy(() => {
     animation?.cancel();
@@ -118,10 +111,9 @@
           disabled={pressFeedbackDisabled}
           use:gestures={{
             onTrigger: trigger,
-            captureTrigger: (event, interactionId) =>
-              captureRuntimeTrigger(control.id, itemId ?? '', event, interactionId),
+            captureTrigger: tile.capture,
             enabled: !pressFeedbackDisabled,
-            pullBindings: () => pullBindingsFor(control, current),
+            pullBindings: () => pullBindingsFor(control, tile.current),
             onPull: (value) => {
               if (!settling) pull = value;
             },

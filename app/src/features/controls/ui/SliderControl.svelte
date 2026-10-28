@@ -10,22 +10,15 @@
     TilePresentation,
     Variant,
   } from '../model';
-  import { effectiveVariant } from '../control-state';
   import { stateIdAt } from '../variants';
-  import { runtimeView } from '../../../app/runtime/state';
-  import { runtimeVariables } from '../../automation/runtime-variables.svelte';
   import type { Trigger } from '../../automation/scenario';
-  import type { TriggerPacket } from '../../automation/scenario-runner';
   import { onDestroy } from 'svelte';
   import { value as valueOf } from '../../plugins/registry';
-  import { settings } from '../../settings/state.svelte';
   import { findVolumeChannel, setVolume, volumeChannels } from '../../media/volume';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
-  import { getRuntimeCommands } from '../../../app/runtime/context';
-
-  const { captureRuntimeTrigger, dispatchRuntimePacket } = getRuntimeCommands();
+  import { ControlTile } from './control-tile.svelte';
 
   let {
     control,
@@ -46,10 +39,9 @@
     pressFeedbackDisabled?: boolean;
     itemId?: string;
   } = $props();
-  const manualIndex = $derived(settings.variants[control.id] ?? 0);
-  const effective = $derived(effectiveVariant(control, runtimeVariables, manualIndex));
-  const current = $derived(effective.index);
-  const variant = $derived(control.variants[current] ?? control.variants[0]);
+  const tile = new ControlTile({ control: () => control, itemId: () => itemId });
+  const current = $derived(tile.current);
+  const variant = $derived(tile.variant);
   const volumeTarget = $derived(
     variant.value?.id === 'volume' ? String(variant.value.args?.target ?? 'system') : null,
   );
@@ -156,15 +148,8 @@ pixelWidth, pixelHeight
       dragging = false;
     })();
   }
-  function onTrigger(trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) {
-    const packet = captured as TriggerPacket | undefined;
-    if (snapshot) {
-      void content?.release(snapshot, () => {
-        void dispatchRuntimePacket(packet);
-      });
-      return;
-    }
-    void dispatchRuntimePacket(packet);
+  function onTrigger(_trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) {
+    tile.run(captured, snapshot, content);
   }
 </script>
 
@@ -207,7 +192,7 @@ pixelWidth, pixelHeight
                 {compact}
                 stateId={stateIdAt(control, stateIndex)}
                 {stateIndex}
-                busy={($runtimeView.busy[control.id] ?? 0) > 0}
+                busy={tile.busy}
                 {pull}
                 {pixelWidth}
                 {pixelHeight}
@@ -222,8 +207,7 @@ pixelWidth, pixelHeight
                   if (p && !armed) void content?.release(p);
                 }}
                 oncancel={(p) => content?.cancelPull(p)}
-                capturetrigger={(trigger, interactionId) =>
-                  captureRuntimeTrigger(control.id, itemId ?? '', trigger, interactionId)}
+                capturetrigger={tile.capture}
                 ontrigger={onTrigger}
                 {feedback}
               />
