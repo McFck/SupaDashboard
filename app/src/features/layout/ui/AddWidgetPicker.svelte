@@ -149,7 +149,7 @@
           bind:value={existingQuery}
         />
         <div
-          class="grid min-h-0 max-h-[min(360px,45dvh)] gap-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
+          class="grid gap-1"
         >
           {#each filteredRows as row (row.id)}
             {@const type = controlTypes.get(row.typeId)}
