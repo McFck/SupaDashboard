@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick, untrack, type Snippet } from 'svelte';
+  import { prefersReducedMotion } from 'svelte/motion';
   import type { TilePresentation } from '../model';
 
   let {
@@ -78,7 +79,7 @@
     const sampledIncoming = hasOutgoing ? sample(current.incomingNode, current.incomingOpacity) : 0;
     generation++;
     stop();
-    if (immediate || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (immediate || prefersReducedMotion.current) {
       outgoing = null;
       shown = copy(next);
       outgoingOpacity = 0;

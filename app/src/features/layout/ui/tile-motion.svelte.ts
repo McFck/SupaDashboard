@@ -1,5 +1,6 @@
 // Spring motion for deck tiles: settling a released drag and animating tiles a layout change moved.
 import { tick } from 'svelte';
+import { prefersReducedMotion } from 'svelte/motion';
 import { SPRING_SAMPLES, springDuration } from '$lib/spring';
 
 type Point = { x: number; y: number };
@@ -8,8 +9,6 @@ type Point = { x: number; y: number };
 const MOVE_EPSILON = 0.5;
 const MOVE_DURATION = 420;
 const RESIZE_DURATION = 110;
-
-export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function springFrames(x: number, y: number) {
   return SPRING_SAMPLES.map((sample) => ({
@@ -68,7 +67,7 @@ export class TileMotion {
 
   /** Springs a released tile from where the pointer left it back to its slot. */
   settle(id: string, node: HTMLElement, pose: Point, distance: number) {
-    if (reducedMotion() || (!pose.x && !pose.y)) {
+    if (prefersReducedMotion.current || (!pose.x && !pose.y)) {
       return;
     }
     this.play(id, node, pose, springDuration(distance));

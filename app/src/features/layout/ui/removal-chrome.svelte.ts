@@ -1,5 +1,5 @@
 // Editing chrome (selection overlay, handles) of a tile being removed fades out and stops taking input.
-import { reducedMotion } from './tile-motion.svelte';
+import { prefersReducedMotion } from 'svelte/motion';
 
 const FADE_MS = 140;
 
@@ -38,7 +38,7 @@ export class RemovalChrome {
     for (const node of this.nodes.get(id) ?? []) {
       disable(node);
       this.fades.get(id)?.get(node)?.cancel();
-      if (reducedMotion()) {
+      if (prefersReducedMotion.current) {
         node.style.opacity = '0';
         continue;
       }

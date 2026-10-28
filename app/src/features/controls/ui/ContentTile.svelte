@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { prefersReducedMotion } from 'svelte/motion';
   import { pullBindingsFor, type PullSnapshot } from '../input/pull';
-  import { SPRING_SAMPLES, springDuration } from '$lib/spring';
+  import { springTranslate, springDuration } from '$lib/spring';
   import type { ControlConfig } from '../model';
   import { gestures } from '../input/gestures';
   import type { Trigger } from '../../automation/scenario';
@@ -57,10 +57,10 @@
     const x = active.axis === 'x' ? active.offset : 0;
     const y = active.axis === 'y' ? active.offset : 0;
     const duration = prefersReducedMotion.current ? 0 : springDuration(Math.hypot(x, y));
-    const currentAnimation = face.animate(
-      SPRING_SAMPLES.map(({ progress }) => ({
-        transform: `translate3d(${x * (1 - progress)}px, ${y * (1 - progress)}px, 0)`,
-      })),
+    const currentAnimation = springTranslate(
+      face,
+      { x, y },
+      { x: 0, y: 0 },
       { duration, easing: 'linear', fill: 'forwards' },
     );
     animation = currentAnimation;

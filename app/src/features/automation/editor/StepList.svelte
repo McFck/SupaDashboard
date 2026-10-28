@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { prefersReducedMotion } from 'svelte/motion';
-  import { sortable } from '$lib/sortable';
+  import { sortable } from '$lib/sortable/sortable';
   import Plus from '@lucide/svelte/icons/plus';
   import { Button } from '$lib/components/ui/button';
   import { runtimeView } from '../../../app/runtime/state';

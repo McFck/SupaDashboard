@@ -29,7 +29,7 @@
     videoThumbnailKey,
   } from '../../media/media-thumbnail';
   import { commit } from '../../layout/history.svelte';
-  import { sortable } from '$lib/sortable';
+  import { sortable } from '$lib/sortable/sortable';
   import Choice from '../../plugins/ui/Choice.svelte';
 
   type SourceType = 'image-file' | 'video-file' | 'url';
