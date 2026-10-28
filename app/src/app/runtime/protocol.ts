@@ -1,4 +1,5 @@
 // The messages windows exchange about the runtime, and their validation at the receiving end.
+import { isRecord } from '../../features/automation/plain-data';
 import type { PageChangeReason } from '../../features/layout/page-controller';
 import type { RuntimeSnapshot } from './state';
 
@@ -46,11 +47,8 @@ export type SyncMessage =
     }
   | { kind: 'snapshot'; sourceId: string; destination?: string; revision: number; value: unknown };
 
-const isObject = (value: unknown): value is Record<string, any> =>
-  !!value && typeof value === 'object';
-
 export function validPageChangePayload(value: unknown): value is PageChangePayload {
-  if (!isObject(value) || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return false;
   }
   if (!(REMOTE_PAGE_REASONS as readonly unknown[]).includes(value.reason)) {
@@ -65,7 +63,7 @@ export function validPageChangePayload(value: unknown): value is PageChangePaylo
 
 function validRequest(request: unknown) {
   return (
-    isObject(request) &&
+    isRecord(request) &&
     (REQUEST_TYPES as readonly unknown[]).includes(request.type) &&
     (request.type !== 'changePage' || validPageChangePayload(request.payload))
   );
@@ -80,13 +78,14 @@ function serializedSize(value: unknown) {
 }
 
 export function validMessage(value: unknown): value is SyncMessage {
-  if (!isObject(value) || serializedSize(value) > MAX_MESSAGE_SIZE) {
+  if (!isRecord(value) || serializedSize(value) > MAX_MESSAGE_SIZE) {
     return false;
   }
   const { kind, sourceId, revision, requestId } = value;
   if (
     typeof sourceId !== 'string' ||
     sourceId.length > MAX_ID_LENGTH ||
+    typeof revision !== 'number' ||
     !Number.isSafeInteger(revision) ||
     revision < 0
   ) {
@@ -113,9 +112,9 @@ export function validMessage(value: unknown): value is SyncMessage {
 /** The parts of an owner snapshot a mirror window relies on. */
 export function validSnapshot(value: unknown): value is RuntimeSnapshot {
   return (
-    isObject(value) &&
+    isRecord(value) &&
     typeof value.activePage === 'string' &&
-    isObject(value.variables) &&
-    isObject(value.busy)
+    isRecord(value.variables) &&
+    isRecord(value.busy)
   );
 }

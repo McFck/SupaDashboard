@@ -12,7 +12,7 @@
   import { DashboardWindow } from './dashboard-window.svelte';
   import { DragGaps } from './drag-gaps.svelte';
   import { pageOffset } from './page-motion';
-  import { Pager, pageOrderKey } from './pager.svelte';
+  import { Pager } from './pager.svelte';
   import PageDots from './PageDots.svelte';
 
   const { requestPageChange } = getRuntimeCommands();
@@ -74,9 +74,6 @@
   // The page changed from outside a swipe (dots, actions, another window) or the page order, skin or
   // fullscreen state changed.
   $effect(() => {
-    pageOrderKey(settings.deck.pages);
-    settings.skin;
-    dashboard.appliedFullscreen;
     pager.reconcile(page.id);
   });
 
@@ -113,7 +110,7 @@
   data-hovered={dashboard.showChrome}
   style:border-radius="{dashboard.appliedFullscreen ? 0 : bg.radius}px"
   bind:this={shell}
-  onpointerdowncapture={pager.input.pointerDown}
+  onpointerdowncapture={pager.pointerDown}
   onpointerenter={() => (dashboard.domHovered = true)}
   onpointerleave={() => (dashboard.domHovered = false)}
 >

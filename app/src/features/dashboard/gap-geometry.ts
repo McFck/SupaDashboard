@@ -1,19 +1,18 @@
 // The drag gaps' geometry in CSS pixels relative to the dashboard shell: the free area left by excluded boxes.
-export type LocalRect = { x: number; y: number; width: number; height: number };
+import type { Geometry } from '../display/geometry';
 
 export function complementRectangles(
   width: number,
   height: number,
-  excluded: LocalRect[],
+  excluded: Geometry[],
   dpr: number,
-  inset = 6,
-): LocalRect[] {
+): Geometry[] {
+  const inset = 6;
   if (
-    ![width, height, dpr, inset].every(Number.isFinite) ||
+    ![width, height, dpr].every(Number.isFinite) ||
     width <= inset * 2 ||
     height <= inset * 2 ||
-    dpr <= 0 ||
-    inset < 0
+    dpr <= 0
   ) {
     return [];
   }
@@ -32,9 +31,6 @@ export function complementRectangles(
     }
     const rawRight = rect.x + rect.width,
       rawBottom = rect.y + rect.height;
-    if (!Number.isFinite(rawRight) || !Number.isFinite(rawBottom)) {
-      return [];
-    }
     const x = Math.max(left, Math.min(right, Math.floor(rect.x * dpr) / dpr));
     const y = Math.max(top, Math.min(bottom, Math.floor(rect.y * dpr) / dpr));
     const x2 = Math.max(left, Math.min(right, Math.ceil(rawRight * dpr) / dpr));
@@ -44,15 +40,12 @@ export function complementRectangles(
   const xs = [
     ...new Set([left, right, ...exclusions.flatMap((rect) => [rect.x, rect.right])]),
   ].sort((a, b) => a - b);
-  const result: LocalRect[] = [];
+  const result: Geometry[] = [];
   let previousBands = new Map<string, number>();
 
   for (let i = 0; i < xs.length - 1; i++) {
     const x = xs[i],
       x2 = xs[i + 1];
-    if (x2 <= x) {
-      continue;
-    }
     const intervals = exclusions
       .filter((rect) => rect.x < x2 && rect.right > x)
       .map((rect) => ({ top: rect.y, bottom: rect.bottom }))
@@ -71,9 +64,6 @@ export function complementRectangles(
 
     const bands = new Map<string, number>();
     for (const gap of gaps) {
-      if (gap.bottom <= gap.top) {
-        continue;
-      }
       const key = `${gap.top}:${gap.bottom}`;
       const previous = previousBands.get(key);
       if (previous !== undefined && result[previous].x + result[previous].width === x) {

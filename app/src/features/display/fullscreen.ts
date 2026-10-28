@@ -9,7 +9,7 @@ import {
   validGeometry,
 } from './geometry';
 import type { ControlledWindow } from './controlled-window';
-import type { Geometry, MonitorGeometry } from './model';
+import type { Geometry, MonitorGeometry } from './geometry';
 import type { WindowedBounds } from './windowed-state';
 
 export class Fullscreen {
@@ -125,14 +125,7 @@ export class Fullscreen {
       this.cover(target, desired);
       return;
     }
-    await this.win.moving(async () => {
-      this.win.step();
-      await this.windowed.followMonitor(target);
-      this.win.step();
-      const placed = await this.win.place(desired);
-      this.win.step();
-      this.cover(target, placed);
-    });
+    await this.moveTo(target);
   }
 
   private cover(target: MonitorGeometry, bounds: Geometry) {

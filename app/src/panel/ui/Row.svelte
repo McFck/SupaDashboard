@@ -1,5 +1,4 @@
 <script lang="ts">
-  // One setting: name on the left, its control on the right, hairline between rows.
   import type { Snippet } from 'svelte';
   let {
     label,

@@ -35,27 +35,21 @@ export class RuntimeSync {
     const message = {
       kind: 'request',
       sourceId: this.sourceId,
-      requestId: 'check',
+      requestId: newId(),
       revision: this.revision,
       request,
     };
     if (!validMessage(message)) {
       return Promise.reject(new Error('Invalid runtime request'));
     }
-    const requestId = newId();
+    const { requestId } = message;
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
         reject(new Error('Runtime owner is unavailable'));
       }, timeoutMs);
       this.pending.set(requestId, { resolve, reject, timer });
-      this.adapter.send({
-        kind: 'request',
-        sourceId: this.sourceId,
-        requestId,
-        revision: this.revision,
-        request: structuredClone(request),
-      });
+      this.adapter.send(structuredClone(message));
     });
   }
 
@@ -73,9 +67,6 @@ export class RuntimeSync {
 
   get currentRevision() {
     return this.revision;
-  }
-  receiveMessage(message: unknown) {
-    this.receive(message);
   }
   becomeOwner(onRequest: NonNullable<SyncOptions['onRequest']>) {
     this.options.owner = true;
@@ -98,7 +89,7 @@ export class RuntimeSync {
     this.options.onAvailability?.(false);
   }
 
-  private receive(value: unknown) {
+  receive(value: unknown) {
     if (this.closed || !validMessage(value)) return;
     const message = value;
     if (
@@ -162,35 +153,28 @@ export class RuntimeSync {
 }
 
 export async function openRuntimeSync(sourceId: string = newId(), options: SyncOptions = {}) {
+  let sync: RuntimeSync;
+  let adapter: SyncAdapter;
   if (isTauri()) {
-    let sync: RuntimeSync;
-    const unlisten = await listen<SyncMessage>(CHANNEL, (event) =>
-      sync?.receiveMessage(event.payload),
-    );
-    const adapter: SyncAdapter = {
+    const unlisten = await listen<SyncMessage>(CHANNEL, (event) => sync?.receive(event.payload));
+    adapter = {
       send: (message) => {
         if ('destination' in message && message.destination) {
-          const windowLabel =
-            message.destination === 'panel' || message.destination === 'main'
-              ? message.destination
-              : 'panel';
-          void emitTo(windowLabel, CHANNEL, message);
-        } else void emit(CHANNEL, message);
+          void emitTo(message.destination, CHANNEL, message);
+        } else {
+          void emit(CHANNEL, message);
+        }
       },
-      close: () => {
-        unlisten();
-      },
+      close: unlisten,
     };
-    sync = new RuntimeSync(sourceId, adapter, options);
-    return sync;
+  } else {
+    const channel = new BroadcastChannel(CHANNEL);
+    channel.onmessage = (event) => sync?.receive(event.data);
+    adapter = {
+      send: (message) => channel.postMessage(message),
+      close: () => channel.close(),
+    };
   }
-  const channel = new BroadcastChannel(CHANNEL);
-  let sync: RuntimeSync;
-  channel.onmessage = (event) => sync?.receiveMessage(event.data);
-  const adapter: SyncAdapter = {
-    send: (message) => channel.postMessage(message),
-    close: () => channel.close(),
-  };
   sync = new RuntimeSync(sourceId, adapter, options);
   return sync;
 }

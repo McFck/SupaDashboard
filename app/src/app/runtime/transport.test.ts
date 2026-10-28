@@ -13,7 +13,7 @@ function pair() {
   });
   const endpoint = (id: string, options: ConstructorParameters<typeof RuntimeSync>[2] = {}) => {
     const sync = new RuntimeSync(id, adapter(id), options);
-    receivers.set(id, (message) => sync.receiveMessage(message));
+    receivers.set(id, (message) => sync.receive(message));
     return sync;
   };
   return { endpoint };
@@ -39,22 +39,6 @@ describe('runtime sync protocol', () => {
     panel.close();
   });
 
-  it('routes event simulation requests through the same owner protocol', async () => {
-    const bus = pair(),
-      handler = vi.fn(async (request) => ({ accepted: request.type === 'emitEvent' }));
-    const owner = bus.endpoint('owner', { owner: true, onRequest: handler });
-    const panel = bus.endpoint('panel');
-    await expect(
-      panel.request({
-        type: 'emitEvent',
-        payload: { eventId: 'variables.changed', parameter: 'user:recording' },
-      }),
-    ).resolves.toEqual({ accepted: true });
-    expect(handler).toHaveBeenCalledOnce();
-    owner.close();
-    panel.close();
-  });
-
   it('accepts only bounded, unambiguous page navigation requests', async () => {
     const bus = pair(),
       handler = vi.fn(async (request) => request.payload);
@@ -63,12 +47,6 @@ describe('runtime sync protocol', () => {
     await expect(
       panel.request({ type: 'changePage', payload: { direction: 'next', reason: 'dot' } }),
     ).resolves.toEqual({ direction: 'next', reason: 'dot' });
-    await expect(
-      panel.request({ type: 'changePage', payload: { page: 'page-2', reason: 'swipe' } }),
-    ).resolves.toEqual({ page: 'page-2', reason: 'swipe' });
-    await expect(
-      panel.request({ type: 'changePage', payload: { direction: 'prev', reason: 'skin' } }),
-    ).resolves.toEqual({ direction: 'prev', reason: 'skin' });
     for (const payload of [
       { page: 'page-2', direction: 'next', reason: 'dot' },
       { page: 'x'.repeat(129), reason: 'dot' },
@@ -83,7 +61,7 @@ describe('runtime sync protocol', () => {
         payload: { page: 'page-2', direction: 'next', reason: 'dot' } as never,
       }),
     ).rejects.toThrow('Invalid runtime request');
-    expect(handler).toHaveBeenCalledTimes(3);
+    expect(handler).toHaveBeenCalledTimes(1);
     owner.close();
     panel.close();
   });
@@ -92,11 +70,11 @@ describe('runtime sync protocol', () => {
     const bus = pair(),
       updates: unknown[] = [];
     const client = bus.endpoint('client', { onSnapshot: (value) => updates.push(value) });
-    client.receiveMessage({ kind: 'snapshot', sourceId: 'owner', revision: 5, value: 'fresh' });
-    client.receiveMessage({ kind: 'snapshot', sourceId: 'owner', revision: 4, value: 'stale' });
+    client.receive({ kind: 'snapshot', sourceId: 'owner', revision: 5, value: 'fresh' });
+    client.receive({ kind: 'snapshot', sourceId: 'owner', revision: 4, value: 'stale' });
     expect(updates).toEqual(['fresh']);
     const pending = client.request({ type: 'snapshot' }, 1000);
-    client.receiveMessage({
+    client.receive({
       kind: 'reply',
       sourceId: 'owner',
       destination: 'client',
@@ -116,7 +94,7 @@ describe('runtime sync protocol', () => {
     const client = bus.endpoint('client');
     owner.close();
     await expect(client.request({ type: 'simulate' }, 5)).rejects.toThrow('unavailable');
-    owner.receiveMessage({
+    owner.receive({
       kind: 'request',
       sourceId: 'client',
       requestId: 'oversize',

@@ -10,9 +10,20 @@ import {
 } from '../../platform/window';
 import { ControlledWindow } from './controlled-window';
 import { Fullscreen } from './fullscreen';
-import { resolveLiveMonitor } from './geometry';
-import { requestOf, sameRequest, type DisplayRequest } from './model';
+import { resolveLiveMonitor, type DisplayRequest } from './geometry';
 import { WindowedBounds } from './windowed-state';
+
+const requestOf = (display: DisplayRequest): DisplayRequest => ({
+  monitor: display.monitor,
+  fullscreen: display.fullscreen,
+  alwaysOnTop: display.alwaysOnTop,
+});
+
+const sameRequest = (a: DisplayRequest | null, b: DisplayRequest) =>
+  !!a &&
+  a.monitor === b.monitor &&
+  a.fullscreen === b.fullscreen &&
+  a.alwaysOnTop === b.alwaysOnTop;
 
 let activeController: DisplayController | undefined;
 
