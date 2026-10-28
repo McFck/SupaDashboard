@@ -41,8 +41,6 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
   let handlers = initial;
   let pointer: Pointer | null = null;
   let keyboard: Captures | null = null;
-  let suppressSyntheticClick = false;
-  let clickSuppressionTimer: ReturnType<typeof setTimeout> | undefined;
 
   const dispatch = (trigger: Trigger, captures: Captures, snapshot?: PullSnapshot) => {
     handlers.onTrigger(trigger, captures[trigger], snapshot);
@@ -127,13 +125,6 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
       return;
     }
     e.preventDefault();
-    suppressSyntheticClick = true;
-    if (clickSuppressionTimer) {
-      clearTimeout(clickSuppressionTimer);
-    }
-    clickSuppressionTimer = setTimeout(() => {
-      suppressSyntheticClick = false;
-    }, 1000);
     keyboard = captureTriggers(handlers.captureTrigger);
     press.start(keyboard);
   };
@@ -145,22 +136,10 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
     const captures = keyboard;
     keyboard = null;
     press.end({ x: 0, y: 0, captures });
-    if (clickSuppressionTimer) {
-      clearTimeout(clickSuppressionTimer);
-    }
-    clickSuppressionTimer = setTimeout(() => {
-      suppressSyntheticClick = false;
-    }, 0);
   };
   // Assistive technology activates with a click that has no pointer sequence (detail 0).
   const click = (e: MouseEvent) => {
-    if (
-      handlers.enabled === false ||
-      e.detail !== 0 ||
-      suppressSyntheticClick ||
-      pointer ||
-      keyboard
-    ) {
+    if (handlers.enabled === false || e.detail !== 0 || pointer || keyboard) {
       return;
     }
     press.tap({ x: e.clientX, y: e.clientY, captures: captureTriggers(handlers.captureTrigger) });
@@ -190,9 +169,6 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
     },
     destroy() {
       cancel();
-      if (clickSuppressionTimer) {
-        clearTimeout(clickSuppressionTimer);
-      }
       listeners.abort();
       handlers.onPull?.(null);
     },
