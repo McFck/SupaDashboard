@@ -145,3 +145,6 @@ export function resizeCornerGeometry(width: number, height: number, corner: Resi
     strokeY: north ? -hitOffset - strokeSize : height + hitOffset,
   };
 }
+export function sameItemRect(a: CellRect, b: CellRect) {
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
