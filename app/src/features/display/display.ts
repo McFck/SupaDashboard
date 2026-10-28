@@ -143,7 +143,11 @@ function saveNormalLater(controller: Controller) {
       if (!canSaveNormal(controller)) {
         return;
       }
-      await persistNormal(controller, bounds);
+      // Late resize events from the start-up restore land here too; an unchanged rectangle is not rewritten, so a
+      // restore the OS resized stays out of the store until the user moves or resizes the window.
+      if (!controller.normal || !sameGeometry(bounds, controller.normal)) {
+        await persistNormal(controller, bounds);
+      }
       controller.normal = bounds;
       const { screens, current } = await connectedMonitors();
       controller.normalMonitor =
@@ -530,7 +534,6 @@ export async function initDisplay(
       if (abandoned()) {
         return noop;
       }
-      // Persist only the OS-adjusted rectangle returned by the native placement command.
       const placed = await placeBounds(bounds);
       if (abandoned()) {
         return noop;
@@ -541,7 +544,11 @@ export async function initDisplay(
         current?.name ??
         selected?.name ??
         null;
-      await persistNormal(controller, placed);
+      // Save only a rectangle the native restore actually applied. One the OS still resized (a DPI change the
+      // settled restore could not undo) would become the next start-up's input and compound.
+      if (sameGeometry(placed, bounds)) {
+        await persistNormal(controller, placed);
+      }
     } finally {
       controller.transition = false;
     }

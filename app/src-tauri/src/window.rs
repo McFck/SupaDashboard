@@ -430,8 +430,7 @@ mod win32 {
             .filter(|value| *value > 0)
             .ok_or_else(|| "height must be a positive Win32 integer".to_owned())?;
 
-        unsafe {
-            SendMessageW(hwnd, WM_CANCELMODE, Some(WPARAM(0)), Some(LPARAM(0)));
+        let place = || unsafe {
             SetWindowPos(
                 hwnd,
                 None,
@@ -445,13 +444,25 @@ mod win32 {
             let mut rect = RECT::default();
             GetWindowRect(hwnd, &mut rect)
                 .map_err(|error| format!("could not read dashboard bounds: {error}"))?;
-            Ok(Geometry {
+            Ok::<_, String>(Geometry {
                 x: i64::from(rect.left),
                 y: i64::from(rect.top),
                 width: i64::from(rect.right - rect.left),
                 height: i64::from(rect.bottom - rect.top),
             })
+        };
+
+        unsafe { SendMessageW(hwnd, WM_CANCELMODE, Some(WPARAM(0)), Some(LPARAM(0))) };
+        let dpi = unsafe { GetDpiForWindow(hwnd) };
+        let placed = place()?;
+        // Moving onto a monitor with another DPI sends WM_DPICHANGED inside that SetWindowPos, and Tao applies the
+        // OS-suggested rectangle, scaled by the DPI ratio; the OS can also adjust a size. The window now has the
+        // destination's DPI, so the requested physical rectangle is reapplied once. Returning the scaled one made
+        // the saved window shrink on every cross-DPI restart.
+        if placed != bounds || unsafe { GetDpiForWindow(hwnd) } != dpi {
+            return place();
         }
+        Ok(placed)
     }
 
     pub fn set_interaction_mode(window: &WebviewWindow, fullscreen: bool) -> Result<(), String> {
