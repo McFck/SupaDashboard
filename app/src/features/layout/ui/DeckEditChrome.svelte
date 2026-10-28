@@ -43,10 +43,10 @@
 
   const current = $derived(drag.current);
   const activeMove = $derived(current?.mode === 'move' && current.moved ? current : null);
-  const movePreview = $derived(activeMove ?? drag.removalMove);
+  const movePreview = $derived(activeMove ?? drag.move.removal);
   const owner = $derived(
-    drag.removalMove?.id ??
-      drag.removalResize?.id ??
+    drag.move.removal?.id ??
+      drag.resize.removal?.id ??
       activeMove?.id ??
       (current?.mode === 'resize' ? current.id : (selectedItem?.id ?? '')),
   );
@@ -150,15 +150,15 @@
         {/if}
       </div>
     {/if}
-    {#if drag.frameBox}
+    {#if drag.resize.frameBox}
       <ResizeFrame
-        bind:this={drag.resizeFrame}
-        x={drag.frameBox.x}
-        y={drag.frameBox.y}
-        width={drag.frameBox.width}
-        height={drag.frameBox.height}
-        preferredRadius={drag.frameRadius}
-        invalid={drag.frameInvalid}
+        bind:this={drag.resize.frame}
+        x={drag.resize.frameBox.x}
+        y={drag.resize.frameBox.y}
+        width={drag.resize.frameBox.width}
+        height={drag.resize.frameBox.height}
+        preferredRadius={drag.resize.frameRadius}
+        invalid={drag.resize.frameInvalid}
       />
     {/if}
     {#if selectedItem && handleFrame}

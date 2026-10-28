@@ -16,16 +16,9 @@
   import MediaEditor from '../../controls/editor/MediaEditor.svelte';
   import WebEditor from '../../controls/editor/WebEditor.svelte';
   import type { Item, Selection } from '../grid';
-  import { removeItem } from '../removal';
   import { effectiveSize, layoutFor, type LayoutTarget } from '../skin-layouts';
   import { settings } from '../../settings/state.svelte';
-  import {
-    findSlotPlacement,
-    newControlId,
-    placeControl,
-    removeFromSlot,
-    resizeInSlot,
-  } from '../slot-edits';
+  import { duplicateInSlot, removeWithDust, resizeInSlot } from '../slot-edits';
   import VariantList from './VariantList.svelte';
 
   type Axis = 'w' | 'h';
@@ -67,13 +60,7 @@
   }
 
   function duplicate() {
-    const at = findSlotPlacement(layoutTarget, control.type, { size: { w: item.w, h: item.h } });
-    const copy = {
-      ...structuredClone($state.snapshot(control)),
-      id: newControlId(control.name),
-      name: `${control.name} copy`,
-    } as ControlConfig;
-    const id = at && placeControl(layoutTarget, copy, at, `Duplicate ${control.name}`);
+    const id = duplicateInSlot(layoutTarget, item.id);
     if (!id) {
       toast.error('No free space for this widget');
       return;
@@ -81,18 +68,17 @@
     onselect({ item: id }, layoutTarget);
   }
 
-  /** Plays the removal animation, then deletes the placement if the inspector still shows that slot. */
+  /** Deletes the placement after its removal animation if the inspector still shows that slot. */
   async function remove() {
-    const removing = { ...item };
     const target = { ...layoutTarget };
-    const name = control.name ?? 'widget';
-    const removed = await removeItem(removing.id, () => {
-      const sameTarget =
+    const removed = await removeWithDust(
+      target,
+      item.id,
+      () =>
         layoutTarget.skinId === target.skinId &&
         layoutTarget.pageId === target.pageId &&
-        layoutTarget.slotId === target.slotId;
-      return sameTarget && removeFromSlot(target, removing.id, `Delete ${name}`);
-    });
+        layoutTarget.slotId === target.slotId,
+    );
     if (removed) {
       onselect(null, layoutTarget);
     }

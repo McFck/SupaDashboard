@@ -10,8 +10,8 @@
   import PluginMark, { pluginTitle } from '../../plugins/ui/PluginMark.svelte';
   import { settings } from '../../settings/state.svelte';
   import { buildExistingControlRows, searchExistingControls } from '../existing-controls';
-  import { cloneControl } from '../layout-actions';
-  import { pageItems } from '../pages';
+  import { cloneControl } from '../widget-insert';
+  import { pageItems } from '../placements';
   import { effectiveSize, layoutFor, type LayoutTarget } from '../skin-layouts';
   import { findSlotPlacement, newControlId, placeControl } from '../slot-edits';
   import type { Selection } from '../grid';

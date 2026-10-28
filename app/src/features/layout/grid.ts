@@ -278,12 +278,3 @@ export function previewDrop(
       .map((item) => item.id),
   };
 }
-
-/**
- * Where a dragged item would land at (x, y). It moves if the footprint is free; if it lands exactly on an item
- * of the same size, the two swap. Returns the new item list, or null when the drop isn't possible.
- */
-export function drop(items: Item[], id: string, x: number, y: number, grid: Grid): Item[] | null {
-  const preview = previewDrop(items, id, x, y, grid);
-  return preview.kind === 'invalid' ? null : preview.items;
-}

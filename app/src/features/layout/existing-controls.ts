@@ -1,54 +1,62 @@
-export type ExistingControl = { id: string; name: string; type: string };
-export type ExistingPlacement = { w: number; h: number };
-export type ExistingType = { title: string; icon: string; size: ExistingPlacement };
-export type ExistingControlRow<T extends ExistingControl = ExistingControl> = {
-  control: T;
+type ExistingControl = { id: string; name: string; type: string };
+type ExistingType = { title: string; icon: string };
+export type ExistingControlRow = {
   id: string;
   name: string;
   typeId: string;
   typeTitle: string;
   icon: string;
-  size?: ExistingPlacement;
   available: boolean;
   uses: number;
 };
 
-export function buildExistingControlRows<T extends ExistingControl>(
-  controls: readonly T[],
+/** Sorts by name (case-insensitive, code-point order), then by ID. */
+function compareRows(a: ExistingControlRow, b: ExistingControlRow) {
+  const left = a.name.toLowerCase();
+  const right = b.name.toLowerCase();
+  if (left !== right) {
+    return left < right ? -1 : 1;
+  }
+  if (a.id === b.id) {
+    return 0;
+  }
+  return a.id < b.id ? -1 : 1;
+}
+
+export function buildExistingControlRows(
+  controls: readonly ExistingControl[],
   items: readonly { control: string }[],
   types: ReadonlyMap<string, ExistingType>,
-): ExistingControlRow<T>[] {
+): ExistingControlRow[] {
   const uses = new Map<string, number>();
-  for (const item of items) uses.set(item.control, (uses.get(item.control) ?? 0) + 1);
+  for (const item of items) {
+    uses.set(item.control, (uses.get(item.control) ?? 0) + 1);
+  }
 
   return controls
     .map((control) => {
       const type = types.get(control.type);
       return {
-        control,
         id: control.id,
         name: control.name,
         typeId: control.type,
         typeTitle: type?.title ?? control.type,
         icon: type?.icon ?? 'Puzzle',
-        size: type?.size,
         available: !!type,
         uses: uses.get(control.id) ?? 0,
       };
     })
-    .sort((a, b) => {
-      const left = a.name.toLowerCase(),
-        right = b.name.toLowerCase();
-      return (left < right ? -1 : left > right ? 1 : 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-    });
+    .sort(compareRows);
 }
 
-export function searchExistingControls<T extends ExistingControl>(
-  rows: readonly ExistingControlRow<T>[],
+export function searchExistingControls(
+  rows: readonly ExistingControlRow[],
   query: string,
-): ExistingControlRow<T>[] {
+): ExistingControlRow[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return [...rows];
+  if (!needle) {
+    return [...rows];
+  }
   return rows.filter(
     (row) =>
       row.name.toLowerCase().includes(needle) ||

@@ -5,15 +5,13 @@ import {
   addPage,
   deletePage,
   duplicatePage,
-  hasPlacement,
   MAX_PAGES,
   pageAfterRemoval,
   pageById,
-  pageItems,
-  removePlacement,
   renamePage,
   reorderPage,
 } from './pages';
+import { pageItems } from './placements';
 
 const control = (id: string, target = 'self'): ControlConfig => ({
   id,
@@ -54,27 +52,9 @@ const second = page('page-b', 4, [
 ]);
 
 describe('page helpers', () => {
-  it('resolves pages and flattens placements across pages without merging page geometry', () => {
-    const pages = [first, second];
-    const layouts = {
-      subway: {
-        [second.id]: { strip: [{ id: 'skin-item', control: 'shared', x: 0, y: 0, w: 1, h: 1 }] },
-      },
-      deck: {
-        [second.id]: {
-          main: [{ id: 'duplicate-deck', control: 'shared', x: 0, y: 0, w: 1, h: 1 }],
-        },
-      },
-    };
-    expect(pageById(pages, 'page-b')).toBe(second);
-    expect(pageById(pages, 'missing')).toBe(first);
-    expect(pageItems(pages, layouts).map((item) => item.id)).toEqual([
-      'item-a',
-      'item-b',
-      'item-c',
-      'skin-item',
-    ]);
-    expect(hasPlacement(pages, 'shared', layouts)).toBe(true);
+  it('resolves a missing page to the first one', () => {
+    expect(pageById([first, second], 'page-b')).toBe(second);
+    expect(pageById([first, second], 'missing')).toBe(first);
   });
 
   it('adds blank pages with selected geometry and the next unused display name', () => {
@@ -240,19 +220,6 @@ describe('page helpers', () => {
     expect(deleted.variants).toEqual({ shared: 1, other: 0 });
     expect(deletePage([first], first.id, [], {})).toBeUndefined();
     expect(deletePage(pages, 'missing', [], {})).toBeUndefined();
-  });
-
-  it('removes only the requested placement and marks a control orphan after its last use', () => {
-    const pages = [first, second];
-    const one = removePlacement(pages, 'page-a', 'item-a');
-    expect(one.item?.control).toBe('shared');
-    expect(one.orphanControl).toBeUndefined();
-    expect(one.pages[0].items).toEqual([]);
-    expect(second.items).toHaveLength(2);
-    const last = removePlacement(one.pages, 'page-b', 'item-b');
-    expect(last.orphanControl).toBe('shared');
-    expect(last.pages[1].items.map((item) => item.id)).toEqual(['item-c']);
-    expect(removePlacement(last.pages, 'page-b', 'missing').item).toBeUndefined();
   });
 
   it('chooses the page now at the deleted page index, then clamps to the predecessor', () => {

@@ -3,10 +3,10 @@ import { firstFree, fits, type Grid, type Item } from './grid';
 import { controlTypes, skins } from '../plugins/registry';
 import type { Page, Settings } from '../settings/schema';
 import type { SkinSlot } from '../skins/definition';
+import { storedPlacements } from './placements';
 
 export type LayoutTarget = { skinId: string; pageId: string; slotId: string };
 export type LayoutGeometry = Pick<Page, 'rows' | 'cols' | 'size' | 'gap' | 'sizing'>;
-export type PlacementSource = Pick<Settings, 'deck' | 'skinLayouts'>;
 export type LayoutView = LayoutTarget & {
   page: Page;
   slot?: SkinSlot;
@@ -94,7 +94,7 @@ function sameTarget(target: LayoutTarget, current: LayoutTarget) {
 export function canSetLayoutItems(source: Settings, target: LayoutTarget, items: Item[]) {
   const current = layoutFor(source, target.skinId, target.pageId, target.slotId);
   if (!current || !sameTarget(target, current)) return false;
-  const elsewhere = allPlacements(source).filter((placement) => !sameTarget(target, placement));
+  const elsewhere = storedPlacements(source).filter((placement) => !sameTarget(target, placement));
   const otherItemIds = new Set(elsewhere.map((placement) => placement.item.id));
   const otherControlIds = new Set(elsewhere.map((placement) => placement.item.control));
   if (items.some((item) => otherItemIds.has(item.id) || otherControlIds.has(item.control)))
@@ -122,53 +122,9 @@ export function setLayoutItems(source: Settings, target: LayoutTarget, items: It
   return true;
 }
 
-export function allPlacements(source: PlacementSource): Placement[] {
-  const placements: Placement[] = [];
-  for (const page of source.deck.pages)
-    for (const item of page.items) {
-      const slot = slotFor('deck', 'main');
-      placements.push({
-        skinId: 'deck',
-        pageId: page.id,
-        slotId: 'main',
-        page,
-        slot,
-        geometry: deckGeometry(page),
-        item,
-        width: item.w * page.size + (item.w - 1) * page.gap,
-        height: item.h * page.size + (item.h - 1) * page.gap,
-      });
-    }
-  for (const [skinId, pages] of Object.entries(source.skinLayouts ?? {}))
-    if (skinId !== 'deck')
-      for (const [pageId, slots] of Object.entries(pages))
-        for (const [slotId, items] of Object.entries(slots))
-          for (const item of items) {
-            const page = source.deck.pages.find((entry) => entry.id === pageId);
-            const slot = slotFor(skinId, slotId);
-            const geometry = page && slot ? geometryFor(page, slot) : undefined;
-            placements.push({
-              skinId,
-              pageId,
-              slotId,
-              page,
-              slot,
-              geometry,
-              item,
-              ...(geometry
-                ? {
-                    width: item.w * geometry.size + (item.w - 1) * geometry.gap,
-                    height: item.h * geometry.size + (item.h - 1) * geometry.gap,
-                  }
-                : {}),
-            });
-          }
-  return placements;
-}
-
 /** Moves one placement between registered skin/page/slot targets without changing its IDs or control. */
 export function movePlacementToSlot(source: Settings, itemId: string, destination: LayoutTarget) {
-  const origin = placementById(source, itemId);
+  const origin = storedPlacements(source).find((placement) => placement.item.id === itemId);
   const from = origin && layoutFor(source, origin.skinId, origin.pageId, origin.slotId);
   const to = layoutFor(source, destination.skinId, destination.pageId, destination.slotId);
   if (!origin || !from || !to?.slot || !to.geometry || sameTarget(origin, destination))
@@ -219,12 +175,32 @@ export function movePlacementToSlot(source: Settings, itemId: string, destinatio
   };
 }
 
-export function placementById(source: Settings, itemId: string) {
-  return allPlacements(source).find((placement) => placement.item.id === itemId);
-}
-
-export function hasPlacement(source: Settings, controlId: string) {
-  return allPlacements(source).some((placement) => placement.item.control === controlId);
+/** One stored placement with its page, registered slot and pixel size, when those still resolve. */
+export function placementById(source: Settings, itemId: string): Placement | undefined {
+  const placement = storedPlacements(source).find((entry) => entry.item.id === itemId);
+  if (!placement) {
+    return undefined;
+  }
+  const { item } = placement;
+  const page = source.deck.pages.find((entry) => entry.id === placement.pageId);
+  const slot = slotFor(placement.skinId, placement.slotId);
+  let geometry: LayoutGeometry | undefined;
+  if (page && placement.skinId === 'deck') {
+    geometry = deckGeometry(page);
+  } else if (page && slot) {
+    geometry = geometryFor(page, slot);
+  }
+  if (!geometry) {
+    return { ...placement, page, slot };
+  }
+  return {
+    ...placement,
+    page,
+    slot,
+    geometry,
+    width: item.w * geometry.size + (item.w - 1) * geometry.gap,
+    height: item.h * geometry.size + (item.h - 1) * geometry.gap,
+  };
 }
 
 function bounded(value: number, min: number, max: number) {

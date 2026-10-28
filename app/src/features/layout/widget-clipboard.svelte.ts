@@ -1,2 +1,2 @@
-import type { WidgetCopy } from './layout-actions';
+import type { WidgetCopy } from './widget-insert';
 export const clipboard = $state<{ value: WidgetCopy | null }>({ value: null });

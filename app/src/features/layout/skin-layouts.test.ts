@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { controlTypes, skins } from '../plugins/registry';
 import { DEFAULTS } from '../settings/schema';
 import {
-  allPlacements,
   canSetLayoutItems,
   layoutFor,
   movePlacementToSlot,
@@ -11,6 +10,7 @@ import {
   validSlotItems,
   effectiveSize,
 } from './skin-layouts';
+import { storedPlacements } from './placements';
 import type { SkinDef } from '../skins/definition';
 
 const skinId = 'r5-layout-test';
@@ -66,21 +66,11 @@ describe('skin layout storage', () => {
     expect(source.deck.pages[0].items).toBe(deckItems);
     expect(source.skinLayouts).toEqual({});
     source.skinLayouts.deck = { 'page-1': { main: [item('duplicate-alias', 'other-control', 1)] } };
-    expect(allPlacements(source).filter((placement) => placement.skinId === 'deck')).toHaveLength(
-      1,
-    );
+    expect(
+      storedPlacements(source).filter((placement) => placement.skinId === 'deck'),
+    ).toHaveLength(1);
     expect(placementById(source, 'deck-item')).toMatchObject({ width: 112, height: 112 });
     expect(layoutFor(source, skinId, 'page-1', 'missing')?.items).toEqual([]);
-  });
-
-  it('inventories unknown skins and slots without dropping retained placement data', () => {
-    const source = structuredClone(DEFAULTS);
-    source.skinLayouts = {
-      unavailable: { 'old-page': { removed: [item('retained', 'missing-control', 20)] } },
-    };
-    expect(allPlacements(source)).toContainEqual(
-      expect.objectContaining({ skinId: 'unavailable', pageId: 'old-page', slotId: 'removed' }),
-    );
   });
 
   it('enforces registered type, accepted kinds, fixed footprint, collision and slot capacity at writes', () => {

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { ControlConfig, TilePresentation } from '../../controls/model';
   import type { SkinDef } from '../../skins/definition';
   import type { Page } from '../../settings/schema';
   import type { Selection } from '../grid';
@@ -13,7 +12,6 @@
     selected = null,
     onselect,
     oncontext,
-    resolvePresentation,
   }: {
     skin: SkinDef;
     page: Page;
@@ -26,7 +24,6 @@
       y: number,
       target?: LayoutTarget,
     ) => void;
-    resolvePresentation?: (control: ControlConfig, variantIndex: number) => TilePresentation;
   } = $props();
   let preview = $state<HTMLDivElement>();
   let viewTabs = $state<HTMLDivElement>();
@@ -136,7 +133,6 @@
     {selected}
     {onselect}
     {oncontext}
-    {resolvePresentation}
   />
   {#if skin.views.length > 1 && frameRect}
     <div
