@@ -1,5 +1,6 @@
 // Owner side of the runtime protocol: validates requests from other windows before they touch the runtime.
 import { get } from 'svelte/store';
+import { settings } from '../../features/settings/state.svelte';
 import { isRecord } from '../../features/automation/plain-data';
 import { newId, TRIGGERS, type Trigger } from '../../features/automation/scenario';
 import {
@@ -86,6 +87,9 @@ function changePage(runtime: RuntimeSession, change: PageChangePayload) {
   if (!('page' in change)) {
     runtime.changePageInDirection(change.direction, change.reason);
     return;
+  }
+  if (!settings.deck.pages.some((page) => page.id === change.page)) {
+    throw new Error('Page is unavailable');
   }
   runtime.changePage(change.page, change.reason);
 }
