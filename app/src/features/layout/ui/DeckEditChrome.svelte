@@ -88,7 +88,7 @@
         {@const sourceBox = itemBox(movePreview.item, movePreview.pitch, movePreview.gap)}
         <div
           aria-hidden="true"
-          class="pointer-events-none absolute left-0 top-0 z-20 box-border rounded-[22px] border border-dashed border-white/65 bg-white/[.025]"
+          class="pointer-events-none absolute left-0 top-0 z-20 box-border rounded-[var(--tile-radius,22px)] border border-dashed border-white/65 bg-white/[.025]"
           style:translate="{sourceBox.x}px {sourceBox.y}px"
           style:width="{sourceBox.width}px"
           style:height="{sourceBox.height}px"
@@ -99,7 +99,7 @@
           <div
             data-displaced-destination
             aria-hidden="true"
-            class="pointer-events-none absolute left-0 top-0 z-20 box-border rounded-[22px] border border-dashed border-emerald-300/80"
+            class="pointer-events-none absolute left-0 top-0 z-20 box-border rounded-[var(--tile-radius,22px)] border border-dashed border-emerald-300/80"
             style:translate="{destinationBox.x}px {destinationBox.y}px"
             style:width="{destinationBox.width}px"
             style:height="{destinationBox.height}px"
@@ -108,7 +108,7 @@
       {/if}
       <div
         data-placement-target
-        class="pointer-events-none absolute left-0 top-0 z-30 box-border rounded-[22px] border
+        class="pointer-events-none absolute left-0 top-0 z-30 box-border rounded-[var(--tile-radius,22px)] border
           {movePreview.pending
           ? 'border-white/40 bg-white/[.015]'
           : movePreview.ok

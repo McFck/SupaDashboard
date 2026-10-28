@@ -6,8 +6,8 @@
   import { splitAlpha, withAlpha } from '$lib/palette';
   import { settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
-  import { clampToGrid } from '../grid';
-  import { commit } from '../history.svelte';
+  import { commit, labelEdit } from '../history.svelte';
+  import { finishGridResize } from '../slot-edits';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
 
@@ -29,12 +29,12 @@
 
   function setCanvasColour(value: string) {
     const { hex, alpha } = splitAlpha(value);
-    commit('Canvas colour');
+    labelEdit('Canvas colour');
     settings.display.background = { ...settings.display.background, color: hex, opacity: alpha };
   }
 
   function setCanvasRadius(radius: number) {
-    commit('Canvas radius');
+    labelEdit('Canvas radius');
     settings.display.background = { ...settings.display.background, radius };
   }
 
@@ -46,10 +46,24 @@
     }
   }
 
-  // Items outside a shrunk grid are only hidden while the slider is held; releasing it removes them.
+  /** Grid size when the current slider gesture started. */
+  let gridBefore: { rows: number; cols: number } | undefined;
+
+  function setGrid(key: GridKey, value: number) {
+    gridBefore ??= { rows: page.rows, cols: page.cols };
+    // Through settings: the `page` prop is not bound, and Svelte warns when a child mutates it.
+    const live = settings.deck.pages.find((entry) => entry.id === page.id);
+    if (live) {
+      live[key] = value;
+    }
+  }
+
+  // Items outside a shrunk grid are only hidden while the slider is held; releasing it deletes them.
   function commitGrid(key: GridKey) {
+    const from = gridBefore ?? { rows: page.rows, cols: page.cols };
+    gridBefore = undefined;
     if (key === 'rows' || key === 'cols') {
-      page.items = clampToGrid(page.items, page);
+      finishGridResize(page.id, from);
     }
   }
 </script>
@@ -109,7 +123,7 @@
             min={setting.min}
             max={setting.max}
             step={1}
-            onValueChange={(value) => (page[setting.key] = value)}
+            onValueChange={(value) => setGrid(setting.key, value)}
             onValueCommit={() => commitGrid(setting.key)}
           />
           <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">

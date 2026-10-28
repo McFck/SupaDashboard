@@ -16,7 +16,7 @@
   import MediaEditor from '../../controls/editor/MediaEditor.svelte';
   import WebEditor from '../../controls/editor/WebEditor.svelte';
   import type { Item, Selection } from '../grid';
-  import { animateRemoval } from '../removal';
+  import { removeItem } from '../removal';
   import { effectiveSize, layoutFor, type LayoutTarget } from '../skin-layouts';
   import { settings } from '../../settings/state.svelte';
   import {
@@ -86,12 +86,14 @@
     const removing = { ...item };
     const target = { ...layoutTarget };
     const name = control.name ?? 'widget';
-    await animateRemoval(removing.id);
-    const sameTarget =
-      layoutTarget.skinId === target.skinId &&
-      layoutTarget.pageId === target.pageId &&
-      layoutTarget.slotId === target.slotId;
-    if (sameTarget && removeFromSlot(target, removing.id, `Delete ${name}`)) {
+    const removed = await removeItem(removing.id, () => {
+      const sameTarget =
+        layoutTarget.skinId === target.skinId &&
+        layoutTarget.pageId === target.pageId &&
+        layoutTarget.slotId === target.slotId;
+      return sameTarget && removeFromSlot(target, removing.id, `Delete ${name}`);
+    });
+    if (removed) {
       onselect(null, layoutTarget);
     }
   }

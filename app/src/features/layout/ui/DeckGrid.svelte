@@ -8,6 +8,7 @@
     fits,
     fitDeck,
     inside,
+    tileRadius,
     type FittedDeck,
     type Item,
     type Selection,
@@ -23,7 +24,7 @@
   import type { Page } from '../../settings/schema';
   import type { EffectiveSize, LayoutTarget } from '../skin-layouts';
   import { runtimeView } from '../../../app/runtime/state';
-  import { animateRemoval, registerRemovalNode } from '../removal';
+  import { registerRemovalNode, removeItem } from '../removal';
   import { DeckDrag } from './deck-drag.svelte';
   import { reducedMotion, TileMotion } from './tile-motion.svelte';
   import { RemovalChrome } from './removal-chrome.svelte';
@@ -182,10 +183,13 @@
     drag.clearRemoval(id);
   }
 
-  /** Svelte action for a tile's grid cell: removal animation and context menu. */
+  /** Svelte action for a tile's grid cell: removal animation, its cancellation, and context menu. */
   const registerTile = (node: HTMLElement, id: string) => {
     tileNodes.set(id, node);
-    const removal = registerRemovalNode(node, id, () => startRemoval(id));
+    const removal = registerRemovalNode(node, id, {
+      start: () => startRemoval(id),
+      cancel: () => clearRemoval(id),
+    });
     const menu = (event: MouseEvent) => openContextMenu(event, { item: id });
     node.addEventListener('contextmenu', menu);
     return {
@@ -282,7 +286,8 @@
     const ids = new Set(deck.items.map((item) => item.id));
     for (const id of tileNodes.keys()) {
       if (!ids.has(id)) {
-        void animateRemoval(id);
+        // Already deleted from the data; this only plays the dust while the tile unmounts.
+        void removeItem(id, () => true);
       }
     }
     motion.animateFrom(before, scale);
@@ -308,6 +313,7 @@
   style:gap="{metrics.gap}px"
   style:grid-template-columns="repeat({deck.cols}, {metrics.cell}px)"
   style:grid-template-rows="repeat({deck.rows}, {metrics.cell}px)"
+  style:--tile-radius="{tileRadius(metrics.cell)}px"
 >
   {#if editing}
     {#each { length: deck.rows * deck.cols }, i (i)}
@@ -320,7 +326,7 @@
         onclick={() => select({ cell: { x, y } })}
         oncontextmenu={(event) => openContextMenu(event, { cell: { x, y } })}
         style:grid-area="{y + 1} / {x + 1}"
-        class="rounded-[22px] border transition-colors
+        class="rounded-[var(--tile-radius,22px)] border transition-colors
           {isCell(selected, x, y) ? 'ring-2 ring-inset' : ''}"
       ></button>
     {/each}
@@ -387,14 +393,14 @@
           {#if isSelected(selected, item.id)}
             <div
               data-selection
-              class="pointer-events-none absolute inset-0 rounded-[22px] ring-2 ring-inset ring-white/75"
+              class="pointer-events-none absolute inset-0 rounded-[var(--tile-radius,22px)] ring-2 ring-inset ring-white/75"
             ></div>
           {/if}
           <div
             role="button"
             tabindex="0"
             aria-label="Move or select {control.name}"
-            class="absolute inset-0 cursor-grab touch-none rounded-[22px] hover:bg-white/[.04]"
+            class="absolute inset-0 cursor-grab touch-none rounded-[var(--tile-radius,22px)] hover:bg-white/[.04]"
             onpointerdown={(event) => drag.begin(event, item, 'move')}
             onpointermove={(event) => drag.track(event, item)}
             onpointerup={(event) => drag.end(item, event)}

@@ -53,10 +53,11 @@ export class RemovalChrome {
     }
   }
 
+  /** The removal ended (cancelled, or the tile is gone): the chrome that remains takes input again. */
   clear(id: string) {
     delete this.removing[id];
     for (const node of this.nodes.get(id) ?? []) {
-      this.remove(id, node);
+      this.restore(id, node);
     }
   }
 
@@ -75,6 +76,10 @@ export class RemovalChrome {
     if (!this.nodes.get(id)?.size) {
       this.nodes.delete(id);
     }
+    this.restore(id, node);
+  }
+
+  private restore(id: string, node: HTMLElement) {
     this.fades.get(id)?.get(node)?.cancel();
     this.fades.get(id)?.delete(node);
     if (!this.fades.get(id)?.size) {

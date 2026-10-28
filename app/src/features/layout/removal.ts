@@ -1,14 +1,17 @@
 import { emit, listen } from '@tauri-apps/api/event';
 import { isTauri } from '@tauri-apps/api/core';
 
-type RemovalRegistration = { node: HTMLElement; onStart?: () => void };
+/** `start` runs when the item's dust starts; `cancel` when its removal is abandoned and the view stays. */
+type RemovalHooks = { start?: () => void; cancel?: () => void };
+type RemovalRegistration = { node: HTMLElement } & RemovalHooks;
 const nodes = new Map<string, Set<RemovalRegistration>>();
-const pending = new Map<string, Promise<void>>();
-const finished = new WeakSet<HTMLElement>();
+const pending = new Map<string, Promise<boolean>>();
+/** Nodes hidden by a removal, each with the function that stops its dust and shows it again. */
+const hidden = new WeakMap<HTMLElement, () => void>();
 
-export function registerRemovalNode(node: HTMLElement, id: string, onStart?: () => void) {
+export function registerRemovalNode(node: HTMLElement, id: string, hooks: RemovalHooks = {}) {
   const group = nodes.get(id) ?? new Set<RemovalRegistration>();
-  const registration = { node, onStart };
+  const registration = { node, ...hooks };
   group.add(registration);
   nodes.set(id, group);
   return {
@@ -19,12 +22,7 @@ export function registerRemovalNode(node: HTMLElement, id: string, onStart?: () 
   };
 }
 
-export function dustParticles(
-  width: number,
-  height: number,
-  colors: string[],
-  random = Math.random,
-) {
+function dustParticles(width: number, height: number, colors: string[], random = Math.random) {
   const step = Math.max(6, Math.sqrt((width * height) / 900));
   const particles = [];
   for (let y = step / 2; y < height; y += step)
@@ -43,8 +41,8 @@ export function dustParticles(
 }
 
 function dissolve(node: HTMLElement): Promise<void> {
-  if (finished.has(node) || !node.isConnected) return Promise.resolve();
-  finished.add(node);
+  if (hidden.has(node) || !node.isConnected) return Promise.resolve();
+  hidden.set(node, () => hidden.delete(node));
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
   const tile = node.querySelector<HTMLElement>('.tile') ?? node;
   const rect = tile.getBoundingClientRect();
@@ -84,8 +82,19 @@ function dissolve(node: HTMLElement): Promise<void> {
   const fade = node.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' });
   node.style.pointerEvents = 'none';
   const start = performance.now();
+  let stopped = false;
   return new Promise((resolve) => {
+    hidden.set(node, () => {
+      hidden.delete(node);
+      stopped = true;
+      canvas.remove();
+      fade.cancel();
+      node.style.opacity = '';
+      node.style.pointerEvents = '';
+      resolve();
+    });
     function draw(now: number) {
+      if (stopped) return;
       const progress = Math.min(1, (now - start) / 620);
       ctx!.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);
       for (const p of particles) {
@@ -111,33 +120,68 @@ function dissolve(node: HTMLElement): Promise<void> {
   });
 }
 
-/** Play dust, then let the caller checkpoint and remove the item. Safe to call more than once. */
-export function animateRemoval(itemId: string, broadcast = true): Promise<void> {
-  const existing = pending.get(itemId);
-  if (existing) return existing;
-  // The other window plays the same dust at the same time instead of dropping the tile when settings sync.
-  if (broadcast && isTauri()) void emit('item-removing', itemId).catch(() => {});
+function play(itemId: string) {
   const registrations = [...(nodes.get(itemId) ?? [])];
   for (const registration of registrations) {
     try {
-      registration.onStart?.();
+      registration.start?.();
     } catch {
       /* One grid must not prevent the other removal views from stopping. */
     }
   }
-  const animation = Promise.all(registrations.map(({ node }) => dissolve(node))).then(() => {});
-  pending.set(itemId, animation);
-  void animation.finally(() => pending.delete(itemId));
-  return animation;
+  return Promise.all(registrations.map(({ node }) => dissolve(node))).then(() => {});
 }
 
-/** Mirror removals started in another window. */
+function restore(itemId: string) {
+  for (const registration of nodes.get(itemId) ?? []) {
+    hidden.get(registration.node)?.();
+    try {
+      registration.cancel?.();
+    } catch {
+      /* Restore the remaining views even if one grid fails. */
+    }
+  }
+}
+
+/**
+ * Plays dust on every view of the item, then runs `commit`, the one place that deletes it. When `commit` declines
+ * (the item or the editor view changed meanwhile), every view is shown and takes input again, in both windows.
+ * A second call while one runs joins it and resolves to the same result without committing again.
+ */
+export function removeItem(itemId: string, commit: () => boolean): Promise<boolean> {
+  const existing = pending.get(itemId);
+  if (existing) return existing;
+  // The other window plays the same dust at the same time instead of dropping the tile when settings sync.
+  if (isTauri()) void emit('item-removing', itemId).catch(() => {});
+  const removal = play(itemId).then(() => {
+    let removed = false;
+    try {
+      removed = commit();
+    } finally {
+      if (!removed) {
+        restore(itemId);
+        if (isTauri()) void emit('item-removal-cancelled', itemId).catch(() => {});
+      }
+    }
+    return removed;
+  });
+  pending.set(itemId, removal);
+  void removal.finally(() => pending.delete(itemId));
+  return removal;
+}
+
+/** Mirror removals started, or cancelled, in another window. */
 export function followRemovals() {
   if (!isTauri()) return () => {};
-  const stop = listen<string>('item-removing', (event) => {
-    void animateRemoval(event.payload, false);
-  });
+  const stops = [
+    listen<string>('item-removing', (event) => {
+      void play(event.payload);
+    }),
+    listen<string>('item-removal-cancelled', (event) => restore(event.payload)),
+  ];
   return () => {
-    void stop.then((unlisten) => unlisten());
+    for (const stop of stops) {
+      void stop.then((unlisten) => unlisten());
+    }
   };
 }

@@ -12,6 +12,12 @@ const overlaps = (a: Rect, b: Rect) =>
 export const inside = (r: Rect, g: Grid) =>
   r.x >= 0 && r.y >= 0 && r.x + r.w <= g.cols && r.y + r.h <= g.rows;
 
+/**
+ * Corner radius of a tile on cells of `cell` px: 22 px from 110 px cells up, a fifth of the cell below, so small
+ * tiles keep rounded squares instead of turning into circles.
+ */
+export const tileRadius = (cell: number) => Math.min(22, cell / 5);
+
 /** Fit square cells inside a usable host without changing the persisted grid geometry. */
 export function fitDeck(
   deck: { rows: number; cols: number; size: number; gap: number; sizing: DeckSizing },
@@ -281,6 +287,3 @@ export function drop(items: Item[], id: string, x: number, y: number, grid: Grid
   const preview = previewDrop(items, id, x, y, grid);
   return preview.kind === 'invalid' ? null : preview.items;
 }
-
-/** Items that still fit after the grid shrinks (others are dropped from the layout, not deleted as controls). */
-export const clampToGrid = (items: Item[], grid: Grid) => items.filter((i) => inside(i, grid));
