@@ -103,10 +103,10 @@ fn windows_metadata(names: &[String]) -> (HashMap<String, String>, HashMap<Strin
     let mut enum_display = HashMap::new();
     for name in names {
         let key = source_key(name);
-        if !display_config.contains_key(&key) {
-            if let Some(friendly) = enum_display_friendly_name(name) {
-                enum_display.insert(key, friendly);
-            }
+        if !display_config.contains_key(&key)
+            && let Some(friendly) = enum_display_friendly_name(name)
+        {
+            enum_display.insert(key, friendly);
         }
     }
     (display_config, enum_display)
@@ -126,12 +126,14 @@ fn display_config_friendly_names() -> Result<HashMap<String, String>, String> {
     let mut warning = None;
 
     for path in paths {
-        let mut source = DISPLAYCONFIG_SOURCE_DEVICE_NAME::default();
-        source.header = DISPLAYCONFIG_DEVICE_INFO_HEADER {
-            r#type: DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,
-            size: size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32,
-            adapterId: path.sourceInfo.adapterId,
-            id: path.sourceInfo.id,
+        let mut source = DISPLAYCONFIG_SOURCE_DEVICE_NAME {
+            header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
+                r#type: DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,
+                size: size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32,
+                adapterId: path.sourceInfo.adapterId,
+                id: path.sourceInfo.id,
+            },
+            ..Default::default()
         };
         let source_status = unsafe { DisplayConfigGetDeviceInfo(&mut source.header) };
         if source_status != 0 {
@@ -148,12 +150,14 @@ fn display_config_friendly_names() -> Result<HashMap<String, String>, String> {
             continue;
         }
 
-        let mut target = DISPLAYCONFIG_TARGET_DEVICE_NAME::default();
-        target.header = DISPLAYCONFIG_DEVICE_INFO_HEADER {
-            r#type: DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
-            size: size_of::<DISPLAYCONFIG_TARGET_DEVICE_NAME>() as u32,
-            adapterId: path.targetInfo.adapterId,
-            id: path.targetInfo.id,
+        let mut target = DISPLAYCONFIG_TARGET_DEVICE_NAME {
+            header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
+                r#type: DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
+                size: size_of::<DISPLAYCONFIG_TARGET_DEVICE_NAME>() as u32,
+                adapterId: path.targetInfo.adapterId,
+                id: path.targetInfo.id,
+            },
+            ..Default::default()
         };
         let target_status = unsafe { DisplayConfigGetDeviceInfo(&mut target.header) };
         let friendly = if target_status == 0 {
@@ -243,8 +247,10 @@ fn enum_display_friendly_name(source_name: &str) -> Option<String> {
         .chain(std::iter::once(0))
         .collect::<Vec<_>>();
     for child_index in 0..32 {
-        let mut child = DISPLAY_DEVICEW::default();
-        child.cb = size_of::<DISPLAY_DEVICEW>() as u32;
+        let mut child = DISPLAY_DEVICEW {
+            cb: size_of::<DISPLAY_DEVICEW>() as u32,
+            ..Default::default()
+        };
         let found = unsafe {
             EnumDisplayDevicesW(PCWSTR(source_name.as_ptr()), child_index, &mut child, 0)
         };

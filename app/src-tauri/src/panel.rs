@@ -1,7 +1,9 @@
 use std::sync::{Mutex, MutexGuard};
 
 use tauri::webview::PageLoadEvent;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window, WindowEvent,
+};
 
 #[derive(Default)]
 pub struct PanelState(Mutex<PanelLifecycle>);
@@ -104,46 +106,6 @@ impl PanelState {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
-
-    fn begin_creation(&self) -> bool {
-        self.lock().begin_creation()
-    }
-
-    fn creation_succeeded(&self) {
-        self.lock().creation_succeeded();
-    }
-
-    fn creation_failed(&self) {
-        self.lock().creation_failed();
-    }
-
-    fn request_open(&self) -> (u64, bool) {
-        self.lock().request_open()
-    }
-
-    fn navigation_started(&self, was_visible: bool) -> u64 {
-        self.lock().navigation_started(was_visible)
-    }
-
-    fn mark_ready(&self, generation: u64) -> ReadyAction {
-        self.lock().mark_ready(generation)
-    }
-
-    fn pending_focus(&self, generation: u64) -> Option<bool> {
-        self.lock().pending_focus(generation)
-    }
-
-    fn finish_reveal(&self, generation: u64) -> bool {
-        self.lock().finish_reveal(generation)
-    }
-
-    pub fn close_requested(&self) {
-        self.lock().close_requested();
-    }
-
-    pub fn destroyed(&self) {
-        self.lock().destroyed();
-    }
 }
 
 #[derive(serde::Serialize)]
@@ -181,7 +143,7 @@ pub async fn panel_ready(
     generation: u64,
 ) -> Result<bool, String> {
     require_panel(&window)?;
-    let action = state.mark_ready(generation);
+    let action = state.lock().mark_ready(generation);
     match action {
         ReadyAction::Stale => Ok(false),
         ReadyAction::Hidden => Ok(true),
@@ -194,24 +156,24 @@ async fn reveal_panel(
     state: &PanelState,
     generation: u64,
 ) -> Result<bool, String> {
-    if state.pending_focus(generation).is_none() {
+    if state.lock().pending_focus(generation).is_none() {
         return Ok(false);
     }
     if window.is_minimized().map_err(|error| error.to_string())? {
         window.unminimize().map_err(|error| error.to_string())?;
     }
-    if state.pending_focus(generation).is_none() {
+    if state.lock().pending_focus(generation).is_none() {
         return Ok(false);
     }
     window.show().map_err(|error| error.to_string())?;
-    let Some(focus) = state.pending_focus(generation) else {
+    let Some(focus) = state.lock().pending_focus(generation) else {
         let _ = window.hide();
         return Ok(false);
     };
     if focus {
         window.set_focus().map_err(|error| error.to_string())?;
     }
-    if state.finish_reveal(generation) {
+    if state.lock().finish_reveal(generation) {
         Ok(true)
     } else {
         let _ = window.hide();
@@ -219,12 +181,12 @@ async fn reveal_panel(
     }
 }
 
-async fn create_panel(app: AppHandle) -> Result<(), String> {
+pub async fn create_panel(app: AppHandle) -> Result<(), String> {
     if app.get_webview_window("panel").is_some() {
         return Ok(());
     }
     let state = app.state::<PanelState>();
-    if !state.begin_creation() {
+    if !state.lock().begin_creation() {
         return Ok(());
     }
 
@@ -245,11 +207,10 @@ async fn create_panel(app: AppHandle) -> Result<(), String> {
             let was_visible = window.is_visible().unwrap_or(false);
             page_app
                 .state::<PanelState>()
+                .lock()
                 .navigation_started(was_visible);
-            if was_visible {
-                if let Err(error) = window.hide() {
-                    log::warn!("could not hide panel for navigation: {error}");
-                }
+            if was_visible && let Err(error) = window.hide() {
+                log::warn!("could not hide panel for navigation: {error}");
             }
         })
         .build();
@@ -257,11 +218,11 @@ async fn create_panel(app: AppHandle) -> Result<(), String> {
     match built {
         Ok(window) => {
             disable_window_transitions(&window);
-            state.creation_succeeded();
+            state.lock().creation_succeeded();
             Ok(())
         }
         Err(error) => {
-            state.creation_failed();
+            state.lock().creation_failed();
             Err(format!("could not create control panel: {error}"))
         }
     }
@@ -291,13 +252,9 @@ fn disable_window_transitions(window: &tauri::WebviewWindow) {
     }
 }
 
-pub async fn preload_panel(app: AppHandle) -> Result<(), String> {
-    create_panel(app).await
-}
-
-pub async fn open_panel(app: AppHandle) -> Result<(), String> {
+async fn open_panel(app: AppHandle) -> Result<(), String> {
     let state = app.state::<PanelState>();
-    let (generation, ready) = state.request_open();
+    let (generation, ready) = state.lock().request_open();
     if let Some(window) = app.get_webview_window("panel") {
         if ready {
             reveal_panel(window, &state, generation).await?;
@@ -309,6 +266,63 @@ pub async fn open_panel(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
     create_panel(app).await
+}
+
+/// Opens in the background; the tray cannot await.
+pub fn spawn_open(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = open_panel(app).await {
+            log::error!("control panel open failed: {error}");
+        }
+    });
+}
+
+/// Builds the hidden panel at startup so the first tray click reveals a warm page.
+pub fn spawn_preload(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = create_panel(app).await {
+            log::error!("control panel preload failed: {error}");
+        }
+    });
+}
+
+/// Hides like the close button: a pending reveal is cancelled.
+fn hide(window: &WebviewWindow) {
+    window
+        .app_handle()
+        .state::<PanelState>()
+        .lock()
+        .close_requested();
+    let _ = window.hide();
+}
+
+/// The tray's left click: hides a visible panel, otherwise opens it.
+pub fn toggle(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("panel")
+        && window.is_visible().unwrap_or(false)
+        && !window.is_minimized().unwrap_or(false)
+    {
+        hide(&window);
+        return;
+    }
+    spawn_open(app.clone());
+}
+
+/// Closing hides the panel; destroying it resets its lifecycle.
+pub fn on_window_event(window: &Window, event: &WindowEvent) {
+    match event {
+        WindowEvent::CloseRequested { api, .. } => {
+            api.prevent_close();
+            window
+                .app_handle()
+                .state::<PanelState>()
+                .lock()
+                .close_requested();
+            let _ = window.hide();
+        }
+        WindowEvent::Destroyed => window.app_handle().state::<PanelState>().lock().destroyed(),
+        _ => {}
+    }
 }
 
 #[cfg(test)]
