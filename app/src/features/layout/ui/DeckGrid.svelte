@@ -23,7 +23,7 @@
   import type { Page } from '../../settings/schema';
   import type { EffectiveSize, LayoutTarget } from '../skin-layouts';
   import { runtimeView } from '../../../app/runtime/state';
-  import { animateRemoval, registerRemovalNode } from '../removal';
+  import { registerRemovalNode, removeItem } from '../removal';
   import { DeckDrag } from './deck-drag.svelte';
   import { reducedMotion, TileMotion } from './tile-motion.svelte';
   import { RemovalChrome } from './removal-chrome.svelte';
@@ -182,10 +182,13 @@
     drag.clearRemoval(id);
   }
 
-  /** Svelte action for a tile's grid cell: removal animation and context menu. */
+  /** Svelte action for a tile's grid cell: removal animation, its cancellation, and context menu. */
   const registerTile = (node: HTMLElement, id: string) => {
     tileNodes.set(id, node);
-    const removal = registerRemovalNode(node, id, () => startRemoval(id));
+    const removal = registerRemovalNode(node, id, {
+      start: () => startRemoval(id),
+      cancel: () => clearRemoval(id),
+    });
     const menu = (event: MouseEvent) => openContextMenu(event, { item: id });
     node.addEventListener('contextmenu', menu);
     return {
@@ -282,7 +285,8 @@
     const ids = new Set(deck.items.map((item) => item.id));
     for (const id of tileNodes.keys()) {
       if (!ids.has(id)) {
-        void animateRemoval(id);
+        // Already deleted from the data; this only plays the dust while the tile unmounts.
+        void removeItem(id, () => true);
       }
     }
     motion.animateFrom(before, scale);

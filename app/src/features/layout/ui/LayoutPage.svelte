@@ -3,14 +3,15 @@
   import { toast } from 'svelte-sonner';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import SkinLayoutEditor from './SkinLayoutEditor.svelte';
-  import { animateRemoval } from '../removal';
+  import { removeItem } from '../removal';
+  import { removeFromSlot } from '../slot-edits';
   import { commit } from '../history.svelte';
   import { TRIGGER_LABELS, TRIGGERS, type Trigger } from '../../automation/scenario';
   import { runtimeView } from '../../../app/runtime/state';
   import { firstFree, type Selection } from '../grid';
   import { registeredEvents, skins } from '../../plugins/registry';
   import { controlById, settings } from '../../settings/state.svelte';
-  import { MAX_PAGES, pageAfterRemoval, pageById, pageItems, removePlacement } from '../pages';
+  import { MAX_PAGES, pageAfterRemoval, pageById, pageItems } from '../pages';
   import * as pageCommands from '../page-commands';
   import ScenarioEditor from '../../automation/editor/ScenarioEditor.svelte';
   import Inspector from './Inspector.svelte';
@@ -469,28 +470,8 @@
 
   // ---- removing ----
 
-  function remove(id: string, pageId: string, target: LayoutTarget) {
-    const source = layoutFor(settings, target.skinId, target.pageId, target.slotId);
-    if (target.pageId !== pageId || !source?.items.some((item) => item.id === id)) {
-      return;
-    }
-    const result = removePlacement(settings.deck.pages, pageId, id, settings.skinLayouts);
-    if (!result.item) {
-      return;
-    }
-    settings.deck.pages = result.pages;
-    settings.skinLayouts = result.skinLayouts;
-    if (result.orphanControl) {
-      settings.controls = settings.controls.filter((c) => c.id !== result.orphanControl);
-      delete settings.variants[result.orphanControl];
-    }
-    if (selection && 'item' in selection && selection.item === id) {
-      selection = null;
-    }
-  }
-
   /** Plays the removal animation, then deletes the placement if the editor still shows it. */
-  async function removeItemFromPage(id: string, target: LayoutTarget) {
+  function removeItemFromPage(id: string, target: LayoutTarget) {
     const pageId = target.pageId;
     const item = layoutFor(settings, target.skinId, pageId, target.slotId)?.items.find(
       (candidate) => candidate.id === id,
@@ -502,20 +483,21 @@
     const viewId = previewViewId;
     const generation = pageGeneration;
     const name = controlById(item.control)?.name ?? 'widget';
-    await animateRemoval(id);
-    const current = layoutFor(settings, target.skinId, pageId, target.slotId);
-    const stale =
-      page.id !== pageId ||
-      editorSkin.id !== skinId ||
-      previewViewId !== viewId ||
-      pageGeneration !== generation ||
-      !visibleSlots.includes(target.slotId) ||
-      !current?.items.some((entry) => entry.id === id);
-    if (stale) {
-      return;
-    }
-    commit(`Delete ${name}`);
-    remove(id, pageId, target);
+    void removeItem(id, () => {
+      const stale =
+        page.id !== pageId ||
+        editorSkin.id !== skinId ||
+        previewViewId !== viewId ||
+        pageGeneration !== generation ||
+        !visibleSlots.includes(target.slotId);
+      if (stale || !removeFromSlot(target, id, `Delete ${name}`)) {
+        return false;
+      }
+      if (selection && 'item' in selection && selection.item === id) {
+        selection = null;
+      }
+      return true;
+    });
   }
 
   function deleteKeydown(event: KeyboardEvent) {
@@ -537,7 +519,7 @@
     const itemId = selection && 'item' in selection ? selection.item : undefined;
     if (itemId) {
       event.preventDefault();
-      void removeItemFromPage(itemId, selectionTarget);
+      removeItemFromPage(itemId, selectionTarget);
       return;
     }
     const focusedTab =
