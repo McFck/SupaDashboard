@@ -14,6 +14,7 @@
   import { pageOffset } from './page-motion';
   import { Pager } from './pager.svelte';
   import PageDots from './PageDots.svelte';
+  import ResizeGrips from './ResizeGrips.svelte';
 
   const { requestPageChange } = runtimeCommands;
 
@@ -28,7 +29,10 @@
   let pageHost: HTMLDivElement;
   let gaps = $state<DragGaps>();
 
-  const dashboard = new DashboardWindow(() => settings.display);
+  const dashboard = new DashboardWindow(
+    () => settings.display,
+    () => ({ page: $state.snapshot(page), bottomInset: showDots ? 34 : 0 }),
+  );
   const pager = new Pager({
     shell: () => shell,
     pages: () => settings.deck.pages,
@@ -59,7 +63,7 @@
     document.addEventListener('fullscreenchange', resize);
     const dragGaps = new DragGaps(shell, pageHost, () => pager.busy);
     gaps = dragGaps;
-    dashboard.start($state.snapshot(page));
+    dashboard.start();
 
     return () => {
       dashboard.destroy();
@@ -80,6 +84,7 @@
   // The visible page's geometry or placements changed: the drag areas move with them.
   $effect(() => {
     const active = page;
+    void dashboard.appliedFullscreen;
     void [active.id, active.cols, active.rows, active.size, active.gap, active.sizing];
     for (const item of active.items) {
       void [item.x, item.y, item.w, item.h];
@@ -93,6 +98,11 @@
   $effect(() => {
     void [settings.display.monitor, settings.display.fullscreen, settings.display.alwaysOnTop];
     dashboard.requestChanged();
+  });
+
+  $effect(() => {
+    void [page.id, page.cols, page.rows, page.gap, showDots];
+    dashboard.gridChanged();
   });
 
   function goToPage(pageId: string) {
@@ -169,6 +179,7 @@
     {/each}
   {/if}
   {#if !dashboard.appliedFullscreen}
+    <ResizeGrips {dashboard} />
     <div
       aria-hidden="true"
       class="resize-cues"
@@ -237,7 +248,7 @@
     pointer-events: none;
   }
 
-  /* The native window resizes from its edges; this outline only shows where. */
+  /* Shared by the DOM grips and the native border. */
   .resize-cues {
     position: absolute;
     z-index: 40;

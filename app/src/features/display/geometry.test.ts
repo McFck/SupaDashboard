@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { startupPlacement, validGeometry } from './geometry';
+import { minimumWindowSize, startupPlacement, validGeometry } from './geometry';
 
 describe('dashboard window geometry', () => {
+  it.each([
+    [1, 0, { width: 386, height: 200 }],
+    [1.5, 34, { width: 579, height: 351 }],
+    [1.25, 0, { width: 483, height: 250 }],
+  ])('keeps cells usable with padding and page chrome at scale %s', (scale, inset, expected) => {
+    expect(minimumWindowSize({ cols: 6, rows: 3, gap: 14 }, scale, inset)).toEqual(expected);
+  });
   it('rejects unusable saved sizes and coordinates', () => {
     expect(validGeometry({ x: -1200, y: 100, width: 770, height: 392 })).toBe(true);
     expect(validGeometry({ x: 0, y: 0, width: 0, height: 392 })).toBe(false);

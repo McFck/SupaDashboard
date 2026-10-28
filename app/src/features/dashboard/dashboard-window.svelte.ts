@@ -6,6 +6,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { startDisplay, type DisplayController } from '../display/display';
 import type { Page, Settings } from '../settings/schema';
+import { toast } from 'svelte-sonner';
 
 type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
 type ResizeEvent = { resizing: boolean; revision: number };
@@ -33,14 +34,22 @@ export class DashboardWindow {
   private disposed = false;
   private readonly cleanups: (() => void)[] = [];
 
-  constructor(private readonly display: () => Settings['display']) {}
+  constructor(
+    private readonly display: () => Settings['display'],
+    private readonly grid: () => { page: Page; bottomInset: number },
+  ) {}
 
   /** Places the window for the stored display settings, then shows it and follows later display edits. */
-  start(page: Page) {
+  start() {
     const initial = $state.snapshot(this.display());
-    void this.initialize(initial, page).catch((error) =>
-      console.warn('dashboard reveal failed', error),
-    );
+    void this.initialize(initial).catch((error) => console.warn('dashboard reveal failed', error));
+  }
+
+  gridChanged() {
+    if (this.ready) {
+      const { page, bottomInset } = this.grid();
+      void this.controller?.updateGrid(page, bottomInset);
+    }
   }
 
   /** Display settings may have changed: the display controller applies them unless that request already ran. */
@@ -54,6 +63,18 @@ export class DashboardWindow {
     getCurrentWindow()
       .startDragging()
       .catch((error) => console.warn('drag', error));
+  }
+
+  startResize(
+    direction: Parameters<ReturnType<typeof getCurrentWindow>['startResizeDragging']>[0],
+  ) {
+    if (!isTauri() || this.appliedFullscreen) {
+      return;
+    }
+    this.showResizeCues();
+    void getCurrentWindow()
+      .startResizeDragging(direction)
+      .catch(() => toast.error('Could not resize window'));
   }
 
   destroy() {
@@ -73,11 +94,12 @@ export class DashboardWindow {
     }, RESIZE_QUIET_MS);
   }
 
-  private async initialize(initial: Settings['display'], page: Page) {
+  private async initialize(initial: Settings['display']) {
     if (isTauri()) {
       await this.listenToWindow();
     }
     try {
+      const { page, bottomInset } = this.grid();
       const controller = await startDisplay(
         initial,
         page,
@@ -85,6 +107,7 @@ export class DashboardWindow {
         (fullscreen) => {
           this.appliedFullscreen = fullscreen;
         },
+        bottomInset,
       );
       if (this.disposed) {
         controller?.dispose();
@@ -96,6 +119,7 @@ export class DashboardWindow {
         return;
       }
       console.warn('display initialization failed; showing the safe dashboard window', error);
+      toast.error('Could not configure dashboard window');
     }
 
     this.ready = true;
@@ -104,6 +128,7 @@ export class DashboardWindow {
       await getCurrentWindow().show();
     }
     this.requestChanged();
+    this.gridChanged();
   }
 
   private async listenToWindow() {

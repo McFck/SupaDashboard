@@ -3,8 +3,18 @@ use serde::{Deserialize, Serialize};
 use windows::Win32::Foundation::RECT;
 
 /// Width of the resize border, and how far from a corner it still counts as the corner, in DIPs.
-const BORDER_DIP: i32 = 12;
-const CORNER_REACH_DIP: i32 = 32;
+#[derive(Deserialize)]
+struct ResizeBand {
+    border: i32,
+    corner: i32,
+}
+
+static RESIZE_BAND: std::sync::LazyLock<ResizeBand> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!(
+        "../../../src/features/dashboard/resize-band.json"
+    ))
+    .expect("bundled resize band must contain border and corner DIPs")
+});
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Geometry {
@@ -73,10 +83,10 @@ pub fn resize_hit(rect: Geometry, point: (i32, i32), dpi: u32) -> Option<ResizeH
         return None;
     }
 
-    let band_x = scaled_dip(BORDER_DIP, dpi).min((width / 2).max(1));
-    let band_y = scaled_dip(BORDER_DIP, dpi).min((height / 2).max(1));
-    let reach_x = scaled_dip(CORNER_REACH_DIP, dpi).min((width / 2).max(1));
-    let reach_y = scaled_dip(CORNER_REACH_DIP, dpi).min((height / 2).max(1));
+    let band_x = scaled_dip(RESIZE_BAND.border, dpi).min((width / 2).max(1));
+    let band_y = scaled_dip(RESIZE_BAND.border, dpi).min((height / 2).max(1));
+    let reach_x = scaled_dip(RESIZE_BAND.corner, dpi).min((width / 2).max(1));
+    let reach_y = scaled_dip(RESIZE_BAND.corner, dpi).min((height / 2).max(1));
     let west = x < left + band_x;
     let east = x >= right - band_x;
     let north = y < top + band_y;

@@ -12,6 +12,7 @@ import { ControlledWindow } from './controlled-window';
 import { Fullscreen } from './fullscreen';
 import { resolveLiveMonitor, type DisplayRequest } from './geometry';
 import { WindowedBounds } from './windowed-state';
+import { toast } from 'svelte-sonner';
 
 const requestOf = (display: DisplayRequest): DisplayRequest => ({
   monitor: display.monitor,
@@ -71,9 +72,19 @@ export class DisplayController {
         this.applied = null;
         if (this.live()) {
           console.warn('display', error);
+          toast.error('Could not configure dashboard window');
         }
       }
     });
+  }
+
+  updateGrid(deck: Page, bottomInset: number) {
+    return this.serialize(async () => {
+      this.windowed.configureMinimum(deck, bottomInset);
+      if (!this.fullscreen.active) {
+        await this.windowed.enforceMinimum();
+      }
+    }).catch(() => toast.error('Could not apply minimum window size'));
   }
 
   dispose() {
@@ -95,7 +106,8 @@ export class DisplayController {
   }
 
   /** Places the window for the stored settings at start-up; false when the caller went away meanwhile. */
-  async start(initial: DisplayRequest, deck: Page) {
+  async start(initial: DisplayRequest, deck: Page, bottomInset = 0) {
+    this.windowed.configureMinimum(deck, bottomInset);
     this.window.topmost = await this.win.isAlwaysOnTop();
     this.window.step();
     const startup = await this.windowed.startupPlacement(initial.monitor, deck);
@@ -178,11 +190,18 @@ export class DisplayController {
   private async listen() {
     const onResize = () => {
       this.saveUserBoundsLater();
-      this.queueReconcile();
+      if (this.fullscreen.active) {
+        this.queueReconcile();
+      }
     };
     this.listeners.push(await this.win.onMoved(() => this.saveUserBoundsLater()));
     this.listeners.push(await this.win.onResized(onResize));
-    this.listeners.push(await this.win.onScaleChanged(onResize));
+    this.listeners.push(
+      await this.win.onScaleChanged(() => {
+        this.saveUserBoundsLater();
+        this.queueReconcile();
+      }),
+    );
   }
 
   /** Only user moves and resizes of the windowed dashboard are saved. */
@@ -211,21 +230,26 @@ export class DisplayController {
   }
 
   private queueReconcile() {
-    if (!this.live() || !this.fullscreen.active || this.window.transition || this.reconcileQueued) {
+    if (!this.live() || this.window.transition || this.reconcileQueued) {
       return;
     }
     this.reconcileQueued = true;
     queueMicrotask(() => {
       this.reconcileQueued = false;
-      void this.serialize(() => this.reconcile()).catch((error) =>
-        console.warn('display reconcile', error),
-      );
+      void this.serialize(() => this.reconcile()).catch((error) => {
+        console.warn('display reconcile', error);
+        toast.error('Could not configure dashboard window');
+      });
     });
   }
 
-  /** Puts a fullscreen window back over its monitor after the OS or a monitor change resized it. */
+  /** Reapplies fullscreen coverage or the windowed minimum after a resize or DPI change. */
   private async reconcile() {
-    if (!this.fullscreen.active || this.window.transition) {
+    if (this.window.transition) {
+      return;
+    }
+    if (!this.fullscreen.active) {
+      await this.windowed.enforceMinimum();
       return;
     }
     const { target } = await resolveTarget(this.applied?.monitor ?? null);
@@ -242,6 +266,7 @@ export async function startDisplay(
   deck: Page,
   cancelled: () => boolean,
   onFullscreen: (fullscreen: boolean) => void,
+  bottomInset = 0,
 ): Promise<DisplayController | null> {
   if (!isTauri()) {
     return null;
@@ -251,7 +276,7 @@ export async function startDisplay(
   const controller = new DisplayController(getCurrentWindow(), store, cancelled, onFullscreen);
   activeController = controller;
   try {
-    return (await controller.start(requestOf(initial), deck)) ? controller : null;
+    return (await controller.start(requestOf(initial), deck, bottomInset)) ? controller : null;
   } catch (error) {
     controller.dispose();
     if (cancelled()) {

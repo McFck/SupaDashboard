@@ -2,7 +2,6 @@
 // interaction mode, topmost state and rectangle back before the error propagates.
 import { setDashboardInteractionMode } from '../../platform/window';
 import {
-  clampGeometryToWorkArea,
   monitorRect,
   monitorWithLargestIntersection,
   sameGeometry,
@@ -44,6 +43,7 @@ export class Fullscreen {
 
         await setDashboardInteractionMode(true);
         modeChanged = true;
+        await win.win.setMinSize(null);
         win.step();
         await win.setTopmost(true);
         const placed = await win.placeIfDifferent(monitorRect(target));
@@ -54,6 +54,9 @@ export class Fullscreen {
         if (modeChanged && win.live()) {
           try {
             await setDashboardInteractionMode(this.active);
+            if (!this.active) {
+              await this.windowed.enforceMinimum();
+            }
           } catch (rollbackError) {
             console.warn('could not restore dashboard interaction mode', rollbackError);
           }
@@ -92,11 +95,12 @@ export class Fullscreen {
       throw new Error('No normal dashboard rectangle was retained');
     }
     const targetChanged = target.name !== this.windowed.monitor;
-    const desired = clampGeometryToWorkArea(retained, target, targetChanged) ?? retained;
+    const desired = this.windowed.fit(retained, target, targetChanged);
     const win = this.win;
     await win.moving(async () => {
       try {
         win.step();
+        await this.windowed.setNativeMinimum(target);
         const placed = await win.placeIfDifferent(desired);
         win.step();
         await win.setTopmost(alwaysOnTop);
@@ -136,6 +140,7 @@ export class Fullscreen {
   /** Rollback for a failed exit: back to fullscreen interaction, topmost and the fullscreen rectangle. */
   private async restore() {
     try {
+      await this.win.win.setMinSize(null);
       await setDashboardInteractionMode(true);
     } catch (rollbackError) {
       console.warn('could not restore dashboard fullscreen mode', rollbackError);
