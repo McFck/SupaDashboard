@@ -1,4 +1,5 @@
 // Page frame nodes and their settle springs. Animations only move nodes; the pager decides which frames exist.
+import { prefersReducedMotion } from 'svelte/motion';
 import { SPRING_SAMPLES, springDuration } from '$lib/spring';
 
 const SETTLED_DISTANCE = 0.5;
@@ -34,7 +35,7 @@ export class PageMotion {
 
   /** Springs every frame from its offset to `destination(frame)`; resolves when all have finished or were cancelled. */
   async spring<T extends Frame>(frames: readonly T[], destination: (frame: T) => number) {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (prefersReducedMotion.current) {
       return;
     }
     this.animations = frames.flatMap((frame) => {

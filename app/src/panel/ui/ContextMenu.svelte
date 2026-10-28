@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
+  import { prefersReducedMotion } from 'svelte/motion';
   import { backOut, cubicOut } from 'svelte/easing';
   import { toast } from 'svelte-sonner';
 
@@ -42,7 +43,7 @@
   }
 
   function intro(node: HTMLElement) {
-    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 170;
+    const duration = prefersReducedMotion.current ? 0 : 170;
     return {
       duration,
       easing: backOut,
@@ -50,7 +51,7 @@
     };
   }
   function outro(node: HTMLElement) {
-    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 120;
+    const duration = prefersReducedMotion.current ? 0 : 120;
     return {
       duration,
       easing: cubicOut,

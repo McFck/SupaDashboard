@@ -1,5 +1,6 @@
 import { emit, listen } from '@tauri-apps/api/event';
 import { isTauri } from '@tauri-apps/api/core';
+import { prefersReducedMotion } from 'svelte/motion';
 
 /** `start` runs when the item's dust starts; `cancel` when its removal is abandoned and the view stays. */
 type RemovalHooks = { start?: () => void; cancel?: () => void };
@@ -43,7 +44,7 @@ function dustParticles(width: number, height: number, colors: string[], random =
 function dissolve(node: HTMLElement): Promise<void> {
   if (hidden.has(node) || !node.isConnected) return Promise.resolve();
   hidden.set(node, () => hidden.delete(node));
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
+  if (prefersReducedMotion.current) return Promise.resolve();
   const tile = node.querySelector<HTMLElement>('.tile') ?? node;
   const rect = tile.getBoundingClientRect();
   const accent = getComputedStyle(tile).getPropertyValue('--accent').trim() || '#8ea8f0';

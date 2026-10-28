@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
+  import { onDestroy, tick, untrack, type Snippet } from 'svelte';
+  import { prefersReducedMotion } from 'svelte/motion';
   import { Collapsible } from 'bits-ui';
   import { cn } from '$lib/utils';
   import { animateGroupLayout, cancelGroupLayout } from './group-layout';
@@ -22,7 +23,6 @@
   let requestedOpen = initialOpen;
   let renderedOpen = $state(initialOpen);
   let closing = $state(false);
-  let reducedMotion = $state(typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches);
   let triggerNode = $state<HTMLButtonElement | null>(null);
   let contentNode = $state<HTMLElement | null>(null);
   let bodyNode = $state<HTMLElement>();
@@ -38,7 +38,7 @@
       animateGroupLayout(list);
       renderedOpen = true;
       closing = false;
-      if (reducedMotion) return;
+      if (prefersReducedMotion.current) return;
       void tick().then(() => {
         if (!motion.current(generation) || !bodyNode) return;
         const start = hadBody ? from : { opacity: 0, y: 4 };
@@ -50,7 +50,7 @@
 
     closing = hadBody;
     if (contentNode?.contains(document.activeElement)) triggerNode?.focus();
-    if (reducedMotion || !hadBody) {
+    if (prefersReducedMotion.current || !hadBody) {
       animateGroupLayout(list);
       renderedOpen = false;
       closing = false;
@@ -79,19 +79,16 @@
     if (desired !== requestedOpen) requestOpen(desired);
   });
 
-  onMount(() => {
-    const query = matchMedia('(prefers-reduced-motion: reduce)');
-    const changed = () => {
-      reducedMotion = query.matches;
-      if (!reducedMotion) return;
+  // Turning reduced motion on mid-animation jumps to the final state.
+  $effect(() => {
+    if (!prefersReducedMotion.current) return;
+    untrack(() => {
       motion.cancel();
       cancelGroupLayout(list);
       closing = false;
       renderedOpen = requestedOpen;
       internalOpen = requestedOpen;
-    };
-    query.addEventListener('change', changed);
-    return () => query.removeEventListener('change', changed);
+    });
   });
 
   onDestroy(() => motion.dispose());

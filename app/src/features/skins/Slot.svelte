@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
+  import { prefersReducedMotion } from 'svelte/motion';
   import type { Component } from 'svelte';
   import type { ControlFaceProps } from '../controls/model';
   import {
@@ -54,17 +54,7 @@
   });
   let width = $state(0),
     height = $state(0);
-  let reducedMotion = $state(false);
   const isEditing = $derived(editing || host?.mode === 'editor');
-  onMount(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    reducedMotion = query.matches;
-    const change = () => {
-      reducedMotion = query.matches;
-    };
-    query.addEventListener('change', change);
-    return () => query.removeEventListener('change', change);
-  });
   function resolveSize(typeId: string) {
     return host && slot ? effectiveSize(host.skin.id, slot, typeId) : undefined;
   }
@@ -104,7 +94,7 @@
     {#if activeInView}
       <div
         class="absolute inset-0 grid place-items-center"
-        transition:fade={{ duration: reducedMotion ? 0 : 150 }}
+        transition:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
       >
         <DeckGrid
           page={host.page}

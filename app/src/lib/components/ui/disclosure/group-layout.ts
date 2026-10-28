@@ -1,4 +1,5 @@
 import { tick } from 'svelte';
+import { prefersReducedMotion } from 'svelte/motion';
 import { SPRING_SAMPLES } from '../../../spring';
 
 export type GroupPosition = { element: HTMLElement; y: number };
@@ -29,7 +30,7 @@ export function animateGroupLayout(list?: HTMLElement) {
     motion = { pending: false, animations: new Set() };
     listMotions.set(list, motion);
   }
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (prefersReducedMotion.current) {
     cancelGroupLayout(list);
     return;
   }

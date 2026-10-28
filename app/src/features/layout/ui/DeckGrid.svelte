@@ -26,7 +26,8 @@
   import { runtimeView } from '../../../app/runtime/state';
   import { registerRemovalNode, removeItem } from '../removal';
   import { DeckDrag } from './deck-drag.svelte';
-  import { reducedMotion, TileMotion } from './tile-motion.svelte';
+  import { prefersReducedMotion } from 'svelte/motion';
+  import { TileMotion } from './tile-motion.svelte';
   import { RemovalChrome } from './removal-chrome.svelte';
   import DeckEditChrome from './DeckEditChrome.svelte';
 
@@ -276,7 +277,7 @@
 
     const scale = grid ? grid.getBoundingClientRect().width / grid.offsetWidth : 1;
     motion.invalidate();
-    if (!animate || reducedMotion()) {
+    if (!animate || prefersReducedMotion.current) {
       return;
     }
     const ids = new Set(deck.items.map((item) => item.id));

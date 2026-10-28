@@ -10,7 +10,7 @@ import {
   type Box,
   type ResizeCorner,
 } from '../drag-geometry';
-import { reducedMotion } from './tile-motion.svelte';
+import { prefersReducedMotion } from 'svelte/motion';
 import type { DeckDragHost, DragBase } from './deck-drag.svelte';
 
 type CellSize = { w: number; h: number };
@@ -225,7 +225,7 @@ export class DeckResize {
 
   settleResize(id: string, from: Box, target: Box, distance: number, radius: number) {
     const token = ++this.frameGeneration;
-    if (reducedMotion()) {
+    if (prefersReducedMotion.current) {
       this.settlingFrame = null;
       return;
     }
