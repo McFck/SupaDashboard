@@ -62,10 +62,21 @@ pub fn grant_saved_files(app: &AppHandle) {
         .ok()
         .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
     let scope = app.asset_protocol_scope();
-    let controls = saved.as_ref().and_then(|s| s["settings"]["controls"].as_array());
-    for control in controls.into_iter().flatten().filter(|c| c["type"] == "media") {
-        for source in control["options"]["sources"].as_array().into_iter().flatten() {
-            if let (Some("file"), Some(path)) = (source["kind"].as_str(), source["value"].as_str()) {
+    let controls = saved
+        .as_ref()
+        .and_then(|s| s["settings"]["controls"].as_array());
+    for control in controls
+        .into_iter()
+        .flatten()
+        .filter(|c| c["type"] == "media")
+    {
+        for source in control["options"]["sources"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            if let (Some("file"), Some(path)) = (source["kind"].as_str(), source["value"].as_str())
+            {
                 let _ = scope.allow_file(path);
             }
         }
