@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { availableGestures, moveVariant, removeVariant, type ControlConfig } from './model';
+import { availableGestures, type ControlConfig } from './model';
+import { moveVariant, removeVariant } from './variants';
 import { buttonIconSize, mixerLayout, pressRippleGeometry, sliderOrientation } from './geometry';
 import {
   beginPull,

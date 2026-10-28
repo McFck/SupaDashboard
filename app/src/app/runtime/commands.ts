@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { settings, controlById } from '../../features/settings/state.svelte';
-import { effectiveVariant } from '../../features/controls/button-state';
+import { effectiveVariant } from '../../features/controls/control-state';
 import {
   captureTrigger,
   type RunResult,

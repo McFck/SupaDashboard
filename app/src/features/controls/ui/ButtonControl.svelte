@@ -8,7 +8,8 @@
     Variant,
   } from '../model';
   import { gestures } from '../input/gestures';
-  import { effectiveVariant, stateIdAt } from '../button-state';
+  import { effectiveVariant } from '../control-state';
+  import { stateIdAt } from '../variants';
   import { runtimeView } from '../../../app/runtime/state';
   import { runtimeVariables } from '../../automation/runtime-variables.svelte';
   import type { TriggerPacket } from '../../automation/scenario-runner';

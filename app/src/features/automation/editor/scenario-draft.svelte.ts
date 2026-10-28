@@ -8,14 +8,9 @@ import {
   type EventList,
   type Trigger,
 } from '../scenario';
-import {
-  MAX_VARIANTS,
-  moveVariant,
-  removeVariant,
-  type ControlConfig,
-  type Variant,
-} from '../../controls/model';
-import { stateIdAt, validateStateConfiguration } from '../../controls/button-state';
+import { MAX_VARIANTS, type ControlConfig, type Variant } from '../../controls/model';
+import { moveVariant, removeVariant, stateIdAt } from '../../controls/variants';
+import { validateStateConfiguration } from '../../controls/state-validation';
 import { runtimeView } from '../../../app/runtime/state';
 import { registeredEvents } from '../../plugins/registry';
 import { controlById, settings } from '../../settings/state.svelte';

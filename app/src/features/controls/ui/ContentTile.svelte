@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { effectiveVariant } from '../button-state';
+  import { effectiveVariant } from '../control-state';
   import { pullBindingsFor, type PullSnapshot } from '../input/pull';
   import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import type { ControlConfig } from '../model';

@@ -10,7 +10,8 @@
     TilePresentation,
     Variant,
   } from '../model';
-  import { effectiveVariant, stateIdAt } from '../button-state';
+  import { effectiveVariant } from '../control-state';
+  import { stateIdAt } from '../variants';
   import { runtimeView } from '../../../app/runtime/state';
   import { runtimeVariables } from '../../automation/runtime-variables.svelte';
   import type { Trigger } from '../../automation/scenario';
