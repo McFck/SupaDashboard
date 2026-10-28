@@ -4,7 +4,7 @@ import { get } from 'svelte/store';
 import { actions, install, skins } from '../../features/plugins/registry';
 import type { ActionContext } from '../../features/plugins/contracts';
 import { settings, serializeSettings } from '../../features/settings/state.svelte';
-import type { Page } from '../../features/settings/schema';
+import type { Page, Settings } from '../../features/settings/schema';
 import { captureTrigger } from '../../features/automation/capture';
 import { mediaSourceKey } from '../../features/media/content';
 import { VariableStore } from '../../features/automation/variables';
@@ -13,6 +13,18 @@ import { RuntimeSession } from './session.svelte';
 import { runtimeView } from './state';
 import type { ControlConfig } from '../../features/controls/model';
 import type { Trigger } from '../../features/automation/scenario';
+
+const remote = vi.hoisted(() => ({
+  listener: undefined as ((next: Settings) => void) | undefined,
+}));
+vi.mock('../../features/settings/persistence.svelte', () => ({
+  onRemoteSettings(listener: (next: Settings) => void) {
+    remote.listener = listener;
+    return () => {
+      remote.listener = undefined;
+    };
+  },
+}));
 
 const priorSettings = structuredClone(settings);
 const page = (id: string): Page => ({
@@ -56,6 +68,41 @@ afterEach(async () => {
 });
 
 describe('automation runtime', () => {
+  it('publishes remote content only after controls and placements have both been assigned', async () => {
+    vi.useFakeTimers();
+    settings.deck.pages = [page('page-1')];
+    settings.deck.activePage = 'page-1';
+    settings.controls = [];
+    runtime = new RuntimeSession();
+    await tick();
+    const next = structuredClone(settings);
+    next.controls = [
+      {
+        ...control(),
+        type: 'media',
+        options: {
+          sources: [{ kind: 'url', value: 'https://example.test/a.png' }],
+        },
+      },
+    ];
+    next.deck.pages[0].items = [
+      { id: 'media', control: next.controls[0].id, x: 0, y: 0, w: 1, h: 1 },
+    ];
+    const snapshots: unknown[] = [];
+    const stop = runtime.snapshots.subscribe((snapshot) => snapshots.push(snapshot));
+    snapshots.length = 0;
+    try {
+      remote.listener!(next);
+      expect(snapshots).toEqual([]);
+      Object.assign(settings, next);
+      runtime.reconcile(settings.controls);
+      expect(snapshots).toHaveLength(1);
+      expect(runtime.contentCommand(next.controls[0].id, 'goto', 0)).toBe(false);
+    } finally {
+      stop();
+    }
+  });
+
   it('runs skin quick actions only in a live owner with runner context', async () => {
     let received: ActionContext | undefined;
     actions.set('test.action', {

@@ -182,8 +182,6 @@ export class RuntimeSession {
     });
     this.skins.start();
     this.stopRemoteSettings = onRemoteSettings((next) => {
-      this.reconcile(next.controls);
-      this.pages.reconcile(next.deck.pages);
       this.skins.reconcile(next.skinSettings);
     });
     this.stopSettingsEffect = $effect.root(() => {
