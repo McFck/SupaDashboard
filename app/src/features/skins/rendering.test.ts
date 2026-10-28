@@ -3,7 +3,6 @@ import type { Component } from 'svelte';
 import type { ControlFaceProps } from '../controls/model';
 import { controlTypes, skins } from '../plugins/registry';
 import { effectiveSize } from '../layout/skin-layouts';
-import { skinFaceFor } from './faces';
 import { type SkinDef } from './contracts';
 
 const typeId = 'skin-rendering-button';
@@ -38,14 +37,6 @@ afterEach(() => {
 });
 
 describe('skin control rendering', () => {
-  it('uses a supported face override and falls back to the registered face', () => {
-    expect(skinFaceFor(skin, typeId, defaultFace)).toBe(customFace);
-    expect(skinFaceFor({ ...skin, controlSkins: undefined }, typeId, defaultFace)).toBe(
-      defaultFace,
-    );
-    expect(skinFaceFor(skin, 'unknown-control', undefined)).toBeUndefined();
-  });
-
   it('resolves renderer sizing within the destination slot capacity', () => {
     skins.set(skinId, skin);
     controlTypes.set(typeId, {

@@ -4,7 +4,7 @@
   import { actions } from '../plugins/registry';
   import { currentRuntime } from '../../app/runtime/session.svelte';
   import type { ActionDef, ActionRef } from '../plugins/contracts';
-  import { resolveQuickActions, validSkinParam } from './definition';
+  import { validSkinParam } from './definition';
   import ParamField from '../plugins/ui/ParamField.svelte';
   import { getSkinHostContext } from './context';
 
@@ -23,7 +23,8 @@
     return args;
   }
   const rows = $derived.by(() =>
-    resolveQuickActions(host?.skin.quickActions, actions).map(({ ref, action }, index) => {
+    (host?.skin.quickActions ?? []).map((ref, index) => {
+      const action = actions.get(ref.id);
       const params = action?.params ?? [];
       const args = argsFor(ref, index, params);
       const valid = params.every((param) => validSkinParam(param, args[param.key], args));

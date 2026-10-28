@@ -1,6 +1,5 @@
 import type { SkinHostContext } from './context';
-import type { SceneInput, SceneRect, SkinSceneRenderer } from './scene-contracts';
-import { mapScenePoint } from './scene-geometry';
+import type { SceneInput, SkinSceneRenderer } from './scene-contracts';
 
 /** Owns capture and the in-flight scene gesture, including cancellation on visibility changes. */
 export class ScenePointer {
@@ -78,8 +77,17 @@ export class ScenePointer {
     const canvas = this.host.canvas();
     const rect = canvas.getBoundingClientRect();
     const { width, height } = this.host.size();
-    const point = mapScenePoint(event.clientX, event.clientY, rect, width, height);
-    if (!point) {
+    if (
+      ![rect.width, rect.height, width, height].every((v) => v > 0) ||
+      ![event.clientX, event.clientY].every(Number.isFinite)
+    ) {
+      return;
+    }
+    const point = {
+      x: ((event.clientX - rect.left) * width) / rect.width,
+      y: ((event.clientY - rect.top) * height) / rect.height,
+    };
+    if (point.x < 0 || point.y < 0 || point.x >= width || point.y >= height) {
       return;
     }
     const next: SceneInput = {
@@ -94,9 +102,7 @@ export class ScenePointer {
     };
     const renderer = this.host.renderer();
     const handled =
-      this.host.context?.routeSceneInput(next, this.rect(rect), (input) =>
-        renderer?.input?.(input),
-      ) ?? false;
+      this.host.context?.routeSceneInput(next, rect, (input) => renderer?.input?.(input)) ?? false;
     if (!renderer?.input && !handled) {
       return;
     }
@@ -117,13 +123,9 @@ export class ScenePointer {
     }
   }
 
-  private rect(rect: DOMRect): SceneRect {
-    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-  }
-
   private dispatch(input: SceneInput, rect: DOMRect) {
     const deliver = (event: SceneInput) => this.host.renderer()?.input?.(event);
-    if (!this.host.context?.routeSceneInput(input, this.rect(rect), deliver)) {
+    if (!this.host.context?.routeSceneInput(input, rect, deliver)) {
       deliver(input);
     }
   }

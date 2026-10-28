@@ -17,11 +17,6 @@ export type ContentVisibility = {
   dashboardVisible: boolean;
 };
 
-export type DashboardVisibilityBridge = {
-  listen(callback: (visible: boolean) => void): Promise<() => void>;
-  isVisible(): Promise<boolean>;
-};
-
 export function canRunContent(value: ContentVisibility) {
   return (
     value.runtimeOwner &&
@@ -33,60 +28,40 @@ export function canRunContent(value: ContentVisibility) {
   );
 }
 
-export function watchIntersection(
-  node: Element,
-  onChange: (intersecting: boolean) => void,
-  createObserver?: (callback: IntersectionObserverCallback) => IntersectionObserver,
-) {
-  if (!createObserver && typeof IntersectionObserver === 'undefined') {
+export function watchIntersection(node: Element, onChange: (intersecting: boolean) => void) {
+  if (typeof IntersectionObserver === 'undefined') {
     onChange(true);
     return () => {};
   }
-  const observer = (
-    createObserver ?? ((callback) => new IntersectionObserver(callback, { threshold: 0 }))
-  )((entries) => onChange(!!entries[0]?.isIntersecting));
+  const observer = new IntersectionObserver((entries) => onChange(!!entries[0]?.isIntersecting), {
+    threshold: 0,
+  });
   observer.observe(node);
   return () => observer.disconnect();
 }
 
-function tauriBridge(): DashboardVisibilityBridge {
-  const window = getCurrentWindow();
-  return {
-    listen: (callback) => {
-      // Native emits can arrive out of order; an older revision than the last applied one is stale.
-      let revision = -1;
-      return window.listen<{ visible: boolean; revision: number }>(
-        'dashboard-visibility',
-        (event) => {
-          if (event.payload.revision > revision) {
-            revision = event.payload.revision;
-            callback(event.payload.visible);
-          }
-        },
-      );
-    },
-    isVisible: () => window.isVisible(),
-  };
-}
-
-export async function watchDashboardVisibility(
-  onChange: (visible: boolean) => void,
-  bridge?: DashboardVisibilityBridge,
-) {
-  if (!bridge && !isTauri()) {
+export async function watchDashboardVisibility(onChange: (visible: boolean) => void) {
+  if (!isTauri()) {
     onChange(true);
     return () => {};
   }
-  const source = bridge ?? tauriBridge();
+  const window = getCurrentWindow();
   let active = true;
   let eventRevision = 0;
-  const unlisten = await source.listen((visible) => {
-    eventRevision++;
-    if (active) onChange(visible);
-  });
+  // Native emits can arrive out of order; an older revision than the last applied one is stale.
+  let nativeRevision = -1;
+  const unlisten = await window.listen<{ visible: boolean; revision: number }>(
+    'dashboard-visibility',
+    ({ payload }) => {
+      if (payload.revision <= nativeRevision) return;
+      nativeRevision = payload.revision;
+      eventRevision++;
+      if (active) onChange(payload.visible);
+    },
+  );
   const queryRevision = eventRevision;
   try {
-    const visible = await source.isVisible();
+    const visible = await window.isVisible();
     if (active && eventRevision === queryRevision) onChange(visible);
   } catch {
     // The window event is still authoritative if the initial query fails.

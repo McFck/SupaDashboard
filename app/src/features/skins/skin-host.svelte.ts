@@ -4,7 +4,6 @@ import type { Page } from '../settings/schema';
 import type { VariableValue } from '../automation/variables';
 import type { SceneInput, SceneRect } from './scene-contracts';
 import { SkinInputRecognizer, type SkinCorner, type SkinGesture } from './input';
-import { fitSkinDesign } from './geometry';
 import { resolveSkinConfig } from './definition';
 import { settings } from '../settings/state.svelte';
 import type { getRuntimeCommands } from '../../app/runtime/context';
@@ -31,11 +30,19 @@ export class SkinHostController implements SkinHostContext {
   private readonly input = new SkinInputRecognizer(() => this.setQuickActionsOpen(true));
   private unsubscribe = () => {};
   readonly fittedHeight = $derived(this.designHeight ?? this.skin.design?.height ?? 0);
-  readonly fit = $derived(
-    this.skin.design
-      ? fitSkinDesign(this.width, this.height, this.skin.design.width, this.fittedHeight)
-      : null,
-  );
+  readonly fit = $derived.by(() => {
+    const design = this.skin.design;
+    const { width, height, fittedHeight } = this;
+    if (!design || ![width, height, fittedHeight].every((v) => Number.isFinite(v) && v > 0)) {
+      return null;
+    }
+    const scale = Math.min(width / design.width, height / fittedHeight);
+    return {
+      scale,
+      offsetX: (width - design.width * scale) / 2,
+      offsetY: (height - fittedHeight * scale) / 2,
+    };
+  });
   readonly viewId = $derived.by(() => {
     const skin = this.skin;
     const value = this.mode === 'editor' ? this.source.previewViewId : this.state.view;

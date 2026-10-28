@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { isRecord } from '../automation/plain-data';
 
 export const WEB_FRAME_TIMEOUT_MS = 15_000;
 export type FrameNavigation = {
@@ -38,17 +39,12 @@ export function consumeEligibleTime(remaining: number, elapsed: number) {
   return Math.max(0, remaining - Math.max(0, Number.isFinite(elapsed) ? elapsed : 0));
 }
 
-type FrameStatusAdapter = {
-  subscribe(listener: (event: unknown) => void): Promise<() => void> | (() => void);
-};
-type FrameWindow = typeof globalThis & { __supadashboardContentFrameAdapter?: FrameStatusAdapter };
 const subscribers = new Set<(event: FrameNavigation) => void>();
-let references = 0;
 let connection: Promise<boolean> | undefined;
 let stopConnection: (() => void) | undefined;
 
 function validEvent(value: unknown): value is FrameNavigation {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     return false;
   }
   const event = value as Record<string, unknown>;
@@ -92,11 +88,6 @@ function connect(): Promise<boolean> {
         stopConnection = unlisten;
         return (await invoke<boolean>('content_frames_ready')) === true;
       }
-      const adapter = (globalThis as FrameWindow).__supadashboardContentFrameAdapter;
-      if (adapter) {
-        stopConnection = await adapter.subscribe(publish);
-        return true;
-      }
     } catch {
       stopConnection?.();
       stopConnection = undefined;
@@ -107,7 +98,6 @@ function connect(): Promise<boolean> {
 }
 
 export async function subscribeWebFrameEvents(listener: (event: FrameNavigation) => void) {
-  references++;
   subscribers.add(listener);
   const nativeStatus = await connect();
   let active = true;
@@ -115,10 +105,9 @@ export async function subscribeWebFrameEvents(listener: (event: FrameNavigation)
     if (!active) return;
     active = false;
     subscribers.delete(listener);
-    references = Math.max(0, references - 1);
-    if (references === 0) {
+    if (subscribers.size === 0) {
       void connection?.then(() => {
-        if (references !== 0) return;
+        if (subscribers.size !== 0) return;
         stopConnection?.();
         stopConnection = undefined;
         connection = undefined;

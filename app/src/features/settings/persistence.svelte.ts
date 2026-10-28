@@ -16,10 +16,16 @@ export function onRemoteSettings(listener: (next: Settings) => void) {
   return () => remoteSettingsListeners.delete(listener);
 }
 
+type Source = {
+  raw: unknown;
+  /** The stored text; undefined when nothing was saved yet. */
+  rawJson?: string;
+  write(json: string): Promise<void>;
+  /** `read` may throw on malformed data. */
+  watch(onChange: (read: () => unknown) => void): void | Promise<void>;
+};
+
 export async function loadSettings() {
-  const browser = !isTauri();
-  const browserKey = 'supadashboard:settings:v5';
-  const legacyBrowserKeys = ['supadashboard:settings:v6', 'supadashboard:settings:v4'];
   let persistence: SettingsPersistence;
   let initial = '';
   let writingJson: string | undefined;
@@ -44,42 +50,73 @@ export async function loadSettings() {
     next.deck.activePage = activePage;
     Object.assign(settings, next);
   };
-  const applyInitial = (raw: unknown, rawJson?: string) => {
+  const applyInitial = ({ raw, rawJson }: Source) => {
     try {
       if (rawJson !== undefined && raw == null) {
         throw new Error('Saved settings are empty');
       }
-      assign(migrate(raw));
-      initial = rawJson ?? '';
+      const next = migrate(raw);
+      // The store returns its own key order, so a current-version file is compared in normalized form.
+      // An older file keeps its stored text and is rewritten at once.
+      const current =
+        rawJson !== undefined && (raw as { version?: unknown }).version === next.version;
+      initial = current ? serializeSettings(next) : (rawJson ?? '');
+      assign(next);
       return true;
     } catch {
       loadFailed();
       return false;
     }
   };
-  const applyRemote = (raw: unknown) => {
-    const next = migrate(raw);
-    const json = serializeSettings(next);
-    blocked = false;
-    // plugin-store also emits our own set before the disk save completes.
-    if (
-      json === writingJson ||
-      json === persistence.saved ||
-      json === serializeSettings($state.snapshot(settings))
-    ) {
-      return;
+  const applyRemote = (read: () => unknown) => {
+    try {
+      const next = migrate(read());
+      const json = serializeSettings(next);
+      blocked = false;
+      // plugin-store also emits our own set before the disk save completes.
+      if (
+        json === writingJson ||
+        json === persistence.saved ||
+        json === serializeSettings($state.snapshot(settings))
+      ) {
+        return;
+      }
+      for (const listener of remoteSettingsListeners) {
+        listener(next);
+      }
+      assign(next, settings.deck.activePage);
+      persistence.saved = json;
+    } catch {
+      loadFailed();
     }
-    for (const listener of remoteSettingsListeners) {
-      listener(next);
-    }
-    assign(next, settings.deck.activePage);
-    persistence.saved = json;
   };
 
-  if (browser) {
+  const source = isTauri() ? await openStore() : openBrowserStorage();
+  if (!source || !applyInitial(source)) {
+    return;
+  }
+  persistence = new SettingsPersistence(async (json) => {
+    writingJson = json;
+    try {
+      await source.write(json);
+    } finally {
+      writingJson = undefined;
+    }
+  }, initial);
+  await source.watch(applyRemote);
+  $effect.root(() => {
+    $effect(() => {
+      save();
+    });
+  });
+
+  function openBrowserStorage(): Source | undefined {
+    const key = 'supadashboard:settings:v5';
     const rawJson =
-      localStorage.getItem(browserKey) ??
-      legacyBrowserKeys.map((key) => localStorage.getItem(key)).find((value) => value !== null);
+      localStorage.getItem(key) ??
+      ['supadashboard:settings:v6', 'supadashboard:settings:v4']
+        .map((legacy) => localStorage.getItem(legacy))
+        .find((value) => value !== null);
     let raw: unknown = null;
     if (rawJson != null) {
       try {
@@ -89,62 +126,42 @@ export async function loadSettings() {
         return;
       }
     }
-    if (!applyInitial(raw, rawJson ?? undefined)) {
-      return;
-    }
-    persistence = new SettingsPersistence(async (json) => {
-      localStorage.setItem(browserKey, json);
-    }, initial);
-    const onStorage = (event: StorageEvent) => {
-      if (event.key !== browserKey || !event.newValue) {
-        return;
-      }
-      try {
-        applyRemote(JSON.parse(event.newValue));
-      } catch {
-        loadFailed();
-      }
+    return {
+      raw,
+      rawJson: rawJson ?? undefined,
+      write: async (json) => localStorage.setItem(key, json),
+      watch: (onChange) => {
+        window.addEventListener('storage', (event) => {
+          if (event.key === key && event.newValue) {
+            onChange(() => JSON.parse(event.newValue!));
+          }
+        });
+      },
     };
-    window.addEventListener('storage', onStorage);
-    $effect.root(() => {
-      $effect(() => {
-        save();
-      });
-    });
-    return;
   }
-  const store = await load('settings.json', { defaults: {}, autoSave: false });
-  const raw = await store.get('settings');
-  if (raw === undefined && !(await storeIsReadable(store))) {
-    loadFailed();
-    return;
-  }
-  if (!applyInitial(raw, raw === undefined ? undefined : JSON.stringify(raw))) {
-    return;
-  }
-  persistence = new SettingsPersistence(async (json) => {
-    writingJson = json;
-    try {
-      await store.set('settings', JSON.parse(json));
-      await store.save();
-    } finally {
-      writingJson = undefined;
-    }
-  }, initial);
-  // Another window (dashboard <-> control panel) changed something: take it over.
-  await store.onKeyChange('settings', (value) => {
-    if (!value) {
+
+  async function openStore(): Promise<Source | undefined> {
+    const store = await load('settings.json', { defaults: {}, autoSave: false });
+    const raw = await store.get('settings');
+    if (raw === undefined && !(await storeIsReadable(store))) {
+      loadFailed();
       return;
     }
-    try {
-      applyRemote(value);
-    } catch {
-      loadFailed();
-    }
-  });
-  $effect.root(() => {
-    $effect(() => {
-      save();
-    });
-  });
+    return {
+      raw,
+      rawJson: raw === undefined ? undefined : JSON.stringify(raw),
+      write: async (json) => {
+        await store.set('settings', JSON.parse(json));
+        await store.save();
+      },
+      // Another window (dashboard <-> control panel) changed something: take it over.
+      watch: async (onChange) => {
+        await store.onKeyChange('settings', (value) => {
+          if (value) {
+            onChange(() => value);
+          }
+        });
+      },
+    };
+  }
 }

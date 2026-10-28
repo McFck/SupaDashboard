@@ -1,4 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
+
+const native = vi.hoisted(() => ({ publish: (_event: unknown) => {} }));
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true, invoke: async () => true }));
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({
+    listen: async (_name: string, handler: (event: { payload: unknown }) => void) => {
+      native.publish = (payload) => handler({ payload });
+      return () => {};
+    },
+  }),
+}));
 import {
   WEB_FRAME_TIMEOUT_MS,
   consumeEligibleTime,
@@ -10,13 +21,7 @@ import {
 
 describe('web frame readiness', () => {
   it('rejects malformed phase payloads before any frame subscriber can consume them', async () => {
-    let publish!: (event: unknown) => void;
-    vi.stubGlobal('__supadashboardContentFrameAdapter', {
-      subscribe(listener: typeof publish) {
-        publish = listener;
-        return () => {};
-      },
-    });
+    const publish = (event: unknown) => native.publish(event);
     const received: unknown[] = [];
     const subscription = await subscribeWebFrameEvents((event) => received.push(event));
     try {
@@ -61,7 +66,6 @@ describe('web frame readiness', () => {
     } finally {
       subscription.dispose();
       await Promise.resolve();
-      vi.unstubAllGlobals();
     }
   });
 
@@ -131,8 +135,7 @@ describe('web frame readiness', () => {
     ).toMatchObject({ status: 'unavailable' });
   });
 
-  it('uses a 15 second eligible-time timeout and consumes only elapsed visible time', () => {
-    expect(WEB_FRAME_TIMEOUT_MS).toBe(15_000);
+  it('consumes only elapsed visible time', () => {
     const afterVisibleFiveSeconds = consumeEligibleTime(WEB_FRAME_TIMEOUT_MS, 5_000);
     expect(afterVisibleFiveSeconds).toBe(10_000);
     expect(consumeEligibleTime(afterVisibleFiveSeconds, 0)).toBe(10_000);

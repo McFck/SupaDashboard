@@ -18,8 +18,7 @@ export function videoThumbnailKey(source: { kind: string; value: string; id?: st
 export function cachedVideoThumbnail(key: string) {
   const value = cache.get(key);
   if (!value) return;
-  cache.delete(key);
-  cache.set(key, value);
+  remember(key, value);
   return value.dataUrl;
 }
 
@@ -38,36 +37,19 @@ export function captureVideoThumbnail(
   if (typeof document === 'undefined' || !url) return Promise.resolve(undefined);
 
   const video = document.createElement('video');
-  video.dataset.mediaThumbProbe = '';
   video.preload = 'metadata';
   video.muted = true;
   video.playsInline = true;
   video.crossOrigin = 'anonymous';
-  Object.assign(video.style, {
-    position: 'fixed',
-    left: '-10000px',
-    top: '0',
-    width: '160px',
-    height: 'auto',
-    opacity: '0',
-    pointerEvents: 'none',
-  });
-  video.setAttribute('aria-hidden', 'true');
-  video.tabIndex = -1;
-  document.body.append(video);
 
   const result = new Promise<VideoThumbnail | undefined>((resolve) => {
     let finished = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const clean = () => {
       if (timeout) clearTimeout(timeout);
-      video.removeEventListener('loadedmetadata', onMetadata);
-      video.removeEventListener('seeked', onSeeked);
-      video.removeEventListener('error', onError);
       video.pause();
       video.removeAttribute('src');
       video.load();
-      video.remove();
     };
     const finish = (value?: VideoThumbnail) => {
       if (finished) return;

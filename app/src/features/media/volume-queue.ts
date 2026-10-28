@@ -1,4 +1,4 @@
-import type { VolumePatch } from './volume-model';
+import type { VolumePatch } from './volume';
 
 export type VolumeWriteHost = {
   send(target: string, deviceId: string, patch: VolumePatch): Promise<unknown>;
@@ -154,13 +154,7 @@ export class VolumeWriteQueue {
         return;
       }
       if (!result.applied) {
-        this.settleOptimistic(target, job.generation);
-        this.host.changed();
-        const error = new Error('Volume target is no longer available');
-        for (const waiter of job.waiters) {
-          waiter.reject(error);
-        }
-        return;
+        throw new Error('Volume target is no longer available');
       }
       if (this.settleOptimistic(target, job.generation)) {
         this.host.changed();

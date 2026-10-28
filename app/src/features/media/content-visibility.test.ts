@@ -1,10 +1,33 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   canRunContent,
   watchDashboardVisibility,
-  watchIntersection,
   type ContentVisibility,
 } from './content-visibility';
+
+const native = vi.hoisted(() => ({
+  emit: (_visible: boolean, _revision: number) => {},
+  unlisten: vi.fn(),
+  query: () => Promise.resolve(true),
+}));
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }));
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({
+    listen: async (
+      _name: string,
+      handler: (event: { payload: { visible: boolean; revision: number } }) => void,
+    ) => {
+      native.emit = (visible, revision) => handler({ payload: { visible, revision } });
+      return native.unlisten;
+    },
+    isVisible: () => native.query(),
+  }),
+}));
+
+beforeEach(() => {
+  native.unlisten.mockClear();
+  native.query = () => Promise.resolve(true);
+});
 
 const eligible: ContentVisibility = {
   runtimeOwner: true,
@@ -31,64 +54,29 @@ describe('content visibility', () => {
     expect(canRunContent(eligible)).toBe(true);
   });
 
-  it('observes the tile and disconnects its observer on teardown', () => {
-    const observer = { observe: vi.fn(), disconnect: vi.fn() } as unknown as IntersectionObserver;
-    let callback: IntersectionObserverCallback | undefined;
-    const create = vi.fn((value: IntersectionObserverCallback) => {
-      callback = value;
-      return observer;
-    });
-    const onChange = vi.fn();
-    const node = {} as Element;
-    const stop = watchIntersection(node, onChange, create);
-    expect(create).toHaveBeenCalledOnce();
-    expect(observer.observe).toHaveBeenCalledWith(node);
-    expect(callback).toBeDefined();
-    callback!([{ isIntersecting: false } as IntersectionObserverEntry], observer);
-    expect(onChange).toHaveBeenCalledExactlyOnceWith(false);
-    stop();
-    expect(observer.disconnect).toHaveBeenCalledOnce();
-  });
-
   it('does not let a stale initial visibility query overwrite a newer event', async () => {
-    let event!: (visible: boolean) => void;
     let resolveQuery!: (visible: boolean) => void;
-    const bridge = {
-      listen: async (callback: (visible: boolean) => void) => {
-        event = callback;
-        return vi.fn();
-      },
-      isVisible: () =>
-        new Promise<boolean>((resolve) => {
-          resolveQuery = resolve;
-        }),
-    };
+    native.query = () => new Promise<boolean>((resolve) => (resolveQuery = resolve));
     const onChange = vi.fn();
-    const pending = watchDashboardVisibility(onChange, bridge);
+    const pending = watchDashboardVisibility(onChange);
     await Promise.resolve();
-    event(false);
+    native.emit(false, 1);
     resolveQuery(true);
     const stop = await pending;
     expect(onChange.mock.calls).toEqual([[false]]);
     stop();
   });
 
-  it('detaches native events and ignores later events after disposal', async () => {
-    let event!: (visible: boolean) => void;
-    const unlisten = vi.fn();
-    const bridge = {
-      listen: async (callback: (visible: boolean) => void) => {
-        event = callback;
-        return unlisten;
-      },
-      isVisible: async () => true,
-    };
+  it('ignores out-of-order events, and detaches and ignores later events after disposal', async () => {
     const onChange = vi.fn();
-    const stop = await watchDashboardVisibility(onChange, bridge);
+    const stop = await watchDashboardVisibility(onChange);
     expect(onChange.mock.calls).toEqual([[true]]);
+    native.emit(false, 5);
+    native.emit(true, 4);
+    expect(onChange.mock.calls).toEqual([[true], [false]]);
     stop();
-    event(false);
-    expect(unlisten).toHaveBeenCalledOnce();
-    expect(onChange).toHaveBeenCalledOnce();
+    native.emit(true, 6);
+    expect(native.unlisten).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenCalledTimes(2);
   });
 });

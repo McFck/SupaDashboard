@@ -2,8 +2,8 @@ import type { ControlConfig } from '../controls/model';
 import { normalizeControl } from '../automation/normalize-control';
 import type { Settings } from './schema';
 import { DEFAULTS } from './defaults';
-import { isRecord, object } from './validation';
-import { upgrade } from './upgrade';
+import { isRecord } from '../automation/plain-data';
+import { object, upgrade } from './upgrade';
 import { normalizeLayout } from './normalize-layout';
 
 /** Bring any saved settings up to the current version without losing the user's controls. */
@@ -27,19 +27,13 @@ export function migrate(input: unknown): Settings {
 
   const { deck, skinLayouts, pageIds, itemIds } = normalizeLayout(saved);
   const pages = deck.pages;
-  const skinSettings =
-    saved.skinSettings &&
-    typeof saved.skinSettings === 'object' &&
-    !Array.isArray(saved.skinSettings)
-      ? Object.fromEntries(
-          Object.entries(saved.skinSettings)
-            .filter(
-              (entry): entry is [string, Record<string, unknown>] =>
-                !!entry[0] && isRecord(entry[1]),
-            )
-            .map(([id, value]) => [id, structuredClone(value)]),
-        )
-      : {};
+  const skinSettings = isRecord(saved.skinSettings)
+    ? Object.fromEntries(
+        Object.entries(saved.skinSettings)
+          .filter(([id, value]) => !!id && isRecord(value))
+          .map(([id, value]) => [id, structuredClone(value)]),
+      )
+    : {};
 
   // Placements used to share one control (and its state); give every extra placement its own copy.
   const variants: Settings['variants'] = {};
@@ -84,32 +78,28 @@ export function migrate(input: unknown): Settings {
 
   const display = object(saved.display);
   const background = object(display.background);
+  const pick = <T>(value: unknown, guard: (v: unknown) => boolean, fallback: T) =>
+    guard(value) ? (value as T) : fallback;
+  const finite = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
   delete saved.pageRotation;
   return {
     ...out,
     ...saved,
     version: 5,
-    skin: typeof saved.skin === 'string' ? saved.skin : out.skin,
+    skin: pick(saved.skin, (v) => typeof v === 'string', out.skin),
     controls,
     display: {
       ...out.display,
       ...display,
-      monitor: typeof display.monitor === 'string' ? display.monitor : null,
-      fullscreen: typeof display.fullscreen === 'boolean' ? display.fullscreen : false,
-      alwaysOnTop: typeof display.alwaysOnTop === 'boolean' ? display.alwaysOnTop : false,
+      monitor: pick(display.monitor, (v) => typeof v === 'string', null),
+      fullscreen: pick(display.fullscreen, (v) => typeof v === 'boolean', false),
+      alwaysOnTop: pick(display.alwaysOnTop, (v) => typeof v === 'boolean', false),
       background: {
         ...out.display.background,
         ...background,
-        color:
-          typeof background.color === 'string' ? background.color : out.display.background.color,
-        opacity:
-          typeof background.opacity === 'number' && Number.isFinite(background.opacity)
-            ? background.opacity
-            : out.display.background.opacity,
-        radius:
-          typeof background.radius === 'number' && Number.isFinite(background.radius)
-            ? background.radius
-            : out.display.background.radius,
+        color: pick(background.color, (v) => typeof v === 'string', out.display.background.color),
+        opacity: pick(background.opacity, finite, out.display.background.opacity),
+        radius: pick(background.radius, finite, out.display.background.radius),
       },
     },
     deck,
