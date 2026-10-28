@@ -129,7 +129,12 @@ export function registerLocalVolumeChannel(
   }
   const entry: LocalEntry = { adapter };
   localChannels.set(normalized, entry);
-  entry.stop = adapter.subscribe?.(publish);
+  try {
+    entry.stop = adapter.subscribe?.(publish);
+  } catch (error) {
+    localChannels.delete(normalized);
+    throw error;
+  }
   publish();
   return () => {
     if (localChannels.get(normalized) !== entry) {

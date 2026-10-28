@@ -438,3 +438,28 @@ describe('shared volume stream', () => {
     ).toThrow(/already provided by the system/i);
   });
 });
+
+describe('local volume registration', () => {
+  it('releases the target when the adapter subscription throws, so it can register again', async () => {
+    const volume = await loadVolume();
+    const adapter = {
+      read: () => ({ volume: 0.5, muted: false }),
+      setVolume: () => {},
+      setMuted: () => {},
+    };
+    expect(() =>
+      volume.registerLocalVolumeChannel('subway:immersion', {
+        ...adapter,
+        subscribe: () => {
+          throw new Error('subscribe failed');
+        },
+      }),
+    ).toThrow('subscribe failed');
+    expect(get(volume.volumeChannels)).toEqual([]);
+    const stop = volume.registerLocalVolumeChannel('subway:immersion', adapter);
+    expect(get(volume.volumeChannels)).toContainEqual(
+      expect.objectContaining({ target: 'subway:immersion', volume: 0.5 }),
+    );
+    stop();
+  });
+});
