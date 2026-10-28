@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import type { ControlConfig } from '../model';
   import { runtimeView } from '../../../app/runtime/state';
   import { readWebOptions, webUrl } from '../../media/content';
@@ -79,6 +79,10 @@
   });
 
   $effect(() => {
+    refreshRemaining = options.refresh * 1000;
+  });
+
+  $effect(() => {
     const canWait = observerReady && eligible && !!attemptUrl;
     const status = frameState.status;
     const refresh = options.refresh;
@@ -86,28 +90,36 @@
     if (status === 'loading') {
       const token = generation;
       const started = performance.now();
-      const timer = setTimeout(() => {
-        if (token === generation && frameState.status === 'loading') {
-          timeoutRemaining = 0;
-          frameState = { ...frameState, status: 'unavailable' };
-        }
-      }, timeoutRemaining);
+      const timer = setTimeout(
+        () => {
+          if (token === generation && frameState.status === 'loading') {
+            timeoutRemaining = 0;
+            frameState = { ...frameState, status: 'unavailable' };
+          }
+        },
+        untrack(() => timeoutRemaining),
+      );
       return () => {
         clearTimeout(timer);
-        timeoutRemaining = consumeEligibleTime(timeoutRemaining, performance.now() - started);
+        if (token === generation) {
+          timeoutRemaining = consumeEligibleTime(timeoutRemaining, performance.now() - started);
+        }
       };
     }
     if (status === 'ready' && refresh > 0) {
       const token = generation;
+      const started = performance.now();
       const timer = setTimeout(
         () => {
           if (token === generation && frameState.status === 'ready') startAttempt(attemptUrl);
         },
-        refreshRemaining || refresh * 1000,
+        untrack(() => refreshRemaining),
       );
       return () => {
         clearTimeout(timer);
-        refreshRemaining = refresh * 1000;
+        if (token === generation && options.refresh === refresh) {
+          refreshRemaining = consumeEligibleTime(refreshRemaining, performance.now() - started);
+        }
       };
     }
   });
