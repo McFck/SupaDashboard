@@ -26,6 +26,10 @@ function controlName(controlId: string) {
 }
 
 function reportFailure(failure: ScenarioFailure) {
+  if (failure.kind === 'cycle') {
+    toast.error(`${controlName(failure.controlId)}: Event cycle detected`);
+    return;
+  }
   const action = failure.actionId
     ? (actions.get(failure.actionId)?.title ?? failure.actionId)
     : undefined;

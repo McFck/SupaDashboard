@@ -356,7 +356,7 @@ export class RuntimeSession {
           itemId: '',
           trigger: 'event',
           stepId: 'cycle',
-          kind: 'condition',
+          kind: 'cycle',
         }),
     );
   }

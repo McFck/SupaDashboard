@@ -412,6 +412,7 @@ describe('automation runtime', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ depth: 1, listeners: ['runtime-test\u0000page-listener'] });
     expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ kind: 'cycle' });
   });
 
   it('runs next, previous and goto only through a live owner and rejects invalid requests', async () => {

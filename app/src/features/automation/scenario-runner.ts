@@ -22,7 +22,7 @@ export type ScenarioFailure = {
   itemId: string;
   trigger: Trigger | 'event';
   stepId: string;
-  kind: 'action' | 'condition' | 'delay';
+  kind: 'action' | 'condition' | 'delay' | 'cycle';
   actionId?: string;
 };
 export type RunResult = {
