@@ -3,7 +3,7 @@ import type { ControlConfig } from '../controls/model';
 import { newId, settings } from '../settings/state.svelte';
 import { commit } from './history.svelte';
 import { firstFree, fits, inside, type Item } from './grid';
-import { pageItems, removePlacement } from './pages';
+import { pageItems, removePlacement } from './placements';
 import {
   canSetLayoutItems,
   effectiveSize,

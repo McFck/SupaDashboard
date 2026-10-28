@@ -12,7 +12,7 @@ import DeckSkin from '../features/skins/deck/DeckSkin.svelte';
 import { emptyScenario } from '../features/automation/scenario';
 import { settings } from '../features/settings/state.svelte';
 import { currentRuntime } from '../app/runtime/lifecycle';
-import { hasPlacement } from '../features/layout/skin-layouts';
+import { hasPlacement } from '../features/layout/placements';
 
 export const uiPlugin: Plugin = {
   id: 'ui',

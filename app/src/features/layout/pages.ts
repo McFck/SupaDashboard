@@ -1,7 +1,7 @@
 import type { Item } from './grid';
 import type { ControlConfig } from '../controls/model';
 import type { Page, Settings } from '../settings/schema';
-import { allPlacements } from './skin-layouts';
+import { pageItems } from './placements';
 
 export const MAX_PAGES = 10;
 export type PageChange = { pages: Page[] };
@@ -29,10 +29,6 @@ function newGlobalId(prefix: string, used: Set<string>) {
 }
 
 type SkinLayouts = Settings['skinLayouts'];
-
-function placementSource(pages: readonly Page[], skinLayouts: SkinLayouts) {
-  return { deck: { pages: [...pages], activePage: pages[0]?.id ?? '' }, skinLayouts };
-}
 
 function allIds(
   pages: readonly Page[],
@@ -182,16 +178,6 @@ export function pageById(pages: readonly Page[], id: string | undefined) {
   return pages.find((page) => page.id === id) ?? pages[0];
 }
 
-export function pageItems(pages: readonly Page[], layouts: SkinLayouts = {}): Item[] {
-  return allPlacements(placementSource(pages, layouts)).map((placement) => placement.item);
-}
-
-export function hasPlacement(pages: readonly Page[], controlId: string, layouts: SkinLayouts = {}) {
-  return allPlacements(placementSource(pages, layouts)).some(
-    (placement) => placement.item.control === controlId,
-  );
-}
-
 export function pageAfterRemoval(
   pages: readonly Page[],
   removedId: string,
@@ -201,56 +187,4 @@ export function pageAfterRemoval(
   if (!pages.length) return undefined;
   const oldIndex = previousOrder.indexOf(removedId);
   return pages[Math.min(Math.max(0, oldIndex), pages.length - 1)].id;
-}
-
-export function removePlacement(
-  pages: readonly Page[],
-  pageId: string,
-  itemId: string,
-  layouts: SkinLayouts = {},
-) {
-  const target = pages.find((page) => page.id === pageId);
-  const item = target?.items.find((candidate) => candidate.id === itemId);
-  if (target && item) {
-    const next = pages.map((page) =>
-      page.id === pageId
-        ? { ...page, items: page.items.filter((candidate) => candidate.id !== itemId) }
-        : page,
-    );
-    const nextLayouts = { ...layouts };
-    delete nextLayouts.deck;
-    return {
-      pages: next,
-      skinLayouts: nextLayouts,
-      item,
-      orphanControl: hasPlacement(next, item.control, nextLayouts) ? undefined : item.control,
-    };
-  }
-  for (const [skinId, byPage] of Object.entries(layouts))
-    if (skinId !== 'deck') {
-      const slots = byPage[pageId];
-      if (!slots) continue;
-      const slotId = Object.keys(slots).find((id) =>
-        slots[id].some((candidate) => candidate.id === itemId),
-      );
-      if (!slotId) continue;
-      const found = slots[slotId].find((candidate) => candidate.id === itemId)!;
-      const nextLayouts = cloneJson(layouts);
-      delete nextLayouts.deck;
-      nextLayouts[skinId][pageId][slotId] = slots[slotId].filter(
-        (candidate) => candidate.id !== itemId,
-      );
-      return {
-        pages: pages as Page[],
-        skinLayouts: nextLayouts,
-        item: found,
-        orphanControl: hasPlacement(pages, found.control, nextLayouts) ? undefined : found.control,
-      };
-    }
-  return {
-    pages: pages as Page[],
-    skinLayouts: layouts,
-    item: undefined,
-    orphanControl: undefined,
-  };
 }

@@ -2,7 +2,7 @@
 import type { Settings } from '../settings/schema';
 import { fits, type Item } from './grid';
 import { pasteWidget, type WidgetCopy } from './layout-actions';
-import { removePlacement } from './pages';
+import { removePlacement } from './placements';
 import { effectiveSize, layoutFor, setLayoutItems, type LayoutTarget } from './skin-layouts';
 
 export type InsertTarget = { item: string } | { cell: { x: number; y: number } };

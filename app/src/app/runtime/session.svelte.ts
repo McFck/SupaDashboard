@@ -25,7 +25,7 @@ import {
 } from '../../features/automation/variables';
 import type { Trigger } from '../../features/automation/scenario';
 import { PageController, type PageChangeReason } from '../../features/layout/page-controller';
-import { allPlacements, hasPlacement } from '../../features/layout/skin-layouts';
+import { hasPlacement, storedPlacements } from '../../features/layout/placements';
 import { ContentController } from '../../features/media/content-controller';
 import { SkinController } from '../../features/skins/skin-controller';
 import { startClock } from '../../features/automation/clock';
@@ -385,7 +385,7 @@ export class RuntimeSession {
     );
     this.content.reconcile(
       controls,
-      new Set(allPlacements(settings).map((placement) => placement.item.control)),
+      new Set(storedPlacements(settings).map((placement) => placement.item.control)),
     );
     this.publish(this.variables.snapshot());
   }

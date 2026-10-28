@@ -11,7 +11,8 @@
   import { firstFree, type Selection } from '../grid';
   import { registeredEvents, skins } from '../../plugins/registry';
   import { controlById, settings } from '../../settings/state.svelte';
-  import { MAX_PAGES, pageAfterRemoval, pageById, pageItems } from '../pages';
+  import { MAX_PAGES, pageAfterRemoval, pageById } from '../pages';
+  import { pageItems } from '../placements';
   import * as pageCommands from '../page-commands';
   import ScenarioEditor from '../../automation/editor/ScenarioEditor.svelte';
   import Inspector from './Inspector.svelte';

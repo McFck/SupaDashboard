@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildExistingControlRows, searchExistingControls } from './existing-controls';
-import { pageItems } from './pages';
+import { pageItems } from './placements';
 
 const types = new Map([
   ['button', { title: 'Button', icon: 'MousePointer2' }],

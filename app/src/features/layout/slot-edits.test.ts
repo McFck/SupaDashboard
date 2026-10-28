@@ -3,7 +3,7 @@ import { settings } from '../settings/state.svelte';
 import { DEFAULTS } from '../settings/schema';
 import type { ControlConfig } from '../controls/model';
 import { deletePage } from './page-commands';
-import { hasPlacement } from './pages';
+import { hasPlacement } from './placements';
 import { finishGridResize } from './slot-edits';
 
 const button = (id: string): ControlConfig => ({
@@ -43,7 +43,7 @@ describe('grid shrink', () => {
       expect(settings.controls.map((control) => control.id)).toEqual(['kept', 'shared']);
       expect(settings.variants).not.toHaveProperty('cut');
       for (const control of settings.controls) {
-        expect(hasPlacement(settings.deck.pages, control.id, settings.skinLayouts)).toBe(true);
+        expect(hasPlacement(settings, control.id)).toBe(true);
       }
       deletePage('empty');
       expect(settings.controls.map((control) => control.id)).toEqual(['kept', 'shared']);
