@@ -74,9 +74,8 @@ export class SnapshotHistory<T> {
 
   /** Records `current` (pending or not yet observed changes) as its own step under the label it was made with. */
   private close(current: T) {
-    if (JSON.stringify(current) !== JSON.stringify(this.states[this.cursor])) {
-      this.pending = structuredClone(current);
-    }
+    const changed = JSON.stringify(current) !== JSON.stringify(this.states[this.cursor]);
+    this.pending = changed ? structuredClone(current) : undefined;
     this.flush();
   }
 

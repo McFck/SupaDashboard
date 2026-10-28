@@ -175,6 +175,24 @@ describe('settings history', () => {
     expect(current.pages).toEqual(['one']);
   });
 
+  it('records no step for an edit that was reverted before a command', () => {
+    let current = { value: 0 };
+    let status = { canUndo: false, canRedo: false, undoLabel: '', redoLabel: '' };
+    const stack = new SnapshotHistory(
+      current,
+      (next) => (current = next),
+      (next) => (status = next),
+    );
+    stack.observe({ value: 1 });
+    stack.commit('Add page', current);
+    current = { value: 2 };
+    stack.observe(current);
+    vi.advanceTimersByTime(400);
+    stack.undo();
+    expect(current.value).toBe(0);
+    expect(status.canUndo).toBe(false);
+  });
+
   it('keeps one undo step for a continuous labelled edit', () => {
     let current = { radius: 0 };
     let status = { canUndo: false, canRedo: false, undoLabel: '', redoLabel: '' };
