@@ -1,6 +1,6 @@
 // Page frame nodes and their settle springs. Animations only move nodes; the pager decides which frames exist.
 import { prefersReducedMotion } from 'svelte/motion';
-import { SPRING_SAMPLES, springDuration } from '$lib/spring';
+import { springTranslate, springDuration } from '$lib/spring';
 
 const SETTLED_DISTANCE = 0.5;
 
@@ -8,13 +8,6 @@ type Frame = { id: string; offset: number };
 
 export function pageOffset(offset: number) {
   return `translate3d(${Number.isFinite(offset) ? offset : 0}px,0,0)`;
-}
-
-function springKeyframes(from: number, to: number) {
-  return SPRING_SAMPLES.map((sample) => ({
-    transform: pageOffset(from + (to - from) * sample.progress),
-    offset: sample.offset,
-  }));
 }
 
 export class PageMotion {
@@ -46,10 +39,15 @@ export class PageMotion {
         return [];
       }
       return [
-        node.animate(springKeyframes(frame.offset, to), {
-          duration: springDuration(distance),
-          fill: 'both',
-        }),
+        springTranslate(
+          node,
+          { x: frame.offset, y: 0 },
+          { x: to, y: 0 },
+          {
+            duration: springDuration(distance),
+            fill: 'both',
+          },
+        ),
       ];
     });
     await Promise.all(
