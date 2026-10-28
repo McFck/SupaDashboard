@@ -7,7 +7,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
-  import { sortable } from '$lib/sortable';
+  import { sortable } from '$lib/sortable/sortable';
   import { SPRING_SAMPLES, springDuration } from '$lib/spring';
   import ColorField from '$lib/components/ColorField.svelte';
   import { MAX_VARIANTS, type ControlConfig, type Variant } from '../../controls/model';

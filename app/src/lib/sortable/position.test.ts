@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sortablePosition } from './sortable';
+import { sortablePosition } from './position';
 
 const bounds = [
   { start: 0, end: 40 },
