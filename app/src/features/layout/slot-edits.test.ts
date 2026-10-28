@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { controlTypes } from '../plugins/registry';
 import { settings } from '../settings/state.svelte';
 import { DEFAULTS } from '../settings/schema';
 import type { ControlConfig } from '../controls/model';
 import { deletePage } from './page-commands';
 import { hasPlacement } from './placements';
-import { finishGridResize } from './slot-edits';
+import { finishGridResize, pasteInSlot } from './slot-edits';
 
 const button = (id: string): ControlConfig => ({
   id,
@@ -47,6 +48,47 @@ describe('grid shrink', () => {
       }
       deletePage('empty');
       expect(settings.controls.map((control) => control.id)).toEqual(['kept', 'shared']);
+    } finally {
+      Object.assign(settings, before);
+    }
+  });
+});
+
+describe('paste over a widget', () => {
+  const typeId = 'slot-edits-test-button';
+  afterEach(() => controlTypes.delete(typeId));
+
+  it('drops only the replaced control and keeps every other control and variant', () => {
+    const before = structuredClone(settings);
+    try {
+      controlTypes.set(typeId, { type: typeId, title: 'Button', size: { w: 1, h: 1 } } as never);
+      const control = (id: string) => ({ ...button(id), type: typeId });
+      settings.deck.pages = [
+        {
+          ...structuredClone(DEFAULTS.deck.pages[0]),
+          id: 'page',
+          items: [
+            { id: 'old-item', control: 'old', x: 0, y: 0, w: 1, h: 1 },
+            { id: 'keep-item', control: 'keep', x: 1, y: 0, w: 1, h: 1 },
+          ],
+        },
+      ];
+      settings.skinLayouts = {};
+      settings.controls = [control('old'), control('keep')];
+      settings.variants = { old: 0, keep: 0 };
+
+      const id = pasteInSlot(
+        { skinId: 'deck', pageId: 'page', slotId: 'main' },
+        { control: control('copied'), w: 1, h: 1 },
+        { item: 'old-item' },
+        'Paste over widget',
+      );
+
+      const items = settings.deck.pages[0].items;
+      expect(items.map((item) => item.id)).toEqual(['keep-item', id]);
+      expect(items[1]).toMatchObject({ x: 0, y: 0, control: 'copied' });
+      expect(settings.controls.map((entry) => entry.id)).toEqual(['keep', 'copied']);
+      expect(settings.variants).toEqual({ keep: 0 });
     } finally {
       Object.assign(settings, before);
     }

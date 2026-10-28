@@ -25,7 +25,8 @@ export function planInsertion(
     return undefined;
   }
   const old = 'item' in target ? current.items.find((item) => item.id === target.item) : undefined;
-  const at = 'cell' in target ? target.cell : old;
+  // Only the cell: spreading the replaced item would carry its ID and control into the pasted placement.
+  const at = 'cell' in target ? target.cell : old && { x: old.x, y: old.y };
   const bounds = effectiveSize(slot.skinId, current.slot, copy.control.type);
   const remaining = old ? current.items.filter((item) => item.id !== old.id) : current.items;
   if (!at || !bounds) {
