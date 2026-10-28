@@ -3,7 +3,7 @@
 import { tick } from 'svelte';
 import { SPRING_SAMPLES, springDuration } from '$lib/spring';
 import type { Page } from '../settings/schema';
-import { pageSwipeIntent, pageSwipeOffset, pageSwipeTarget } from './page-swipe';
+import { pageSwipeIntent, pageSwipe } from './page-swipe';
 
 export type PagerFrame = { id: string; offset: number; active: boolean; mediaVisible: boolean };
 
@@ -21,7 +21,6 @@ type PagerSession = {
   source: 'gap' | 'skin-input';
   mode: 'pending' | 'horizontal' | 'vertical';
   side: number;
-  neighborId?: string;
   hold?: ReturnType<typeof setTimeout>;
   frame: number | null;
   generation: number;
@@ -313,15 +312,21 @@ export class Pager {
       return;
     }
     const dx = session.latestX - session.startX;
-    const offset = pageSwipeOffset(dx, session.width, session.sourceIndex, session.order.length);
+    const { offset, side, neighborIndex } = pageSwipe(
+      dx,
+      session.width,
+      session.sourceIndex,
+      session.order.length,
+    );
+    session.side = side;
     const source = { id: session.sourceId, offset, active: true, mediaVisible: true };
-    if (!session.neighborId) {
+    if (!side) {
       this.frames = [source];
       return;
     }
     const neighbor = {
-      id: session.neighborId,
-      offset: session.side * session.width + dx,
+      id: session.order[neighborIndex],
+      offset: side * session.width + offset,
       active: false,
       mediaVisible: true,
     };
@@ -365,9 +370,6 @@ export class Pager {
         // Window capture listeners still track the horizontal swipe.
       }
     }
-    const dx = session.latestX - session.startX;
-    session.side = dx < 0 ? 1 : -1;
-    session.neighborId = session.order[session.sourceIndex + session.side];
     this.paint(session);
   }
 
@@ -475,12 +477,7 @@ export class Pager {
     }
 
     const dx = session.latestX - session.startX;
-    const targetIndex = pageSwipeTarget(
-      dx,
-      session.width,
-      session.sourceIndex,
-      session.order.length,
-    );
+    const { targetIndex } = pageSwipe(dx, session.width, session.sourceIndex, session.order.length);
     const targetId = session.order[targetIndex] ?? session.sourceId;
     let accepted = targetId === session.sourceId;
     if (!accepted) {
