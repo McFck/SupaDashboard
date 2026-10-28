@@ -211,11 +211,29 @@ fn representative_channels(samples: Vec<SessionSample>) -> Vec<Channel> {
         .collect()
 }
 
+/// The one session name a write changes: the exact target, otherwise the first name containing it in snapshot
+/// order, which is the channel the frontend's `findVolumeChannel` shows. Writing to every name containing the
+/// target also moved steamwebhelper with the steam slider.
+fn write_target<'a>(targets: &[&'a str], selector: &str) -> Option<&'a str> {
+    targets
+        .iter()
+        .copied()
+        .find(|target| *target == selector)
+        .or_else(|| {
+            targets
+                .iter()
+                .copied()
+                .filter(|target| target.contains(selector))
+                .min()
+        })
+}
+
 #[cfg(windows)]
 mod windows_audio {
     use super::{
         AudioSnapshot, AudioUpdateResult, Channel, POLL_INTERVAL, Request, SessionSample,
         canonical_channels, normalize_target, representative_channels, snapshot_changed,
+        write_target,
     };
     use std::collections::HashMap;
     use std::ffi::c_void;
@@ -572,13 +590,16 @@ mod windows_audio {
         }
 
         let selector = normalize_target(target);
-        let mut found = false;
+        let sessions = session_volumes(device);
+        let targets: Vec<&str> = sessions
+            .iter()
+            .map(|session| session.target.as_str())
+            .collect();
+        let Some(chosen) = write_target(&targets, &selector) else {
+            return Ok(false);
+        };
         let mut first_error = None;
-        for session in session_volumes(device)
-            .into_iter()
-            .filter(|session| session.target.contains(&selector))
-        {
-            found = true;
+        for session in sessions.iter().filter(|session| session.target == chosen) {
             let result = (|| -> windows::core::Result<()> {
                 if let Some(value) = value {
                     unsafe {
@@ -601,7 +622,7 @@ mod windows_audio {
         if let Some(error) = first_error {
             return Err(error);
         }
-        Ok(found)
+        Ok(true)
     }
 
     pub(super) fn audio_worker(app: AppHandle, requests: Receiver<Request>) {
@@ -645,7 +666,7 @@ fn audio_worker(_app: AppHandle, requests: mpsc::Receiver<Request>) {
 mod tests {
     use super::{
         AudioSnapshot, Channel, SessionSample, canonical_channels, channels_changed,
-        normalize_target, representative_channels, snapshot_changed, validate_patch,
+        normalize_target, representative_channels, snapshot_changed, validate_patch, write_target,
     };
 
     fn channel(target: &str, volume: f32, muted: bool) -> Channel {
@@ -746,6 +767,17 @@ mod tests {
         assert!(snapshot_changed(&before, &None, &[]));
         let missing = canonical_channels(Vec::new());
         assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn volume_writes_prefer_the_exact_app_over_apps_whose_name_contains_it() {
+        let running = ["steamwebhelper", "steam", "discord"];
+        assert_eq!(write_target(&running, "steam"), Some("steam"));
+        assert_eq!(
+            write_target(&["steamwebhelper", "steamservice"], "steam"),
+            Some("steamservice")
+        );
+        assert_eq!(write_target(&running, "spotify"), None);
     }
 
     #[test]
