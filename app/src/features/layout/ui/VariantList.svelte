@@ -8,7 +8,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { sortable } from '$lib/sortable/sortable';
-  import { SPRING_SAMPLES, springDuration } from '$lib/spring';
+  import { springDuration, springProgress } from '$lib/spring';
   import ColorField from '$lib/components/ColorField.svelte';
   import { MAX_VARIANTS, type ControlConfig, type Variant } from '../../controls/model';
   import { moveVariant, removeVariant as removeStateVariant } from '../../controls/variants';
@@ -70,21 +70,13 @@
     reorder(index, to);
   }
 
-  function springProgressAt(time: number) {
-    const position = Math.max(0, Math.min(1, time)) * (SPRING_SAMPLES.length - 1);
-    const index = Math.min(SPRING_SAMPLES.length - 2, Math.floor(position));
-    const fraction = position - index;
-    const from = SPRING_SAMPLES[index].progress;
-    const to = SPRING_SAMPLES[index + 1].progress;
-    return from + (to - from) * fraction;
-  }
-
   function flip(_node: Element, { from, to }: { from: DOMRect; to: DOMRect }) {
     const offset = from.top - to.top;
     const instant = reducedMotion.current || skipFlip || !offset;
     return {
       duration: instant ? 0 : springDuration(Math.abs(offset)),
-      css: (time: number) => `transform: translateY(${offset * (1 - springProgressAt(time))}px)`,
+      css: (time: number) =>
+        `transform: translateY(${offset * (1 - springProgress(0.52 * time))}px)`,
     };
   }
 </script>

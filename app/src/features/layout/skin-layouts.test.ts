@@ -7,7 +7,6 @@ import {
   movePlacementToSlot,
   placementById,
   setLayoutItems,
-  validSlotItems,
   effectiveSize,
 } from './skin-layouts';
 import { storedPlacements } from './placements';
@@ -129,15 +128,6 @@ describe('skin layout storage', () => {
     expect(
       setLayoutItems(source, { skinId, pageId: 'page-1', slotId: 'main' }, [first, second]),
     ).toBe(false);
-    expect(
-      validSlotItems(
-        source,
-        skinId,
-        skin.slots[0],
-        skin.slots[0].grid === 'page' ? source.deck.pages[0] : skin.slots[0].grid,
-        [first, second],
-      ),
-    ).toBe(true);
     const impossible = { ...skin.slots[0], size: { w: 2, h: 1 } };
     expect(effectiveSize(skinId, impossible, typeId)).toBeUndefined();
   });

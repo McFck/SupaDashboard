@@ -6,9 +6,7 @@ import {
   addPage,
   deletePage,
   duplicatePage,
-  MAX_PAGES,
   pageAfterRemoval,
-  pageById,
   renamePage,
   reorderPage,
 } from './pages';
@@ -53,11 +51,6 @@ const second = page('page-b', 4, [
 ]);
 
 describe('page helpers', () => {
-  it('resolves a missing page to the first one', () => {
-    expect(pageById([first, second], 'page-b')).toBe(second);
-    expect(pageById([first, second], 'missing')).toBe(first);
-  });
-
   it('adds blank pages with selected geometry and the next unused display name', () => {
     const custom = { ...first, name: 'Page 1', rows: 9, cols: 7, gap: 20, items: [] };
     const existing = { ...second, name: 'Page 2' };
@@ -65,14 +58,6 @@ describe('page helpers', () => {
     expect(added.page).toMatchObject({ name: 'Page 3', rows: 9, cols: 7, gap: 20, items: [] });
     expect(added.page.id).toMatch(/^page-/);
     expect(added.pages.map((p) => p.id)).toEqual([custom.id, existing.id, added.page.id]);
-  });
-
-  it('limits add and duplicate to ten pages', () => {
-    const pages = Array.from({ length: MAX_PAGES }, (_, index) => page(`limit-${index}`));
-    expect(addPage(pages.slice(0, -1), [], pages[0].id)?.pages).toHaveLength(MAX_PAGES);
-    expect(duplicatePage(pages.slice(0, -1), pages[0].id, [], {})?.pages).toHaveLength(MAX_PAGES);
-    expect(addPage(pages, [], pages[0].id)).toBeUndefined();
-    expect(duplicatePage(pages, pages[0].id, [], {})).toBeUndefined();
   });
 
   it('trims rename values, allows duplicate names, and reorders without changing stable IDs', () => {

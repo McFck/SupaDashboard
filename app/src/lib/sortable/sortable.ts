@@ -19,15 +19,25 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
   let suppressed: { item: HTMLElement; until: number } | null = null;
   const settlement = new DropSettlement();
   let restoreTransitions: (() => void) | undefined;
-  const priorSortableRoot = node.getAttribute('data-sortable-root');
+  let sessionListeners: AbortController | undefined;
+  const nodeListeners = new AbortController();
   node.setAttribute('data-sortable-root', '');
 
-  function matchesItems(current: SortSession) {
+  /** The rendered items are still the ones the session started with, and sorting is still on. */
+  function valid(current: SortSession) {
     const items = options.items();
     return (
+      options.enabled !== false &&
       items.length === current.items.length &&
       items.every((item, index) => item === current.items[index])
     );
+  }
+
+  /** Drops any previous drop animation and the transitions it suppressed. */
+  function reset() {
+    settlement.cancel();
+    restoreTransitions?.();
+    restoreTransitions = undefined;
   }
 
   function cancel() {
@@ -36,7 +46,7 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       return;
     }
     session = null;
-    stopSessionListeners();
+    sessionListeners?.abort();
     end(current);
   }
 
@@ -51,28 +61,24 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
   }
 
   function startSessionListeners() {
-    window.addEventListener('pointermove', onPointerMove, { capture: true, passive: false });
-    window.addEventListener('pointerup', onPointerUp, true);
-    window.addEventListener('pointercancel', onPointerCancel, true);
-    window.addEventListener('pointerdown', cancel, true);
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('blur', cancel);
-  }
-
-  function stopSessionListeners() {
-    window.removeEventListener('pointermove', onPointerMove, true);
-    window.removeEventListener('pointerup', onPointerUp, true);
-    window.removeEventListener('pointercancel', onPointerCancel, true);
-    window.removeEventListener('pointerdown', cancel, true);
-    window.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('blur', cancel);
+    const { signal } = (sessionListeners = new AbortController());
+    window.addEventListener('pointermove', onPointerMove, {
+      capture: true,
+      passive: false,
+      signal,
+    });
+    window.addEventListener('pointerup', onPointerUp, { capture: true, signal });
+    window.addEventListener('pointercancel', onPointerCancel, { capture: true, signal });
+    window.addEventListener('pointerdown', cancel, { capture: true, signal });
+    window.addEventListener('keydown', onKeyDown, { signal });
+    window.addEventListener('blur', cancel, { signal });
   }
 
   function paint(current: SortSession) {
     if (session !== current) {
       return;
     }
-    if (!matchesItems(current) || options.enabled === false) {
+    if (!valid(current)) {
       cancel();
       return;
     }
@@ -108,9 +114,7 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       return;
     }
     suppressed = null;
-    settlement.cancel();
-    restoreTransitions?.();
-    restoreTransitions = undefined;
+    reset();
     const items = options.items();
     if (items.length < 2) {
       return;
@@ -157,24 +161,20 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       return;
     }
     current.follow(event);
-    if (current.frame !== null) {
-      cancelAnimationFrame(current.frame);
-      current.frame = null;
-    }
-    if (current.moved) {
-      paint(current);
+    const commit = current.moved && valid(current);
+    if (commit) {
+      current.paint();
     }
     const { from, destination } = current;
-    const validOrder = matchesItems(current) && options.enabled !== false;
     // Measured while still displaced, so the settle can start from where the item was dropped.
-    const held = current.moved && validOrder ? current.source.getBoundingClientRect() : null;
+    const held = commit ? current.source.getBoundingClientRect() : null;
     session = null;
-    stopSessionListeners();
+    sessionListeners?.abort();
     end(current);
     if (current.moved) {
       suppressed = { item: current.source, until: performance.now() + CLICK_SUPPRESS_MS };
     }
-    if (current.moved && validOrder && destination !== from) {
+    if (commit && destination !== from) {
       options.onmove(from, destination);
     }
     if (held) {
@@ -208,9 +208,10 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     }
   }
 
-  node.addEventListener('pointerdown', onPointerDown);
-  node.addEventListener('lostpointercapture', onPointerCancel);
-  node.addEventListener('click', onClick, true);
+  const { signal } = nodeListeners;
+  node.addEventListener('pointerdown', onPointerDown, { signal });
+  node.addEventListener('lostpointercapture', onPointerCancel, { signal });
+  node.addEventListener('click', onClick, { capture: true, signal });
 
   return {
     update(next: SortableOptions) {
@@ -221,16 +222,9 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     },
     destroy() {
       cancel();
-      settlement.cancel();
-      restoreTransitions?.();
-      node.removeEventListener('pointerdown', onPointerDown);
-      node.removeEventListener('lostpointercapture', onPointerCancel);
-      node.removeEventListener('click', onClick, true);
-      if (priorSortableRoot === null) {
-        node.removeAttribute('data-sortable-root');
-      } else {
-        node.setAttribute('data-sortable-root', priorSortableRoot);
-      }
+      reset();
+      nodeListeners.abort();
+      node.removeAttribute('data-sortable-root');
     },
   };
 }

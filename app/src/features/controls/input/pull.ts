@@ -5,7 +5,7 @@ import { stateIdAt, variantIndexForState } from '../variants';
 
 export type PullAxis = 'x' | 'y';
 
-export type PullEffect =
+type PullEffect =
   { kind: 'variant'; variant: number } | { kind: 'scenario'; trigger: SwipeGesture; title: string };
 export type PullBindings = Partial<Record<SwipeGesture, PullEffect>>;
 
@@ -35,7 +35,6 @@ export type PullState = {
   pointerId: number;
   startX: number;
   startY: number;
-  startTime: number;
   width: number;
   height: number;
   lockedAxis: PullAxis | null;
@@ -55,7 +54,7 @@ export type PullSnapshot = {
   effect: PullEffect;
 };
 
-export const PULL_SLOP = 8;
+const PULL_SLOP = 8;
 
 /** Resolve only canonical directional scenarios for pull preview. */
 export function pullBindingsFor(
@@ -88,7 +87,6 @@ export function beginPull(
   pointerId: number,
   x: number,
   y: number,
-  time: number,
   width: number,
   height: number,
 ): PullState {
@@ -96,7 +94,6 @@ export function beginPull(
     pointerId,
     startX: x,
     startY: y,
-    startTime: time,
     width: Number.isFinite(width) ? Math.max(0, width) : 0,
     height: Number.isFinite(height) ? Math.max(0, height) : 0,
     lockedAxis: null,

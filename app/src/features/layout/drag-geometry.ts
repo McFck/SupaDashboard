@@ -1,10 +1,11 @@
 // Pixel geometry for moving and resizing placements on the grid.
+import type { Rect } from './grid';
+
 export type Box = { x: number; y: number; width: number; height: number };
-type CellRect = { x: number; y: number; w: number; h: number };
 type CellSize = { w: number; h: number };
 
 /** Pixel box of a placement: cells are `pitch` apart and the grid is inset by one gap. */
-export function itemBox(item: CellRect, pitch: number, gap: number): Box {
+export function itemBox(item: Rect, pitch: number, gap: number): Box {
   return {
     x: item.x * pitch + gap,
     y: item.y * pitch + gap,
@@ -15,7 +16,7 @@ export function itemBox(item: CellRect, pitch: number, gap: number): Box {
 
 /** Size limits for a corner resize: the type's own limits, capped by the grid edges that corner grows toward. */
 export function resizeLimits(
-  item: CellRect,
+  item: Rect,
   corner: ResizeCorner,
   grid: { rows: number; cols: number },
   size: { min?: CellSize; max?: CellSize },
@@ -92,9 +93,12 @@ export function resizePreview(
 
 export type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
 
-/** Resize with a pixel deadband around each half-cell snap boundary. `previous` is the last snapped draft. */
+/** Pixel deadband around each half-cell snap boundary. */
+const RESIZE_HYSTERESIS = 4;
+
+/** Resize with a deadband around each half-cell snap boundary. `previous` is the last snapped draft. */
 export function resizeFromCornerHysteretic(
-  rect: { x: number; y: number; w: number; h: number },
+  rect: Rect,
   corner: ResizeCorner,
   dx: number,
   dy: number,
@@ -102,17 +106,15 @@ export function resizeFromCornerHysteretic(
   previous: { w: number; h: number } = rect,
   min = { w: 1, h: 1 },
   max = { w: 99, h: 99 },
-  hysteresis = 4,
 ) {
   const west = corner.includes('w'),
     north = corner.includes('n');
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
   const snap = (delta: number, prior: number, low: number, high: number) => {
     if (!(pitch > 0) || !Number.isFinite(pitch) || !Number.isFinite(delta)) return prior;
-    const deadband = Number.isFinite(hysteresis) ? Math.max(0, hysteresis) : 4;
     let cells = clamp(prior, low, high);
-    while (cells < high && delta >= (cells + 0.5) * pitch + deadband) cells++;
-    while (cells > low && delta <= (cells - 0.5) * pitch - deadband) cells--;
+    while (cells < high && delta >= (cells + 0.5) * pitch + RESIZE_HYSTERESIS) cells++;
+    while (cells > low && delta <= (cells - 0.5) * pitch - RESIZE_HYSTERESIS) cells--;
     return cells;
   };
   const xSign = west ? -1 : 1,
@@ -145,6 +147,6 @@ export function resizeCornerGeometry(width: number, height: number, corner: Resi
     strokeY: north ? -hitOffset - strokeSize : height + hitOffset,
   };
 }
-export function sameItemRect(a: CellRect, b: CellRect) {
+export function sameItemRect(a: Rect, b: Rect) {
   return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }

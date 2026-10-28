@@ -64,8 +64,7 @@ export class DropPreviewWorker {
       if (
         !pending ||
         reply.requestId !== pending.requestId ||
-        reply.generation !== pending.generation ||
-        reply.revision !== this.revision
+        reply.generation !== pending.generation
       )
         return;
       this.cache.set(pending.key, reply.preview);
@@ -104,11 +103,7 @@ export class DropPreviewWorker {
     try {
       this.ensureWorker().postMessage(cloneJob(input, requestId));
     } catch {
-      const failed = this.pending;
-      this.worker?.terminate();
-      this.worker = null;
-      this.pending = null;
-      failed?.resolve(null);
+      this.cancelPending();
     }
     return promise;
   }

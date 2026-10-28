@@ -70,8 +70,8 @@
     onPull: (p) => {
       pull = p;
     },
-    onPullEnd: (p, armed) => {
-      if (p && !armed) void content?.release(p);
+    onPullEnd: (p) => {
+      if (p && !p.armed) void content?.release(p);
     },
     onCancel: (p) => content?.cancelPull(p),
     feedback,

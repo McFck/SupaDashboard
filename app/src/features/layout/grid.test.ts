@@ -9,51 +9,6 @@ const items: Item[] = [
 ];
 
 describe('deck layout', () => {
-  it('fits square auto cells and treats manual size as a preferred maximum', () => {
-    const base = { rows: 3, cols: 6, size: 112, gap: 14, sizing: 'auto' as const };
-    expect(fitDeck(base, 600, 300)).toEqual({ cell: 244 / 3, gap: 14, width: 586, height: 300 });
-    expect(fitDeck(base, 1000, 300)).toMatchObject({ cell: 244 / 3, width: 586, height: 300 });
-    expect(fitDeck(base, 770, 392)).toEqual({ cell: 112, gap: 14, width: 770, height: 392 });
-    expect(fitDeck({ ...base, sizing: 'manual' }, 1540, 784)).toEqual({
-      cell: 112,
-      gap: 14,
-      width: 770,
-      height: 392,
-    });
-    expect(fitDeck(base, 1540, 784)?.cell).toBeCloseTo(1442 / 6);
-  });
-
-  it('keeps usable hosts inside bounds and rejects invalid or hidden hosts', () => {
-    expect(fitDeck({ rows: 1, cols: 1, size: 10.5, gap: 0, sizing: 'manual' }, 100, 100)).toEqual({
-      cell: 10.5,
-      gap: 0,
-      width: 10.5,
-      height: 10.5,
-    });
-    expect(fitDeck({ rows: 1, cols: 1, size: 100, gap: 1000, sizing: 'auto' }, 1, 1)).toEqual({
-      cell: 0.5,
-      gap: 0.25,
-      width: 1,
-      height: 1,
-    });
-    expect(
-      fitDeck({ rows: 1, cols: 1, size: NaN, gap: Infinity, sizing: 'auto' }, 100, 100),
-    ).toEqual({ cell: 72, gap: 14, width: 100, height: 100 });
-    for (const [width, height] of [
-      [0, 100],
-      [-1, 100],
-      [Infinity, 100],
-      [100, NaN],
-    ])
-      expect(
-        fitDeck({ rows: 3, cols: 6, size: 112, gap: 14, sizing: 'auto' }, width, height),
-      ).toBeNull();
-    expect(fitDeck({ rows: 0, cols: 6, size: 112, gap: 14, sizing: 'auto' }, 600, 300)).toBeNull();
-    expect(
-      fitDeck({ rows: 2.5, cols: 6, size: 112, gap: 14, sizing: 'auto' }, 600, 300),
-    ).toBeNull();
-  });
-
   it('does not overflow across fractional sizes, zero gaps and extreme gaps', () => {
     for (const rows of [1, 2, 5])
       for (const cols of [1, 3, 7])

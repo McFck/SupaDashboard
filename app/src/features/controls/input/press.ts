@@ -1,8 +1,8 @@
 // One press owner for a control: hold timing, double-tap pairing and the release decision. Pointer and keyboard
 // adapters feed it; it never touches the DOM.
-import { TRIGGERS, type Trigger } from '../../automation/scenario';
+import { newId, TRIGGERS, type Trigger } from '../../automation/scenario';
 
-export const HOLD_MS = 550;
+const HOLD_MS = 550;
 const DOUBLE_TAP_MS = 300;
 /** How far apart, in CSS px, two taps may land and still pair. */
 const DOUBLE_TAP_RADIUS = 24;
@@ -27,9 +27,7 @@ type PressOutput<T extends Tap> = {
 export function captureTriggers(
   capture?: (trigger: Trigger, interactionId: string) => unknown,
 ): Captures {
-  const interactionId =
-    globalThis.crypto?.randomUUID?.() ??
-    `press-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const interactionId = newId();
   const captures: Captures = {};
   for (const trigger of TRIGGERS) {
     captures[trigger] = capture?.(trigger, interactionId);
