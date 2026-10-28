@@ -4,7 +4,7 @@ import { complementRectangles, type LocalRect } from '../display/geometry';
 
 const INTERACTIVE =
   '[data-skin-input], .tile, button, input, select, textarea, a, [contenteditable], [role="slider"]';
-const CHROME = '.dashboard-page-dots, .dashboard-page-dots button, [data-resize-handle]';
+const CHROME = '.dashboard-page-dots, .dashboard-page-dots button';
 const OBSERVED_ATTRIBUTES = [
   'data-visible-page',
   'data-skin-input',
@@ -110,10 +110,7 @@ export class DragGaps {
     };
     skinRoot.querySelectorAll('[data-dashboard-tile]').forEach(exclude);
     skinRoot.querySelectorAll(INTERACTIVE).forEach(exclude);
-    this.shell
-      .querySelectorAll('.dashboard-page-dots, .dashboard-page-dots button')
-      .forEach(exclude);
-    this.shell.querySelectorAll('[data-resize-handle]').forEach(exclude);
+    this.shell.querySelectorAll(CHROME).forEach(exclude);
     this.rects = complementRectangles(
       surface.width,
       surface.height,

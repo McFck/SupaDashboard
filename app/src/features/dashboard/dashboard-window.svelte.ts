@@ -48,10 +48,7 @@ export class DashboardWindow {
   private disposed = false;
   private readonly cleanups: (() => void)[] = [];
 
-  constructor(
-    private readonly display: () => Settings['display'],
-    private readonly onWindowResized: () => void,
-  ) {}
+  constructor(private readonly display: () => Settings['display']) {}
 
   /** Places the window for the stored display settings, then shows it and follows later display edits. */
   start(page: Page) {
@@ -68,7 +65,7 @@ export class DashboardWindow {
     }
   }
 
-  showResizeCues() {
+  private showResizeCues() {
     this.windowResizing = true;
     clearTimeout(this.resizeQuiet);
     this.resizeQuiet = setTimeout(() => {
@@ -76,14 +73,6 @@ export class DashboardWindow {
     }, RESIZE_QUIET_MS);
   }
 
-  startResize(
-    direction: Parameters<ReturnType<typeof getCurrentWindow>['startResizeDragging']>[0],
-  ) {
-    this.showResizeCues();
-    getCurrentWindow()
-      .startResizeDragging(direction)
-      .catch((error) => console.warn('resize', error));
-  }
 
   startDrag() {
     getCurrentWindow()
@@ -148,7 +137,6 @@ export class DashboardWindow {
       const appWindow = getCurrentWindow();
       this.keep(
         await appWindow.onResized(() => {
-          this.onWindowResized();
           if (this.ready && !this.appliedFullscreen) {
             this.showResizeCues();
           }

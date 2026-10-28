@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { deckSize, startupPlacement, validGeometry } from './geometry';
+import { startupPlacement, validGeometry } from './geometry';
 
 describe('dashboard window geometry', () => {
-  it('fits the grid plus its surrounding gap', () => {
-    expect(deckSize({ cols: 6, rows: 3, size: 112, gap: 14 })).toEqual({ width: 770, height: 392 });
-  });
 
   it('rejects unusable saved sizes and coordinates', () => {
     expect(validGeometry({ x: -1200, y: 100, width: 770, height: 392 })).toBe(true);

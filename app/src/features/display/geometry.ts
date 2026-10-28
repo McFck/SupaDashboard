@@ -7,7 +7,7 @@ export type LocalRect = { x: number; y: number; width: number; height: number };
 const I32_MAX = 2_147_483_647;
 const I32_MIN = -2_147_483_648;
 
-export const deckSize = (deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>) => ({
+const deckSize = (deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>) => ({
   width: deck.cols * deck.size + (deck.cols + 1) * deck.gap,
   height: deck.rows * deck.size + (deck.rows + 1) * deck.gap,
 });

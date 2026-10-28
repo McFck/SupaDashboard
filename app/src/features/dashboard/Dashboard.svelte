@@ -13,7 +13,6 @@
   import { DragGaps } from './drag-gaps.svelte';
   import { Pager, pageOffset, pageOrderKey } from './pager.svelte';
   import PageDots from './PageDots.svelte';
-  import ResizeGrips from './ResizeGrips.svelte';
 
   const { requestPageChange } = getRuntimeCommands();
 
@@ -28,10 +27,7 @@
   let pageHost: HTMLDivElement;
   let gaps = $state<DragGaps>();
 
-  const dashboard = new DashboardWindow(
-    () => settings.display,
-    () => pager.resize(),
-  );
+  const dashboard = new DashboardWindow(() => settings.display);
   const pager = new Pager({
     shell: () => shell,
     pages: () => settings.deck.pages,
@@ -175,7 +171,10 @@
     {/each}
   {/if}
   {#if !dashboard.appliedFullscreen}
-    <ResizeGrips {dashboard} />
+    <div
+      aria-hidden="true"
+      class="resize-cues"
+    ></div>
   {/if}
 </div>
 
@@ -238,5 +237,36 @@
 
   .dashboard-page-inactive {
     pointer-events: none;
+  }
+
+  /* The native window resizes from its edges; this outline only shows where. */
+  .resize-cues {
+    position: absolute;
+    z-index: 40;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1.5px var(--resize-ink);
+    opacity: 0;
+    transition: opacity 160ms ease-out;
+  }
+
+  .dashboard-shell[data-hovered='true'] .resize-cues {
+    --resize-ink: rgba(255, 255, 255, 0.32);
+    opacity: 1;
+    transition-duration: 120ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .resize-cues,
+    .dashboard-shell[data-hovered='true'] .resize-cues {
+      transition-duration: 0ms;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .resize-cues {
+      --resize-ink: rgba(255, 255, 255, 0.08);
+    }
   }
 </style>
