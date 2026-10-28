@@ -2,6 +2,7 @@ import type { ActionContext, ActionRef, EventAncestry } from '../plugins/contrac
 import type { ActionStep, Predicate, Trigger } from './scenario';
 import { isValidDelay, MAX_SCENARIO_DEPTH, MAX_SCENARIO_NODES } from './scenario';
 import { validateScenario } from './validate';
+import { awaitAction, ensureActive, nextTask, RunCancelled, wait } from './cancellation';
 import { evaluatePredicate, type PredicateEnvironment } from './expression';
 import type { VariableValue } from './variables';
 
@@ -47,8 +48,6 @@ export type RunnerServices = {
   ): Promise<void>;
 };
 
-class RunCancelled extends Error {}
-
 class StepFailure extends Error {
   constructor(
     readonly stepId: string,
@@ -57,63 +56,6 @@ class StepFailure extends Error {
   ) {
     super('Scenario step failed');
   }
-}
-
-function wait(ms: number, signal: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    if (signal.aborted) {
-      reject(new RunCancelled());
-      return;
-    }
-    const timer = setTimeout(done, ms);
-    const abort = () => {
-      clearTimeout(timer);
-      cleanup();
-      reject(new RunCancelled());
-    };
-    function cleanup() {
-      signal.removeEventListener('abort', abort);
-    }
-    function done() {
-      cleanup();
-      resolve();
-    }
-    signal.addEventListener('abort', abort, { once: true });
-  });
-}
-
-function nextTask(signal: AbortSignal) {
-  return wait(0, signal);
-}
-
-/** Stop awaiting an ignored-signal action after cancellation while observing its eventual rejection. */
-function awaitAction<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    let settled = false;
-    const cleanup = () => signal.removeEventListener('abort', abort);
-    const abort = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(new RunCancelled());
-    };
-    signal.addEventListener('abort', abort, { once: true });
-    operation.then(
-      (value) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        resolve(value);
-      },
-      (error) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        reject(error);
-      },
-    );
-    if (signal.aborted) abort();
-  });
 }
 
 function asSteps(value: unknown, prefix: string): ActionStep[] | null {
@@ -136,12 +78,6 @@ function failureOf(packet: TriggerPacket, failed: StepFailure): ScenarioFailure 
     kind: failed.kind,
     ...(failed.actionId ? { actionId: failed.actionId } : {}),
   };
-}
-
-function ensureActive(signal: AbortSignal) {
-  if (signal.aborted) {
-    throw new RunCancelled();
-  }
 }
 
 export class ScenarioRunner {
