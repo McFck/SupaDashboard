@@ -125,6 +125,25 @@ function asSteps(value: unknown, prefix: string): ActionStep[] | null {
   }));
 }
 
+type RunState = { count: number; signal: AbortSignal; packet: TriggerPacket };
+
+function failureOf(packet: TriggerPacket, failed: StepFailure): ScenarioFailure {
+  return {
+    controlId: packet.controlId,
+    itemId: packet.itemId,
+    trigger: packet.trigger,
+    stepId: failed.stepId,
+    kind: failed.kind,
+    ...(failed.actionId ? { actionId: failed.actionId } : {}),
+  };
+}
+
+function ensureActive(signal: AbortSignal) {
+  if (signal.aborted) {
+    throw new RunCancelled();
+  }
+}
+
 export class ScenarioRunner {
   constructor(private services: RunnerServices) {}
 
@@ -135,105 +154,95 @@ export class ScenarioRunner {
     const snapshot = structuredClone(packet);
     const issues = validateScenario({ triggers: { press: { steps: snapshot.steps } }, events: [] });
     if (issues.length) {
-      const failure = {
-        controlId: snapshot.controlId,
-        itemId: snapshot.itemId,
-        trigger: snapshot.trigger,
-        stepId: issues[0].path,
-        kind: 'condition' as const,
+      return {
+        status: 'failed',
+        failure: failureOf(snapshot, new StepFailure(issues[0].path, 'condition')),
       };
-      return { status: 'failed', failure };
     }
-    const state: { count: number; signal: AbortSignal; packet: TriggerPacket } = {
-      count: 0,
-      signal,
-      packet: snapshot,
-    };
     try {
-      await this.runList(snapshot.steps, state, 0);
+      await this.runList(snapshot.steps, { count: 0, signal, packet: snapshot }, 0);
       return { status: 'completed' };
     } catch (error) {
-      if (error instanceof RunCancelled || signal.aborted) return { status: 'cancelled' };
+      if (error instanceof RunCancelled || signal.aborted) {
+        return { status: 'cancelled' };
+      }
       const failed = error instanceof StepFailure ? error : new StepFailure('scenario', 'action');
-      const failure: ScenarioFailure = {
-        controlId: snapshot.controlId,
-        itemId: snapshot.itemId,
-        trigger: snapshot.trigger,
-        stepId: failed.stepId,
-        kind: failed.kind,
-        ...(failed.actionId ? { actionId: failed.actionId } : {}),
-      };
-      return { status: 'failed', failure };
+      return { status: 'failed', failure: failureOf(snapshot, failed) };
     }
   }
 
-  private async runList(
-    steps: ActionStep[],
-    state: { count: number; signal: AbortSignal; packet: TriggerPacket },
-    depth: number,
-  ): Promise<void> {
-    if (depth > MAX_SCENARIO_DEPTH) throw new StepFailure('scenario', 'condition');
+  private async runList(steps: ActionStep[], state: RunState, depth: number): Promise<void> {
+    if (depth > MAX_SCENARIO_DEPTH) {
+      throw new StepFailure('scenario', 'condition');
+    }
     for (const step of steps) {
-      this.ensureActive(state.signal);
-      if (++state.count > MAX_SCENARIO_NODES) throw new StepFailure(step.id, 'condition');
+      ensureActive(state.signal);
+      if (++state.count > MAX_SCENARIO_NODES) {
+        throw new StepFailure(step.id, 'condition');
+      }
+      // Yield now and then so a long list of instant steps cannot starve the page.
       if (state.count % 25 === 0) {
         await nextTask(state.signal);
-        this.ensureActive(state.signal);
+        ensureActive(state.signal);
       }
       try {
-        if (step.kind === 'delay') {
-          if (!isValidDelay(step.ms)) throw new StepFailure(step.id, 'delay');
-          await wait(step.ms, state.signal);
-        } else if (step.kind === 'if') {
-          const env: PredicateEnvironment = {
-            getVariable: (id) => this.services.getVariable(id),
-            findVariable: (name) => this.services.findVariable(name),
-            getState: (id) => this.services.getState(id === 'self' ? state.packet.controlId : id),
-          };
-          const branch = evaluatePredicate(step.condition as Predicate, env)
-            ? step.then
-            : step.else;
-          await this.runList(branch, state, depth + 1);
-        } else if (step.kind === 'action') {
-          if (step.action.id === 'delay') {
-            const ms = step.action.args?.ms;
-            if (!isValidDelay(ms)) throw new StepFailure(step.id, 'delay');
-            await wait(ms, state.signal);
-          } else if (step.action.id === 'sequence') {
-            const nested = asSteps(step.action.args?.steps, step.id);
-            if (!nested) throw new StepFailure(step.id, 'action');
-            await this.runList(nested, state, depth + 1);
-          } else {
-            const context = this.context(state);
-            let operation: Promise<unknown>;
-            try {
-              operation = Promise.resolve(this.services.runAction(step.action, context));
-            } catch (error) {
-              throw error;
-            }
-            await awaitAction(operation, state.signal);
-          }
-        }
-        this.ensureActive(state.signal);
+        await this.runStep(step, state, depth);
+        ensureActive(state.signal);
       } catch (error) {
-        if (error instanceof RunCancelled || state.signal.aborted) throw new RunCancelled();
-        if (error instanceof StepFailure) throw error;
-        throw new StepFailure(
-          step.id,
-          step.kind === 'if' ? 'condition' : step.kind === 'delay' ? 'delay' : 'action',
-          step.kind === 'action' ? step.action.id : undefined,
-        );
+        if (error instanceof RunCancelled || state.signal.aborted) {
+          throw new RunCancelled();
+        }
+        if (error instanceof StepFailure) {
+          throw error;
+        }
+        if (step.kind === 'action') {
+          throw new StepFailure(step.id, 'action', step.action.id);
+        }
+        throw new StepFailure(step.id, step.kind === 'if' ? 'condition' : 'delay');
       }
     }
   }
 
-  private context(state: {
-    count: number;
-    signal: AbortSignal;
-    packet: TriggerPacket;
-  }): ActionContext {
+  private async runStep(step: ActionStep, state: RunState, depth: number) {
+    if (step.kind === 'delay') {
+      if (!isValidDelay(step.ms)) {
+        throw new StepFailure(step.id, 'delay');
+      }
+      await wait(step.ms, state.signal);
+      return;
+    }
+    if (step.kind === 'if') {
+      const env: PredicateEnvironment = {
+        getVariable: (id) => this.services.getVariable(id),
+        findVariable: (name) => this.services.findVariable(name),
+        getState: (id) => this.services.getState(id === 'self' ? state.packet.controlId : id),
+      };
+      const branch = evaluatePredicate(step.condition as Predicate, env) ? step.then : step.else;
+      await this.runList(branch, state, depth + 1);
+      return;
+    }
+    // Legacy built-in delay and sequence actions run inline, like their canonical steps.
+    if (step.action.id === 'delay') {
+      const ms = step.action.args?.ms;
+      if (!isValidDelay(ms)) {
+        throw new StepFailure(step.id, 'delay');
+      }
+      await wait(ms, state.signal);
+    } else if (step.action.id === 'sequence') {
+      const nested = asSteps(step.action.args?.steps, step.id);
+      if (!nested) {
+        throw new StepFailure(step.id, 'action');
+      }
+      await this.runList(nested, state, depth + 1);
+    } else {
+      const operation = Promise.resolve(this.services.runAction(step.action, this.context(state)));
+      await awaitAction(operation, state.signal);
+    }
+  }
+
+  private context(state: RunState): ActionContext {
     const packet = state.packet;
-    const active = () => this.ensureActive(state.signal);
+    const active = () => ensureActive(state.signal);
     return {
       signal: state.signal,
       runId: packet.interactionId,
@@ -268,9 +277,5 @@ export class ScenarioRunner {
         active();
       },
     };
-  }
-
-  private ensureActive(signal: AbortSignal) {
-    if (signal.aborted) throw new RunCancelled();
   }
 }
