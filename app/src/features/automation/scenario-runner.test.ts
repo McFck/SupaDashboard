@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  ScenarioRunner,
-  captureTrigger,
-  type RunnerServices,
-  type TriggerPacket,
-} from './scenario-runner';
+import { captureTrigger } from './capture';
+import { ScenarioRunner, type RunnerServices, type TriggerPacket } from './scenario-runner';
 import type { ActionStep } from './scenario';
 import type { ControlConfig } from '../controls/model';
 

@@ -1,11 +1,8 @@
 import { get } from 'svelte/store';
 import { settings, controlById } from '../../features/settings/state.svelte';
 import { effectiveVariant } from '../../features/controls/button-state';
-import {
-  captureTrigger,
-  type RunResult,
-  type TriggerPacket,
-} from '../../features/automation/scenario-runner';
+import { captureTrigger } from '../../features/automation/capture';
+import type { RunResult, TriggerPacket } from '../../features/automation/scenario-runner';
 import type { Trigger } from '../../features/automation/scenario';
 import type { PageChangePayload } from './sync';
 import { runtimeView, type RuntimeSnapshot } from './state';

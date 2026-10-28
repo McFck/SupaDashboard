@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeControl, selectTriggerSteps, validateScenario } from './scenario';
+import { normalizeControl } from './normalize-control';
+import { selectTriggerSteps } from './scenario';
+import { validateScenario } from './validate';
 
 const action = (id: string, args?: Record<string, unknown>) => ({ id, ...(args ? { args } : {}) });
 

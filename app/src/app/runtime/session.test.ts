@@ -5,7 +5,7 @@ import { actions, install, skins } from '../../features/plugins/registry';
 import type { ActionContext } from '../../features/plugins/contracts';
 import { settings, serializeSettings } from '../../features/settings/state.svelte';
 import type { Page } from '../../features/settings/schema';
-import { captureTrigger } from '../../features/automation/scenario-runner';
+import { captureTrigger } from '../../features/automation/capture';
 import { mediaSourceKey } from '../../features/media/content';
 import { VariableStore } from '../../features/automation/variables';
 import { acceptRuntimeSnapshot } from './client';

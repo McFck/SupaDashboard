@@ -1,7 +1,7 @@
 // Persisted settings shape (v5) and the defaults a fresh install starts from.
 import { DEFAULT_MIXER_MAX_CHANNELS, type ControlConfig } from '../controls/model';
 import type { DeckSizing, Item } from '../layout/grid';
-import { normalizeControl } from '../automation/scenario';
+import { normalizeControl } from '../automation/normalize-control';
 
 export type Page = {
   id: string;

@@ -1,8 +1,8 @@
 import type { ActionContext, ActionRef, EventAncestry } from '../plugins/contracts';
-import type { ControlConfig } from '../controls/model';
-import type { ActionStep, EventList, Predicate, Trigger, TriggerList } from './scenario';
-import { MAX_DELAY_MS, MAX_SCENARIO_DEPTH, MAX_SCENARIO_NODES, validateScenario } from './scenario';
-import { evaluatePredicate, type PredicateEnvironment } from './templates';
+import type { ActionStep, Predicate, Trigger } from './scenario';
+import { MAX_DELAY_MS, MAX_SCENARIO_DEPTH, MAX_SCENARIO_NODES } from './scenario';
+import { validateScenario } from './validate';
+import { evaluatePredicate, type PredicateEnvironment } from './expression';
 import type { VariableValue } from './variables';
 
 export type TriggerPacket = {
@@ -17,6 +17,7 @@ export type TriggerPacket = {
   event?: { id: string; parameter?: string; payload?: unknown };
   eventAncestry?: EventAncestry;
 };
+
 export type ScenarioFailure = {
   controlId: string;
   itemId: string;
@@ -25,10 +26,12 @@ export type ScenarioFailure = {
   kind: 'action' | 'condition' | 'delay' | 'cycle';
   actionId?: string;
 };
+
 export type RunResult = {
   status: 'completed' | 'cancelled' | 'failed' | 'rejected';
   failure?: ScenarioFailure;
 };
+
 export type RunnerServices = {
   runAction(ref: ActionRef, context: ActionContext): unknown | Promise<unknown>;
   getVariable(id: string): VariableValue | undefined;
@@ -45,6 +48,7 @@ export type RunnerServices = {
 };
 
 class RunCancelled extends Error {}
+
 class StepFailure extends Error {
   constructor(
     readonly stepId: string,
@@ -53,92 +57,6 @@ class StepFailure extends Error {
   ) {
     super('Scenario step failed');
   }
-}
-
-function freezeDeep<T>(value: T): T {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    for (const child of Object.values(value as Record<string, unknown>)) freezeDeep(child);
-  }
-  return value;
-}
-
-function cloneSerializable<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((item) => cloneSerializable(item)) as T;
-  if (value && typeof value === 'object') {
-    const copy: Record<string, unknown> = {};
-    for (const [key, child] of Object.entries(value as Record<string, unknown>))
-      copy[key] = cloneSerializable(child);
-    return copy as T;
-  }
-  return value;
-}
-
-function packet(
-  control: ControlConfig,
-  itemId: string,
-  trigger: Trigger | 'event',
-  listenerId: string | undefined,
-  interactionId: string,
-  sourceStateId: string,
-  capturedAt: number,
-  list: TriggerList,
-  event?: TriggerPacket['event'],
-): TriggerPacket | undefined {
-  const own = list.byState && Object.hasOwn(list.byState, sourceStateId);
-  const steps = own ? list.byState![sourceStateId] : list.steps;
-  return freezeDeep({
-    controlId: control.id,
-    itemId,
-    trigger,
-    ...(listenerId ? { listenerId } : {}),
-    interactionId,
-    sourceStateId,
-    capturedAt,
-    steps: cloneSerializable(steps),
-    ...(event ? { event: cloneSerializable(event) } : {}),
-  });
-}
-
-export function captureTrigger(
-  control: ControlConfig,
-  itemId: string,
-  trigger: Trigger,
-  interactionId: string,
-  sourceStateId: string,
-  capturedAt = Date.now(),
-): TriggerPacket | undefined {
-  const list = control.scenario?.triggers[trigger];
-  return list
-    ? packet(control, itemId, trigger, undefined, interactionId, sourceStateId, capturedAt, list)
-    : undefined;
-}
-
-export function captureEvent(
-  control: ControlConfig,
-  itemId: string,
-  listener: EventList,
-  interactionId: string,
-  sourceStateId: string,
-  capturedAt: number,
-  parameter?: string,
-  payload?: unknown,
-  eventAncestry?: EventAncestry,
-): TriggerPacket {
-  return {
-    ...packet(
-      control,
-      itemId,
-      'event',
-      listener.id,
-      interactionId,
-      sourceStateId,
-      capturedAt,
-      listener.list,
-      { id: listener.eventId, parameter, payload },
-    )!,
-    ...(eventAncestry ? { eventAncestry: structuredClone(eventAncestry) } : {}),
-  };
 }
 
 function wait(ms: number, signal: AbortSignal) {

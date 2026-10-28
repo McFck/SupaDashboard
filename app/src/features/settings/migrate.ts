@@ -1,7 +1,7 @@
 // Upgrades any supported saved settings to the current version and normalizes them.
 import type { ControlConfig } from '../controls/model';
 import type { Item } from '../layout/grid';
-import { normalizeControl } from '../automation/scenario';
+import { normalizeControl } from '../automation/normalize-control';
 import { DEFAULT_PAGE, DEFAULTS, type Page, type Settings } from './schema';
 
 function isRecord(value: unknown): value is Record<string, unknown> {

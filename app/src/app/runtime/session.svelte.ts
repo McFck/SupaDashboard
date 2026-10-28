@@ -9,9 +9,8 @@ import {
   setRegistryRuntime,
   skins as registeredSkins,
 } from '../../features/plugins/registry';
+import { captureEvent, captureTrigger } from '../../features/automation/capture';
 import {
-  captureEvent,
-  captureTrigger,
   ScenarioRunner,
   type RunResult,
   type ScenarioFailure,
