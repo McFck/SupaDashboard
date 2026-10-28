@@ -4,6 +4,24 @@ import { DEFAULTS } from './schema';
 import { migrate } from './migrate';
 
 describe('settings migration', () => {
+  it.each([
+    [],
+    'settings',
+    5,
+    { version: 5, controls: {} },
+    { version: 1, controls: [null] },
+    { version: 2, controls: [{ id: 'x', type: 'button', variants: {} }] },
+    { version: 2, deck: { cells: {} } },
+    { version: 5, deck: { pages: {} } },
+    { version: 5, display: [] },
+    { version: 5, variants: { button: 'state' } },
+    { version: 5, controls: [{ id: 'x', type: 'button', stateBinding: { cases: {} } }] },
+  ])('rejects malformed settings without mutating the source: %j', (raw) => {
+    const original = structuredClone(raw);
+    expect(() => migrate(raw)).toThrow();
+    expect(raw).toEqual(original);
+  });
+
   it('upgrades v1 settings, keeping the user controls and mapping old icon names', () => {
     const v1 = {
       version: 1,

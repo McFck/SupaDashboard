@@ -13,6 +13,7 @@
   } from '../model';
   import { effectiveVariant, stateIdAt } from '../button-state';
   import { runtimeView } from '../../../app/runtime/state';
+  import { runtimeVariables } from '../../automation/runtime-variables.svelte';
   import type { Trigger } from '../../automation/scenario';
   import type { TriggerPacket } from '../../automation/scenario-runner';
   import { onDestroy } from 'svelte';
@@ -53,7 +54,7 @@
     itemId?: string;
   } = $props();
   const manualIndex = $derived(settings.variants[control.id] ?? 0);
-  const effective = $derived(effectiveVariant(control, $runtimeView.variables, manualIndex));
+  const effective = $derived(effectiveVariant(control, runtimeVariables, manualIndex));
   const current = $derived(effective.index);
   const variant = $derived(control.variants[current] ?? control.variants[0]);
   const volumeTarget = $derived(

@@ -82,6 +82,53 @@ describe('automation runtime', () => {
     });
   });
 
+  it('keeps clock ticks out of persistence while saving edits, renames and persistence removal', async () => {
+    vi.useFakeTimers();
+    const variables = new VariableStore();
+    variables.define(
+      {
+        id: 'clock.time',
+        name: 'clock.time',
+        type: 'string',
+        owner: 'core',
+        persistent: false,
+        readOnly: true,
+        initialValue: '',
+      },
+      'core',
+    );
+    variables.createUser({ id: 'saved', name: 'Saved', type: 'integer', initialValue: 1 });
+    const saved: ReturnType<VariableStore['serializePersistent']>[] = [];
+    runtime = new RuntimeSession({
+      variables,
+      persistence: {
+        save: async (value) => {
+          saved.push(value);
+        },
+      },
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    saved.length = 0;
+    const initialTime = variables.getValue('clock.time');
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(variables.getValue('clock.time')).not.toBe(initialTime);
+    expect(saved).toEqual([]);
+    variables.set('saved', 2);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(saved.at(-1)?.records.find((record) => record.definition.id === 'saved')?.value).toBe(2);
+    variables.rename('saved', 'Renamed');
+    await vi.advanceTimersByTimeAsync(250);
+    expect(
+      saved.at(-1)?.records.find((record) => record.definition.id === 'saved')?.definition.name,
+    ).toBe('Renamed');
+    variables.setPersistent('saved', false);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(saved.at(-1)?.records.some((record) => record.definition.id === 'saved')).toBe(false);
+    const count = saved.length;
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(saved).toHaveLength(count);
+  });
+
   it('cleans up started skins when a later skin fails so a retry has only one live instance', async () => {
     let live = 0;
     let fail = true;

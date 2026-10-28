@@ -2,7 +2,10 @@
 // the dashboard and the control panel (both windows load the same store and listen for its changes).
 import { load } from '@tauri-apps/plugin-store';
 import { isTauri } from '@tauri-apps/api/core';
+import { toast } from 'svelte-sonner';
+import { storeIsReadable } from '$lib/store';
 import { migrate } from './migrate';
+import { SettingsPersistence } from './persistence';
 import { DEFAULT_PAGE, DEFAULTS, type Settings } from './schema';
 
 /** Serialize the live settings with a stable launch placeholder, never the runtime page selection. */
@@ -24,80 +27,121 @@ export async function loadSettings() {
   const browser = !isTauri();
   const browserKey = 'supadashboard:settings:v5';
   const legacyBrowserKeys = ['supadashboard:settings:v6', 'supadashboard:settings:v4'];
-  let last = '';
+  let persistence: SettingsPersistence;
+  let initial = '';
+  let writingJson: string | undefined;
+  // Never write over saved settings this window could not read.
+  let blocked = false;
+  const loadFailed = () => {
+    blocked = true;
+    toast.error('Could not load saved settings');
+  };
+  const save = () => {
+    if (blocked) {
+      return;
+    }
+    void persistence.save(serializeSettings($state.snapshot(settings))).catch(() => {
+      toast.error('Could not save settings', {
+        id: 'settings-save',
+        action: { label: 'Retry', onClick: save },
+      });
+    });
+  };
   const assign = (next: Settings, activePage = next.deck.pages[0].id) => {
     next.deck.activePage = activePage;
     Object.assign(settings, next);
   };
   const applyInitial = (raw: unknown, rawJson?: string) => {
-    if ((raw as any)?.version > 6) return false;
-    const next = migrate(raw);
-    assign(next);
-    last = rawJson ?? '';
-    return true;
+    try {
+      if (rawJson !== undefined && raw == null) {
+        throw new Error('Saved settings are empty');
+      }
+      assign(migrate(raw));
+      initial = rawJson ?? '';
+      return true;
+    } catch {
+      loadFailed();
+      return false;
+    }
   };
   const applyRemote = (raw: unknown) => {
-    if ((raw as any)?.version > 6) return;
     const next = migrate(raw);
     const json = serializeSettings(next);
-    if (json === last) return;
+    blocked = false;
+    // plugin-store also emits our own set before the disk save completes.
+    if (
+      json === writingJson ||
+      json === persistence.saved ||
+      json === serializeSettings($state.snapshot(settings))
+    ) {
+      return;
+    }
     for (const listener of remoteSettingsListeners) listener(next);
     assign(next, settings.deck.activePage);
-    last = json;
+    persistence.saved = json;
   };
 
   if (browser) {
     const rawJson =
       localStorage.getItem(browserKey) ??
-      legacyBrowserKeys.map((key) => localStorage.getItem(key)).find(Boolean);
+      legacyBrowserKeys.map((key) => localStorage.getItem(key)).find((value) => value !== null);
     let raw: unknown = null;
-    if (rawJson) {
+    if (rawJson != null) {
       try {
         raw = JSON.parse(rawJson);
       } catch {
-        raw = null;
+        loadFailed();
+        return;
       }
     }
     if (!applyInitial(raw, rawJson ?? undefined)) return;
+    persistence = new SettingsPersistence(async (json) => {
+      localStorage.setItem(browserKey, json);
+    }, initial);
     const onStorage = (event: StorageEvent) => {
       if (event.key !== browserKey || !event.newValue) return;
       try {
         applyRemote(JSON.parse(event.newValue));
       } catch {
-        /* unsupported or partial remote data is ignored */
+        loadFailed();
       }
     };
     window.addEventListener('storage', onStorage);
     $effect.root(() => {
       $effect(() => {
-        const json = serializeSettings($state.snapshot(settings));
-        if (json !== last) {
-          last = json;
-          localStorage.setItem(browserKey, json);
-        }
+        save();
       });
     });
     return;
   }
-  const store = await load('settings.json', { defaults: {}, autoSave: 200 });
+  const store = await load('settings.json', { defaults: {}, autoSave: false });
   const raw = await store.get('settings');
-  if (!applyInitial(raw, raw ? JSON.stringify(raw) : undefined)) return;
+  if (raw === undefined && !(await storeIsReadable(store))) {
+    loadFailed();
+    return;
+  }
+  if (!applyInitial(raw, raw === undefined ? undefined : JSON.stringify(raw))) return;
+  persistence = new SettingsPersistence(async (json) => {
+    writingJson = json;
+    try {
+      await store.set('settings', JSON.parse(json));
+      await store.save();
+    } finally {
+      writingJson = undefined;
+    }
+  }, initial);
   // Another window (dashboard <-> control panel) changed something: take it over.
   await store.onKeyChange('settings', (value) => {
     if (!value) return;
     try {
       applyRemote(value);
     } catch {
-      /* unsupported or partial remote data is ignored */
+      loadFailed();
     }
   });
   $effect.root(() => {
     $effect(() => {
-      const json = serializeSettings($state.snapshot(settings));
-      if (json !== last) {
-        last = json;
-        void store.set('settings', JSON.parse(json));
-      }
+      save();
     });
   });
 }
