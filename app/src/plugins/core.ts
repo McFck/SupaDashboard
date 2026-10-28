@@ -6,7 +6,7 @@ import { settings } from '../features/settings/state.svelte';
 import { pageItems } from '../features/layout/pages';
 import { hasPlacement } from '../features/layout/skin-layouts';
 import { currentRuntime } from '../app/runtime/lifecycle';
-import { appOwners, mediaSources, runAction } from '../features/plugins/registry';
+import { appOwners, mediaSources } from '../features/plugins/registry';
 import type { ActionRef, Param, Plugin } from '../features/plugins/contracts';
 import { parseVariableText } from '../features/automation/variables';
 import {
@@ -432,8 +432,16 @@ export const corePlugin: Plugin = {
       id: 'sequence',
       title: 'Run several actions (macro)',
       params: [{ key: 'steps', label: 'Steps', type: 'actions', default: [] }],
-      run: async (a) => {
-        for (const step of (a.steps as ActionRef[]) ?? []) await runAction(step);
+      run: async (a, context) => {
+        if (!context) throw new Error('Action sequence runtime is unavailable');
+        if (context.signal.aborted) return;
+        await context.runSteps(
+          ((a.steps as ActionRef[]) ?? []).map((action, index) => ({
+            id: `sequence-${index + 1}`,
+            kind: 'action',
+            action,
+          })),
+        );
       },
     });
 

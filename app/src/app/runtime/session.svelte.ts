@@ -17,7 +17,7 @@ import {
   type ScenarioFailure,
   type TriggerPacket,
 } from '../../features/automation/scenario-runner';
-import type { EventAncestry } from '../../features/plugins/contracts';
+import type { ActionRef, EventAncestry } from '../../features/plugins/contracts';
 import {
   VariableStore,
   type VariableSnapshot,
@@ -122,6 +122,7 @@ export class RuntimeSession {
     this.execution = new ExecutionEngine({
       execute: (packet, signal) => runner.run(packet, signal),
       getFingerprint: (id) => {
+        if (id === '') return 'skin.quickAction';
         const control = controlById(id);
         return control ? fingerprint(control) : undefined;
       },
@@ -205,6 +206,18 @@ export class RuntimeSession {
       return Promise.resolve({ status: 'rejected' });
     }
     return this.execution.dispatch(packet, options);
+  }
+
+  dispatchQuickAction(ref: ActionRef): Promise<RunResult> {
+    return this.dispatch({
+      controlId: '',
+      itemId: '',
+      trigger: 'press',
+      interactionId: scenarioId(),
+      sourceStateId: '',
+      capturedAt: Date.now(),
+      steps: [{ id: 'quick-action', kind: 'action', action: ref }],
+    });
   }
 
   dispatchTrigger(
@@ -363,7 +376,10 @@ export class RuntimeSession {
 
   reconcile(controls: Settings['controls']) {
     this.execution.reconcile(
-      new Map(controls.map((control) => [control.id, fingerprint(control)])),
+      new Map<string, string>([
+        ['', 'skin.quickAction'],
+        ...controls.map((control) => [control.id, fingerprint(control)] as const),
+      ]),
     );
     this.content.reconcile(
       controls,
