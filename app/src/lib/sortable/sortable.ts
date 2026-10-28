@@ -1,6 +1,5 @@
-import { tick } from 'svelte';
-import { SortSession, restoreStyle, type Axis, type StyleSnapshot } from './session';
-import { settleDroppedItem } from './settle';
+import { SortSession, type Axis } from './session';
+import { DropSettlement } from './settle';
 
 export type SortableOptions = {
   axis: Axis;
@@ -18,9 +17,7 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
   let options = initial;
   let session: SortSession | null = null;
   let suppressed: { item: HTMLElement; until: number } | null = null;
-  let settleToken = 0;
-  let settleAnimation: Animation | null = null;
-  let settling: { item: HTMLElement; style: StyleSnapshot } | null = null;
+  const settlement = new DropSettlement();
   let restoreTransitions: (() => void) | undefined;
   const priorSortableRoot = node.getAttribute('data-sortable-root');
   node.setAttribute('data-sortable-root', '');
@@ -31,17 +28,6 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       items.length === current.items.length &&
       items.every((item, index) => item === current.items[index])
     );
-  }
-
-  function cancelSettlement() {
-    settleToken++;
-    const animation = settleAnimation;
-    settleAnimation = null;
-    animation?.cancel();
-    if (settling) {
-      restoreStyle(settling.item, settling.style);
-    }
-    settling = null;
   }
 
   function cancel() {
@@ -60,7 +46,7 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       cancelAnimationFrame(current.frame);
       current.frame = null;
     }
-    restoreTransitions = current.restore((item) => settling?.item === item);
+    restoreTransitions = current.restore((item) => settlement.item === item);
     current.releaseCapture();
   }
 
@@ -110,37 +96,6 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     });
   }
 
-  /** Runs after the caller's reorder has flushed (microtask after Svelte's), before the next paint: no visible jump. */
-  function settleSource(current: SortSession, held: DOMRect) {
-    const token = ++settleToken;
-    void tick().then(() => {
-      const source = current.source;
-      const original = current.styles.get(source);
-      if (token !== settleToken || !source.isConnected || !original || current.reducedMotion) {
-        return;
-      }
-      const animation = settleDroppedItem(source, held, current.axis, original.transform);
-      if (!animation) {
-        return;
-      }
-      settling = { item: source, style: original };
-      settleAnimation = animation;
-      void animation.finished
-        .then(() => {
-          if (settleAnimation !== animation) {
-            return;
-          }
-          settleAnimation = null;
-          if (settling?.item === source) {
-            restoreStyle(source, original);
-            settling = null;
-          }
-          animation.cancel();
-        })
-        .catch(() => {});
-    });
-  }
-
   function onPointerDown(event: PointerEvent) {
     const target = event.target;
     cancel();
@@ -153,7 +108,7 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       return;
     }
     suppressed = null;
-    cancelSettlement();
+    settlement.cancel();
     restoreTransitions?.();
     restoreTransitions = undefined;
     const items = options.items();
@@ -223,7 +178,7 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       options.onmove(from, destination);
     }
     if (held) {
-      settleSource(current, held);
+      settlement.play(current, held);
     }
   }
 
@@ -266,7 +221,7 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     },
     destroy() {
       cancel();
-      cancelSettlement();
+      settlement.cancel();
       restoreTransitions?.();
       node.removeEventListener('pointerdown', onPointerDown);
       node.removeEventListener('lostpointercapture', onPointerCancel);
