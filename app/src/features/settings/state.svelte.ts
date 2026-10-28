@@ -3,6 +3,7 @@
 import { load } from '@tauri-apps/plugin-store';
 import { isTauri } from '@tauri-apps/api/core';
 import { toast } from 'svelte-sonner';
+import { storeIsReadable } from '$lib/store';
 import { migrate } from './migrate';
 import { SettingsPersistence } from './persistence';
 import { DEFAULT_PAGE, DEFAULTS, type Settings } from './schema';
@@ -29,7 +30,16 @@ export async function loadSettings() {
   let persistence: SettingsPersistence;
   let initial = '';
   let writingJson: string | undefined;
+  // Never write over saved settings this window could not read.
+  let blocked = false;
+  const loadFailed = () => {
+    blocked = true;
+    toast.error('Could not load saved settings');
+  };
   const save = () => {
+    if (blocked) {
+      return;
+    }
     void persistence.save(serializeSettings($state.snapshot(settings))).catch(() => {
       toast.error('Could not save settings', {
         id: 'settings-save',
@@ -42,16 +52,22 @@ export async function loadSettings() {
     Object.assign(settings, next);
   };
   const applyInitial = (raw: unknown, rawJson?: string) => {
-    if ((raw as any)?.version > 6) return false;
-    const next = migrate(raw);
-    assign(next);
-    initial = rawJson ?? '';
-    return true;
+    try {
+      if (rawJson !== undefined && raw == null) {
+        throw new Error('Saved settings are empty');
+      }
+      assign(migrate(raw));
+      initial = rawJson ?? '';
+      return true;
+    } catch {
+      loadFailed();
+      return false;
+    }
   };
   const applyRemote = (raw: unknown) => {
-    if ((raw as any)?.version > 6) return;
     const next = migrate(raw);
     const json = serializeSettings(next);
+    blocked = false;
     // plugin-store also emits our own set before the disk save completes.
     if (
       json === writingJson ||
@@ -68,13 +84,14 @@ export async function loadSettings() {
   if (browser) {
     const rawJson =
       localStorage.getItem(browserKey) ??
-      legacyBrowserKeys.map((key) => localStorage.getItem(key)).find(Boolean);
+      legacyBrowserKeys.map((key) => localStorage.getItem(key)).find((value) => value !== null);
     let raw: unknown = null;
-    if (rawJson) {
+    if (rawJson != null) {
       try {
         raw = JSON.parse(rawJson);
       } catch {
-        raw = null;
+        loadFailed();
+        return;
       }
     }
     if (!applyInitial(raw, rawJson ?? undefined)) return;
@@ -86,7 +103,7 @@ export async function loadSettings() {
       try {
         applyRemote(JSON.parse(event.newValue));
       } catch {
-        /* unsupported or partial remote data is ignored */
+        loadFailed();
       }
     };
     window.addEventListener('storage', onStorage);
@@ -99,7 +116,11 @@ export async function loadSettings() {
   }
   const store = await load('settings.json', { defaults: {}, autoSave: false });
   const raw = await store.get('settings');
-  if (!applyInitial(raw, raw ? JSON.stringify(raw) : undefined)) return;
+  if (raw === undefined && !(await storeIsReadable(store))) {
+    loadFailed();
+    return;
+  }
+  if (!applyInitial(raw, raw === undefined ? undefined : JSON.stringify(raw))) return;
   persistence = new SettingsPersistence(async (json) => {
     writingJson = json;
     try {
@@ -115,7 +136,7 @@ export async function loadSettings() {
     try {
       applyRemote(value);
     } catch {
-      /* unsupported or partial remote data is ignored */
+      loadFailed();
     }
   });
   $effect.root(() => {
