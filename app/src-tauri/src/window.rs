@@ -87,6 +87,7 @@ fn dashboard_visible(is_visible: bool, minimized: bool) -> bool {
 mod win32 {
     use super::{Geometry, ResizeHit, SUBCLASS_ID, dashboard_visible, resize_hit};
     use serde::Serialize;
+    use std::cell::Cell;
     use std::mem::size_of;
     use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
     use windows::Win32::Foundation::{
@@ -110,15 +111,17 @@ mod win32 {
         WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
     };
 
+    /// Only ever borrowed shared: `DefSubclassProc` runs the modal size loop, which re-enters the subclass proc and
+    /// runs Tao's queued closures (`set_interaction_mode`), so a `&mut` held across it would alias.
     struct PolicyState {
         app: AppHandle,
-        fullscreen: bool,
-        hovered: bool,
-        tracking_leave: bool,
-        minimized: bool,
-        revision: u64,
-        resize_hit_test: bool,
-        resizing: bool,
+        fullscreen: Cell<bool>,
+        hovered: Cell<bool>,
+        tracking_leave: Cell<bool>,
+        minimized: Cell<bool>,
+        revision: Cell<u64>,
+        resize_hit_test: Cell<bool>,
+        resizing: Cell<bool>,
     }
 
     #[derive(Clone, Serialize)]
@@ -142,13 +145,13 @@ mod win32 {
         let hwnd = HWND(raw_hwnd.0);
         let state = Box::into_raw(Box::new(PolicyState {
             app: window.app_handle().clone(),
-            fullscreen: false,
-            hovered: false,
-            tracking_leave: false,
-            minimized: unsafe { IsIconic(hwnd).as_bool() },
-            revision: 0,
-            resize_hit_test: false,
-            resizing: false,
+            fullscreen: Cell::new(false),
+            hovered: Cell::new(false),
+            tracking_leave: Cell::new(false),
+            minimized: Cell::new(unsafe { IsIconic(hwnd).as_bool() }),
+            revision: Cell::new(0),
+            resize_hit_test: Cell::new(false),
+            resizing: Cell::new(false),
         }));
         let installed = unsafe {
             SetWindowSubclass(hwnd, Some(dashboard_subclass), SUBCLASS_ID, state as usize).as_bool()
@@ -214,16 +217,16 @@ mod win32 {
         }
     }
 
-    fn publish_hover(state: &mut PolicyState, hovered: bool, clear_client: bool) {
-        if state.hovered == hovered && !clear_client {
+    fn publish_hover(state: &PolicyState, hovered: bool, clear_client: bool) {
+        if state.hovered.get() == hovered && !clear_client {
             return;
         }
-        state.hovered = hovered;
-        state.revision = state.revision.wrapping_add(1);
+        state.hovered.set(hovered);
+        state.revision.set(state.revision.get().wrapping_add(1));
         let app = state.app.clone();
         let payload = HoverEvent {
             hovered,
-            revision: state.revision,
+            revision: state.revision.get(),
             clear_client,
         };
         tauri::async_runtime::spawn(async move {
@@ -238,11 +241,11 @@ mod win32 {
         });
     }
 
-    fn publish_resize(state: &mut PolicyState, resizing: bool) {
-        if state.resizing == resizing {
+    fn publish_resize(state: &PolicyState, resizing: bool) {
+        if state.resizing.get() == resizing {
             return;
         }
-        state.resizing = resizing;
+        state.resizing.set(resizing);
         let app = state.app.clone();
         tauri::async_runtime::spawn(async move {
             let _ = app.emit_to("main", "dashboard-resize", resizing);
@@ -260,7 +263,7 @@ mod win32 {
         if reference_data == 0 {
             return unsafe { DefSubclassProc(hwnd, message, wparam, lparam) };
         }
-        let policy = unsafe { &mut *(reference_data as *mut PolicyState) };
+        let policy = unsafe { &*(reference_data as *const PolicyState) };
 
         if message == WM_MOUSEACTIVATE {
             return LRESULT(MA_NOACTIVATE as isize);
@@ -271,18 +274,18 @@ mod win32 {
         if message == WM_SYSCOMMAND {
             let command = wparam.0 as u32 & 0xfff0;
             if command == SC_SIZE {
-                policy.resize_hit_test = true;
+                policy.resize_hit_test.set(true);
             }
             if command == SC_MAXIMIZE
-                || (policy.fullscreen && (command == SC_MOVE || command == SC_SIZE))
+                || (policy.fullscreen.get() && (command == SC_MOVE || command == SC_SIZE))
             {
                 return LRESULT(0);
             }
         }
-        if message == WM_NCHITTEST && !policy.resizing {
-            policy.resize_hit_test = false;
+        if message == WM_NCHITTEST && !policy.resizing.get() {
+            policy.resize_hit_test.set(false);
         }
-        if message == WM_NCHITTEST && !policy.fullscreen {
+        if message == WM_NCHITTEST && !policy.fullscreen.get() {
             let mut rect = RECT::default();
             if unsafe { GetWindowRect(hwnd, &mut rect) }.is_ok() {
                 let bits = lparam.0 as u32;
@@ -298,38 +301,39 @@ mod win32 {
                     height: i64::from(rect.bottom - rect.top),
                 };
                 if let Some(hit) = resize_hit(bounds, point, dpi, false) {
-                    policy.resize_hit_test = true;
+                    policy.resize_hit_test.set(true);
                     return LRESULT(hit_code(hit) as isize);
                 }
             }
         }
-        if message == WM_NCMOUSEMOVE && !policy.fullscreen && !policy.tracking_leave {
+        if message == WM_NCMOUSEMOVE && !policy.fullscreen.get() && !policy.tracking_leave.get() {
             let mut track = TRACKMOUSEEVENT {
                 cbSize: size_of::<TRACKMOUSEEVENT>() as u32,
                 dwFlags: TME_NONCLIENT | TME_LEAVE,
                 hwndTrack: hwnd,
                 dwHoverTime: 0,
             };
-            policy.tracking_leave = unsafe { TrackMouseEvent(&mut track) }.is_ok();
-            if policy.tracking_leave {
+            let tracking = unsafe { TrackMouseEvent(&mut track) }.is_ok();
+            policy.tracking_leave.set(tracking);
+            if tracking {
                 publish_hover(policy, true, false);
             } else {
                 publish_hover(policy, false, false);
             }
         }
         if message == WM_NCMOUSELEAVE {
-            policy.tracking_leave = false;
+            policy.tracking_leave.set(false);
             publish_hover(policy, false, false);
         }
         if message == WM_SHOWWINDOW && wparam.0 == 0 {
-            policy.tracking_leave = false;
+            policy.tracking_leave.set(false);
             publish_hover(policy, false, true);
         }
         if message == WM_ENTERSIZEMOVE {
-            publish_resize(policy, policy.resize_hit_test);
+            publish_resize(policy, policy.resize_hit_test.get());
         }
         if message == WM_EXITSIZEMOVE || message == WM_CANCELMODE {
-            policy.resize_hit_test = false;
+            policy.resize_hit_test.set(false);
             publish_resize(policy, false);
         }
         if message == WM_STYLECHANGING && lparam.0 != 0 {
@@ -343,9 +347,9 @@ mod win32 {
             }
         }
         if message == WM_NCDESTROY {
-            policy.tracking_leave = false;
+            policy.tracking_leave.set(false);
             publish_hover(policy, false, true);
-            policy.resize_hit_test = false;
+            policy.resize_hit_test.set(false);
             publish_resize(policy, false);
             let _ = unsafe { RemoveWindowSubclass(hwnd, Some(dashboard_subclass), subclass_id) };
             let result = unsafe { DefSubclassProc(hwnd, message, wparam, lparam) };
@@ -360,8 +364,8 @@ mod win32 {
             publish_visibility(policy, dashboard_visible(visible, minimized));
         } else if message == WM_SIZE {
             let minimized = unsafe { IsIconic(hwnd).as_bool() };
-            if policy.minimized != minimized {
-                policy.minimized = minimized;
+            if policy.minimized.get() != minimized {
+                policy.minimized.set(minimized);
                 let visible = unsafe { IsWindowVisible(hwnd).as_bool() };
                 publish_visibility(policy, dashboard_visible(visible, minimized));
             }
@@ -442,10 +446,10 @@ mod win32 {
         if !found || reference_data == 0 {
             return Err("dashboard window interaction policy is not installed".to_owned());
         }
-        let policy = unsafe { &mut *(reference_data as *mut PolicyState) };
-        policy.fullscreen = fullscreen;
-        policy.tracking_leave = false;
-        policy.resize_hit_test = false;
+        let policy = unsafe { &*(reference_data as *const PolicyState) };
+        policy.fullscreen.set(fullscreen);
+        policy.tracking_leave.set(false);
+        policy.resize_hit_test.set(false);
         publish_resize(policy, false);
         publish_hover(policy, false, true);
         Ok(())
