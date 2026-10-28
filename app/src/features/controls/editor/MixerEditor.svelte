@@ -9,7 +9,7 @@
   import IconPicker from './IconPicker.svelte';
   import { mixer } from '../../../plugins/core';
   import { controlById } from '../../settings/state.svelte';
-  import { commit } from '../../layout/history.svelte';
+  import { commit, labelEdit } from '../../layout/history.svelte';
 
   type Fixed = { target: string; label?: string; icon?: string };
   let { controlId }: { controlId: string } = $props();
@@ -28,11 +28,16 @@
     .then((c) => (running = c.map((x) => x.target)))
     .catch(() => {});
 
-  function save(patch: Partial<typeof o>, label: string) {
+  /** Typed fields pass 	yping so a word is one undo step, not one per keystroke. */
+  function save(patch: Partial<typeof o>, label: string, typing = false) {
     if (!control) {
       return;
     }
-    commit(label);
+    if (typing) {
+      labelEdit(label);
+    } else {
+      commit(label);
+    }
     control.options = { ...control.options, ...patch };
   }
   function setChannels(value: string) {
@@ -47,13 +52,14 @@
   function setMax(raw: string) {
     const max = Number(raw);
     if (Number.isInteger(max) && max >= 1 && max <= 12) {
-      save({ max }, 'Mixer channel limit');
+      save({ max }, 'Mixer channel limit', true);
     }
   }
   function updateChannel(index: number, patch: Partial<Fixed>) {
     save(
       { channels: fixed.map((channel, i) => (i === index ? { ...channel, ...patch } : channel)) },
       'Edit mixer channel',
+      true,
     );
   }
 </script>
