@@ -1,11 +1,11 @@
 #[cfg(not(windows))]
 compile_error!("SupaDashboard builds for Windows only");
 
+mod audio;
 mod content;
 mod media;
 mod monitors;
 mod panel;
-mod volume;
 mod window;
 
 use tauri::menu::{Menu, MenuItem};
@@ -46,7 +46,8 @@ pub fn run() {
             app.manage(content::ContentObserverState::default());
             app.manage(panel::PanelState::default());
             app.manage(
-                volume::AudioService::start(app.handle().clone()).map_err(std::io::Error::other)?,
+                audio::service::AudioService::start(app.handle().clone())
+                    .map_err(std::io::Error::other)?,
             );
             let panel = MenuItem::with_id(app, "panel", "Open control panel", true, None::<&str>)?;
             let toggle =
@@ -138,8 +139,8 @@ pub fn run() {
             monitors::monitor_names,
             window::dashboard_set_bounds,
             window::dashboard_interaction_mode,
-            volume::audio_snapshot,
-            volume::audio_update,
+            audio::service::audio_snapshot,
+            audio::service::audio_update,
             media::media_command,
         ])
         .run(tauri::generate_context!())
