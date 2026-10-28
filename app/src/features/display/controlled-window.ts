@@ -3,7 +3,7 @@
 import type { Window } from '@tauri-apps/api/window';
 import { readWindowBounds, setDashboardBounds } from '../../platform/window';
 import { sameGeometry, validGeometry } from './geometry';
-import type { Geometry } from './model';
+import type { Geometry } from './geometry';
 
 export class ControlledWindow {
   topmost = false;

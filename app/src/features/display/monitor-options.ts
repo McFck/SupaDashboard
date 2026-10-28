@@ -1,3 +1,6 @@
+import { isRecord } from '../automation/plain-data';
+import { sameGeometry, type Geometry } from './geometry';
+
 export const CURRENT_POSITION = '__current_position__';
 
 export type DisplayMonitor = {
@@ -16,10 +19,6 @@ export type MonitorOption = {
 
 type MonitorNameMetadata = { name: string; friendly?: string; index?: number; primary?: boolean };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function validNamedMetadata(rows: readonly unknown[]): Map<string, MonitorNameMetadata> {
   const byName = new Map<string, MonitorNameMetadata>();
   for (const row of rows) {
@@ -37,14 +36,12 @@ function validNamedMetadata(rows: readonly unknown[]): Map<string, MonitorNameMe
   return byName;
 }
 
-function sameGeometry(a: DisplayMonitor, b: DisplayMonitor): boolean {
-  return (
-    a.position.x === b.position.x &&
-    a.position.y === b.position.y &&
-    a.size.width === b.size.width &&
-    a.size.height === b.size.height
-  );
-}
+const rectangle = (monitor: DisplayMonitor): Geometry => ({
+  x: monitor.position.x,
+  y: monitor.position.y,
+  width: monitor.size.width,
+  height: monitor.size.height,
+});
 
 export function buildMonitorOptions(
   monitors: readonly DisplayMonitor[],
@@ -61,7 +58,7 @@ export function buildMonitorOptions(
       fallbackPrimaryIndex = monitors.findIndex((monitor) => monitor.name === primaryMonitor.name);
     } else {
       fallbackPrimaryIndex = monitors.findIndex(
-        (monitor) => !monitor.name && sameGeometry(monitor, primaryMonitor),
+        (monitor) => !monitor.name && sameGeometry(rectangle(monitor), rectangle(primaryMonitor)),
       );
     }
   }

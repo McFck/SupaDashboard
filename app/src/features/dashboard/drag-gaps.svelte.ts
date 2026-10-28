@@ -1,7 +1,8 @@
 // The transparent dashboard is dragged by its empty areas. This measures them: the shell minus every widget,
 // control and chrome element, recomputed whenever any of those moves or resizes.
-import { complementRectangles, type LocalRect } from './gap-geometry';
-import { INTERACTIVE } from './swipe-input';
+import { complementRectangles } from './gap-geometry';
+import type { Geometry } from '../display/geometry';
+import { INTERACTIVE } from './pager.svelte';
 
 const EXCLUDED = `[data-skin-input], .tile, ${INTERACTIVE}`;
 const CHROME = '.dashboard-page-dots, .dashboard-page-dots button';
@@ -14,7 +15,7 @@ const OBSERVED_ATTRIBUTES = [
 ];
 
 export class DragGaps {
-  rects = $state<LocalRect[]>([]);
+  rects = $state<Geometry[]>([]);
   private frame = 0;
   private readonly resizeObserver: ResizeObserver;
   private readonly mutationObserver: MutationObserver;
@@ -99,7 +100,7 @@ export class DragGaps {
       return;
     }
     const surface = this.shell.getBoundingClientRect();
-    const excluded: LocalRect[] = [];
+    const excluded: Geometry[] = [];
     const exclude = (node: Element) => {
       const rect = visibleRect(node, skinRoot, surface);
       if (rect && !excluded.some((outer) => contains(outer, rect))) {
@@ -119,7 +120,7 @@ export class DragGaps {
 }
 
 /** The node's box relative to the shell, or null when it is hidden and takes no input. */
-function visibleRect(node: Element, skinRoot: HTMLElement, surface: DOMRect): LocalRect | null {
+function visibleRect(node: Element, skinRoot: HTMLElement, surface: DOMRect): Geometry | null {
   if (node.closest('[data-skin-input="ui"][aria-hidden="true"]')) {
     return null;
   }
@@ -150,7 +151,7 @@ function visibleRect(node: Element, skinRoot: HTMLElement, surface: DOMRect): Lo
   };
 }
 
-function contains(outer: LocalRect, inner: LocalRect) {
+function contains(outer: Geometry, inner: Geometry) {
   return (
     inner.x >= outer.x &&
     inner.y >= outer.y &&

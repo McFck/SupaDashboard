@@ -33,16 +33,16 @@ export function acceptRuntimeSnapshot(value: unknown, revision: number) {
 export async function attachRuntimeConnection(sync: RuntimeSync) {
   const detach = setRuntimeSync(sync);
   remoteRevision = 0;
-  runtimeView.set({ ...EMPTY, online: false, owner: false });
+  runtimeView.set(EMPTY);
   try {
     acceptRuntimeSnapshot(await sync.request({ type: 'snapshot' }), sync.currentRevision);
   } catch {
-    runtimeView.set({ ...EMPTY, online: false, owner: false });
+    runtimeView.set(EMPTY);
   }
   return () => {
     detach();
     sync.close();
-    runtimeView.set({ ...EMPTY, online: false, owner: false });
+    runtimeView.set(EMPTY);
   };
 }
 

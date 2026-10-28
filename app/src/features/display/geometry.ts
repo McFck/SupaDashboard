@@ -1,6 +1,17 @@
 // Pure dashboard window geometry and placement policy: monitor choice, work-area clamping, first-launch size.
-import type { Page } from '../settings/schema';
-import type { Geometry, MonitorGeometry } from './model';
+import type { Page, Settings } from '../settings/schema';
+
+/** Physical pixels, as Tauri reports outer window and monitor rectangles. */
+export type Geometry = { x: number; y: number; width: number; height: number };
+export type MonitorGeometry = {
+  name: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  workArea: { position: { x: number; y: number }; size: { width: number; height: number } };
+  scaleFactor: number;
+};
+
+export type DisplayRequest = Pick<Settings['display'], 'monitor' | 'fullscreen' | 'alwaysOnTop'>;
 
 const I32_MAX = 2_147_483_647;
 const I32_MIN = -2_147_483_648;
@@ -49,27 +60,6 @@ export function monitorWithLargestIntersection<
     }
   }
   return best;
-}
-
-function resolveStartupMonitor(
-  screens: MonitorGeometry[],
-  preferred: string | null,
-  saved: Geometry | null,
-  primary: MonitorGeometry | null,
-): MonitorGeometry | undefined {
-  if (preferred) {
-    const selected = screens.find((screen) => screen.name === preferred);
-    if (selected) {
-      return selected;
-    }
-  }
-  if (saved) {
-    const overlap = monitorWithLargestIntersection(saved, screens);
-    if (overlap) {
-      return overlap;
-    }
-  }
-  return (primary && screens.find((screen) => screen.name === primary.name)) ?? screens[0];
 }
 
 /** Monitor for a live display change: the explicit choice, else wherever the window is now, else the primary. */
@@ -157,7 +147,12 @@ export function startupPlacement(
   deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>,
 ): { monitor: MonitorGeometry | undefined; bounds: Geometry } {
   const savedBounds = validGeometry(saved) ? saved : null;
-  const monitor = resolveStartupMonitor(screens, preferred, savedBounds, primary);
+  const monitor = resolveLiveMonitor(
+    screens,
+    preferred,
+    savedBounds ? (monitorWithLargestIntersection(savedBounds, screens) ?? null) : null,
+    primary,
+  );
   let bounds: Geometry | null;
   if (!monitor) {
     bounds = actual;

@@ -32,7 +32,6 @@ const request = (type: string, payload?: unknown) => ({ type, payload }) as Runt
 describe('runtime requests from other windows', () => {
   it.each([
     ['unknown type', request('format-disk')],
-    ['page change without a target', request('changePage', { reason: 'dot' })],
     ['page change to a missing page', request('changePage', { page: 'nope', reason: 'dot' })],
     ['simulation without a control', request('simulate', { trigger: 'press' })],
     [

@@ -9,7 +9,7 @@ import {
   type VariableValue,
 } from '../../features/automation/variables';
 import type { RuntimeSession } from './session.svelte';
-import { validPageChangePayload, type RuntimeRequest } from './protocol';
+import type { PageChangePayload, RuntimeRequest } from './protocol';
 
 const MAX_ITEM_ID = 128;
 const MAX_EVENT_TEXT = 256;
@@ -83,19 +83,15 @@ export async function handleRuntimeRequest(runtime: RuntimeSession, request: Run
   }
 }
 
-function changePage(runtime: RuntimeSession, change: unknown) {
-  if (!validPageChangePayload(change)) {
-    throw new Error('Invalid page change request');
-  }
+function changePage(runtime: RuntimeSession, change: PageChangePayload) {
   if (!('page' in change)) {
     runtime.changePageInDirection(change.direction, change.reason);
     return;
   }
-  const pageId = change.page;
-  if (!settings.deck.pages.some((page) => page.id === pageId)) {
+  if (!settings.deck.pages.some((page) => page.id === change.page)) {
     throw new Error('Page is unavailable');
   }
-  runtime.changePage(pageId, change.reason);
+  runtime.changePage(change.page, change.reason);
 }
 
 function simulate(runtime: RuntimeSession, payload: Payload) {

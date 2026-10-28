@@ -10,9 +10,20 @@ import {
 } from '../../platform/window';
 import { ControlledWindow } from './controlled-window';
 import { Fullscreen } from './fullscreen';
-import { resolveLiveMonitor } from './geometry';
-import { requestOf, sameRequest, type DisplayRequest } from './model';
+import { resolveLiveMonitor, type DisplayRequest } from './geometry';
 import { WindowedBounds } from './windowed-state';
+
+const requestOf = (display: DisplayRequest): DisplayRequest => ({
+  monitor: display.monitor,
+  fullscreen: display.fullscreen,
+  alwaysOnTop: display.alwaysOnTop,
+});
+
+const sameRequest = (a: DisplayRequest | null, b: DisplayRequest) =>
+  !!a &&
+  a.monitor === b.monitor &&
+  a.fullscreen === b.fullscreen &&
+  a.alwaysOnTop === b.alwaysOnTop;
 
 let activeController: DisplayController | undefined;
 
@@ -30,12 +41,7 @@ export class DisplayController {
   private disposed = false;
   private reconcileQueued = false;
   private readonly listeners: (() => void)[] = [];
-  private lastRequest: DisplayRequest = { monitor: null, fullscreen: false, alwaysOnTop: false };
-  // Request outcome: the latest wanted request and the last one applied or failed, so each runs at most once.
-  private wanted: DisplayRequest | null = null;
   private applied: DisplayRequest | null = null;
-  private failed: DisplayRequest | null = null;
-  private queued = false;
 
   constructor(
     private readonly win: Window,
@@ -48,31 +54,24 @@ export class DisplayController {
     this.fullscreen = new Fullscreen(this.window, this.windowed);
   }
 
-  /** Applies the latest display settings once the queue reaches them, unless that request already ran or failed. */
+  /** Applies requests in order; only a successful placement suppresses a later retry. */
   request(display: DisplayRequest) {
-    this.wanted = requestOf(display);
-    if (this.queued || !this.isNew(this.wanted)) {
-      return;
-    }
-    this.queued = true;
-    void this.serialize(async () => {
-      this.queued = false;
-      const request = this.wanted!;
-      if (!this.isNew(request)) {
+    const request = requestOf(display);
+    return this.serialize(async () => {
+      if (sameRequest(this.applied, request)) {
         return;
       }
       try {
-        await this.apply(request);
+        const success = await this.apply(request);
         if (this.live()) {
-          this.applied = request;
-          this.failed = null;
+          this.applied = success ? request : null;
           this.onFullscreen(this.fullscreen.active);
         }
       } catch (error) {
+        this.applied = null;
         if (this.live()) {
           console.warn('display', error);
         }
-        this.failed = request;
       }
     });
   }
@@ -113,11 +112,15 @@ export class DisplayController {
     } else {
       await this.window.setTopmost(initial.alwaysOnTop);
     }
-    this.lastRequest = initial;
     if (this.abandoned()) {
       return false;
     }
-    this.applied = { ...initial, fullscreen: this.fullscreen.active };
+    if (
+      initial.fullscreen === this.fullscreen.active &&
+      (!initial.monitor || initial.monitor === startup.monitor?.name)
+    ) {
+      this.applied = initial;
+    }
     this.onFullscreen(this.fullscreen.active);
     return true;
   }
@@ -128,10 +131,6 @@ export class DisplayController {
       this.dispose();
     }
     return this.cancelled();
-  }
-
-  private isNew(request: DisplayRequest) {
-    return !sameRequest(this.applied, request) && !sameRequest(this.failed, request);
   }
 
   private serialize<T>(operation: () => Promise<T>): Promise<T | undefined> {
@@ -145,37 +144,35 @@ export class DisplayController {
 
   /** Applies one display request. */
   private async apply(request: DisplayRequest) {
-    const last = this.lastRequest;
-    if (request.monitor === last.monitor && request.fullscreen === last.fullscreen) {
+    const last = this.applied;
+    if (last && request.monitor === last.monitor && request.fullscreen === last.fullscreen) {
       await this.window.setTopmost(this.fullscreen.active || request.alwaysOnTop);
-      this.lastRequest = request;
-      return;
+      return true;
     }
     const { screens, current, target } = await resolveTarget(request.monitor);
     this.window.step();
     if (!target) {
       await this.window.setTopmost(this.fullscreen.active || request.alwaysOnTop);
-      this.lastRequest = { ...last, alwaysOnTop: request.alwaysOnTop };
-      return;
+      return false;
     }
 
     if (request.fullscreen) {
       if (!this.fullscreen.active) {
         await this.fullscreen.enter(target, screens, current);
-      } else if (this.fullscreen.monitor !== target.name || request.monitor !== last.monitor) {
+      } else if (this.fullscreen.monitor !== target.name || request.monitor !== last?.monitor) {
         if (!(await this.fullscreen.moveTo(target))) {
-          return;
+          return false;
         }
       } else {
         await this.fullscreen.refit(target);
       }
     } else if (this.fullscreen.active) {
       await this.fullscreen.exit(target, request.alwaysOnTop);
-    } else if (request.monitor !== last.monitor) {
+    } else if (request.monitor !== last?.monitor) {
       const chosen = !!request.monitor && target.name === request.monitor;
       await this.windowed.moveTo(target, chosen, request.alwaysOnTop);
     }
-    this.lastRequest = request;
+    return !request.monitor || target.name === request.monitor;
   }
 
   private async listen() {
@@ -231,7 +228,7 @@ export class DisplayController {
     if (!this.fullscreen.active || this.window.transition) {
       return;
     }
-    const { target } = await resolveTarget(this.lastRequest.monitor);
+    const { target } = await resolveTarget(this.applied?.monitor ?? null);
     if (target) {
       await this.fullscreen.reconcile(target);
     }

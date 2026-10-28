@@ -13,7 +13,7 @@ import {
   sameGeometry,
   startupPlacement,
 } from './geometry';
-import type { Geometry, MonitorGeometry } from './model';
+import type { Geometry, MonitorGeometry } from './geometry';
 
 const SAVE_DELAY_MS = 300;
 

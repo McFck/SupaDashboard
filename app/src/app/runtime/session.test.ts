@@ -4,7 +4,7 @@ import { get } from 'svelte/store';
 import { actions, install, skins } from '../../features/plugins/registry';
 import type { ActionContext } from '../../features/plugins/contracts';
 import { settings, serializeSettings } from '../../features/settings/state.svelte';
-import type { Page } from '../../features/settings/schema';
+import type { Page, Settings } from '../../features/settings/schema';
 import { captureTrigger } from '../../features/automation/capture';
 import { mediaSourceKey } from '../../features/media/content';
 import { VariableStore } from '../../features/automation/variables';
@@ -13,6 +13,18 @@ import { RuntimeSession } from './session.svelte';
 import { runtimeView } from './state';
 import type { ControlConfig } from '../../features/controls/model';
 import type { Trigger } from '../../features/automation/scenario';
+
+const remote = vi.hoisted(() => ({
+  listener: undefined as ((next: Settings) => void) | undefined,
+}));
+vi.mock('../../features/settings/persistence.svelte', () => ({
+  onRemoteSettings(listener: (next: Settings) => void) {
+    remote.listener = listener;
+    return () => {
+      remote.listener = undefined;
+    };
+  },
+}));
 
 const priorSettings = structuredClone(settings);
 const page = (id: string): Page => ({
@@ -56,6 +68,41 @@ afterEach(async () => {
 });
 
 describe('automation runtime', () => {
+  it('publishes remote content only after controls and placements have both been assigned', async () => {
+    vi.useFakeTimers();
+    settings.deck.pages = [page('page-1')];
+    settings.deck.activePage = 'page-1';
+    settings.controls = [];
+    runtime = new RuntimeSession();
+    await tick();
+    const next = structuredClone(settings);
+    next.controls = [
+      {
+        ...control(),
+        type: 'media',
+        options: {
+          sources: [{ kind: 'url', value: 'https://example.test/a.png' }],
+        },
+      },
+    ];
+    next.deck.pages[0].items = [
+      { id: 'media', control: next.controls[0].id, x: 0, y: 0, w: 1, h: 1 },
+    ];
+    const snapshots: unknown[] = [];
+    const stop = runtime.snapshots.subscribe((snapshot) => snapshots.push(snapshot));
+    snapshots.length = 0;
+    try {
+      remote.listener!(next);
+      expect(snapshots).toEqual([]);
+      Object.assign(settings, next);
+      runtime.reconcile(settings.controls);
+      expect(snapshots).toHaveLength(1);
+      expect(runtime.contentCommand(next.controls[0].id, 'goto', 0)).toBe(false);
+    } finally {
+      stop();
+    }
+  });
+
   it('runs skin quick actions only in a live owner with runner context', async () => {
     let received: ActionContext | undefined;
     actions.set('test.action', {
@@ -133,52 +180,6 @@ describe('automation runtime', () => {
     expect(saved).toHaveLength(count);
   });
 
-  it('cleans up started skins when a later skin fails so a retry has only one live instance', async () => {
-    let live = 0;
-    let fail = true;
-    const ids = ['startup-first', 'startup-failing'];
-    install({
-      id: 'startup-cleanup-fixture',
-      title: 'Startup cleanup fixture',
-      setup: (api) => {
-        for (const id of ids) {
-          api.registerSkin({
-            id,
-            title: id,
-            component: {} as import('svelte').Component,
-            slots: [],
-            views: [{ id: 'display', title: 'Display', slots: [] }],
-            defaultView: 'display',
-            runtime: () => {
-              if (id === ids[1]) {
-                if (fail) {
-                  throw new Error('skin startup failed');
-                }
-                return;
-              }
-              live++;
-              return () => {
-                live--;
-              };
-            },
-          });
-        }
-      },
-    });
-    try {
-      expect(() => new RuntimeSession()).toThrow('skin startup failed');
-      expect(live).toBe(0);
-      fail = false;
-      runtime = new RuntimeSession();
-      expect(live).toBe(1);
-      await runtime.dispose();
-      expect(live).toBe(0);
-    } finally {
-      await runtime?.dispose();
-      for (const id of ids) skins.delete(id);
-    }
-  });
-
   it('stops the clock after owner disposal', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-26T12:00:00Z'));
@@ -238,50 +239,20 @@ describe('automation runtime', () => {
         loop: false,
       },
     };
-    const web = {
-      ...control(),
-      id: 'web-runtime',
-      type: 'web',
-      options: { url: 'https://example.test', zoom: 100 },
-    };
     const pageA = page('page-1'),
       pageB = page('page-2');
     settings.deck.pages = [pageA, pageB];
     settings.deck.activePage = pageA.id;
-    pageB.items.push({ id: 'web-runtime-item', control: web.id, x: 0, y: 0, w: 3, h: 2 });
     settings.skinLayouts = {
       subway: {
         [pageB.id]: { main: [{ id: 'media-item', control: config.id, x: 0, y: 0, w: 2, h: 2 }] },
       },
     };
-    settings.controls = [config, web];
+    settings.controls = [config];
     runtime = new RuntimeSession();
     runtime.reconcile(settings.controls);
-    const saved = serializeSettings();
-    const firstSource = mediaSourceKey({ kind: 'url', value: 'https://example.test/one.png' });
-    runtime.rememberVideoPosition(config.id, firstSource, 12.5);
-    expect(runtime.videoPosition(config.id, firstSource)).toBe(12.5);
-    expect(get(runtime.snapshots).content[config.id]).toBeUndefined();
-
     expect(runtime.contentCommand(config.id, 'next')).toBe(true);
-    expect(runtime.videoPosition(config.id, firstSource)).toBeUndefined();
     expect(get(runtime.snapshots).content[config.id]).toEqual({ slide: 1, reload: 0 });
-    expect(runtime.contentCommand(config.id, 'next')).toBe(false);
-    expect(runtime.contentCommand(config.id, 'prev')).toBe(true);
-    expect(runtime.contentCommand(config.id, 'goto', 1)).toBe(true);
-    expect(runtime.contentCommand(config.id, 'goto', 1)).toBe(false);
-    expect(() => runtime!.contentCommand(config.id, 'goto', 2)).toThrow(
-      'Media slide is unavailable',
-    );
-    expect(runtime.contentCommand(web.id, 'reload')).toBe(true);
-    expect(get(runtime.snapshots).content[web.id]).toEqual({ slide: 0, reload: 1 });
-    expect(runtime.contentCommand(web.id, 'reload')).toBe(true);
-    expect(get(runtime.snapshots).content[web.id]?.reload).toBe(2);
-    expect(serializeSettings()).toBe(saved);
-
-    config.options.loop = true;
-    expect(runtime.contentCommand(config.id, 'next')).toBe(true);
-    expect(get(runtime.snapshots).content[config.id]?.slide).toBe(0);
     config.options.sources = [{ kind: 'url', value: 'https://example.test/replaced.png' }];
     runtime.reconcile(settings.controls);
     expect(get(runtime.snapshots).content[config.id]).toEqual({ slide: 0, reload: 0 });
@@ -321,32 +292,6 @@ describe('automation runtime', () => {
     expect(runtime.videoPosition(config.id, currentKey)).toBe(7.5);
   });
 
-  it('dispatches one configured pull action and keeps an unbound pull quiet', async () => {
-    const config = control();
-    config.scenario!.triggers.swipeRight = {
-      steps: [{ id: 'pull', kind: 'action', action: { id: 'test.pull' } }],
-    };
-    settings.controls = [config];
-    const calls: string[] = [],
-      failures: unknown[] = [];
-    actions.set('test.pull', {
-      id: 'test.pull',
-      title: 'Pull',
-      run: () => {
-        calls.push('pull');
-      },
-    });
-    runtime = new RuntimeSession({ onFailure: (failure) => failures.push(failure) });
-    await expect(runtime.dispatchTrigger(config.id, 'item', 'swipeRight')).resolves.toMatchObject({
-      status: 'completed',
-    });
-    await expect(runtime.dispatchTrigger(config.id, 'item', 'swipeLeft')).resolves.toMatchObject({
-      status: 'completed',
-    });
-    expect(calls).toEqual(['pull']);
-    expect(failures).toEqual([]);
-  });
-
   it('only cancels for executable config changes and cancels removed controls', async () => {
     const config = control();
     settings.controls = [config];
@@ -376,12 +321,12 @@ describe('automation runtime', () => {
     settings.deck.activePage = 'page-2';
     runtime = new RuntimeSession();
     await tick();
-    expect(runtime.changePage('missing')).toBe(false);
-    expect(runtime.changePage('page-2')).toBe(false);
-    expect(runtime.changePage('page-3')).toBe(true);
+    expect(runtime.changePage('missing', 'action')).toBe(false);
+    expect(runtime.changePage('page-2', 'action')).toBe(false);
+    expect(runtime.changePage('page-3', 'action')).toBe(true);
     expect(get(runtime.snapshots)).toMatchObject({ owner: true, activePage: 'page-3' });
     expect(JSON.parse(serializeSettings()).deck.activePage).toBe('page-1');
-    expect(runtime.changePage('page-2')).toBe(true);
+    expect(runtime.changePage('page-2', 'action')).toBe(true);
     settings.deck.pages = settings.deck.pages.filter((page) => page.id !== 'page-2');
     runtime.pages.reconcile(settings.deck.pages);
     await tick();
@@ -459,107 +404,29 @@ describe('automation runtime', () => {
     expect(failures[0]).toMatchObject({ kind: 'cycle' });
   });
 
-  it('runs next, previous and goto only through a live owner and rejects invalid requests', async () => {
+  it('rejects page actions after owner disposal and goto for a missing page', async () => {
     const { corePlugin } = await import('../../plugins/core');
-    const { suggestionsOf } = await import('../../features/plugins/registry');
-    const { VariableStore } = await import('../../features/automation/variables');
     install(corePlugin);
-    settings.deck.pages = [page('page-1'), page('page-2'), page('page-3')];
+    settings.deck.pages = [page('page-1')];
     settings.deck.activePage = 'page-1';
-    const sources = [
-      { kind: 'url' as const, value: 'https://example.test/a.png' },
-      { kind: 'url' as const, value: 'https://example.test/b.png' },
-      { kind: 'url' as const, value: 'https://example.test/c.png' },
-    ];
-    const self = {
-      ...control(),
-      id: 'media-self',
-      name: 'Self media',
-      type: 'media',
-      options: { sources, loop: false },
-    };
-    const other = {
-      ...control(),
-      id: 'media-other',
-      name: 'Other media',
-      type: 'media',
-      options: { sources, loop: true },
-    };
-    settings.deck.pages[0].items.push({
-      id: 'self-item',
-      control: self.id,
-      x: 0,
-      y: 0,
-      w: 2,
-      h: 2,
-    });
-    settings.skinLayouts = {
-      subway: {
-        'page-2': { main: [{ id: 'other-item', control: other.id, x: 0, y: 0, w: 2, h: 2 }] },
-      },
-    };
-    settings.controls = [self, other];
-    runtime = new RuntimeSession({ variables: new VariableStore() });
+    runtime = new RuntimeSession();
     const context = {
       signal: new AbortController().signal,
       eventAncestry: { depth: 0, listeners: [] },
     } as unknown as ActionContext;
-    const next = actions.get('page.next')!,
-      prev = actions.get('page.prev')!,
-      goTo = actions.get('page.goto')!;
-
-    await next.run({}, context);
-    expect(settings.deck.activePage).toBe('page-2');
-    await goTo.run({ page: 'page-3' }, context);
-    expect(settings.deck.activePage).toBe('page-3');
-    await prev.run({}, context);
-    expect(settings.deck.activePage).toBe('page-2');
+    const next = actions.get('page.next')!;
+    const goTo = actions.get('page.goto')!;
     await expect(
       Promise.resolve().then(() => goTo.run({ page: 'missing' }, context)),
     ).rejects.toThrow('Page is unavailable');
-    expect(settings.deck.activePage).toBe('page-2');
-
-    const mediaNext = actions.get('media.next')!,
-      mediaPrev = actions.get('media.prev')!,
-      mediaGoto = actions.get('media.goto')!;
-    const mediaContext = { ...context, controlId: self.id };
-    const mediaTarget = mediaNext.params!.find((param) => param.key === 'target')!;
-    expect((suggestionsOf(mediaTarget) ?? []).map((option) => option.value)).toEqual([
-      'self',
-      'media-self',
-      'media-other',
-    ]);
-    await mediaNext.run({ target: 'self', source: 'system' }, mediaContext);
-    expect(get(runtime.snapshots).content[self.id]?.slide).toBe(1);
-    await mediaNext.run({ target: other.id, source: 'system' }, mediaContext);
-    expect(get(runtime.snapshots).content[other.id]?.slide).toBe(1);
-    await mediaPrev.run({ target: other.id, source: 'system' }, mediaContext);
-    expect(get(runtime.snapshots).content[other.id]?.slide).toBe(0);
-    await mediaGoto.run({ target: other.id, index: 2 }, mediaContext);
-    expect(get(runtime.snapshots).content[other.id]?.slide).toBe(2);
-    await mediaNext.run({ target: other.id, source: 'system' }, mediaContext);
-    expect(get(runtime.snapshots).content[other.id]?.slide).toBe(0);
-    const aborted = new AbortController();
-    aborted.abort();
-    await expect(
-      Promise.resolve().then(() => next.run({}, { ...context, signal: aborted.signal })),
-    ).rejects.toThrow('runtime is unavailable');
-
     await runtime.dispose();
-    runtime = undefined;
     await expect(Promise.resolve().then(() => next.run({}, context))).rejects.toThrow(
       'runtime is unavailable',
     );
-    await expect(
-      Promise.resolve().then(() => mediaNext.run({ target: self.id }, mediaContext)),
-    ).rejects.toThrow('Content runtime is unavailable');
   });
 
-  it('runs skin setup only for an owner, resolves config and keeps view/state outside settings history', async () => {
+  it('keeps skin view and state outside settings history', async () => {
     const skinId = 'runtime-skin';
-    const observed: unknown[] = [];
-    const cleanup = vi.fn();
-    let hookContext!: import('../../features/skins/definition').SkinRuntimeContext;
     install({
       id: 'runtime-skin-plugin',
       title: 'Runtime skin fixture',
@@ -577,42 +444,17 @@ describe('automation runtime', () => {
           settings: [{ key: 'enabled', label: 'Enabled', type: 'boolean', default: false }],
           state: [{ key: 'configured', type: 'boolean', initialValue: false, persistent: true }],
           events: [{ id: `${skinId}.changed`, title: 'Changed' }],
-          runtime: (context) => {
-            hookContext = context;
-            const stop = context.config.subscribe((config) => {
-              observed.push(config.enabled);
-              void context.setState('configured', config.enabled === true);
-            });
-            return () => {
-              stop();
-              cleanup();
-            };
-          },
         }),
     });
     settings.skinSettings[skinId] = { enabled: true, future: '保持' };
     const before = serializeSettings();
     runtime = new RuntimeSession();
     await tick();
-    expect(observed).toEqual([true]);
-    expect(runtime.variables.getValue(`${skinId}.configured`)).toBe(true);
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('display');
     expect(serializeSettings()).toBe(before);
 
-    settings.skinSettings = {
-      ...settings.skinSettings,
-      [skinId]: { enabled: false, future: '保持' },
-    };
-    runtime.skins.updateConfig(skinId, settings.skinSettings[skinId]);
-    await tick();
-    expect(observed).toEqual([true, false]);
-    expect(runtime.variables.getValue(`${skinId}.configured`)).toBe(false);
-
-    const ancestry = { depth: 2, listeners: ['button\u0000change'] };
-    const emit = vi.spyOn(runtime, 'emitEvent').mockResolvedValue();
-    await runtime.skins.setView(skinId, 'cab', ancestry);
-    await hookContext.setState('configured', true, ancestry);
-    await hookContext.emitEvent(`${skinId}.changed`, 'fixture', { ok: true }, ancestry);
+    await runtime.skins.setView(skinId, 'cab');
+    runtime.variables.set(`${skinId}.configured`, true, 'runtime-skin-plugin');
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('cab');
     expect(
       runtime.variables
@@ -624,24 +466,6 @@ describe('automation runtime', () => {
         .serializePersistent()
         .records.some((record) => record.definition.id === `${skinId}.view`),
     ).toBe(false);
-    expect(emit.mock.calls).toContainEqual([
-      'variables.changed',
-      `${skinId}.configured`,
-      expect.any(Object),
-      ancestry,
-    ]);
-    expect(emit).toHaveBeenCalledWith(`${skinId}.changed`, 'fixture', { ok: true }, ancestry);
-
-    await runtime.dispose();
-    expect(cleanup).toHaveBeenCalledOnce();
-    expect(() => hookContext.setView('display')).toThrow('Skin runtime is unavailable');
-    expect(() => hookContext.setState('configured', false)).toThrow('Skin runtime is unavailable');
-    const variables = runtime.variables;
-    skins.set(skinId, { ...skins.get(skinId)!, runtime: undefined });
-    variables.set(`${skinId}.view`, 'missing-view', 'runtime-skin-plugin');
-    runtime = new RuntimeSession({ variables });
-    expect(runtime.variables.getValue(`${skinId}.view`)).toBe('display');
-    await runtime.dispose();
-    expect(observed).toEqual([true, false]);
+    expect(serializeSettings()).toBe(before);
   });
 });

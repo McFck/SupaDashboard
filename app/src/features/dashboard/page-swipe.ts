@@ -16,21 +16,9 @@ function pageSwipeThreshold(width: number) {
   return Number.isFinite(width) && width > 0 ? Math.min(120, Math.max(48, width * 0.18)) : Infinity;
 }
 
-function validPager(width: number, index: number, count: number) {
-  return (
-    Number.isFinite(width) &&
-    width > 0 &&
-    Number.isInteger(count) &&
-    count > 0 &&
-    Number.isInteger(index) &&
-    index >= 0 &&
-    index < count
-  );
-}
-
 export function pageSwipe(dx: number, width: number, index: number, count: number) {
   const rest = { offset: 0, side: 0, neighborIndex: index, targetIndex: index };
-  if (!validPager(width, index, count) || !Number.isFinite(dx) || count <= 1 || dx === 0) {
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(dx) || count <= 1 || dx === 0) {
     return rest;
   }
   const side = dx < 0 ? 1 : -1;

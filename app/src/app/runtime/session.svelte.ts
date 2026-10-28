@@ -30,9 +30,10 @@ import { SkinController } from '../../features/skins/skin-controller';
 import { startClock } from '../../features/automation/clock';
 import { EMPTY, type RuntimeSnapshot } from './state';
 import { VariableSaver, type VariablePersistence } from './variable-persistence';
-import { controlStateId, stateIndex } from './control-state';
+import { effectiveVariant } from '../../features/controls/control-state';
 import { ExecutionEngine } from '../../features/automation/execution-engine';
 import type { ControlConfig } from '../../features/controls/model';
+import { stateIdAt } from '../../features/controls/variants';
 
 export type RuntimeOptions = {
   variables?: VariableStore;
@@ -40,6 +41,30 @@ export type RuntimeOptions = {
   onFailure?: (failure: ScenarioFailure) => void;
   onQueueFull?: (controlId: string, trigger: Trigger | 'event') => void;
 };
+
+/** The state a control shows now: its variable binding first, else its manual state. */
+export function controlStateId(
+  control: ControlConfig,
+  variables: Parameters<typeof effectiveVariant>[1],
+) {
+  return effectiveVariant(control, variables, settings.variants[control.id] ?? 0).stateId;
+}
+
+/** Resolves a state by ID, by index (older settings), or relative to `current` for migrated next/prev gestures. */
+function stateIndex(control: ControlConfig, current: number, stateId: string) {
+  const count = control.variants.length;
+  if (stateId === 'next') {
+    return (current + 1) % count;
+  }
+  if (stateId === 'prev') {
+    return (current - 1 + count) % count;
+  }
+  const index = control.variants.findIndex((_, i) => stateIdAt(control, i) === stateId);
+  if (index < 0 && /^\d+$/.test(stateId) && Number(stateId) < count) {
+    return Number(stateId);
+  }
+  return index;
+}
 
 function fingerprint(control: ControlConfig) {
   return JSON.stringify({
@@ -89,11 +114,11 @@ export class RuntimeSession {
     this.variables = options.variables ?? new VariableStore();
     this.saver = new VariableSaver(this.variables, options.persistence);
     this.onFailure = options.onFailure ?? (() => {});
-    this.content = new ContentController(() => this.publish(this.variables.snapshot()));
+    this.content = new ContentController(() => this.publish());
     this.pages = new PageController({
       getDeck: () => settings.deck,
       isOwner: () => this.isOwner,
-      onChange: () => this.publish(this.variables.snapshot()),
+      onChange: () => this.publish(),
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(id, parameter, payload, ancestry),
       onEventFailure: () =>
@@ -132,7 +157,7 @@ export class RuntimeSession {
         const control = controlById(id);
         return control ? fingerprint(control) : undefined;
       },
-      onBusyChange: () => this.publish(this.variables.snapshot()),
+      onBusyChange: () => this.publish(),
       onFailure: this.onFailure,
       onQueueFull: options.onQueueFull,
     });
@@ -165,15 +190,11 @@ export class RuntimeSession {
     });
     this.skins.start();
     this.stopRemoteSettings = onRemoteSettings((next) => {
-      this.reconcile(next.controls);
-      this.pages.reconcile(next.deck.pages);
       this.skins.reconcile(next.skinSettings);
     });
     this.stopSettingsEffect = $effect.root(() => {
       $effect(() => {
         const next = settings.controls;
-        const signature = JSON.stringify(next.map((control) => [control.id, fingerprint(control)]));
-        void signature;
         this.reconcile(next);
       });
       $effect(() => {
@@ -181,14 +202,14 @@ export class RuntimeSession {
         this.pages.reconcile(pages);
       });
     });
-    this.publish(this.variables.snapshot());
+    this.publish();
     this.stopClock = startClock(this.variables);
     current = this;
   }
 
   /** Publishes, schedules a save and emits variables.changed for every value that changed. */
   private variablesChanged(snapshot: VariableSnapshot, persistentChanged: boolean) {
-    this.publish(snapshot);
+    this.publish();
     if (persistentChanged) {
       this.saver.schedule();
     }
@@ -248,25 +269,17 @@ export class RuntimeSession {
     }
   }
 
-  dispatchTrigger(
-    controlId: string,
-    itemId: string,
-    trigger: Trigger,
-    interactionId = newId(),
-    options: { notify?: boolean } = {},
-  ) {
+  dispatchTrigger(controlId: string, itemId: string, trigger: Trigger) {
     const control = controlById(controlId);
     if (!control) return Promise.resolve({ status: 'rejected' as const });
     const packet = captureTrigger(
       control,
       itemId,
       trigger,
-      interactionId,
+      newId(),
       controlStateId(control, this.variables),
     );
-    return packet
-      ? this.dispatch(packet, options)
-      : Promise.resolve({ status: 'completed' as const });
+    return packet ? this.dispatch(packet) : Promise.resolve({ status: 'completed' as const });
   }
 
   getState(controlId: string) {
@@ -308,13 +321,13 @@ export class RuntimeSession {
     return this.isOwner ? this.content.videoPosition(controlId, source) : undefined;
   }
 
-  changePage(pageId: string, reason: PageChangeReason = 'action', ancestry?: EventAncestry) {
+  changePage(pageId: string, reason: PageChangeReason, ancestry?: EventAncestry) {
     return this.pages.change(pageId, reason, ancestry);
   }
 
   changePageInDirection(
     direction: 'next' | 'prev',
-    reason: PageChangeReason = 'action',
+    reason: PageChangeReason,
     ancestry?: EventAncestry,
   ) {
     return this.pages.changeInDirection(direction, reason, ancestry);
@@ -365,7 +378,7 @@ export class RuntimeSession {
       controls,
       new Set(storedPlacements(settings).map((placement) => placement.item.control)),
     );
-    this.publish(this.variables.snapshot());
+    this.publish();
   }
 
   async dispose() {
@@ -428,14 +441,14 @@ export class RuntimeSession {
     }
   }
 
-  private publish(variables: VariableSnapshot) {
+  private publish() {
     this.revision++;
     this.snapshots.set({
       online: true,
       owner: true,
       revision: this.revision,
       activePage: this.pages.activePage,
-      variables,
+      variables: this.variables.snapshot(),
       busy: this.execution.busy(),
       content: this.content.snapshot(),
     });

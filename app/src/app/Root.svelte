@@ -3,7 +3,8 @@
   import * as Tooltip from '$lib/components/ui/tooltip';
   import Dashboard from '../features/dashboard/Dashboard.svelte';
   import ControlPanel from '../panel/ControlPanel.svelte';
-  let { view }: { view: 'dashboard' | 'panel' } = $props();
+  import type { WindowView } from './runtime/services';
+  let { view }: { view: WindowView } = $props();
 </script>
 
 <Tooltip.Provider delayDuration={300}>

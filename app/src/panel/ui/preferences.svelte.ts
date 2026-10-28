@@ -1,40 +1,36 @@
-import { inspectorWidth, sidebarWidth } from './frame';
+import { inspectorWidth, sidebarWidth, SIDEBAR_RAIL } from './frame';
 
-function read() {
+function load(key: string) {
   try {
-    return JSON.parse(localStorage.getItem('panel-frame') ?? '{}');
+    return JSON.parse(localStorage.getItem(key) ?? '{}');
   } catch {
     return {};
   }
 }
-const saved = read();
+function store(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* Storage can be unavailable in previews. */
+  }
+}
+const saved = load('panel-frame');
 export const frame = $state({
   sidebarWidth:
     typeof saved?.sidebarWidth === 'number'
       ? sidebarWidth(saved.sidebarWidth)
       : saved?.collapsed === true
-        ? 64
+        ? SIDEBAR_RAIL
         : 240,
   inspectorOpen: saved?.inspectorOpen !== false,
   inspectorWidth:
     typeof saved?.inspectorWidth === 'number' ? inspectorWidth(saved.inspectorWidth) : 400,
 });
 export function saveFrame() {
-  try {
-    localStorage.setItem('panel-frame', JSON.stringify(frame));
-  } catch {
-    /* Storage can be unavailable in previews. */
-  }
+  store('panel-frame', frame);
 }
 
-function readLayoutPreview() {
-  try {
-    return JSON.parse(localStorage.getItem('layout-preview') ?? '{}');
-  } catch {
-    return {};
-  }
-}
-const savedPreview = readLayoutPreview();
+const savedPreview = load('layout-preview');
 export const layoutPreview = $state({
   views:
     savedPreview?.views &&
@@ -44,9 +40,5 @@ export const layoutPreview = $state({
       : ({} as Record<string, string>),
 });
 export function saveLayoutPreview() {
-  try {
-    localStorage.setItem('layout-preview', JSON.stringify({ views: layoutPreview.views }));
-  } catch {
-    /* Storage can be unavailable in previews. */
-  }
+  store('layout-preview', { views: layoutPreview.views });
 }

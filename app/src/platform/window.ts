@@ -7,7 +7,7 @@ import {
   primaryMonitor,
   type Window,
 } from '@tauri-apps/api/window';
-import type { Geometry, MonitorGeometry } from '../features/display/model';
+import type { Geometry, MonitorGeometry } from '../features/display/geometry';
 
 export type WindowStateStore = Awaited<ReturnType<typeof load>>;
 
