@@ -1,28 +1,30 @@
-// Pasting, duplicating and replacing a widget in a slot: whether it fits there and the settings that result.
+// Pasting a widget copy into a slot, on an empty cell or over the placement it replaces: whether it is allowed there
+// and the settings that result.
+import type { ControlConfig } from '../controls/model';
 import type { Settings } from '../settings/schema';
-import { fits, type Item } from './grid';
-import { pasteWidget, type WidgetCopy } from './layout-actions';
-import { removePlacement } from './placements';
+import { newId } from '../settings/state.svelte';
+import { fits } from './grid';
+import { pageItems, removePlacement } from './placements';
 import { effectiveSize, layoutFor, setLayoutItems, type LayoutTarget } from './skin-layouts';
 
+export type WidgetCopy = { control: ControlConfig; w: number; h: number };
 export type InsertTarget = { item: string } | { cell: { x: number; y: number } };
 
-/** Where `copy` lands in `slot` (on an empty cell, or over `target.item` when replacing), if it is allowed there. */
+export const cloneControl = (control: ControlConfig): ControlConfig =>
+  JSON.parse(JSON.stringify(control));
+
+/** Where `copy` lands in `slot`: on `target.cell`, or over `target.item`, which it replaces. */
 export function planInsertion(
   source: Settings,
   copy: WidgetCopy,
   target: InsertTarget,
   slot: LayoutTarget,
-  replace: boolean,
 ) {
   const current = layoutFor(source, slot.skinId, slot.pageId, slot.slotId);
   if (!current?.slot || !current.geometry) {
     return undefined;
   }
   const old = 'item' in target ? current.items.find((item) => item.id === target.item) : undefined;
-  if (('item' in target && !old) || (old && !replace)) {
-    return undefined;
-  }
   const at = 'cell' in target ? target.cell : old;
   const bounds = effectiveSize(slot.skinId, current.slot, copy.control.type);
   const remaining = old ? current.items.filter((item) => item.id !== old.id) : current.items;
@@ -42,33 +44,39 @@ export function planInsertion(
   if (!fits(remaining, { ...at, w: copy.w, h: copy.h }, current.geometry)) {
     return undefined;
   }
-  return { geometry: current.geometry, old, at, remaining };
+  return { old, at };
 }
 
-export type InsertionPlan = NonNullable<ReturnType<typeof planInsertion>>;
+type InsertionPlan = NonNullable<ReturnType<typeof planInsertion>>;
 
 /**
- * The settings after placing a fresh copy of `copy` per `plan`. A replaced widget's control is dropped when no
- * other placement uses it. `source` must be a plain snapshot; the result shares no objects with live settings.
+ * The settings after placing a fresh copy of `copy` per `plan`, which must have been made from the same `source`.
+ * A replaced widget's control is dropped when no other placement uses it. `source` must be a plain snapshot: the
+ * result reuses its objects and the write lands in its slot maps.
  */
 export function insertWidget(
   source: Settings,
   copy: WidgetCopy,
   plan: InsertionPlan,
   slot: LayoutTarget,
-  allItems: Item[],
 ) {
-  const pasted = pasteWidget(
-    copy,
-    plan.remaining,
-    allItems,
-    source.controls,
-    plan.geometry,
-    plan.at,
-  );
-  if (!pasted) {
-    return undefined;
-  }
+  const control = {
+    ...cloneControl(copy.control),
+    id: newId(
+      copy.control.id,
+      source.controls.map((entry) => entry.id),
+    ),
+  };
+  const item = {
+    id: newId(
+      'i',
+      pageItems(source.deck.pages, source.skinLayouts).map((entry) => entry.id),
+    ),
+    control: control.id,
+    ...plan.at,
+    w: copy.w,
+    h: copy.h,
+  };
 
   let pages = source.deck.pages;
   let skinLayouts = source.skinLayouts;
@@ -82,7 +90,7 @@ export function insertWidget(
     pages = removed.pages;
     skinLayouts = removed.skinLayouts;
     if (removed.orphanControl) {
-      controls = controls.filter((control) => control.id !== removed.orphanControl);
+      controls = controls.filter((entry) => entry.id !== removed.orphanControl);
       delete variants[removed.orphanControl];
     }
   }
@@ -91,12 +99,12 @@ export function insertWidget(
     ...source,
     deck: { ...source.deck, pages: pages.map((page) => ({ ...page, items: [...page.items] })) },
     skinLayouts,
-    controls: [...controls, pasted.control],
+    controls: [...controls, control],
     variants,
   };
   const destination = layoutFor(draft, slot.skinId, slot.pageId, slot.slotId);
-  if (!destination || !setLayoutItems(draft, slot, [...destination.items, pasted.item])) {
+  if (!destination || !setLayoutItems(draft, slot, [...destination.items, item])) {
     return undefined;
   }
-  return { settings: draft, itemId: pasted.item.id };
+  return { settings: draft, itemId: item.id };
 }

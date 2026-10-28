@@ -1,16 +1,26 @@
-// Inspector edits of one slot's placements, applied to the live settings as one undo step each.
+// Checked placement commands on the live settings, one undo step each: add, write, resize, duplicate, paste, move
+// and delete. Each validates before it records the undo step. Confirmations and selection stay with the UI.
 import type { ControlConfig } from '../controls/model';
 import { newId, settings } from '../settings/state.svelte';
 import { commit } from './history.svelte';
 import { firstFree, fits, inside, type Item } from './grid';
 import { pageItems, removePlacement } from './placements';
+import { removeItem } from './removal';
 import {
   canSetLayoutItems,
   effectiveSize,
   layoutFor,
+  movePlacementToSlot,
   setLayoutItems,
   type LayoutTarget,
 } from './skin-layouts';
+import {
+  cloneControl,
+  insertWidget,
+  planInsertion,
+  type InsertTarget,
+  type WidgetCopy,
+} from './widget-insert';
 
 type Cell = { x: number; y: number };
 type Size = { w: number; h: number };
@@ -120,13 +130,75 @@ export function resizeInSlot(target: LayoutTarget, itemId: string, size: Size) {
   return writeSlotItems(target, next, 'Resize widget');
 }
 
-/** Deletes a placement, and its control when no other placement uses it. */
-export function removeFromSlot(target: LayoutTarget, itemId: string, label: string) {
-  if (!slotOf(target)?.items.some((entry) => entry.id === itemId)) {
-    return false;
+/** Copies a placement and its control into a free spot of the same slot; returns the new placement ID. */
+export function duplicateInSlot(target: LayoutTarget, itemId: string) {
+  const item = slotOf(target)?.items.find((entry) => entry.id === itemId);
+  const control = item && settings.controls.find((entry) => entry.id === item.control);
+  const at =
+    item && control && findSlotPlacement(target, control.type, { size: { w: item.w, h: item.h } });
+  if (!control || !at) {
+    return undefined;
+  }
+  const copy = {
+    ...cloneControl(control),
+    id: newControlId(control.name),
+    name: `${control.name} copy`,
+  };
+  return placeControl(target, copy, at, `Duplicate ${control.name}`);
+}
+
+/** Pastes a fresh copy on an empty cell or over the placement it replaces; returns the new placement ID. */
+export function pasteInSlot(
+  target: LayoutTarget,
+  copy: WidgetCopy,
+  at: InsertTarget,
+  label: string,
+) {
+  // The plan and the insertion use one plain snapshot: the insertion writes into the slot maps it is given.
+  const source = JSON.parse(JSON.stringify(settings));
+  const plan = planInsertion(source, copy, at, target);
+  const result = plan && insertWidget(source, copy, plan, target);
+  if (!result) {
+    return undefined;
   }
   commit(label);
-  return deletePlacement(target.pageId, itemId);
+  settings.deck.pages = result.settings.deck.pages;
+  settings.skinLayouts = result.settings.skinLayouts;
+  settings.controls = result.settings.controls;
+  settings.variants = result.settings.variants;
+  return result.itemId;
+}
+
+/** Moves a placement to another slot or page, keeping its IDs and control; returns the moved placement. */
+export function moveToSlot(itemId: string, destination: LayoutTarget) {
+  const result = movePlacementToSlot(settings, itemId, destination);
+  if (!result) {
+    return undefined;
+  }
+  const page = settings.deck.pages.find((entry) => entry.id === destination.pageId);
+  commit(page ? `Move widget to ${page.name}` : 'Move widget');
+  settings.deck.pages = result.pages;
+  settings.skinLayouts = result.skinLayouts;
+  return result.item;
+}
+
+/**
+ * Plays the removal dust, then deletes the placement, and its control when no other placement uses it, if
+ * `stillShown()` holds once the dust ends.
+ */
+export function removeWithDust(target: LayoutTarget, itemId: string, stillShown: () => boolean) {
+  const item = slotOf(target)?.items.find((entry) => entry.id === itemId);
+  if (!item) {
+    return Promise.resolve(false);
+  }
+  const name = settings.controls.find((entry) => entry.id === item.control)?.name ?? 'widget';
+  return removeItem(itemId, () => {
+    if (!stillShown() || !slotOf(target)?.items.some((entry) => entry.id === itemId)) {
+      return false;
+    }
+    commit(`Delete ${name}`);
+    return deletePlacement(target.pageId, itemId);
+  });
 }
 
 /**

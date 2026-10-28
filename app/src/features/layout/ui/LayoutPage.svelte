@@ -3,16 +3,13 @@
   import { toast } from 'svelte-sonner';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import SkinLayoutEditor from './SkinLayoutEditor.svelte';
-  import { removeItem } from '../removal';
-  import { removeFromSlot } from '../slot-edits';
-  import { commit } from '../history.svelte';
+  import { duplicateInSlot, moveToSlot, pasteInSlot, removeWithDust } from '../slot-edits';
   import { TRIGGER_LABELS, TRIGGERS, type Trigger } from '../../automation/scenario';
   import { runtimeView } from '../../../app/runtime/state';
-  import { firstFree, type Selection } from '../grid';
+  import type { Selection } from '../grid';
   import { registeredEvents, skins } from '../../plugins/registry';
   import { controlById, settings } from '../../settings/state.svelte';
   import { MAX_PAGES, pageAfterRemoval, pageById } from '../pages';
-  import { pageItems } from '../placements';
   import * as pageCommands from '../page-commands';
   import ScenarioEditor from '../../automation/editor/ScenarioEditor.svelte';
   import Inspector from './Inspector.svelte';
@@ -20,13 +17,12 @@
   import HistoryControls from './HistoryControls.svelte';
   import InspectorPane from './InspectorPane.svelte';
   import MoveWidgetDialog from './MoveWidgetDialog.svelte';
-  import { layoutFor, movePlacementToSlot, type LayoutTarget } from '../skin-layouts';
+  import { layoutFor, type LayoutTarget } from '../skin-layouts';
   import type { SkinDef } from '../../skins/definition';
   import ContextMenu, { type MenuAction } from '../../../panel/ui/ContextMenu.svelte';
   import { frame, layoutPreview, saveLayoutPreview } from '../../../panel/ui/preferences.svelte';
-  import { cloneControl, type WidgetCopy } from '../layout-actions';
   import { clipboard } from '../widget-clipboard.svelte';
-  import { insertWidget, planInsertion } from '../widget-insert';
+  import { cloneControl, planInsertion, type WidgetCopy } from '../widget-insert';
   import { moveOptions as buildMoveOptions, type MoveMode } from '../move-options';
   import { getRuntimeCommands } from '../../../app/runtime/context';
 
@@ -113,7 +109,6 @@
       slotId: visibleSlots[0] ?? editorSkin.slots[0]?.id ?? 'main',
     };
   });
-  const allItems = $derived(pageItems(settings.deck.pages, settings.skinLayouts));
   const moveOptions = $derived(
     moveRequest ? optionsFor(moveRequest.mode, moveRequest.sourceTarget, moveRequest.itemId) : [],
   );
@@ -426,22 +421,16 @@
       closeMoveDialog();
       return;
     }
-    const result = movePlacementToSlot(settings, request.itemId, destination);
-    if (!result) {
+    const moved = moveToSlot(request.itemId, destination);
+    if (!moved) {
       toast.error(NO_ROOM);
       return;
     }
-    const destinationPage = settings.deck.pages.find(
-      (candidate) => candidate.id === destination.pageId,
-    );
-    commit(destinationPage ? `Move widget to ${destinationPage.name}` : 'Move widget');
-    settings.deck.pages = result.pages;
-    settings.skinLayouts = result.skinLayouts;
     selectedPageId = destination.pageId;
     selectionTarget = destination;
     closeMoveDialog();
     await tick();
-    select({ item: result.item.id }, destination);
+    select({ item: moved.id }, destination);
   }
 
   function moveSourceStillShown(request: MoveRequest) {
@@ -460,30 +449,19 @@
   /** Plays the removal animation, then deletes the placement if the editor still shows it. */
   function removeItemFromPage(id: string, target: LayoutTarget) {
     const pageId = target.pageId;
-    const item = layoutFor(settings, target.skinId, pageId, target.slotId)?.items.find(
-      (candidate) => candidate.id === id,
-    );
-    if (!item) {
-      return;
-    }
     const skinId = editorSkin.id;
     const viewId = previewViewId;
     const generation = pageGeneration;
-    const name = controlById(item.control)?.name ?? 'widget';
-    void removeItem(id, () => {
-      const stale =
-        page.id !== pageId ||
-        editorSkin.id !== skinId ||
-        previewViewId !== viewId ||
-        pageGeneration !== generation ||
-        !visibleSlots.includes(target.slotId);
-      if (stale || !removeFromSlot(target, id, `Delete ${name}`)) {
-        return false;
-      }
-      if (selection && 'item' in selection && selection.item === id) {
+    const stillShown = () =>
+      page.id === pageId &&
+      editorSkin.id === skinId &&
+      previewViewId === viewId &&
+      pageGeneration === generation &&
+      visibleSlots.includes(target.slotId);
+    void removeWithDust(target, id, stillShown).then((removed) => {
+      if (removed && selection && 'item' in selection && selection.item === id) {
         selection = null;
       }
-      return true;
     });
   }
 
@@ -530,19 +508,22 @@
 
   // ---- paste, duplicate, replace ----
 
-  function insertionPlan(
-    copy: WidgetCopy,
-    target: Target,
-    pageId: string,
-    slot: LayoutTarget,
-    replace = false,
-  ) {
-    const editable =
+  /** Whether the editor still shows `slot` of `pageId`, so an insertion there is what the user looked at. */
+  function editable(pageId: string, slot: LayoutTarget) {
+    return (
       pageId === page.id &&
       pageId === slot.pageId &&
       editorSkin.id === slot.skinId &&
-      visibleSlots.includes(slot.slotId);
-    return editable ? planInsertion(settings, copy, target, slot, replace) : undefined;
+      visibleSlots.includes(slot.slotId)
+    );
+  }
+
+  function placed(id: string | undefined, slot: LayoutTarget) {
+    if (!id) {
+      toast.error(NO_ROOM);
+      return;
+    }
+    select({ item: id }, slot);
   }
 
   function insert(
@@ -550,30 +531,17 @@
     target: Target,
     pageId: string,
     slot: LayoutTarget,
-    replace = false,
     label = 'Paste widget',
   ) {
-    const plan = insertionPlan(copy, target, pageId, slot, replace);
-    const result = plan && insertWidget($state.snapshot(settings), copy, plan, slot, allItems);
-    if (!result) {
-      toast.error(NO_ROOM);
-      return;
-    }
-    commit(label);
-    settings.deck.pages = result.settings.deck.pages;
-    settings.skinLayouts = result.settings.skinLayouts;
-    settings.controls = result.settings.controls;
-    settings.variants = result.settings.variants;
-    select({ item: result.itemId }, slot);
+    placed(editable(pageId, slot) ? pasteInSlot(slot, copy, target, label) : undefined, slot);
   }
 
   async function paste(copy: WidgetCopy, target: Target, pageId: string, slot: LayoutTarget) {
-    const replacing = 'item' in target;
-    if (!insertionPlan(copy, target, pageId, slot, replacing)) {
+    if (!editable(pageId, slot) || !planInsertion(settings, copy, target, slot)) {
       toast.error(NO_ROOM);
       return;
     }
-    if (!replacing) {
+    if (!('item' in target)) {
       insert(copy, target, pageId, slot);
       return;
     }
@@ -585,7 +553,7 @@
     if (page.id !== pageId || !current?.items.some((item) => item.id === id)) {
       return;
     }
-    insert(copy, target, pageId, slot, true, 'Paste over widget');
+    insert(copy, target, pageId, slot, 'Paste over widget');
   }
 
   // ---- context menu ----
@@ -682,19 +650,8 @@
       { label: 'Move to slot…', run: () => openMoveDialog('slot', slot, item.id) },
       {
         label: 'Duplicate',
-        run: () => {
-          const at = firstFree(source.items, item.w, item.h, source.geometry!);
-          if (!at) {
-            toast.error(NO_ROOM);
-            return;
-          }
-          const copy = {
-            control: { ...cloneControl(control), name: `${control.name} copy` },
-            w: item.w,
-            h: item.h,
-          };
-          insert(copy, { cell: at }, pageId, slot, false, `Duplicate ${control.name}`);
-        },
+        run: () =>
+          placed(editable(pageId, slot) ? duplicateInSlot(slot, item.id) : undefined, slot),
       },
       { label: 'Delete', danger: true, run: () => removeItemFromPage(item.id, slot) },
     );
