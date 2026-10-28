@@ -121,8 +121,8 @@
   style:border-radius="{dashboard.appliedFullscreen ? 0 : bg.radius}px"
   bind:this={shell}
   onpointerdowncapture={pager.pointerDown}
-  onpointerenter={() => (dashboard.domHovered = true)}
-  onpointerleave={() => (dashboard.domHovered = false)}
+  onpointerenter={dashboard.pointerEnter}
+  onpointerleave={dashboard.pointerLeave}
 >
   <div
     aria-hidden="true"
@@ -179,13 +179,16 @@
     {/each}
   {/if}
   {#if !dashboard.appliedFullscreen}
-    <ResizeGrips {dashboard} />
     <div
       aria-hidden="true"
       class="resize-cues"
     ></div>
   {/if}
 </div>
+<!-- Outside the shell so its rounded clip cannot cut the corner grips away. -->
+{#if !dashboard.appliedFullscreen}
+  <ResizeGrips {dashboard} />
+{/if}
 
 <style>
   :global(.dashboard-shell),

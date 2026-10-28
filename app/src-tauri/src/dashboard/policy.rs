@@ -16,13 +16,14 @@ use windows::Win32::UI::Shell::{
     DefSubclassProc, GetWindowSubclass, RemoveWindowSubclass, SetWindowSubclass,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GWL_EXSTYLE, GWL_STYLE, GetWindowLongPtrW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT,
-    HTBOTTOMRIGHT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsIconic, IsWindowVisible,
-    MA_NOACTIVATE, PA_NOACTIVATE, SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT, SWP_FRAMECHANGED,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos,
-    WM_CANCELMODE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST,
-    WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING,
-    WM_SYSCOMMAND, WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
+    FindWindowExW, GWL_EXSTYLE, GWL_STYLE, GetWindowLongPtrW, GetWindowRect, HTBOTTOM,
+    HTBOTTOMLEFT, HTBOTTOMRIGHT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsIconic,
+    IsWindowVisible, MA_NOACTIVATE, PA_NOACTIVATE, SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT,
+    SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+    SetWindowLongPtrW, SetWindowPos, ShowWindow, WM_CANCELMODE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
+    WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
+    WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND, WS_CAPTION,
+    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
 };
 
 /// Identifies our subclass on the window ("SUPA").
@@ -71,7 +72,26 @@ pub fn install(window: &WebviewWindow) -> Result<(), String> {
         unsafe { drop(Box::from_raw(state)) };
         return Err(error);
     }
+    hide_tauri_resize_border(hwnd);
     Ok(())
+}
+
+/// Tauri covers an undecorated window's outer frame with a `TAURI_DRAG_RESIZE_BORDERS` child that resizes natively.
+/// Over it the page never sees the pointer, so the edge cues stay off, and its thin band sits under the rounded
+/// shell's clipped corners. The page's own grips own the whole edge instead (`ResizeGrips.svelte`). Tauri only
+/// repositions the child afterwards and never shows it again, because the dashboard never toggles resizability.
+fn hide_tauri_resize_border(hwnd: HWND) {
+    let border = unsafe {
+        FindWindowExW(
+            Some(hwnd),
+            None,
+            windows::core::w!("TAURI_DRAG_RESIZE_BORDERS"),
+            None,
+        )
+    };
+    if let Ok(border) = border {
+        let _ = unsafe { ShowWindow(border, SW_HIDE) };
+    }
 }
 
 pub fn set_interaction_mode(window: &WebviewWindow, fullscreen: bool) -> Result<(), String> {

@@ -34,6 +34,8 @@
       type="button"
       data-resize-handle={direction}
       aria-label="Resize window {direction}"
+      onpointerenter={dashboard.pointerEnter}
+      onpointerleave={dashboard.pointerLeave}
       onpointerdown={(event) => start(event, direction)}
       onkeydown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -47,7 +49,7 @@
 
 <style>
   .resize-grips {
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: 50;
     pointer-events: none;
@@ -79,17 +81,10 @@
   [data-resize-handle='NorthEast'],
   [data-resize-handle='SouthWest'],
   [data-resize-handle='SouthEast'] {
+    /* Whole squares: the shell's rounded clip cuts away the outer corner, so a thin L would be almost unreachable. */
     width: var(--corner);
     height: var(--corner);
     cursor: nwse-resize;
-    clip-path: polygon(
-      0 0,
-      100% 0,
-      100% var(--band),
-      var(--band) var(--band),
-      var(--band) 100%,
-      0 100%
-    );
   }
   [data-resize-handle^='North'] {
     top: 0;
@@ -103,15 +98,8 @@
   [data-resize-handle$='East'] {
     right: 0;
   }
-  [data-resize-handle='NorthEast'] {
-    transform: scaleX(-1);
-    cursor: nesw-resize;
-  }
+  [data-resize-handle='NorthEast'],
   [data-resize-handle='SouthWest'] {
-    transform: scaleY(-1);
     cursor: nesw-resize;
-  }
-  [data-resize-handle='SouthEast'] {
-    transform: scale(-1);
   }
 </style>

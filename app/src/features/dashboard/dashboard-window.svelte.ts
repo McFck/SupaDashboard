@@ -17,7 +17,7 @@ const RESIZE_QUIET_MS = 400;
 export class DashboardWindow {
   ready = $state(false);
   appliedFullscreen = $state(false);
-  domHovered = $state(false);
+  private domHovered = $state(false);
   private nativeHovered = $state(false);
   private windowResizing = $state(false);
   private nativeResizing = $state(false);
@@ -26,6 +26,20 @@ export class DashboardWindow {
   readonly showChrome = $derived(
     this.domHovered || this.nativeHovered || this.windowResizing || this.nativeResizing,
   );
+
+  /**
+   * The shell and the resize grips are separate elements, and the order of their enter and leave events is not
+   * guaranteed, so only a leave towards something outside both clears the hover.
+   */
+  readonly pointerEnter = () => {
+    this.domHovered = true;
+  };
+  readonly pointerLeave = (event: PointerEvent) => {
+    const next = event.relatedTarget;
+    if (!(next instanceof Element && next.closest('.dashboard-shell, .resize-grips'))) {
+      this.domHovered = false;
+    }
+  };
 
   private nativeHoverRevision = -1;
   private nativeResizeRevision = -1;

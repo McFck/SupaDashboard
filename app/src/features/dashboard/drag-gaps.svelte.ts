@@ -63,7 +63,7 @@ export class DragGaps {
     const skinRoot = this.visibleSkinRoot();
     const next = new Set<Element>([
       ...(skinRoot ? [skinRoot] : []),
-      ...this.shell.querySelectorAll(CHROME),
+      ...this.shell.ownerDocument.querySelectorAll(CHROME),
     ]);
     skinRoot?.querySelectorAll(EXCLUDED).forEach((node) => next.add(node));
     for (const node of this.observed) {
@@ -109,7 +109,8 @@ export class DragGaps {
     };
     skinRoot.querySelectorAll('[data-dashboard-tile]').forEach(exclude);
     skinRoot.querySelectorAll(EXCLUDED).forEach(exclude);
-    this.shell.querySelectorAll(CHROME).forEach(exclude);
+    // The resize grips sit outside the shell (its rounded clip would cut the corners), so look document-wide.
+    this.shell.ownerDocument.querySelectorAll(CHROME).forEach(exclude);
     this.rects = complementRectangles(
       surface.width,
       surface.height,
