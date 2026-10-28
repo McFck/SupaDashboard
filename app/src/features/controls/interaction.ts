@@ -1,6 +1,6 @@
 // Pointer interaction for controls: gesture classification and directional pulls.
 import { selectTriggerSteps, type ActionStep } from '../automation/scenario';
-import type { ControlConfig, Gesture, SwipeGesture } from './model';
+import type { ControlConfig, SwipeGesture } from './model';
 
 export type PullAxis = 'x' | 'y';
 
@@ -41,8 +41,6 @@ export type PullState = {
   height: number;
   lockedAxis: PullAxis | null;
   movedBeyondSlop: boolean;
-  armed: boolean;
-  armedDirection: SwipeGesture | null;
 };
 
 /** The complete pointer projection consumed by the renderer and release handler. */
@@ -104,8 +102,6 @@ export function beginPull(
     height: Number.isFinite(height) ? Math.max(0, height) : 0,
     lockedAxis: null,
     movedBeyondSlop: false,
-    armed: false,
-    armedDirection: null,
   };
 }
 
@@ -141,7 +137,7 @@ export function updatePull(
   const effect = bindings[direction];
   if (!effect || projected === 0) {
     return {
-      state: { ...state, movedBeyondSlop, lockedAxis, armed: false, armedDirection: null },
+      state: { ...state, movedBeyondSlop, lockedAxis },
       snapshot: null,
     };
   }
@@ -162,34 +158,12 @@ export function updatePull(
     effect,
   };
   return {
-    state: {
-      ...state,
-      movedBeyondSlop,
-      lockedAxis,
-      armed,
-      armedDirection: armed ? direction : null,
-    },
+    state: { ...state, movedBeyondSlop, lockedAxis },
     snapshot,
   };
 }
 
-const SWIPE = 40; // px
-const LONG_PRESS = 550; // ms
 export const DOUBLE_TAP = 300; // ms
-
-/** Classify a finished pointer movement. Slow short presses become long presses. */
-export function classify(dx: number, dy: number, ms: number, sinceLastTap = Infinity): Gesture {
-  if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE) {
-    if (ms >= LONG_PRESS) return 'longPress';
-    return sinceLastTap >= 0 && sinceLastTap <= DOUBLE_TAP ? 'doubleTap' : 'tap';
-  }
-  if (Math.abs(dy) >= Math.abs(dx)) return dy > 0 ? 'swipeDown' : 'swipeUp';
-  return dx > 0 ? 'swipeRight' : 'swipeLeft';
-}
-
-export function pullHandoffProgress(snapshot: Pick<PullSnapshot, 'armed' | 'effect'>) {
-  return snapshot.effect.kind === 'variant' && snapshot.armed ? 1 : 0;
-}
 
 export function shouldAnimateSliderFill(input: {
   level: number | null;

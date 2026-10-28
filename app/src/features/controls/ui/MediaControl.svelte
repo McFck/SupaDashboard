@@ -273,7 +273,6 @@
               playbackAllowed={false}
               resumeAt={videoPosition(control.id, previousLayer.key)}
               onready={() => {}}
-              onmetadata={() => {}}
               onposition={(time) => rememberPosition(previousLayer.key, time)}
             />
           {/key}
@@ -297,7 +296,6 @@
                 (canRun && (sourceCandidate.muted || userPlaybackRequested))}
               resumeAt={videoPosition(control.id, targetLayer.key)}
               onready={(success) => frameReady(targetLayer.token, success)}
-              onmetadata={() => {}}
               onposition={(time) => rememberPosition(targetLayer.key, time)}
             />
           {/key}

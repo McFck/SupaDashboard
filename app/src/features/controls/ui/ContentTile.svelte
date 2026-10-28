@@ -115,7 +115,6 @@
           tabindex="-1"
           disabled={pressFeedbackDisabled}
           use:gestures={{
-            onGesture: () => {},
             onTrigger: trigger,
             captureTrigger: (event, interactionId) =>
               captureRuntimeTrigger(control.id, itemId ?? '', event, interactionId),

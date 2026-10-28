@@ -4,7 +4,6 @@
   import type {
     ControlConfig,
     ControlFaceProps,
-    Gesture,
     TilePresentation,
     Variant,
   } from '../model';
@@ -14,7 +13,6 @@
   import { runtimeVariables } from '../../automation/runtime-variables.svelte';
   import type { TriggerPacket } from '../../automation/scenario-runner';
   import { settings } from '../../settings/state.svelte';
-  import type { Page } from '../../settings/schema';
   import ButtonFace from './ButtonFace.svelte';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
@@ -26,10 +24,7 @@
 
   let {
     control,
-    page,
     compact = false,
-    w = 1,
-    h = 1,
     pixelWidth,
     pixelHeight,
     presentation,
@@ -38,12 +33,9 @@
     itemId,
   }: {
     control: ControlConfig;
-    page?: Page;
     compact?: boolean;
-    w?: number;
-    h?: number;
-    pixelWidth?: number;
-    pixelHeight?: number;
+    pixelWidth: number;
+    pixelHeight: number;
     presentation?: TilePresentation;
     face?: Component<ControlFaceProps>;
     pressFeedbackDisabled?: boolean;
@@ -62,12 +54,9 @@
   );
   const accent = $derived(resolvedPresentation.view.color ?? variant.color ?? '#67c9eb');
   const busy = $derived(($runtimeView.busy[control.id] ?? 0) > 0);
-  const fallbackWidth = $derived(w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14));
-  const fallbackHeight = $derived(h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14));
   const faceLabelHidden = $derived(
     !buttonLabelVisible(
-      width || pixelWidth || fallbackWidth,
-      height || pixelHeight || fallbackHeight,
+width || pixelWidth, height || pixelHeight
     ),
   );
   const Face = $derived(face ?? ButtonFace);
@@ -85,7 +74,7 @@
   ) {
     const packet = captured as TriggerPacket | undefined;
     if (snapshot) {
-      void content?.release(trigger as Gesture, snapshot, () => {
+      void content?.release(snapshot, () => {
         void dispatchRuntimePacket(packet);
       });
       return;
@@ -100,7 +89,6 @@
   bind:clientWidth={width}
   bind:clientHeight={height}
   use:gestures={{
-    onGesture: () => {},
     onTrigger,
     captureTrigger: (trigger, interactionId) =>
       captureRuntimeTrigger(control.id, itemId ?? '', trigger, interactionId),
@@ -111,7 +99,7 @@
       pull = p;
     },
     onPullEnd: (p, armed) => {
-      if (p && !armed) void content?.release(undefined, p);
+      if (p && !armed) void content?.release(p);
     },
     onCancel: (p) => content?.cancelPull(p),
   }}
@@ -147,8 +135,8 @@
                   {busy}
                   {pull}
                   {compact}
-                  pixelWidth={(pixelWidth ?? width) || fallbackWidth}
-                  pixelHeight={(pixelHeight ?? height) || fallbackHeight}
+                  {pixelWidth}
+                  {pixelHeight}
                 />
               </div>
             {/snippet}

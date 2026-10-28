@@ -1,7 +1,6 @@
 // Pointer handling shared by controls. Pull and tap decisions happen only after cancellation checks.
 import {
   beginPull,
-  classify,
   DOUBLE_TAP,
   updatePull,
   type PullBindings,
@@ -34,7 +33,7 @@ export function tapSequence(emit: (g: Gesture, x: number, y: number, captured?: 
         g === 'tap' &&
         doubleTap &&
         Math.hypot(x - previous.x, y - previous.y) < 24 &&
-        classify(0, 0, 0, performance.now() - previous.t) === 'doubleTap'
+        performance.now() - previous.t <= DOUBLE_TAP
       ) {
         sendEvent('doubleTap', x, y, captured);
         return;
@@ -90,10 +89,8 @@ type PendingShort = {
   timer: ReturnType<typeof setTimeout>;
 };
 type GestureHandlers = {
-  onGesture: (g: Gesture, snapshot?: PullSnapshot, captured?: unknown) => void;
-  onTrigger?: (trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) => void;
+  onTrigger: (trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) => void;
   captureTrigger?: (trigger: Trigger, interactionId: string) => unknown;
-  doubleTap?: boolean;
   enabled?: boolean;
   /** Current pull preview. This never runs a bound action or changes a variant. */
   onPull?: (pull: PullSnapshot | null) => void;
@@ -135,11 +132,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
     return result;
   };
   const dispatch = (trigger: Trigger, captures: Captured, snapshot?: PullSnapshot) => {
-    const captured = captures[trigger];
-    if (handlers.onTrigger) handlers.onTrigger(trigger, captured, snapshot);
-    else if (trigger === 'press') handlers.onGesture('tap');
-    else if (trigger === 'longPress' || trigger === 'doubleTap' || trigger.startsWith('swipe'))
-      handlers.onGesture(trigger as Gesture, snapshot, captured);
+    handlers.onTrigger(trigger, captures[trigger], snapshot);
   };
   const clearHold = (interaction: ActivePull | NonNullable<typeof keyboard>) => {
     if (interaction.holdTimer) clearTimeout(interaction.holdTimer);
@@ -157,7 +150,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
   };
   const cancelPending = () => clearPending();
   const deliverShort = (x: number, y: number, captures: Captured) => {
-    const doubleTap = handlers.doubleTap ?? captures.doubleTap !== undefined;
+    const doubleTap = captures.doubleTap !== undefined;
     if (pending) {
       const previous = pending;
       clearPending();

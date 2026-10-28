@@ -2,8 +2,7 @@ import type { ControlConfig, TileAppearance } from './model';
 import { renderTemplate } from '../automation/templates';
 import { VariableStore, type VariableSnapshot, type VariableValue } from '../automation/variables';
 
-export type RuntimeVariables =
-  VariableSnapshot | VariableStore | Readonly<Record<string, VariableValue>>;
+export type RuntimeVariables = VariableSnapshot | VariableStore;
 export type EffectiveVariant = { index: number; stateId: string; view: TileAppearance };
 
 export function validateStateConfiguration(
@@ -68,24 +67,19 @@ export function variantIndexForState(control: ControlConfig, stateId: string) {
 function getValue(variables: RuntimeVariables | undefined, id: string): VariableValue | undefined {
   if (!variables) return undefined;
   if (variables instanceof VariableStore) return variables.getValue(id);
-  if ('records' in variables && typeof variables.records === 'object')
-    return (variables as VariableSnapshot).records[id]?.value;
-  return (variables as Readonly<Record<string, VariableValue>>)[id];
+  return variables.records[id]?.value;
 }
 
 function getName(variables: RuntimeVariables | undefined, name: string): VariableValue | undefined {
   if (!variables) return undefined;
   if (variables instanceof VariableStore) return variables.findByName(name)?.value;
-  if ('records' in variables && typeof variables.records === 'object') {
-    const key = name.trim().toLocaleLowerCase();
-    const record = Object.values((variables as VariableSnapshot).records).find((item) =>
-      [item.definition.name, ...(item.definition.aliases ?? [])].some(
-        (value) => value.trim().toLocaleLowerCase() === key,
-      ),
-    );
-    return record?.value;
-  }
-  return undefined;
+  const key = name.trim().toLocaleLowerCase();
+  const record = Object.values(variables.records).find((item) =>
+    [item.definition.name, ...(item.definition.aliases ?? [])].some(
+      (value) => value.trim().toLocaleLowerCase() === key,
+    ),
+  );
+  return record?.value;
 }
 
 function caseState(control: ControlConfig, value: VariableValue | undefined): string | undefined {

@@ -7,7 +7,6 @@
   import type {
     ControlConfig,
     ControlFaceProps,
-    Gesture,
     TilePresentation,
     Variant,
   } from '../model';
@@ -19,7 +18,6 @@
   import { onDestroy } from 'svelte';
   import { value as valueOf } from '../../plugins/registry';
   import { settings } from '../../settings/state.svelte';
-  import type { Page } from '../../settings/schema';
   import { findVolumeChannel, setVolume, volumeChannels } from '../../media/volume';
   import PullContent from './PullContent.svelte';
   import PressFeedback from './PressFeedback.svelte';
@@ -30,10 +28,7 @@
 
   let {
     control,
-    page,
     compact = false,
-    w = 1,
-    h = 3,
     pixelWidth,
     pixelHeight,
     presentation,
@@ -42,12 +37,9 @@
     itemId,
   }: {
     control: ControlConfig;
-    page?: Page;
     compact?: boolean;
-    w?: number;
-    h?: number;
-    pixelWidth?: number;
-    pixelHeight?: number;
+    pixelWidth: number;
+    pixelHeight: number;
     presentation?: TilePresentation;
     face?: Component<ControlFaceProps>;
     pressFeedbackDisabled?: boolean;
@@ -71,13 +63,10 @@
       ? `${variant.value.id}:${JSON.stringify(variant.value.args ?? {})}`
       : `${control.id}:unavailable`,
   );
-  let width = $state(0),
-    height = $state(0);
   const vertical = $derived(
     !compact &&
       sliderOrientation(
-        pixelWidth ?? (width || w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)),
-        pixelHeight ?? (height || h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)),
+pixelWidth, pixelHeight
       ) === 'vertical',
   );
   let content = $state<PullContent>();
@@ -168,7 +157,7 @@
   function onTrigger(trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) {
     const packet = captured as TriggerPacket | undefined;
     if (snapshot) {
-      void content?.release(trigger as Gesture, snapshot, () => {
+      void content?.release(snapshot, () => {
         void dispatchRuntimePacket(packet);
       });
       return;
@@ -179,8 +168,6 @@
 
 <div
   data-dashboard-tile
-  bind:clientWidth={width}
-  bind:clientHeight={height}
   style:--accent={variant.color ?? '#8ea8f0'}
   class="relative h-full w-full"
 >
@@ -219,10 +206,8 @@
                 {stateIndex}
                 busy={($runtimeView.busy[control.id] ?? 0) > 0}
                 {pull}
-                pixelWidth={(pixelWidth ?? width) ||
-                  w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)}
-                pixelHeight={(pixelHeight ?? height) ||
-                  h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)}
+                {pixelWidth}
+                {pixelHeight}
                 presentation={resolved}
                 presentationImmediate={immediate}
                 doubleTap={!!control.scenario?.triggers.doubleTap}
@@ -232,7 +217,7 @@
                   pull = p;
                 }}
                 onpullend={(p, armed) => {
-                  if (p && !armed) void content?.release(undefined, p);
+                  if (p && !armed) void content?.release(p);
                 }}
                 oncancel={(p) => content?.cancelPull(p)}
                 capturetrigger={(trigger, interactionId) =>
@@ -254,10 +239,8 @@
                 {stateIndex}
                 busy={false}
                 pull={null}
-                pixelWidth={(pixelWidth ?? width) ||
-                  w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)}
-                pixelHeight={(pixelHeight ?? height) ||
-                  h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)}
+                {pixelWidth}
+                {pixelHeight}
                 presentation={resolved}
                 presentationImmediate
                 onchange={() => {}}

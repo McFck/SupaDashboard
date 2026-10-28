@@ -7,29 +7,20 @@
   import { findVolumeChannel, setMuted, setVolume, volumeChannels } from '../../media/volume';
   import { appIcons } from '../../plugins/registry';
   import { settings } from '../../settings/state.svelte';
-  import type { Page } from '../../settings/schema';
   import PressFeedback from './PressFeedback.svelte';
   import SliderTrack from './SliderTrack.svelte';
 
   type Fixed = { target: string; label?: string; icon?: string };
   let {
     control,
-    page,
-    w = 4,
-    h = 2,
     pixelWidth,
     pixelHeight,
     pressFeedbackDisabled = false,
-    itemId: _itemId,
   }: {
     control: ControlConfig;
-    page?: Page;
-    w?: number;
-    h?: number;
-    pixelWidth?: number;
-    pixelHeight?: number;
+    pixelWidth: number;
+    pixelHeight: number;
     pressFeedbackDisabled?: boolean;
-    itemId?: string;
   } = $props();
   const options = $derived(
     (control.options ?? {}) as {
@@ -38,8 +29,6 @@
       layout?: 'auto' | 'vertical' | 'horizontal';
     },
   );
-  let width = $state(0),
-    height = $state(0);
   const variant = $derived(
     control.variants[settings.variants[control.id] ?? 0] ?? control.variants[0],
   );
@@ -65,8 +54,8 @@
   const vertical = $derived(
     (options.layout === 'auto' || !options.layout
       ? mixerLayout(
-          pixelWidth ?? (width || w * (page?.size ?? 112) + (w - 1) * (page?.gap ?? 14)),
-          pixelHeight ?? (height || h * (page?.size ?? 112) + (h - 1) * (page?.gap ?? 14)),
+          pixelWidth,
+          pixelHeight,
           channels.length,
         )
       : options.layout) === 'vertical',
@@ -88,8 +77,6 @@
 
 <div
   data-dashboard-tile
-  bind:clientWidth={width}
-  bind:clientHeight={height}
   style:--accent={accent}
   class="relative h-full w-full"
 >

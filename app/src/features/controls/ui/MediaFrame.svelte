@@ -11,7 +11,6 @@
     playbackAllowed,
     resumeAt,
     onready,
-    onmetadata,
     onposition,
   }: {
     url?: string;
@@ -24,7 +23,6 @@
     playbackAllowed: boolean;
     resumeAt?: number;
     onready: (success: boolean) => void;
-    onmetadata: () => void;
     onposition: (time: number) => void;
   } = $props();
   let video = $state<HTMLVideoElement>();
@@ -79,7 +77,6 @@
             /* metadata may not support seeking yet */
           }
         }
-        onmetadata();
       }}
       onloadeddata={() => {
         if (resourceVisible) onready(true);

@@ -3,9 +3,7 @@ import { availableGestures, moveVariant, removeVariant, type ControlConfig } fro
 import { buttonIconSize, mixerLayout, pressRippleGeometry, sliderOrientation } from './geometry';
 import {
   beginPull,
-  classify,
   pullBindingsFor,
-  pullHandoffProgress,
   shouldAnimateSliderFill,
   updatePull,
 } from './interaction';
@@ -53,17 +51,6 @@ const prev: ControlConfig = {
 };
 
 describe('gestures', () => {
-  it('classifies taps, long presses and swipes', () => {
-    expect(classify(3, 5, 120)).toBe('tap');
-    expect(classify(3, 5, 800)).toBe('longPress');
-    expect(classify(4, 90, 200)).toBe('swipeDown');
-    expect(classify(-80, 20, 200)).toBe('swipeLeft');
-    expect(classify(3, 5, 100, 250)).toBe('doubleTap');
-    expect(classify(3, 5, 100, 301)).toBe('tap');
-    expect(classify(3, 5, 800, 250)).toBe('longPress');
-    expect(classify(-80, 20, 100, 250)).toBe('swipeLeft');
-  });
-
   it('offers double taps and reserves the slider value axis', () => {
     expect(availableGestures('button', 1, 1)).toContain('doubleTap');
     expect(availableGestures('media', 2, 2)).toContain('swipeLeft');
@@ -400,28 +387,6 @@ describe('configured pull state', () => {
     expect(overshoot.snapshot?.armed).toBe(true);
     const reversedBelowThreshold = updatePull(overshoot.state, 0, 47.99, bindings);
     expect(reversedBelowThreshold.snapshot?.armed).toBe(false);
-    expect(pullHandoffProgress(reversedBelowThreshold.snapshot!)).toBe(0);
-    expect(pullHandoffProgress(armed.snapshot!)).toBe(1);
-    const scenario = updatePull(
-      start,
-      0,
-      96,
-      pullBindingsFor(
-        {
-          ...prev,
-          scenario: {
-            triggers: {
-              swipeDown: {
-                steps: [{ id: 'toggle', kind: 'action', action: { id: 'media.toggle' } }],
-              },
-            },
-            events: [],
-          },
-        },
-        0,
-      ),
-    ).snapshot!;
-    expect(pullHandoffProgress(scenario)).toBe(0);
   });
 
   it('halves variant and scenario travel limits and bounds their rubber tails', () => {

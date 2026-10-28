@@ -24,18 +24,15 @@
   type Box = { x: number; y: number; width: number; height: number };
   let root: HTMLElement | undefined;
   let animation: Animation | undefined;
-  let generation = 0;
   const radius = (w: number, h: number) => Math.max(0, Math.min(preferredRadius, w / 2, h / 2));
   const tween = (from: number, to: number, p: number) => from + (to - from) * p;
 
   export function cancelSettle() {
-    generation++;
     animation?.cancel();
   }
 
   /** Spring the outline onto the snapped box, then fade it out. */
   export function settleTo(target: Box, duration = 360) {
-    const run = ++generation;
     animation?.cancel();
     if (!root) return Promise.resolve();
     const from = { x, y, width, height };
@@ -54,15 +51,13 @@
       }),
       { duration, fill: 'both', easing: 'linear' },
     );
-    return animation.finished
-      .catch(() => {})
-      .then(() => {
-        if (run !== generation) return;
-      });
+    return animation.finished.then(
+      () => {},
+      () => {},
+    );
   }
 
   onDestroy(() => {
-    generation++;
     animation?.cancel();
   });
 </script>

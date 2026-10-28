@@ -3,7 +3,6 @@
   import type { Component } from 'svelte';
   import {
     beginPull,
-    classify,
     shouldAnimateSliderFill,
     type PullAxis,
     type PullBindings,
@@ -11,7 +10,7 @@
     type PullState,
     updatePull,
   } from '../interaction';
-  import type { Gesture, ControlFaceProps, TilePresentation } from '../model';
+  import type { ControlFaceProps, TilePresentation } from '../model';
   import { tapSequence } from '../gestures';
   import { TRIGGERS, type Trigger } from '../../automation/scenario';
   import { onDestroy, onMount, tick } from 'svelte';
@@ -64,7 +63,6 @@
     onpullstart,
     onpullend,
     oncancel,
-    ongesture,
     capturetrigger,
     ontrigger,
   }: {
@@ -93,7 +91,6 @@
     onpullstart?: () => void;
     onpullend?: (p: PullSnapshot | null, armed: boolean) => void;
     oncancel?: (p: PullSnapshot | null) => void;
-    ongesture?: (g: Gesture, snapshot?: PullSnapshot) => void;
     capturetrigger?: (trigger: Trigger, interactionId: string) => unknown;
     ontrigger?: (trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) => void;
   } = $props();
@@ -271,22 +268,18 @@
     if (finished.state.movedBeyondSlop) {
       if (finished.state.lockedAxis !== valueAxis(finished.vertical)) {
         onpullend?.(finished.snapshot, !!finished.snapshot?.armed);
-        if (finished.snapshot?.armed) {
-          if (ontrigger)
-            ontrigger(
-              finished.snapshot.direction,
-              finished.captures[finished.snapshot.direction],
-              finished.snapshot,
-            );
-          else ongesture?.(finished.snapshot.direction, finished.snapshot);
-        }
+        if (finished.snapshot?.armed)
+          ontrigger?.(
+            finished.snapshot.direction,
+            finished.captures[finished.snapshot.direction],
+            finished.snapshot,
+          );
       }
       onpull?.(null);
       return;
     }
     lastTapRect = finished.rect;
-    const gesture = classify(0, 0, performance.now() - finished.state.startTime);
-    taps.send(gesture, e.clientX, e.clientY, doubleTap, finished.captures);
+    taps.send('tap', e.clientX, e.clientY, doubleTap, finished.captures);
     onpull?.(null);
   }
   function cancel(pointerId?: number) {
@@ -302,20 +295,17 @@
 
   const taps = tapSequence((g, x, y, captured) => {
     const captures = captured as Partial<Record<Trigger, unknown>> | undefined;
-    if (g === 'doubleTap' && ontrigger) {
-      ontrigger('doubleTap', captures?.doubleTap);
+    if (g === 'doubleTap') {
+      ontrigger?.('doubleTap', captures?.doubleTap);
       return;
     }
-    if (g === 'tap') {
-      const r = lastTapRect;
-      if (!r) return;
-      const onIcon = vertical
-        ? y > r.bottom - Math.min(r.width, 48)
-        : x < r.left + Math.min(r.height, 48);
-      if (onIcon && onmute) return onmute();
-      if (level != null) return onchange(fromPointer({ clientX: x, clientY: y }, r, vertical));
-    }
-    ongesture?.(g);
+    const r = lastTapRect;
+    if (!r) return;
+    const onIcon = vertical
+      ? y > r.bottom - Math.min(r.width, 48)
+      : x < r.left + Math.min(r.height, 48);
+    if (onIcon && onmute) return onmute();
+    if (level != null) return onchange(fromPointer({ clientX: x, clientY: y }, r, vertical));
   });
   $effect(() => {
     const orientation = vertical;
