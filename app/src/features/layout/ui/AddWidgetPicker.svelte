@@ -148,9 +148,7 @@
           placeholder="Search controls"
           bind:value={existingQuery}
         />
-        <div
-          class="grid gap-1"
-        >
+        <div class="grid gap-1">
           {#each filteredRows as row (row.id)}
             {@const type = controlTypes.get(row.typeId)}
             {@const fit = type ? fitFor(row.typeId) : null}
