@@ -10,9 +10,8 @@ import SliderFace from '../features/controls/ui/SliderFace.svelte';
 import WebControl from '../features/controls/ui/WebControl.svelte';
 import DeckSkin from '../features/skins/deck/DeckSkin.svelte';
 import { emptyScenario } from '../features/automation/scenario';
-import { settings } from '../features/settings/state.svelte';
 import { currentRuntime } from '../app/runtime/session.svelte';
-import { hasPlacement } from '../features/layout/placements';
+import { contentTargets } from '../features/plugins/content-targets';
 
 export const uiPlugin: Plugin = {
   id: 'ui',
@@ -111,12 +110,6 @@ export const uiPlugin: Plugin = {
         options: { url: '', zoom: 100, refresh: 0, interactive: false },
       }),
     });
-    const mediaTargets = () => [
-      { value: 'self', label: 'This widget' },
-      ...settings.controls
-        .filter((control) => control.type === 'media' && hasPlacement(settings, control.id))
-        .map((control) => ({ value: control.id, label: control.name })),
-    ];
     for (const [id, title, command] of [
       ['media.nextSlide', 'Next slide', 'next'],
       ['media.prevSlide', 'Previous slide', 'prev'],
@@ -130,7 +123,7 @@ export const uiPlugin: Plugin = {
             label: 'Target',
             type: 'select',
             default: 'self',
-            suggestions: mediaTargets,
+            suggestions: () => contentTargets('media'),
           },
         ],
         run: (args, context) => {
@@ -143,12 +136,6 @@ export const uiPlugin: Plugin = {
           );
         },
       });
-    const webTargets = () => [
-      { value: 'self', label: 'This widget' },
-      ...settings.controls
-        .filter((control) => control.type === 'web' && hasPlacement(settings, control.id))
-        .map((control) => ({ value: control.id, label: control.name })),
-    ];
     api.registerAction({
       id: 'web.reload',
       title: 'Reload web page',
@@ -158,7 +145,7 @@ export const uiPlugin: Plugin = {
           label: 'Target',
           type: 'select',
           default: 'self',
-          suggestions: webTargets,
+          suggestions: () => contentTargets('web'),
         },
       ],
       run: (args, context) => {

@@ -3,7 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { get } from 'svelte/store';
 import { settings } from '../features/settings/state.svelte';
-import { hasPlacement, pageItems } from '../features/layout/placements';
+import { pageItems } from '../features/layout/placements';
+import { contentTargets } from '../features/plugins/content-targets';
 import { currentRuntime } from '../app/runtime/session.svelte';
 import { appOwners, mediaSources } from '../features/plugins/registry';
 import type { ActionRef, Param, Plugin } from '../features/plugins/contracts';
@@ -18,7 +19,6 @@ import {
   type Channel,
 } from '../features/media/volume';
 
-export type { Channel } from '../features/media/volume';
 /** Apps with an audio session right now (process names without .exe). */
 let liveChannels: Channel[] = [];
 /** Master volume + every app with an audio session. */
@@ -89,12 +89,7 @@ const mediaControlParam: Param = {
   label: 'Media widget',
   type: 'select',
   default: 'self',
-  suggestions: () => [
-    { value: 'self', label: 'This widget' },
-    ...settings.controls
-      .filter((control) => control.type === 'media' && hasPlacement(settings, control.id))
-      .map((control) => ({ value: control.id, label: control.name })),
-  ],
+  suggestions: () => contentTargets('media'),
 };
 const targetParam: Param = {
   key: 'target',
