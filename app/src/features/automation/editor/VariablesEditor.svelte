@@ -3,10 +3,9 @@
   import Plus from '@lucide/svelte/icons/plus';
   import Trash from '@lucide/svelte/icons/trash-2';
   import Pencil from '@lucide/svelte/icons/pencil';
-  import { Button, buttonVariants } from '$lib/components/ui/button';
+  import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
-  import * as Dialog from '$lib/components/ui/dialog';
   import Switch from '$lib/components/ui/switch/switch.svelte';
   import Choice from '../../plugins/ui/Choice.svelte';
   import PluginMark from '../../plugins/ui/PluginMark.svelte';
@@ -17,7 +16,6 @@
 
   const { requestRuntime } = getRuntimeCommands();
 
-  let { open = $bindable(false), inline = false }: { open?: boolean; inline?: boolean } = $props();
   let query = $state('');
   let creating = $state(false);
   let newName = $state('');
@@ -160,7 +158,7 @@
   }
 </script>
 
-{#snippet editorBody()}
+<div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <div class="grid shrink-0 gap-3 border-b p-4">
     <div class="flex flex-wrap items-center gap-2">
       <div class="relative min-w-48 flex-1">
@@ -351,25 +349,4 @@
       </div>
     {:else}<div class="py-8 text-center text-sm text-muted-foreground">No variables</div>{/if}
   </div>
-{/snippet}
-
-{#if inline}
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col">{@render editorBody()}</div>
-{:else}
-  <Dialog.Root bind:open>
-    <Dialog.Content
-      aria-describedby={undefined}
-      class="flex max-h-[min(720px,calc(100dvh-48px))] w-[min(760px,calc(100vw-48px))] max-w-none flex-col gap-0 overflow-hidden p-0"
-    >
-      <Dialog.Header class="flex h-14 shrink-0 items-center border-b px-5 pr-14">
-        <Dialog.Title>Variables</Dialog.Title>
-      </Dialog.Header>
-      {@render editorBody()}
-      <Dialog.Footer
-        class="mx-0 mb-0 flex min-h-14 shrink-0 items-center justify-end gap-2 border-t px-6 py-3"
-      >
-        <Dialog.Close class={buttonVariants({ size: 'sm', variant: 'ghost' })}>Done</Dialog.Close>
-      </Dialog.Footer>
-    </Dialog.Content>
-  </Dialog.Root>
-{/if}
+</div>

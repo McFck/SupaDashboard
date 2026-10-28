@@ -1,4 +1,4 @@
-import { writable, type Readable } from 'svelte/store';
+import { writable } from 'svelte/store';
 import { settings, onRemoteSettings } from '../../features/settings/state.svelte';
 import type { Settings } from '../../features/settings/schema';
 import { controlById } from '../../features/settings/state.svelte';
@@ -36,7 +36,6 @@ import { ExecutionEngine } from '../../features/automation/execution-engine';
 export type RuntimeOptions = {
   variables?: VariableStore;
   persistence?: VariablePersistence;
-  owner?: boolean;
   onFailure?: (failure: ScenarioFailure) => void;
   onQueueFull?: (controlId: string, trigger: Trigger | 'event') => void;
 };
@@ -57,7 +56,6 @@ export class RuntimeSession {
   readonly variables: VariableStore;
   readonly events = new EventRegistry();
   readonly snapshots = writable<RuntimeSnapshot>(EMPTY);
-  readonly state: Readable<RuntimeSnapshot> = { subscribe: this.snapshots.subscribe };
   private readonly execution: ExecutionEngine;
   private readonly content: ContentController;
   private readonly pages: PageController;
@@ -66,7 +64,6 @@ export class RuntimeSession {
   private readonly detachRegistry: () => void = () => {};
   private readonly stopRemoteSettings: () => void = () => {};
   private readonly stopSettingsEffect: () => void = () => {};
-  private readonly owner: boolean;
   private readonly persistence?: VariablePersistence;
   private readonly onFailure: (failure: ScenarioFailure) => void;
   private revision = 0;
@@ -79,7 +76,6 @@ export class RuntimeSession {
   constructor(options: RuntimeOptions = {}) {
     this.variables = options.variables ?? new VariableStore();
     this.persistence = options.persistence;
-    this.owner = options.owner ?? true;
     this.onFailure = options.onFailure ?? (() => {});
     this.content = new ContentController(() => this.publish(this.variables.snapshot()));
     this.pages = new PageController({
@@ -117,7 +113,6 @@ export class RuntimeSession {
       setState: (id, stateId) => this.setState(id, stateId),
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(id, parameter, payload, ancestry),
-      onError: () => {},
     });
     this.execution = new ExecutionEngine({
       execute: (packet, signal) => runner.run(packet, signal),
@@ -136,7 +131,7 @@ export class RuntimeSession {
     try {
       this.unsubscribeVariables = this.variables.subscribe((snapshot, persistentChanged) => {
         this.publish(snapshot);
-        if (this.owner && persistentChanged) {
+        if (persistentChanged) {
           this.schedulePersist();
         }
         for (const [id, record] of Object.entries(snapshot.records)) {
@@ -169,8 +164,8 @@ export class RuntimeSession {
       this.skins.start();
       this.stopRemoteSettings = onRemoteSettings((next) => {
         this.reconcile(next.controls);
-        if (this.owner) this.reconcilePages(next.deck.pages);
-        if (this.owner) this.skins.reconcile(next.skinSettings);
+        this.reconcilePages(next.deck.pages);
+        this.skins.reconcile(next.skinSettings);
       });
       this.stopSettingsEffect = $effect.root(() => {
         $effect(() => {
@@ -183,11 +178,11 @@ export class RuntimeSession {
         });
         $effect(() => {
           const pages = settings.deck.pages;
-          if (this.owner) this.reconcilePages(pages);
+          this.reconcilePages(pages);
         });
       });
       this.publish(this.variables.snapshot());
-      this.stopClock = this.owner ? startClock(this.variables) : () => {};
+      this.stopClock = startClock(this.variables);
     } catch (error) {
       try {
         this.stopResources();
@@ -200,7 +195,7 @@ export class RuntimeSession {
   }
 
   get isOwner() {
-    return this.owner && !this.disposed;
+    return !this.disposed;
   }
 
   dispatch(packet: TriggerPacket, options: { notify?: boolean } = {}): Promise<RunResult> {
@@ -313,22 +308,8 @@ export class RuntimeSession {
     return this.skins.setView(skinId, viewId, ancestry);
   }
 
-  setSkinState(skinId: string, key: string, value: VariableValue, ancestry?: EventAncestry) {
-    return this.skins.setState(skinId, key, value, ancestry);
-  }
-
-  async emitSkinEvent(
-    skinId: string,
-    eventId: string,
-    parameter?: string,
-    payload?: unknown,
-    ancestry?: EventAncestry,
-  ) {
-    return this.skins.emitEvent(skinId, eventId, parameter, payload, ancestry);
-  }
-
   async emitEvent(id: string, parameter?: string, payload?: unknown, ancestry?: EventAncestry) {
-    if (this.disposed || !this.owner) throw new Error('Event runtime is unavailable');
+    if (this.disposed) throw new Error('Event runtime is unavailable');
     await this.events.emit(
       id,
       parameter,
@@ -363,15 +344,6 @@ export class RuntimeSession {
     );
   }
 
-  async simulate(
-    controlId: string,
-    trigger: Trigger = 'press',
-    itemId = '',
-    options: { notify?: boolean } = {},
-  ) {
-    return this.dispatchTrigger(controlId, itemId, trigger, scenarioId(), options);
-  }
-
   async stopControl(controlId: string) {
     return this.execution.stopControl(controlId);
   }
@@ -402,7 +374,6 @@ export class RuntimeSession {
       await this.flushPersistence();
     } finally {
       this.content.dispose();
-      this.publish(this.variables.snapshot(), true);
     }
     if (failure) {
       throw failure;
@@ -449,11 +420,11 @@ export class RuntimeSession {
     }
   }
 
-  private publish(variables: VariableSnapshot, online = true) {
+  private publish(variables: VariableSnapshot) {
     this.revision++;
     this.snapshots.set({
-      online,
-      owner: this.owner,
+      online: true,
+      owner: true,
       revision: this.revision,
       activePage: this.pages.activePage,
       variables,

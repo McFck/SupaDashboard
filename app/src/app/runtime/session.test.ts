@@ -58,7 +58,7 @@ afterEach(async () => {
 });
 
 describe('automation runtime', () => {
-  it('runs skin quick actions only in the owner with runner context', async () => {
+  it('runs skin quick actions only in a live owner with runner context', async () => {
     let received: ActionContext | undefined;
     actions.set('test.action', {
       id: 'test.action',
@@ -76,7 +76,6 @@ describe('automation runtime', () => {
     expect(received?.signal.aborted).toBe(false);
 
     await runtime.dispose();
-    runtime = new RuntimeSession({ owner: false });
     await expect(runtime.dispatchQuickAction({ id: 'test.action' })).resolves.toEqual({
       status: 'rejected',
     });
@@ -175,7 +174,7 @@ describe('automation runtime', () => {
     }
   });
 
-  it('keeps the clock inactive in followers and stops publishing after owner disposal', async () => {
+  it('stops the clock after owner disposal', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-26T12:00:00Z'));
     const variables = new VariableStore();
@@ -191,11 +190,6 @@ describe('automation runtime', () => {
       },
       'core',
     );
-    runtime = new RuntimeSession({ variables, owner: false });
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(variables.getValue('clock.time')).toBe('not-started');
-    await runtime.dispose();
-
     runtime = new RuntimeSession({ variables });
     const initial = variables.getValue('clock.time');
     expect(initial).not.toBe('not-started');
@@ -288,7 +282,6 @@ describe('automation runtime', () => {
     expect(get(runtime.snapshots).content[config.id]).toEqual({ slide: 0, reload: 0 });
 
     await runtime.dispose();
-    runtime = new RuntimeSession({ owner: false });
     expect(() => runtime!.contentCommand(config.id, 'goto', 0)).toThrow(
       'Content runtime is unavailable',
     );
@@ -423,9 +416,8 @@ describe('automation runtime', () => {
     settings.deck.pages = [...settings.deck.pages].reverse();
     await tick();
     expect(dispatch).toHaveBeenCalledOnce();
-    const follower = new RuntimeSession({ owner: false });
-    expect(follower.changePage('page-1', 'dot')).toBe(false);
-    await follower.dispose();
+    await runtime.dispose();
+    expect(runtime.changePage('page-1', 'dot')).toBe(false);
     expect(dispatch).toHaveBeenCalledOnce();
   });
 
@@ -551,8 +543,6 @@ describe('automation runtime', () => {
 
     await stopRuntime();
     runtime = undefined;
-    const follower = await bootRuntime({ variables: new VariableStore(), owner: false });
-    runtime = follower.runtime;
     await expect(Promise.resolve().then(() => next.run({}, context))).rejects.toThrow(
       'runtime is unavailable',
     );
@@ -617,7 +607,7 @@ describe('automation runtime', () => {
     const ancestry = { depth: 2, listeners: ['button\u0000change'] };
     const emit = vi.spyOn(runtime, 'emitEvent').mockResolvedValue();
     await runtime.setSkinView(skinId, 'cab', ancestry);
-    await runtime.setSkinState(skinId, 'configured', true, ancestry);
+    await hookContext.setState('configured', true, ancestry);
     await hookContext.emitEvent(`${skinId}.changed`, 'fixture', { ok: true }, ancestry);
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('cab');
     expect(
@@ -648,10 +638,6 @@ describe('automation runtime', () => {
     runtime = new RuntimeSession({ variables });
     expect(runtime.variables.getValue(`${skinId}.view`)).toBe('display');
     await runtime.dispose();
-    runtime = new RuntimeSession({ owner: false });
     expect(observed).toEqual([true, false]);
-    expect(() => runtime!.setSkinState(skinId, 'configured', false)).toThrow(
-      'Skin runtime is unavailable',
-    );
   });
 });

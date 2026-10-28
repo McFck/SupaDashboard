@@ -47,7 +47,6 @@ async function startOwner(channel: RuntimeSync) {
     return async () => {};
   }
   const { runtime, dispose } = await bootRuntime({
-    owner: true,
     onFailure: reportFailure,
     onQueueFull: reportQueueFull,
   });

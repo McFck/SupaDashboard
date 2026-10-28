@@ -16,7 +16,7 @@ function fakeRuntime() {
     variables,
     changePage: vi.fn(),
     changePageInDirection: vi.fn(),
-    simulate: vi.fn(async () => ({ status: 'completed' })),
+    dispatchTrigger: vi.fn(async () => ({ status: 'completed' })),
     emitEvent: vi.fn(async () => {}),
     stopControl: vi.fn(async () => {}),
     setVariable: vi.fn(async () => true),
@@ -72,18 +72,18 @@ describe('runtime requests from other windows', () => {
     await handleRuntimeRequest(runtime, request('emitEvent', { eventId: 'e', parameter: 'p' }));
     await handleRuntimeRequest(runtime, request('setVariable', { id: 'v', value: 2 }));
 
-    expect(runtime.simulate).toHaveBeenCalledWith('a', 'press', 'i');
+    expect(runtime.dispatchTrigger).toHaveBeenCalledWith('a', 'i', 'press');
     expect(runtime.emitEvent).toHaveBeenCalledWith('e', 'p');
     expect(runtime.setVariable).toHaveBeenCalledWith('v', 2);
   });
 
   it('acknowledges a simulation while the owner continues its run', async () => {
     const { runtime } = fakeRuntime();
-    vi.mocked(runtime.simulate).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(runtime.dispatchTrigger).mockImplementation(() => new Promise(() => {}));
 
     await expect(
       handleRuntimeRequest(runtime, request('simulate', { controlId: 'a' })),
     ).resolves.toEqual({ status: 'started' });
-    expect(runtime.simulate).toHaveBeenCalledWith('a', 'press', '');
+    expect(runtime.dispatchTrigger).toHaveBeenCalledWith('a', '', 'press');
   });
 });

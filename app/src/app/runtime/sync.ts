@@ -128,8 +128,6 @@ type Pending = {
 /** Request/reply protocol shared by Tauri webviews and browser BroadcastChannel tabs. */
 export class RuntimeSync {
   private pending = new Map<string, Pending>();
-  private dedupe = new Map<string, SyncMessage>();
-  private inFlight = new Map<string, Promise<SyncMessage>>();
   private revision = 0;
   private closed = false;
   constructor(
@@ -204,8 +202,6 @@ export class RuntimeSync {
       pending.reject(new Error('Runtime connection closed'));
     }
     this.pending.clear();
-    this.dedupe.clear();
-    this.inFlight.clear();
     this.options.onAvailability?.(false);
   }
 
@@ -243,54 +239,31 @@ export class RuntimeSync {
   }
 
   private async handleRequest(message: Extract<SyncMessage, { kind: 'request' }>) {
-    const key = `${message.sourceId}\u0000${message.requestId}`;
-    const cached = this.dedupe.get(key);
-    if (cached) {
-      this.adapter.send(cached);
-      return;
-    }
-    const active = this.inFlight.get(key);
-    if (active) {
-      this.adapter.send(await active);
-      return;
-    }
-    const operation = (async (): Promise<SyncMessage> => {
-      let reply: SyncMessage;
-      try {
-        if (!this.options.onRequest) throw new Error('Runtime request handler is unavailable');
-        const value = await this.options.onRequest(
-          structuredClone(message.request),
-          message.sourceId,
-        );
-        reply = {
-          kind: 'reply',
-          sourceId: this.sourceId,
-          destination: message.sourceId,
-          requestId: message.requestId,
-          revision: ++this.revision,
-          ok: true,
-          value: structuredClone(value),
-        };
-      } catch {
-        reply = {
-          kind: 'reply',
-          sourceId: this.sourceId,
-          destination: message.sourceId,
-          requestId: message.requestId,
-          revision: ++this.revision,
-          ok: false,
-          error: 'Runtime request failed',
-        };
-      }
-      this.dedupe.set(key, reply);
-      if (this.dedupe.size > 256) this.dedupe.delete(this.dedupe.keys().next().value!);
-      return reply;
-    })();
-    this.inFlight.set(key, operation);
+    const reply = {
+      kind: 'reply' as const,
+      sourceId: this.sourceId,
+      destination: message.sourceId,
+      requestId: message.requestId,
+    };
     try {
-      this.adapter.send(await operation);
-    } finally {
-      this.inFlight.delete(key);
+      if (!this.options.onRequest) throw new Error('Runtime request handler is unavailable');
+      const value = await this.options.onRequest(
+        structuredClone(message.request),
+        message.sourceId,
+      );
+      this.adapter.send({
+        ...reply,
+        revision: ++this.revision,
+        ok: true,
+        value: structuredClone(value),
+      });
+    } catch {
+      this.adapter.send({
+        ...reply,
+        revision: ++this.revision,
+        ok: false,
+        error: 'Runtime request failed',
+      });
     }
   }
 }

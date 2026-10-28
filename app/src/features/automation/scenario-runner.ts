@@ -42,7 +42,6 @@ export type RunnerServices = {
     payload?: unknown,
     ancestry?: EventAncestry,
   ): Promise<void>;
-  onError(failure: ScenarioFailure): void;
 };
 
 class RunCancelled extends Error {}
@@ -225,7 +224,6 @@ export class ScenarioRunner {
         stepId: issues[0].path,
         kind: 'condition' as const,
       };
-      this.report(failure);
       return { status: 'failed', failure };
     }
     const state: { count: number; signal: AbortSignal; packet: TriggerPacket } = {
@@ -247,7 +245,6 @@ export class ScenarioRunner {
         kind: failed.kind,
         ...(failed.actionId ? { actionId: failed.actionId } : {}),
       };
-      this.report(failure);
       return { status: 'failed', failure };
     }
   }
@@ -359,12 +356,5 @@ export class ScenarioRunner {
 
   private ensureActive(signal: AbortSignal) {
     if (signal.aborted) throw new RunCancelled();
-  }
-  private report(failure: ScenarioFailure) {
-    try {
-      this.services.onError(failure);
-    } catch {
-      /* error reporting must not restart a failed run */
-    }
   }
 }
