@@ -37,11 +37,13 @@
     <Section title="Installed">
       <div class="grid grid-cols-1 gap-2">
         {#each packages as p (p.id)}
-          <div class="flex items-center gap-4 rounded-xl bg-white/[.03] pr-4">
+          <div
+            class="flex items-center gap-4 rounded-xl bg-white/[.03] pr-4 transition-colors hover:bg-accent"
+          >
             <button
               type="button"
               onclick={() => (selected = p.id)}
-              class="flex min-w-0 flex-1 items-center gap-4 rounded-xl p-4 text-left transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+              class="flex min-w-0 flex-1 items-center gap-4 rounded-xl p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-white/[.06]"
                 ><Icon
