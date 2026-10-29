@@ -164,6 +164,12 @@ describe('skin declarations', () => {
         settings: [group('a', [num]), group('a', [{ ...num, key: 'x' }])],
       }),
     ).toThrow('group IDs');
+    expect(() =>
+      validateSkinDefinition({
+        ...base(),
+        settings: [num, group('general', [{ ...num, key: 'x' }])],
+      }),
+    ).toThrow('group IDs');
     expect(() => validateSkinDefinition({ ...base(), settings: [{ ...num, min: 2 }] })).toThrow(
       'min above max',
     );
