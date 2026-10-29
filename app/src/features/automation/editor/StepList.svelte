@@ -127,7 +127,7 @@
     const above = rect.top - viewport.top - 8,
       below = viewport.bottom - rect.bottom - 8;
     pickerAbove = below < 300 && above > below;
-    pickerHeight = Math.max(140, Math.min(360, pickerAbove ? above : below));
+    pickerHeight = Math.max(140, pickerAbove ? above : below);
     await changeLayout(() => onpickerchange(key));
     listNode?.parentElement
       ?.querySelector<HTMLInputElement>('[data-step-picker] input')

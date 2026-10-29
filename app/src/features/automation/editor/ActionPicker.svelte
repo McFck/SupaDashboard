@@ -68,7 +68,7 @@
     </div>
     <div
       bind:this={results}
-      class="picker-results flex min-h-0 min-w-0 shrink-0 flex-col"
+      class="picker-results flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
     >
       {#if groups.length === 0}<div class="py-3 text-center text-sm text-muted-foreground">
           No actions

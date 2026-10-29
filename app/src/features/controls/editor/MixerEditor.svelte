@@ -6,6 +6,7 @@
   import { Label } from '$lib/components/ui/label';
   import * as ToggleGroup from '$lib/components/ui/toggle-group';
   import { DEFAULT_MIXER_MAX_CHANNELS } from '../model';
+  import ScopeChoice from '../../../panel/ui/ScopeChoice.svelte';
   import IconPicker from './IconPicker.svelte';
   import { mixer } from '../../../plugins/core-volume';
   import { controlById } from '../../settings/state.svelte';
@@ -40,12 +41,9 @@
     }
     control.options = { ...control.options, ...patch };
   }
-  function setChannels(value: string) {
-    if (!value) {
-      return;
-    }
+  function setChannels(all: boolean) {
     save(
-      { channels: value === 'auto' ? 'auto' : running.slice(0, 4).map((target) => ({ target })) },
+      { channels: all ? 'auto' : running.slice(0, 4).map((target) => ({ target })) },
       'Mixer channels',
     );
   }
@@ -65,58 +63,12 @@
 </script>
 
 <div class="grid gap-3">
-  <ToggleGroup.Root
-    type="single"
-    variant="outline"
-    class="w-full"
-    value={!o.channels || o.channels === 'auto' ? 'auto' : 'fixed'}
-    onValueChange={setChannels}
+  <ScopeChoice
+    all={!Array.isArray(o.channels)}
+    count={fixed.length}
+    label="Channels"
+    onchange={setChannels}
   >
-    <ToggleGroup.Item
-      value="auto"
-      class="flex-1">All playing apps</ToggleGroup.Item
-    >
-    <ToggleGroup.Item
-      value="fixed"
-      class="flex-1">Chosen apps</ToggleGroup.Item
-    >
-  </ToggleGroup.Root>
-  <ToggleGroup.Root
-    type="single"
-    variant="outline"
-    class="w-full"
-    value={o.layout ?? 'auto'}
-    onValueChange={(v) => {
-      if (v) {
-        save({ layout: v }, 'Mixer layout');
-      }
-    }}
-  >
-    <ToggleGroup.Item
-      value="auto"
-      class="flex-1">Auto</ToggleGroup.Item
-    >
-    <ToggleGroup.Item
-      value="vertical"
-      class="flex-1">Vertical</ToggleGroup.Item
-    >
-    <ToggleGroup.Item
-      value="horizontal"
-      class="flex-1">Horizontal</ToggleGroup.Item
-    >
-  </ToggleGroup.Root>
-  <div class="grid grid-cols-[1fr_80px] items-center gap-2">
-    <Label class="text-xs">Channels</Label>
-    <Input
-      type="number"
-      min="1"
-      max="12"
-      value={o.max ?? DEFAULT_MIXER_MAX_CHANNELS}
-      aria-label="Channel limit"
-      oninput={(e) => setMax(e.currentTarget.value)}
-    />
-  </div>
-  {#if Array.isArray(o.channels)}
     {#each fixed as ch, i (i)}
       <div class="grid min-w-0 gap-3 rounded-xl bg-card p-3">
         <div class="flex min-w-0 items-end gap-2">
@@ -161,5 +113,40 @@
       onclick={() => save({ channels: [...fixed, { target: 'system' }] }, 'Add mixer channel')}
       ><Plus /> Add channel</Button
     >
-  {/if}
+  </ScopeChoice>
+  <ToggleGroup.Root
+    type="single"
+    variant="outline"
+    class="w-full"
+    value={o.layout ?? 'auto'}
+    onValueChange={(v) => {
+      if (v) {
+        save({ layout: v }, 'Mixer layout');
+      }
+    }}
+  >
+    <ToggleGroup.Item
+      value="auto"
+      class="flex-1">Auto</ToggleGroup.Item
+    >
+    <ToggleGroup.Item
+      value="vertical"
+      class="flex-1">Vertical</ToggleGroup.Item
+    >
+    <ToggleGroup.Item
+      value="horizontal"
+      class="flex-1">Horizontal</ToggleGroup.Item
+    >
+  </ToggleGroup.Root>
+  <div class="grid grid-cols-[1fr_80px] items-center gap-2">
+    <Label class="text-xs">Channels</Label>
+    <Input
+      type="number"
+      min="1"
+      max="12"
+      value={o.max ?? DEFAULT_MIXER_MAX_CHANNELS}
+      aria-label="Channel limit"
+      oninput={(e) => setMax(e.currentTarget.value)}
+    />
+  </div>
 </div>
