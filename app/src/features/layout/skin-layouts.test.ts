@@ -284,3 +284,31 @@ describe('skin layout storage', () => {
     expect(source).toEqual(before);
   });
 });
+
+describe('skin size overrides', () => {
+  it('never place a widget below its registered minimum, whatever the skin says', () => {
+    const { size: _fixed, ...free } = skin.slots[0];
+    skins.set(skinId, {
+      ...skin,
+      slots: [{ ...free, grid: { rows: 2, cols: 4, size: 40, gap: 4, sizing: 'auto' } }],
+      controlSkins: { [typeId]: { sizes: { main: { min: { w: 1, h: 1 } } } } } as any,
+    });
+    controlTypes.set(typeId, {
+      type: typeId,
+      title: 'Wide',
+      icon: 'Square',
+      component: {} as any,
+      size: { w: 2, h: 2 },
+      minSize: { w: 2, h: 2 },
+      create: () => ({ name: 'Wide', variants: [] }),
+    } as any);
+    const source = structuredClone(DEFAULTS);
+    source.controls = [{ id: 'w', name: 'Wide', type: typeId, variants: [] }] as any;
+    const target = { skinId, pageId: 'page-1', slotId: 'main' };
+
+    expect(canSetLayoutItems(source, target, [{ ...item('small', 'w', 0), w: 1, h: 1 }])).toBe(
+      false,
+    );
+    expect(canSetLayoutItems(source, target, [{ ...item('fits', 'w', 0), w: 2, h: 2 }])).toBe(true);
+  });
+});
