@@ -251,13 +251,16 @@
     </InspectorPane>
   </div>
 </div>
-{#if scenarioOpen && scenarioRequest}
-  <ScenarioEditor
-    bind:open={scenarioOpen}
-    controlId={scenarioRequest.controlId}
-    itemId={scenarioRequest.itemId}
-    initialTrigger={scenarioRequest.trigger}
-  />
+<!-- Stays mounted after closing so the dialog's exit animation can play; a new request remounts it fresh. -->
+{#if scenarioRequest}
+  {#key scenarioRequest}
+    <ScenarioEditor
+      bind:open={scenarioOpen}
+      controlId={scenarioRequest.controlId}
+      itemId={scenarioRequest.itemId}
+      initialTrigger={scenarioRequest.trigger}
+    />
+  {/key}
 {/if}
 <MoveWidgetDialog
   open={move.open}
