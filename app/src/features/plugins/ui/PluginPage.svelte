@@ -6,25 +6,27 @@
   import { Badge } from '$lib/components/ui/badge';
   import { Switch } from '$lib/components/ui/switch';
   import Icon from '../../controls/ui/Icon.svelte';
-  import { pluginState, setPluginEnabled, skins } from '../registry';
+  import { pluginState, setPluginEnabled, applets } from '../registry';
   import type { Param, Plugin } from '../contracts';
   import ParamControl from './ParamControl.svelte';
   import SettingsIndex from './SettingsIndex.svelte';
   import { labelEdit } from '../../layout/history.svelte';
-  import { nextSkinSettings, resolveSkinConfig, settingGroups } from '../../skins/definition';
+  import { nextAppletSettings, resolveAppletConfig, settingGroups } from '../../applets/definition';
   import { settings } from '../../settings/state.svelte';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
 
   let { plugin, onback }: { plugin: Plugin; onback: () => void } = $props();
-  const pluginSkins = $derived([...skins.values()].filter((skin) => skin.plugin === plugin.id));
+  const pluginApplets = $derived(
+    [...applets.values()].filter((applet) => applet.plugin === plugin.id),
+  );
   const aboutId = $derived(`${plugin.id}-about`);
   const sections = $derived(
-    pluginSkins.flatMap((skin) =>
-      settingGroups(skin.settings).map((group) => ({
+    pluginApplets.flatMap((applet) =>
+      settingGroups(applet.settings).map((group) => ({
         ...group,
-        id: `${skin.id}-${group.id}`,
-        skin,
+        id: `${applet.id}-${group.id}`,
+        applet,
       })),
     ),
   );
@@ -44,13 +46,18 @@
       changing = false;
     }
   }
-  function setSkinSetting(skin: (typeof pluginSkins)[number], param: Param, value: unknown) {
-    const next = nextSkinSettings(skin, settings.skinSettings[skin.id] ?? {}, param.key, value);
+  function setAppletSetting(applet: (typeof pluginApplets)[number], param: Param, value: unknown) {
+    const next = nextAppletSettings(
+      applet,
+      settings.skinSettings[applet.id] ?? {},
+      param.key,
+      value,
+    );
     if (!next) {
       return;
     }
-    labelEdit(`Change ${skin.title} ${param.label}`);
-    settings.skinSettings = { ...settings.skinSettings, [skin.id]: next };
+    labelEdit(`Change ${applet.title} ${param.label}`);
+    settings.skinSettings = { ...settings.skinSettings, [applet.id]: next };
   }
   function date(value?: string) {
     return value && Number.isFinite(Date.parse(value))
@@ -139,8 +146,8 @@
         <SettingsIndex items={[...sections, { id: aboutId, title: 'About' }]} />
       {/if}
       <div class="grid min-w-0 max-w-[740px] gap-8">
-        {#each sections as { id, title, skin, params } (id)}
-          {@const values = resolveSkinConfig(skin, settings.skinSettings[skin.id] ?? {})}
+        {#each sections as { id, title, applet, params } (id)}
+          {@const values = resolveAppletConfig(applet, settings.skinSettings[applet.id] ?? {})}
           <div
             {id}
             class="scroll-mt-14 @[900px]:scroll-mt-9"
@@ -155,10 +162,10 @@
                     id={`${id}-${param.key}`}
                     {param}
                     args={values}
-                    provider={skin.plugin}
+                    provider={applet.plugin}
                     value={values[param.key]}
                     showPluginMark={false}
-                    onchange={(value) => setSkinSetting(skin, param, value)}
+                    onchange={(value) => setAppletSetting(applet, param, value)}
                   />
                 </Row>
               {/each}
@@ -175,11 +182,11 @@
               ><span class="text-sm">{date($pluginState.installed[plugin.id])}</span></Row
             >
             <Row label="Size"><span class="text-sm tabular-nums">{size(plugin.size)}</span></Row>
-            {#each pluginSkins as skin (skin.id)}
-              {#if skin.alters?.length}
-                <Row label={skin.title}>
+            {#each pluginApplets as applet (applet.id)}
+              {#if applet.alters?.length}
+                <Row label={applet.title}>
                   <div class="flex flex-wrap justify-end gap-1.5">
-                    {#each skin.alters as alteration (alteration)}
+                    {#each applet.alters as alteration (alteration)}
                       <Badge variant="secondary">Changes {alteration}</Badge>
                     {/each}
                   </div>

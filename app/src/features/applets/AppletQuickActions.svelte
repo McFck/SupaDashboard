@@ -4,11 +4,11 @@
   import { actions } from '../plugins/registry';
   import { currentRuntime } from '../../app/runtime/session.svelte';
   import type { ActionDef, ActionRef } from '../plugins/contracts';
-  import { validSkinParam } from './definition';
+  import { validAppletParam } from './definition';
   import ParamField from '../plugins/ui/ParamField.svelte';
-  import { getSkinHostContext } from './context';
+  import { getAppletHostContext } from './context';
 
-  const host = getSkinHostContext();
+  const host = getAppletHostContext();
   const quickActionScale = $derived(1 / Math.max(host?.designScale ?? 1, 0.01));
   let root = $state<HTMLDivElement>();
   let expanded = $state<number | undefined>();
@@ -23,11 +23,11 @@
     return args;
   }
   const rows = $derived.by(() =>
-    (host?.skin.quickActions ?? []).map((ref, index) => {
+    (host?.applet.quickActions ?? []).map((ref, index) => {
       const action = actions.get(ref.id);
       const params = action?.params ?? [];
       const args = argsFor(ref, index, params);
-      const valid = params.every((param) => validSkinParam(param, args[param.key], args));
+      const valid = params.every((param) => validAppletParam(param, args[param.key], args));
       return { ref, index, action, params, args, valid };
     }),
   );
@@ -84,7 +84,7 @@
 
 <div
   bind:this={root}
-  data-skin-input="ui"
+  data-applet-input="ui"
   aria-hidden={!host?.quickActionsOpen}
   inert={!host?.quickActionsOpen}
   class="absolute inset-0 z-50 grid place-items-center p-5 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
@@ -103,14 +103,14 @@
     role="dialog"
     tabindex="-1"
     aria-modal="true"
-    aria-labelledby="skin-quick-actions-title"
+    aria-labelledby="applet-quick-actions-title"
     class="relative z-10 grid max-h-full w-full max-w-sm content-start gap-3 overflow-y-auto rounded-xl border bg-card p-4 shadow-xl"
     style:transform={`scale(${quickActionScale})`}
     style:max-height="calc(100vh - 2rem)"
   >
     <header class="flex items-center justify-between gap-3">
       <h2
-        id="skin-quick-actions-title"
+        id="applet-quick-actions-title"
         class="font-semibold"
       >
         Quick actions

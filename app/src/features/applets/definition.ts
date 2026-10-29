@@ -1,8 +1,8 @@
 import type { Param, SettingsGroup } from '../plugins/contracts';
 import type { VariableType } from '../automation/variables';
-import type { SkinDef } from './contracts';
+import type { AppletDef } from './contracts';
 
-type SkinSettings = NonNullable<SkinDef['settings']>;
+type AppletSettings = NonNullable<AppletDef['settings']>;
 
 const isGroup = (item: Param | SettingsGroup): item is SettingsGroup => 'params' in item;
 
@@ -10,12 +10,12 @@ const optionsOf = (param: Param, args?: Record<string, unknown>) =>
   typeof param.suggestions === 'function' ? param.suggestions(args) : param.suggestions;
 
 /** Every param in declaration order, whether declared loose or inside a group. */
-export function settingParams(settings: SkinSettings = []): Param[] {
+export function settingParams(settings: AppletSettings = []): Param[] {
   return settings.flatMap((item) => (isGroup(item) ? item.params : [item]));
 }
 
 /** Loose params share one General group, placed at the first loose param. */
-export function settingGroups(settings: SkinSettings = []): SettingsGroup[] {
+export function settingGroups(settings: AppletSettings = []): SettingsGroup[] {
   const groups: SettingsGroup[] = [];
   let general: SettingsGroup | undefined;
   for (const item of settings) {
@@ -32,7 +32,7 @@ export function settingGroups(settings: SkinSettings = []): SettingsGroup[] {
   return groups;
 }
 
-export function validSkinStateValue(type: VariableType, value: unknown) {
+export function validAppletStateValue(type: VariableType, value: unknown) {
   switch (type) {
     case 'boolean':
       return typeof value === 'boolean';
@@ -45,7 +45,7 @@ export function validSkinStateValue(type: VariableType, value: unknown) {
   }
 }
 
-export function validSkinParam(param: Param, value: unknown, args?: Record<string, unknown>) {
+export function validAppletParam(param: Param, value: unknown, args?: Record<string, unknown>) {
   if (param.type === 'boolean') {
     return typeof value === 'boolean';
   }
@@ -66,13 +66,13 @@ export function validSkinParam(param: Param, value: unknown, args?: Record<strin
   return optionsOf(param, args)?.some((option) => option.value === value) ?? false;
 }
 
-export function resolveSkinConfig(skin: SkinDef, stored: Record<string, unknown> = {}) {
+export function resolveAppletConfig(applet: AppletDef, stored: Record<string, unknown> = {}) {
   const config: Record<string, unknown> = { ...stored };
-  for (const param of settingParams(skin.settings)) {
+  for (const param of settingParams(applet.settings)) {
     const value = Object.hasOwn(stored, param.key) ? stored[param.key] : param.default;
-    if (value !== undefined && validSkinParam(param, value)) {
+    if (value !== undefined && validAppletParam(param, value)) {
       config[param.key] = value;
-    } else if (param.default !== undefined && validSkinParam(param, param.default)) {
+    } else if (param.default !== undefined && validAppletParam(param, param.default)) {
       config[param.key] = param.default;
     } else {
       delete config[param.key];
@@ -85,22 +85,22 @@ export function resolveSkinConfig(skin: SkinDef, stored: Record<string, unknown>
  * The stored settings after one change, or null when nothing changes. Settings whose value the change
  * invalidates (a select whose options depend on another setting) fall back to their default or first option.
  */
-export function nextSkinSettings(
-  skin: SkinDef,
+export function nextAppletSettings(
+  applet: AppletDef,
   stored: Record<string, unknown>,
   key: string,
   value: unknown,
 ): Record<string, unknown> | null {
-  const params = settingParams(skin.settings);
+  const params = settingParams(applet.settings);
   const param = params.find((item) => item.key === key);
-  const previous = resolveSkinConfig(skin, stored);
-  if (!param || !validSkinParam(param, value, previous)) {
+  const previous = resolveAppletConfig(applet, stored);
+  if (!param || !validAppletParam(param, value, previous)) {
     return null;
   }
   const next = { ...stored, [key]: value };
   const resolved = { ...previous, [key]: value };
   for (const dependent of params) {
-    if (dependent.key === key || validSkinParam(dependent, resolved[dependent.key], resolved)) {
+    if (dependent.key === key || validAppletParam(dependent, resolved[dependent.key], resolved)) {
       continue;
     }
     const options = optionsOf(dependent, resolved);
@@ -121,10 +121,10 @@ export function nextSkinSettings(
   return unchanged ? null : next;
 }
 
-/** Skins are bundled with the app, so this catches developer mistakes; the types cover the rest. */
-export function validateSkinDefinition(def: SkinDef) {
+/** Applets are bundled with the app, so this catches developer mistakes; the types cover the rest. */
+export function validateAppletDefinition(def: AppletDef) {
   const fail = (message: string): never => {
-    throw new Error(`Invalid skin "${def.id}": ${message}`);
+    throw new Error(`Invalid applet "${def.id}": ${message}`);
   };
   const positive = (...values: number[]) => values.every((v) => Number.isFinite(v) && v > 0);
   const positiveInt = (...values: number[]) =>
@@ -177,7 +177,7 @@ export function validateSkinDefinition(def: SkinDef) {
     if (!/^[a-zA-Z][\w-]*$/.test(field.key) || field.key === 'view' || fields.has(field.key)) {
       fail('state keys must be unique namespaced fields');
     }
-    if (!validSkinStateValue(field.type, field.initialValue)) {
+    if (!validAppletStateValue(field.type, field.initialValue)) {
       fail(`state field "${field.key}" has an invalid value`);
     }
     fields.add(field.key);
@@ -207,7 +207,7 @@ export function validateSkinDefinition(def: SkinDef) {
       events.has(event.id) ||
       !event.title.trim()
     ) {
-      fail('events must have unique skin-prefixed IDs and titles');
+      fail('events must have unique applet-prefixed IDs and titles');
     }
     events.add(event.id);
   }

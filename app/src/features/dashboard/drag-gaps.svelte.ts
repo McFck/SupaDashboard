@@ -4,11 +4,11 @@ import { complementRectangles } from './gap-geometry';
 import type { Geometry } from '../display/geometry';
 import { INTERACTIVE } from './pager.svelte';
 
-const EXCLUDED = `[data-skin-input], .tile, ${INTERACTIVE}`;
+const EXCLUDED = `[data-applet-input], .tile, ${INTERACTIVE}`;
 const CHROME = '.dashboard-page-dots, .dashboard-page-dots button, [data-resize-handle]';
 const OBSERVED_ATTRIBUTES = [
   'data-visible-page',
-  'data-skin-input',
+  'data-applet-input',
   'aria-hidden',
   'inert',
   'style',
@@ -60,12 +60,12 @@ export class DragGaps {
     if (this.destroyed) {
       return;
     }
-    const skinRoot = this.visibleSkinRoot();
+    const appletRoot = this.visibleAppletRoot();
     const next = new Set<Element>([
-      ...(skinRoot ? [skinRoot] : []),
+      ...(appletRoot ? [appletRoot] : []),
       ...this.shell.ownerDocument.querySelectorAll(CHROME),
     ]);
-    skinRoot?.querySelectorAll(EXCLUDED).forEach((node) => next.add(node));
+    appletRoot?.querySelectorAll(EXCLUDED).forEach((node) => next.add(node));
     for (const node of this.observed) {
       if (!next.has(node)) {
         this.resizeObserver.unobserve(node);
@@ -89,26 +89,26 @@ export class DragGaps {
     this.observed.clear();
   }
 
-  private visibleSkinRoot() {
+  private visibleAppletRoot() {
     return this.pageHost.querySelector<HTMLElement>('[data-visible-page="true"]');
   }
 
   private measure() {
-    const skinRoot = this.visibleSkinRoot();
-    if (!skinRoot || this.busy()) {
+    const appletRoot = this.visibleAppletRoot();
+    if (!appletRoot || this.busy()) {
       this.rects = [];
       return;
     }
     const surface = this.shell.getBoundingClientRect();
     const excluded: Geometry[] = [];
     const exclude = (node: Element) => {
-      const rect = visibleRect(node, skinRoot, surface);
+      const rect = visibleRect(node, appletRoot, surface);
       if (rect && !excluded.some((outer) => contains(outer, rect))) {
         excluded.push(rect);
       }
     };
-    skinRoot.querySelectorAll('[data-dashboard-tile]').forEach(exclude);
-    skinRoot.querySelectorAll(EXCLUDED).forEach(exclude);
+    appletRoot.querySelectorAll('[data-dashboard-tile]').forEach(exclude);
+    appletRoot.querySelectorAll(EXCLUDED).forEach(exclude);
     // The resize grips sit outside the shell (its rounded clip would cut the corners), so look document-wide.
     this.shell.ownerDocument.querySelectorAll(CHROME).forEach(exclude);
     this.rects = complementRectangles(
@@ -121,21 +121,21 @@ export class DragGaps {
 }
 
 /** The node's box relative to the shell, or null when it is hidden and takes no input. */
-function visibleRect(node: Element, skinRoot: HTMLElement, surface: DOMRect): Geometry | null {
-  if (node.closest('[data-skin-input="ui"][aria-hidden="true"]')) {
+function visibleRect(node: Element, appletRoot: HTMLElement, surface: DOMRect): Geometry | null {
+  if (node.closest('[data-applet-input="ui"][aria-hidden="true"]')) {
     return null;
   }
   // Opening overlays start their opacity transition at zero; their logical state already owns pointer input.
-  const skinSurface = node.matches(
-    '[data-skin-input="scene"], [data-skin-input="slot"], [data-skin-input="ui"][aria-hidden="false"]',
+  const appletSurface = node.matches(
+    '[data-applet-input="scene"], [data-applet-input="slot"], [data-applet-input="ui"][aria-hidden="false"]',
   );
   for (
     let current: Element | null = node;
-    current && current !== skinRoot.parentElement;
+    current && current !== appletRoot.parentElement;
     current = current.parentElement
   ) {
     const style = getComputedStyle(current);
-    const transparent = !skinSurface && Number(style.opacity) === 0;
+    const transparent = !appletSurface && Number(style.opacity) === 0;
     if (style.display === 'none' || style.visibility === 'hidden' || transparent) {
       return null;
     }

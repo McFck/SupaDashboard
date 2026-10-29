@@ -1,8 +1,8 @@
 import { tick } from 'svelte';
 import { toast } from 'svelte-sonner';
-import { skins } from '../../plugins/registry';
+import { applets } from '../../plugins/registry';
 import { settings } from '../../settings/state.svelte';
-import { layoutFor, type LayoutTarget } from '../skin-layouts';
+import { layoutFor, type LayoutTarget } from '../applet-layouts';
 import { moveToSlot } from '../slot-edits';
 import { moveOptions as buildMoveOptions, type MoveMode } from '../move-options';
 import type { LayoutEditorState } from './editor-state.svelte';
@@ -53,14 +53,14 @@ export class WidgetMove {
   }
 
   optionsFor(mode: MoveMode, sourceTarget: LayoutTarget, itemId: string) {
-    const skin = skins.get(sourceTarget.skinId);
-    const slots = skin?.views.find((view) => view.id === this.editor.viewId)?.slots ?? [];
-    return buildMoveOptions(settings, skin, slots, mode, sourceTarget, itemId);
+    const applet = applets.get(sourceTarget.appletId);
+    const slots = applet?.views.find((view) => view.id === this.editor.viewId)?.slots ?? [];
+    return buildMoveOptions(settings, applet, slots, mode, sourceTarget, itemId);
   }
 
   openMoveDialog(mode: MoveMode, sourceTarget: LayoutTarget, itemId: string) {
-    const { skinId, pageId, slotId } = sourceTarget;
-    const source = layoutFor(settings, skinId, pageId, slotId);
+    const { appletId, pageId, slotId } = sourceTarget;
+    const source = layoutFor(settings, appletId, pageId, slotId);
     const firstAvailable = this.optionsFor(mode, sourceTarget, itemId).find(
       (option) => !option.disabled,
     );
@@ -97,11 +97,11 @@ export class WidgetMove {
   }
 
   moveSourceStillShown(request: MoveRequest) {
-    const { skinId, pageId, slotId } = request.sourceTarget;
-    const source = layoutFor(settings, skinId, pageId, slotId);
+    const { appletId, pageId, slotId } = request.sourceTarget;
+    const source = layoutFor(settings, appletId, pageId, slotId);
     return (
       this.editor.pageId === pageId &&
-      this.editor.skin.id === skinId &&
+      this.editor.applet.id === appletId &&
       !!source?.items.some((item) => item.id === request.itemId) &&
       this.editor.visibleSlots.includes(slotId)
     );

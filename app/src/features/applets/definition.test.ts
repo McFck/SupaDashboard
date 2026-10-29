@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
-  nextSkinSettings,
-  resolveSkinConfig,
-  validSkinParam,
-  validateSkinDefinition,
+  nextAppletSettings,
+  resolveAppletConfig,
+  validAppletParam,
+  validateAppletDefinition,
 } from './definition';
-import { type SkinDef } from './contracts';
+import { type AppletDef } from './contracts';
 import type { Param } from '../plugins/contracts';
 
-const base = (): SkinDef => ({
+const base = (): AppletDef => ({
   id: 'sample',
   title: 'Sample',
   component: {} as any,
@@ -17,30 +17,32 @@ const base = (): SkinDef => ({
   defaultView: 'default',
 });
 
-describe('skin declarations', () => {
+describe('applet declarations', () => {
   it('accepts a complete declaration and rejects duplicate or dangling IDs before registration', () => {
-    expect(() => validateSkinDefinition(base())).not.toThrow();
+    expect(() => validateAppletDefinition(base())).not.toThrow();
     expect(() =>
-      validateSkinDefinition({ ...base(), slots: [...base().slots, base().slots[0]] }),
+      validateAppletDefinition({ ...base(), slots: [...base().slots, base().slots[0]] }),
     ).toThrow('slot IDs');
     expect(() =>
-      validateSkinDefinition({
+      validateAppletDefinition({
         ...base(),
         views: [{ id: 'other', title: 'Other', slots: ['missing'] }],
       }),
     ).toThrow('slot references');
-    expect(() => validateSkinDefinition({ ...base(), defaultView: 'missing' })).toThrow(
+    expect(() => validateAppletDefinition({ ...base(), defaultView: 'missing' })).toThrow(
       'defaultView',
     );
   });
 
   it('validates Boolean, numeric and select Param values without changing their types', () => {
-    expect(validSkinParam({ key: 'enabled', label: 'Enabled', type: 'boolean' }, true)).toBe(true);
-    expect(validSkinParam({ key: 'enabled', label: 'Enabled', type: 'boolean' }, 'true')).toBe(
+    expect(validAppletParam({ key: 'enabled', label: 'Enabled', type: 'boolean' }, true)).toBe(
+      true,
+    );
+    expect(validAppletParam({ key: 'enabled', label: 'Enabled', type: 'boolean' }, 'true')).toBe(
       false,
     );
     expect(
-      validSkinParam(
+      validAppletParam(
         {
           key: 'line',
           label: 'Line',
@@ -51,7 +53,7 @@ describe('skin declarations', () => {
       ),
     ).toBe(true);
     expect(
-      validSkinParam(
+      validAppletParam(
         {
           key: 'line',
           label: 'Line',
@@ -62,7 +64,7 @@ describe('skin declarations', () => {
       ),
     ).toBe(false);
     expect(
-      validSkinParam(
+      validAppletParam(
         {
           key: 'target',
           label: 'Target',
@@ -76,7 +78,7 @@ describe('skin declarations', () => {
   });
 
   it('resolves valid defaults without mutating or dropping unknown stored settings', () => {
-    const skin = {
+    const applet = {
       ...base(),
       settings: [
         {
@@ -90,7 +92,7 @@ describe('skin declarations', () => {
       ],
     };
     const stored = { line: 'missing', enabled: true, future: '保留' };
-    expect(resolveSkinConfig(skin, stored)).toEqual({
+    expect(resolveAppletConfig(applet, stored)).toEqual({
       line: 'demo',
       enabled: true,
       future: '保留',
@@ -130,47 +132,47 @@ describe('skin declarations', () => {
         { id: 'more', title: 'More', params: [hidden] },
       ],
     };
-    expect(resolveSkinConfig(grouped, stored)).toEqual(resolveSkinConfig(flat, stored));
-    expect(resolveSkinConfig(grouped, stored)).toMatchObject({ corner: 'tl', future: 1 });
+    expect(resolveAppletConfig(grouped, stored)).toEqual(resolveAppletConfig(flat, stored));
+    expect(resolveAppletConfig(grouped, stored)).toMatchObject({ corner: 'tl', future: 1 });
   });
 
   it('resets a dependent setting its parent change invalidated, and reports no-ops as null', () => {
-    const skin = { ...base(), settings: route };
+    const applet = { ...base(), settings: route };
     const stored = { line: 'a', direction: 'inner', future: 1 };
-    expect(nextSkinSettings(skin, stored, 'line', 'b')).toEqual({
+    expect(nextAppletSettings(applet, stored, 'line', 'b')).toEqual({
       line: 'b',
       direction: 'up',
       future: 1,
     });
-    expect(nextSkinSettings(skin, stored, 'line', 'a')).toBeNull();
-    expect(nextSkinSettings(skin, stored, 'line', 'zzz')).toBeNull();
+    expect(nextAppletSettings(applet, stored, 'line', 'a')).toBeNull();
+    expect(nextAppletSettings(applet, stored, 'line', 'zzz')).toBeNull();
     expect(stored).toEqual({ line: 'a', direction: 'inner', future: 1 });
   });
 
   it('rejects duplicate setting keys, duplicate group ids and numbers outside min and max', () => {
     const num: Param = { key: 'volume', label: 'Volume', type: 'number', min: 0, max: 1 };
-    expect(validSkinParam(num, 0.5)).toBe(true);
-    expect(validSkinParam(num, 2)).toBe(false);
+    expect(validAppletParam(num, 0.5)).toBe(true);
+    expect(validAppletParam(num, 2)).toBe(false);
     const group = (id: string, params: Param[]) => ({ id, title: id, params });
     expect(() =>
-      validateSkinDefinition({
+      validateAppletDefinition({
         ...base(),
         settings: [group('a', [num]), group('b', [num])],
       }),
     ).toThrow('duplicate setting');
     expect(() =>
-      validateSkinDefinition({
+      validateAppletDefinition({
         ...base(),
         settings: [group('a', [num]), group('a', [{ ...num, key: 'x' }])],
       }),
     ).toThrow('group IDs');
     expect(() =>
-      validateSkinDefinition({
+      validateAppletDefinition({
         ...base(),
         settings: [num, group('general', [{ ...num, key: 'x' }])],
       }),
     ).toThrow('group IDs');
-    expect(() => validateSkinDefinition({ ...base(), settings: [{ ...num, min: 2 }] })).toThrow(
+    expect(() => validateAppletDefinition({ ...base(), settings: [{ ...num, min: 2 }] })).toThrow(
       'min above max',
     );
   });

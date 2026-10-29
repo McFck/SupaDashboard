@@ -1,14 +1,14 @@
 import type { SceneInput, SceneRect } from './scene-contracts';
 
-export type SkinGesture = 'tripleTap' | 'cornerHold' | 'off';
-export type SkinCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+export type AppletGesture = 'tripleTap' | 'cornerHold' | 'off';
+export type AppletCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
 
 type ActivePress = { pointerId: number; down: SceneInput; events: SceneInput[]; held: boolean };
 type Timer = ReturnType<typeof setTimeout>;
 
-export class SkinInputRecognizer {
-  private gesture: SkinGesture = 'tripleTap';
-  private corner: SkinCorner = 'bottomRight';
+export class AppletInputRecognizer {
+  private gesture: AppletGesture = 'tripleTap';
+  private corner: AppletCorner = 'bottomRight';
   private pending: SceneInput[][] = [];
   private lastTapUp?: SceneInput;
   private active?: ActivePress;
@@ -23,7 +23,7 @@ export class SkinInputRecognizer {
     private readonly cancelTimer: (timer: Timer) => void = (timer) => clearTimeout(timer),
   ) {}
 
-  setOptions(gesture: SkinGesture, corner: SkinCorner) {
+  setOptions(gesture: AppletGesture, corner: AppletCorner) {
     if (gesture === this.gesture && corner === this.corner) {
       return;
     }

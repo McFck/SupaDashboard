@@ -7,7 +7,7 @@ import { EventRegistry } from '../../features/automation/events';
 import {
   runAction,
   setRegistryRuntime,
-  skins as registeredSkins,
+  applets as registeredApplets,
   statusSources,
 } from '../../features/plugins/registry';
 import { captureEvent, captureTrigger } from '../../features/automation/capture';
@@ -29,7 +29,7 @@ import { hasPlacement, storedPlacements } from '../../features/layout/placements
 import { ContentController } from '../../features/media/content-controller';
 import { StatusController } from '../../features/media/status-controller';
 import { resolveArtwork } from '../../platform/media';
-import { SkinController } from '../../features/skins/skin-controller';
+import { AppletController } from '../../features/applets/applet-controller';
 import { startClock } from '../../features/automation/clock';
 import { EMPTY, type RuntimeSnapshot } from './state';
 import { VariableSaver, type VariablePersistence } from './variable-persistence';
@@ -101,7 +101,7 @@ export class RuntimeSession {
   private readonly content: ContentController;
   private readonly status: StatusController;
   readonly pages: PageController;
-  readonly skins: SkinController;
+  readonly applets: AppletController;
   private unsubscribeVariables: () => void = () => {};
   private detachRegistry: () => void = () => {};
   private stopRemoteSettings: () => void = () => {};
@@ -139,8 +139,8 @@ export class RuntimeSession {
           kind: 'condition',
         }),
     });
-    this.skins = new SkinController({
-      definitions: registeredSkins,
+    this.applets = new AppletController({
+      definitions: registeredApplets,
       variables: this.variables,
       getSettings: () => settings.skinSettings,
       isOwner: () => this.isOwner,
@@ -197,9 +197,9 @@ export class RuntimeSession {
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(id, parameter, payload, ancestry),
     });
-    this.skins.start();
+    this.applets.start();
     this.stopRemoteSettings = onRemoteSettings((next) => {
-      this.skins.reconcile(next.skinSettings);
+      this.applets.reconcile(next.skinSettings);
     });
     this.stopSettingsEffect = $effect.root(() => {
       $effect(() => {
@@ -249,7 +249,7 @@ export class RuntimeSession {
     return this.execution.dispatch(packet);
   }
 
-  /** Skin quick actions belong to no control: they skip the control lanes and stop with the session. */
+  /** Applet quick actions belong to no control: they skip the control lanes and stop with the session. */
   async dispatchQuickAction(ref: ActionRef): Promise<RunResult> {
     if (!this.isOwner) {
       return { status: 'rejected' };
@@ -427,7 +427,7 @@ export class RuntimeSession {
       this.stopRemoteSettings,
       this.stopSettingsEffect,
       this.unsubscribeVariables,
-      () => this.skins.dispose(),
+      () => this.applets.dispose(),
       () => this.status.dispose(),
       this.detachRegistry,
       () => this.execution.dispose(),

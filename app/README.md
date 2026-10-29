@@ -1,7 +1,7 @@
 # SupaDashboard app
 
 Tauri 2 (Rust) + Svelte 5 + TypeScript + shadcn-svelte. A customizable dashboard for a second screen
-(e.g. a spacedesk tablet). Skins change the whole look; the subway display is one optional skin.
+(e.g. a spacedesk tablet). Applets change the whole look; the subway display is one optional applet.
 
 ```
 pnpm install
@@ -24,11 +24,11 @@ src/
     controls/      control model, interaction, geometry; ui/ renderers, editor/
     dashboard/     dashboard view and page swipe
     display/       monitor and window geometry
-    layout/        grid, pages, skin placements, undo; ui/ deck grid and layout page
+    layout/        grid, pages, applet placements, undo; ui/ deck grid and layout page
     media/         content options, visibility, caches, volume
     plugins/       contracts, registry, plugin store; ui/ plugin pages and option pickers
     settings/      schema, migration, reactive state; settings page
-    skins/         skin definition, scene, input, host and slots
+    applets/         applet definition, scene, input, host and slots
   plugins/         bundled plugins: core, ui, spotify, subway/
   lib/             feature-independent helpers and UI primitives ($lib)
 tests/
@@ -44,7 +44,7 @@ runtime and window model, and the persistence guarantees.
 ## Windows
 
 - **Dashboard** (`main`): transparent and frameless, only the widgets are drawn. Closing hides it to the tray.
-- **Control panel** (`panel`): opened from the tray icon (left click or menu). Layout editor, strips, skin & display,
+- **Control panel** (`panel`): opened from the tray icon (left click or menu). Layout editor, strips, applet & display,
   plugins. Every change is written to the shared settings store and appears on the dashboard instantly.
 - **Tray menu**: open control panel, show / hide dashboard, quit.
 
@@ -52,19 +52,19 @@ One frontend bundle serves both; `src/main.ts` picks the view from the window la
 
 ## Layout editor
 
-Centre: the selected skin at scale. Deck keeps its grid editor: tap a widget to select it, drag it to move, drag the
-corner handle to resize, and tap an empty spot to add a widget or place an existing control. For other skins, the
-editor shows that skin's frozen scene and its visible slots as drop zones. Page tabs select stored layouts; the local
-skin view preview does not change the dashboard's active page or view.
+Centre: the selected applet at scale. Deck keeps its grid editor: tap a widget to select it, drag it to move, drag the
+corner handle to resize, and tap an empty spot to add a widget or place an existing control. For other applets, the
+editor shows that applet's frozen scene and its visible slots as drop zones. Page tabs select stored layouts; the local
+applet view preview does not change the dashboard's active page or view.
 
-Placements are stored per skin and page. Deck's `main` slot uses the existing `deck.pages[pageId].items` array;
-other skin slots use `skinLayouts[skinId][pageId][slotId]`. Slot rules filter widget kinds and sizes before adding or
-moving a placement. Widgets keep the shared control behavior, with optional skin-specific face renderers.
+Placements are stored per applet and page. Deck's `main` slot uses the existing `deck.pages[pageId].items` array;
+other applet slots use `skinLayouts[appletId][pageId][slotId]`. Slot rules filter widget kinds and sizes before adding or
+moving a placement. Widgets keep the shared control behavior, with optional applet-specific face renderers.
 
-### Skins
+### Applets
 
-Plugins can register skin views, slots, control faces, settings, owner-scoped state and events, quick actions, and page
-navigation. Swipe is the default page navigation; a skin can own it and use the host's `page.prev()` and
+Plugins can register applet views, slots, control faces, settings, owner-scoped state and events, quick actions, and page
+navigation. Swipe is the default page navigation; a applet can own it and use the host's `page.prev()` and
 `page.next()` methods for its own controls. The dashboard remains a non-activating surface; native foreground and
 hide/resume behavior needs an isolated Tauri check and is not established by browser validation.
 
@@ -77,7 +77,7 @@ hide/resume behavior needs an isolated Tauri check and is not established by bro
 | Actions       | `src/features/plugins/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, and `open` |
 | Media sources | same                               | where media commands go: core `system` (current Windows player); plugins add more                                                                                                                                                     |
 | Values        | same                               | what a slider controls: `volume {target: "system" \| process name}`                                                                                                                                                                   |
-| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets + skins), `spotify` (media source, icon, mixer icon, `spotify.open`)                                                                                                                                   |
+| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets + applets), `spotify` (media source, icon, mixer icon, `spotify.open`)                                                                                                                                 |
 | Native        | `src-tauri/src/`                   | `audio/` (volume, mixer, media sessions), `dashboard/`, `panel/`, `content/`, `tray.rs`, `monitors.rs`                                                                                                                                |
 
 Deck settings: `%APPDATA%\dev.supadashboard.app\settings.json` (version 5; older versions migrate on load). Pages share controls and scenario definitions; page selection is runtime state for the current dashboard launch. Persistent variables are stored separately in `variables.json`.
@@ -107,7 +107,7 @@ placed Web widget. Failed or blocked frames show `Unavailable`; page-hidden refr
 The Subway skin displays the Yamanote, Hibiya, and Sakaisuji line information screens, a route overview, and a
 deterministic simulated run. Immersion audio uses the bundled motion profiles and compatible sound-pack cues; it
 creates audio only in the visible dashboard owner. The shared mixer exposes it as **Subway**, independently of
-Windows app channels. Mixer gain and mute persist as `subway.mixVolume` and `subway.mixMuted`; the skin's
+Windows app channels. Mixer gain and mute persist as `subway.mixVolume` and `subway.mixMuted`; the applet's
 announcement-volume setting affects voice cues only. The Sakaisuji motion profile is generic Osaka Metro sound,
 not a Hankyu recording. The content and timing limits are in the local `docs/subway-assets.md`.
 

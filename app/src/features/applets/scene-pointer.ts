@@ -1,5 +1,5 @@
-import type { SkinHostContext } from './context';
-import type { SceneInput, SkinSceneRenderer } from './scene-contracts';
+import type { AppletHostContext } from './context';
+import type { SceneInput, AppletSceneRenderer } from './scene-contracts';
 
 /** Owns capture and the in-flight scene gesture, including cancellation on visibility changes. */
 export class ScenePointer {
@@ -10,8 +10,8 @@ export class ScenePointer {
       canvas(): HTMLCanvasElement;
       size(): { width: number; height: number };
       active(): boolean;
-      context?: SkinHostContext;
-      renderer(): SkinSceneRenderer | undefined;
+      context?: AppletHostContext;
+      renderer(): AppletSceneRenderer | undefined;
     },
   ) {}
 

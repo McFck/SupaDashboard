@@ -1,5 +1,5 @@
 import type { Plugin } from '../features/plugins/contracts';
-import DeckSkin from '../features/skins/deck/DeckSkin.svelte';
+import DeckApplet from '../features/applets/deck/DeckApplet.svelte';
 import { registerUiControls } from './ui-controls';
 import { registerUiContentActions } from './ui-content-actions';
 
@@ -10,10 +10,10 @@ export const uiPlugin: Plugin = {
   setup(api) {
     registerUiControls(api);
     registerUiContentActions(api);
-    api.registerSkin({
+    api.registerApplet({
       id: 'deck',
       title: 'Deck',
-      component: DeckSkin,
+      component: DeckApplet,
       slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
       views: [{ id: 'default', title: 'Deck', slots: ['main'] }],
       defaultView: 'default',

@@ -1,16 +1,16 @@
 import { runtimeView } from '../../app/runtime/state';
-import type { SkinHostContext } from './context';
+import type { AppletHostContext } from './context';
 import type { Page } from '../settings/schema';
 import type { VariableValue } from '../automation/variables';
 import type { SceneInput, SceneRect } from './scene-contracts';
-import { SkinInputRecognizer, type SkinCorner, type SkinGesture } from './input';
-import { resolveSkinConfig } from './definition';
+import { AppletInputRecognizer, type AppletCorner, type AppletGesture } from './input';
+import { resolveAppletConfig } from './definition';
 import { settings } from '../settings/state.svelte';
 import type { RuntimeCommands } from '../../app/runtime/commands';
 
 type HostOptions = Pick<
-  SkinHostContext,
-  | 'skin'
+  AppletHostContext,
+  | 'applet'
   | 'mode'
   | 'visible'
   | 'pageRenderVisible'
@@ -20,18 +20,18 @@ type HostOptions = Pick<
   | 'resolvePresentation'
 > & { page: Page; previewViewId: string };
 
-export class SkinHostController implements SkinHostContext {
+export class AppletHostController implements AppletHostContext {
   width = $state(0);
   height = $state(0);
   private designHeight = $state<number>();
   quickActionsOpen = $state(false);
   private runtimeOwner = $state(false);
   state = $state<Record<string, VariableValue>>({});
-  private readonly input = new SkinInputRecognizer(() => this.setQuickActionsOpen(true));
+  private readonly input = new AppletInputRecognizer(() => this.setQuickActionsOpen(true));
   private unsubscribe = () => {};
-  readonly fittedHeight = $derived(this.designHeight ?? this.skin.design?.height ?? 0);
+  readonly fittedHeight = $derived(this.designHeight ?? this.applet.design?.height ?? 0);
   readonly fit = $derived.by(() => {
-    const design = this.skin.design;
+    const design = this.applet.design;
     const { width, height, fittedHeight } = this;
     if (!design || ![width, height, fittedHeight].every((v) => Number.isFinite(v) && v > 0)) {
       return null;
@@ -44,22 +44,22 @@ export class SkinHostController implements SkinHostContext {
     };
   });
   readonly viewId = $derived.by(() => {
-    const skin = this.skin;
+    const applet = this.applet;
     const value = this.mode === 'editor' ? this.source.previewViewId : this.state.view;
-    return typeof value === 'string' && skin.views.some((view) => view.id === value)
+    return typeof value === 'string' && applet.views.some((view) => view.id === value)
       ? value
-      : skin.defaultView;
+      : applet.defaultView;
   });
 
   constructor(
     private readonly source: HostOptions,
-    private readonly commands: Pick<RuntimeCommands, 'requestPageChange' | 'setSkinView'>,
+    private readonly commands: Pick<RuntimeCommands, 'requestPageChange' | 'setAppletView'>,
     private readonly preview: (view: string) => void,
   ) {
     $effect(() => {
       // These changes invalidate buffered gestures and close the current quick-action overlay.
       const dependencies = [
-        this.skin.id,
+        this.applet.id,
         this.page.id,
         this.visible,
         this.pageRenderVisible,
@@ -73,8 +73,8 @@ export class SkinHostController implements SkinHostContext {
     });
   }
 
-  get skin() {
-    return this.source.skin;
+  get applet() {
+    return this.source.applet;
   }
   get mode() {
     return this.source.mode;
@@ -98,7 +98,7 @@ export class SkinHostController implements SkinHostContext {
     return this.source.resolvePresentation;
   }
   get designScale() {
-    return this.skin.design ? (this.fit?.scale ?? 0) : 1;
+    return this.applet.design ? (this.fit?.scale ?? 0) : 1;
   }
   get designOffset() {
     return { x: this.fit?.offsetX ?? 0, y: this.fit?.offsetY ?? 0 };
@@ -107,17 +107,17 @@ export class SkinHostController implements SkinHostContext {
     return { width: this.width, height: this.height };
   }
   get config() {
-    return resolveSkinConfig(this.skin, settings.skinSettings[this.skin.id] ?? {});
+    return resolveAppletConfig(this.applet, settings.skinSettings[this.applet.id] ?? {});
   }
   get page() {
     return Object.assign({}, this.source.page, {
       next: () =>
         this.mode === 'runtime'
-          ? this.commands.requestPageChange({ direction: 'next' }, 'skin')
+          ? this.commands.requestPageChange({ direction: 'next' }, 'applet')
           : Promise.resolve(false),
       prev: () =>
         this.mode === 'runtime'
-          ? this.commands.requestPageChange({ direction: 'prev' }, 'skin')
+          ? this.commands.requestPageChange({ direction: 'prev' }, 'applet')
           : Promise.resolve(false),
     });
   }
@@ -129,7 +129,7 @@ export class SkinHostController implements SkinHostContext {
   }
 
   async setView(next: string) {
-    if (!this.skin.views.some((view) => view.id === next) || next === this.viewId) {
+    if (!this.applet.views.some((view) => view.id === next) || next === this.viewId) {
       return false;
     }
     if (this.mode === 'editor') {
@@ -139,7 +139,7 @@ export class SkinHostController implements SkinHostContext {
     if (!this.runtimeOwner) {
       return false;
     }
-    return this.commands.setSkinView(this.skin.id, next);
+    return this.commands.setAppletView(this.applet.id, next);
   }
 
   setQuickActionsOpen(open: boolean) {
@@ -148,12 +148,12 @@ export class SkinHostController implements SkinHostContext {
 
   routeSceneInput(input: SceneInput, rect: SceneRect, deliver: (input: SceneInput) => void) {
     const config = this.config;
-    let gesture: SkinGesture = 'off';
-    if (this.mode === 'runtime' && this.runtimeOwner && this.skin.quickActions?.length) {
+    let gesture: AppletGesture = 'off';
+    if (this.mode === 'runtime' && this.runtimeOwner && this.applet.quickActions?.length) {
       gesture =
         config.gesture === 'cornerHold' || config.gesture === 'off' ? config.gesture : 'tripleTap';
     }
-    let corner: SkinCorner = 'bottomRight';
+    let corner: AppletCorner = 'bottomRight';
     if (
       config.corner === 'topLeft' ||
       config.corner === 'topRight' ||
@@ -170,7 +170,7 @@ export class SkinHostController implements SkinHostContext {
   }
 
   onOriginDown(event: PointerEvent) {
-    if (event.target instanceof Element && event.target.closest('[data-skin-input="scene"]')) {
+    if (event.target instanceof Element && event.target.closest('[data-applet-input="scene"]')) {
       return;
     }
     this.resetSceneInput();
@@ -182,13 +182,13 @@ export class SkinHostController implements SkinHostContext {
         this.runtimeOwner = snapshot.owner;
       }
       const next: Record<string, VariableValue> = {};
-      for (const field of this.skin.state ?? []) {
-        const value = snapshot.variables.records[`${this.skin.id}.${field.key}`]?.value;
+      for (const field of this.applet.state ?? []) {
+        const value = snapshot.variables.records[`${this.applet.id}.${field.key}`]?.value;
         if (value !== undefined) {
           next[field.key] = value;
         }
       }
-      const view = snapshot.variables.records[`${this.skin.id}.view`]?.value;
+      const view = snapshot.variables.records[`${this.applet.id}.view`]?.value;
       if (view !== undefined) {
         next.view = view;
       }

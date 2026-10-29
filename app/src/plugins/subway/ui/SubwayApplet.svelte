@@ -9,10 +9,10 @@
     watchIntersection,
   } from '../../../features/media/content-visibility';
   import { runtimeView } from '../../../app/runtime/state';
-  import { getSkinHostContext } from '../../../features/skins/context';
-  import Slot from '../../../features/skins/Slot.svelte';
-  import CanvasScene from '../../../features/skins/CanvasScene.svelte';
-  import SkinQuickActions from '../../../features/skins/SkinQuickActions.svelte';
+  import { getAppletHostContext } from '../../../features/applets/context';
+  import Slot from '../../../features/applets/Slot.svelte';
+  import CanvasScene from '../../../features/applets/CanvasScene.svelte';
+  import AppletQuickActions from '../../../features/applets/AppletQuickActions.svelte';
   import { createSubwayScene, subwaySceneRevision, type SubwaySceneData } from '../rendering/scene';
   import { regionStyle, subwayComposition } from '../rendering/composition';
   import {
@@ -25,7 +25,7 @@
   import { VisibleScreenClock, type ScreenConfig } from '../rendering/screens';
 
   let { page: _page }: { page: Page } = $props();
-  const host = getSkinHostContext();
+  const host = getAppletHostContext();
   let sceneElement: HTMLDivElement;
   let runtimeOwner = $state(false),
     intersecting = $state(false),
@@ -235,7 +235,7 @@
   <div
     class="absolute control-bay"
     style={regionStyle(composition.strip)}
-    data-skin-region="strip"
+    data-applet-region="strip"
   >
     <Slot id="strip" />
   </div>
@@ -245,12 +245,12 @@
     inert={!sideActive}
     style:pointer-events={sideActive ? 'auto' : 'none'}
     style={`${regionStyle(composition.side)};opacity:${sideActive ? 1 : 0}`}
-    data-skin-region="side"
+    data-applet-region="side"
   >
     <Slot id="side" />
   </div>
   <nav
-    data-skin-input="ui"
+    data-applet-input="ui"
     aria-label="Skin view"
     class="absolute z-20 grid gap-3"
     style={`${regionStyle(composition.views)};grid-template-columns:${compact && line?.id === 'yamanote' ? '1fr' : 'repeat(3,minmax(0,1fr))'}`}
@@ -279,7 +279,7 @@
   </nav>
   {#if host?.mode === 'runtime'}
     <nav
-      data-skin-input="ui"
+      data-applet-input="ui"
       aria-label="Dashboard pages"
       class="absolute z-30 grid grid-cols-2 gap-3"
       style={regionStyle(composition.pages)}
@@ -308,7 +308,7 @@
       >
     </nav>
   {/if}
-  <SkinQuickActions />
+  <AppletQuickActions />
 </div>
 
 <style>

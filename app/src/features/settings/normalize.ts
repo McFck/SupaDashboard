@@ -35,7 +35,7 @@ export function migrate(input: unknown): Settings {
     }
     control.options = { ...control.options, sources };
   }
-  delete saved.slots; // the strip editor was removed; skins reuse the deck's controls
+  delete saved.slots; // the strip editor was removed; applets reuse the deck's controls
 
   const { deck, skinLayouts, pageIds, itemIds } = normalizeLayout(saved);
   const pages = deck.pages;
@@ -59,8 +59,8 @@ export function migrate(input: unknown): Settings {
     globalIds = new Set([...pageIds, ...itemIds, ...controls.map((c: ControlConfig) => c.id)]);
   const placementLists = [
     ...pages.map((page) => page.items),
-    ...Object.values(skinLayouts).flatMap((skin) =>
-      Object.values(skin).flatMap((page) => Object.values(page)),
+    ...Object.values(skinLayouts).flatMap((applet) =>
+      Object.values(applet).flatMap((page) => Object.values(page)),
     ),
   ];
   for (const items of placementLists) {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SkinInputRecognizer } from './input';
+import { AppletInputRecognizer } from './input';
 import type { SceneInput, SceneRect } from './scene-contracts';
 
 const rect: SceneRect = { left: 20, top: 40, width: 1000, height: 480 };
@@ -23,12 +23,12 @@ const point = (
 
 afterEach(() => vi.useRealTimers());
 
-describe('skin quick-action input', () => {
+describe('applet quick-action input', () => {
   it('consumes three close, timely taps once and leaves the scene untouched', () => {
     vi.useFakeTimers();
     const open = vi.fn(),
       scene: SceneInput[] = [];
-    const recognizer = new SkinInputRecognizer(open);
+    const recognizer = new AppletInputRecognizer(open);
     for (const [index, x] of [100, 112, 124].entries()) {
       const time = index * 300;
       expect(recognizer.handle(point('down', time, x), rect, (event) => scene.push(event))).toBe(
@@ -47,7 +47,7 @@ describe('skin quick-action input', () => {
     vi.useFakeTimers();
     const open = vi.fn(),
       scene: SceneInput[] = [];
-    const recognizer = new SkinInputRecognizer(open);
+    const recognizer = new AppletInputRecognizer(open);
     const down = point('down', 0),
       up = point('up', 80);
     recognizer.handle(down, rect, (event) => scene.push(event));
@@ -62,7 +62,7 @@ describe('skin quick-action input', () => {
     vi.useFakeTimers();
     const open = vi.fn(),
       scene: SceneInput[] = [];
-    const recognizer = new SkinInputRecognizer(open);
+    const recognizer = new AppletInputRecognizer(open);
     const tapDown = point('down', 0),
       tapUp = point('up', 70);
     recognizer.handle(tapDown, rect, (event) => scene.push(event));
@@ -83,7 +83,7 @@ describe('skin quick-action input', () => {
     vi.useFakeTimers();
     const open = vi.fn(),
       scene: SceneInput[] = [];
-    const recognizer = new SkinInputRecognizer(open);
+    const recognizer = new AppletInputRecognizer(open);
     recognizer.setOptions('cornerHold', 'bottomRight');
     const earlyDown = point('down', 0, 990, 470, 1),
       earlyUp = point('up', 100, 990, 470, 1);
@@ -106,7 +106,7 @@ describe('skin quick-action input', () => {
     vi.useFakeTimers();
     const open = vi.fn(),
       scene: SceneInput[] = [];
-    const recognizer = new SkinInputRecognizer(open);
+    const recognizer = new AppletInputRecognizer(open);
     const down = point('down', 0),
       up = point('up', 80);
     recognizer.handle(down, rect, (event) => scene.push(event));

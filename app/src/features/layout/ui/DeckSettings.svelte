@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The inspector with nothing selected on the Deck skin: canvas backdrop and grid geometry of the page.
+  // The inspector with nothing selected on the Deck applet: canvas backdrop and grid geometry of the page.
   import { Slider } from '$lib/components/ui/slider';
   import { Switch } from '$lib/components/ui/switch';
   import ColorField from '$lib/components/ColorField.svelte';

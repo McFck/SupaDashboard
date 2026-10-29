@@ -17,7 +17,7 @@
 @custom-variant data-vertical (&:where([data-orientation="vertical"]));
 
 /*
- * Dark only: the dashboard lives on a dim second screen. Skins override these.
+ * Dark only: the dashboard lives on a dim second screen. Applets override these.
  * Akira palette: warm near-black surfaces and greys, one capsule red for focus, active, selected, primary and
  * destructive, and a teal kept for info. Contrast (WCAG): white on --primary 5.0, --ring on --background 5.0,
  * --destructive on --card 5.3, --muted-foreground on --card 5.8.

@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { ControlFaceProps } from '../../../features/controls/model';
-  import { getSkinHostContext } from '../../../features/skins/context';
+  import { getAppletHostContext } from '../../../features/applets/context';
   import Icon from '../../../features/controls/ui/Icon.svelte';
   import { subwayButtonFaceModel } from './faces';
 
   let { appearance, compact, busy, pull, pixelWidth, pixelHeight }: ControlFaceProps = $props();
-  const host = getSkinHostContext();
+  const host = getAppletHostContext();
   const lineId = $derived(host?.state.line);
   const audioReady = $derived(host?.state.audioReady);
   const model = $derived(

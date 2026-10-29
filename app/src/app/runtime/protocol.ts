@@ -17,7 +17,11 @@ const REQUEST_TYPES = [
   'changePage',
 ] as const;
 /** Page changes another window may ask the owner for; actions and reconciliation stay in the owner. */
-const REMOTE_PAGE_REASONS = ['dot', 'swipe', 'skin'] as const satisfies readonly PageChangeReason[];
+const REMOTE_PAGE_REASONS = [
+  'dot',
+  'swipe',
+  'applet',
+] as const satisfies readonly PageChangeReason[];
 const MAX_MESSAGE_SIZE = 256 * 1024;
 const MAX_ID_LENGTH = 128;
 

@@ -8,7 +8,7 @@
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Switch } from '$lib/components/ui/switch';
   import { monitors } from '../../platform/window';
-  import { skins } from '../plugins/registry';
+  import { applets } from '../plugins/registry';
   import { settings } from './state.svelte';
   import { DEFAULTS } from './defaults';
   import { commit } from '../layout/history.svelte';
@@ -87,14 +87,14 @@
   <Section title="General">
     <Row
       label="Skin"
-      for="skin-choice"
+      for="applet-choice"
     >
       <Choice
-        id="skin-choice"
+        id="applet-choice"
         class="w-56 min-w-0 max-w-full"
         value={settings.skin}
         onchange={(v) => (settings.skin = v)}
-        options={[...skins.values()].map((s) => ({
+        options={[...applets.values()].map((s) => ({
           value: s.id,
           label: s.title,
           plugin: s.plugin,

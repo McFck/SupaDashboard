@@ -73,22 +73,22 @@ describe('page helpers', () => {
     expect(reorderPage(reordered.pages, 'missing', 0)).toBeUndefined();
   });
 
-  it('keeps skin layouts attached to stable page IDs across rename and reorder', () => {
+  it('keeps applet layouts attached to stable page IDs across rename and reorder', () => {
     const layouts = {
       subway: {
         [first.id]: {
-          strip: [{ id: 'first-skin-item', control: 'skin-a', x: 0, y: 0, w: 1, h: 1 }],
+          strip: [{ id: 'first-applet-item', control: 'applet-a', x: 0, y: 0, w: 1, h: 1 }],
         },
         [second.id]: {
-          strip: [{ id: 'second-skin-item', control: 'skin-b', x: 1, y: 0, w: 1, h: 1 }],
+          strip: [{ id: 'second-applet-item', control: 'applet-b', x: 1, y: 0, w: 1, h: 1 }],
         },
       },
     };
     const renamed = renamePage([first, second], first.id, 'Kitchen')!;
     const reordered = reorderPage(renamed.pages, first.id, 1)!;
     expect(reordered.pages.map((entry) => entry.id)).toEqual([second.id, first.id]);
-    expect(layouts.subway[first.id].strip[0].id).toBe('first-skin-item');
-    expect(layouts.subway[second.id].strip[0].id).toBe('second-skin-item');
+    expect(layouts.subway[first.id].strip[0].id).toBe('first-applet-item');
+    expect(layouts.subway[second.id].strip[0].id).toBe('second-applet-item');
   });
 
   it('deep-copies a populated page with globally new IDs while preserving local and explicit references', () => {
@@ -143,19 +143,19 @@ describe('page helpers', () => {
     expect(duplicatePage([source], source.id, [], {})).toBeUndefined();
   });
 
-  it('duplicates and deletes per-skin layouts by stable page ID with independent controls and items', () => {
+  it('duplicates and deletes per-applet layouts by stable page ID with independent controls and items', () => {
     const source = page('page-layout-source', 4, [
       { id: 'deck-owned', control: 'deck-control', x: 0, y: 0, w: 1, h: 1 },
     ]);
     const controls = [
       control('deck-control'),
-      control('skin-control'),
+      control('applet-control'),
       control('retained-control'),
     ];
     const layouts: Settings['skinLayouts'] = {
       subway: {
         [source.id]: {
-          strip: [{ id: 'skin-owned', control: 'skin-control', x: 0, y: 0, w: 1, h: 1 }],
+          strip: [{ id: 'applet-owned', control: 'applet-control', x: 0, y: 0, w: 1, h: 1 }],
         },
         'page-other': {
           hidden: [{ id: 'other-layout', control: 'retained-control', x: 0, y: 0, w: 1, h: 1 }],
@@ -166,12 +166,12 @@ describe('page helpers', () => {
     const copied = duplicatePage([source, page('page-other')], source.id, controls, {}, layouts)!;
     const copiedItems = copied.skinLayouts.subway[copied.page.id].strip;
     expect(copiedItems).toHaveLength(1);
-    expect(copiedItems[0].id).not.toBe('skin-owned');
-    expect(copiedItems[0].control).not.toBe('skin-control');
+    expect(copiedItems[0].id).not.toBe('applet-owned');
+    expect(copiedItems[0].control).not.toBe('applet-control');
     expect(copied.skinLayouts.unavailable?.[copied.page.id]?.removed).toEqual([]);
     expect(layouts.subway[source.id].strip[0]).toEqual({
-      id: 'skin-owned',
-      control: 'skin-control',
+      id: 'applet-owned',
+      control: 'applet-control',
       x: 0,
       y: 0,
       w: 1,

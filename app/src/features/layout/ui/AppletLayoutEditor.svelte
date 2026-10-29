@@ -1,19 +1,19 @@
 <script lang="ts">
-  import type { SkinDef } from '../../skins/contracts';
+  import type { AppletDef } from '../../applets/contracts';
   import type { Page } from '../../settings/schema';
   import type { Selection } from '../grid';
-  import type { LayoutTarget } from '../skin-layouts';
-  import SkinHost from '../../skins/SkinHost.svelte';
+  import type { LayoutTarget } from '../applet-layouts';
+  import AppletHost from '../../applets/AppletHost.svelte';
 
   let {
-    skin,
+    applet,
     page,
-    previewViewId = $bindable(skin.defaultView),
+    previewViewId = $bindable(applet.defaultView),
     selected = null,
     onselect,
     oncontext,
   }: {
-    skin: SkinDef;
+    applet: AppletDef;
     page: Page;
     previewViewId?: string;
     selected?: Selection;
@@ -36,36 +36,36 @@
   } | null>(null);
 
   function selectView(viewId: string) {
-    if (skin.views.some((view) => view.id === viewId)) previewViewId = viewId;
+    if (applet.views.some((view) => view.id === viewId)) previewViewId = viewId;
   }
 
   function keydown(event: KeyboardEvent, index: number) {
     const next =
       event.key === 'ArrowRight'
-        ? (index + 1) % skin.views.length
+        ? (index + 1) % applet.views.length
         : event.key === 'ArrowLeft'
-          ? (index + skin.views.length - 1) % skin.views.length
+          ? (index + applet.views.length - 1) % applet.views.length
           : event.key === 'Home'
             ? 0
             : event.key === 'End'
-              ? skin.views.length - 1
+              ? applet.views.length - 1
               : -1;
     if (next < 0) return;
     event.preventDefault();
-    selectView(skin.views[next].id);
+    selectView(applet.views[next].id);
     viewTabs?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
   }
 
   $effect(() => {
     const container = preview;
-    if (!container || skin.views.length <= 1) {
+    if (!container || applet.views.length <= 1) {
       frameRect = null;
       return;
     }
     const measure = () => {
       const frame =
-        container.querySelector<HTMLElement>('[data-skin-design]') ??
-        container.querySelector<HTMLElement>('[data-skin-host]');
+        container.querySelector<HTMLElement>('[data-applet-design]') ??
+        container.querySelector<HTMLElement>('[data-applet-host]');
       if (!frame) return;
       const root = container.getBoundingClientRect(),
         rect = frame.getBoundingClientRect(),
@@ -94,9 +94,9 @@
     const observer = new ResizeObserver(measure);
     const observeFrame = () => {
       observer.observe(container);
-      const host = container.querySelector<HTMLElement>('[data-skin-host]');
+      const host = container.querySelector<HTMLElement>('[data-applet-host]');
       if (host) observer.observe(host);
-      const frame = container.querySelector<HTMLElement>('[data-skin-design]');
+      const frame = container.querySelector<HTMLElement>('[data-applet-design]');
       if (frame) observer.observe(frame);
       measure();
     };
@@ -119,12 +119,12 @@
 
 <div
   bind:this={preview}
-  class="skin-layout-editor relative h-full w-full"
-  class:multi-view={skin.views.length > 1}
-  class:designed={!!skin.design}
+  class="applet-layout-editor relative h-full w-full"
+  class:multi-view={applet.views.length > 1}
+  class:designed={!!applet.design}
 >
-  <SkinHost
-    {skin}
+  <AppletHost
+    {applet}
     {page}
     mode="editor"
     visible={true}
@@ -134,19 +134,19 @@
     {onselect}
     {oncontext}
   />
-  {#if skin.views.length > 1 && frameRect}
+  {#if applet.views.length > 1 && frameRect}
     <div
       bind:this={viewTabs}
       role="tablist"
-      aria-label="{skin.title} preview views"
+      aria-label="{applet.title} preview views"
       class="pointer-events-none absolute z-20 flex -translate-y-full items-end justify-center gap-0.5 whitespace-nowrap"
       style="left:{frameRect.x}px;top:{frameRect.y}px;width:{frameRect.width}px;--view-surface:{frameRect.surface};--view-edge:{frameRect.edge}"
     >
-      {#each skin.views as view, index (view.id)}
+      {#each applet.views as view, index (view.id)}
         <button
           type="button"
           role="tab"
-          data-skin-view-tab={view.id}
+          data-applet-view-tab={view.id}
           aria-selected={previewViewId === view.id}
           tabindex={previewViewId === view.id ? 0 : -1}
           onkeydown={(event) => keydown(event, index)}
@@ -164,15 +164,15 @@
 </div>
 
 <style>
-  .skin-layout-editor.multi-view.designed :global([data-skin-design]),
-  .skin-layout-editor.multi-view:not(.designed) :global([data-skin-host]) {
+  .applet-layout-editor.multi-view.designed :global([data-applet-design]),
+  .applet-layout-editor.multi-view:not(.designed) :global([data-applet-host]) {
     box-sizing: border-box;
     overflow: visible; /* selection handles must not be clipped */
     border: 1px solid #2c3a3d;
     border-radius: 6px;
     background: #10171b;
   }
-  .skin-layout-editor.multi-view :global([data-skin-design] canvas) {
+  .applet-layout-editor.multi-view :global([data-applet-design] canvas) {
     border-radius: 5px;
   }
 </style>

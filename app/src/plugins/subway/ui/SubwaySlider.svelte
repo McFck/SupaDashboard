@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { ControlFaceProps } from '../../../features/controls/model';
-  import { getSkinHostContext } from '../../../features/skins/context';
+  import { getAppletHostContext } from '../../../features/applets/context';
   import Icon from '../../../features/controls/ui/Icon.svelte';
   import { subwaySliderFaceModel } from './faces';
 
   let { appearance, compact, busy, pull, slider, pixelWidth, pixelHeight }: ControlFaceProps =
     $props();
-  const host = getSkinHostContext();
+  const host = getAppletHostContext();
   const lineId = $derived(host?.state.line);
   const model = $derived(
     subwaySliderFaceModel(

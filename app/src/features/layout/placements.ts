@@ -1,31 +1,31 @@
-// Stored placements as saved: deck pages plus every skin's page/slot map, with no registry lookups. Unknown skins
+// Stored placements as saved: deck pages plus every applet's page/slot map, with no registry lookups. Unknown applets
 // and slots are listed too, so their retained data still counts as a use of its control.
 import type { Item } from './grid';
 import type { Page, Settings } from '../settings/schema';
-import type { LayoutTarget } from './skin-layouts';
+import type { LayoutTarget } from './applet-layouts';
 
-type SkinLayouts = Settings['skinLayouts'];
-type PlacementSource = { deck: { pages: readonly Page[] }; skinLayouts?: SkinLayouts };
+type AppletLayouts = Settings['skinLayouts'];
+type PlacementSource = { deck: { pages: readonly Page[] }; skinLayouts?: AppletLayouts };
 export type StoredPlacement = LayoutTarget & { item: Item };
 
 const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-/** Deck pages first, then skin slots. A stale `skinLayouts.deck` alias is ignored: deck placements live on pages. */
+/** Deck pages first, then applet slots. A stale `skinLayouts.deck` alias is ignored: deck placements live on pages. */
 export function storedPlacements(source: PlacementSource): StoredPlacement[] {
   const placements: StoredPlacement[] = [];
   for (const page of source.deck.pages) {
     for (const item of page.items) {
-      placements.push({ skinId: 'deck', pageId: page.id, slotId: 'main', item });
+      placements.push({ appletId: 'deck', pageId: page.id, slotId: 'main', item });
     }
   }
-  for (const [skinId, pages] of Object.entries(source.skinLayouts ?? {})) {
-    if (skinId === 'deck') {
+  for (const [appletId, pages] of Object.entries(source.skinLayouts ?? {})) {
+    if (appletId === 'deck') {
       continue;
     }
     for (const [pageId, slots] of Object.entries(pages)) {
       for (const [slotId, items] of Object.entries(slots)) {
         for (const item of items) {
-          placements.push({ skinId, pageId, slotId, item });
+          placements.push({ appletId, pageId, slotId, item });
         }
       }
     }
@@ -33,7 +33,7 @@ export function storedPlacements(source: PlacementSource): StoredPlacement[] {
   return placements;
 }
 
-export function pageItems(pages: readonly Page[], layouts: SkinLayouts = {}): Item[] {
+export function pageItems(pages: readonly Page[], layouts: AppletLayouts = {}): Item[] {
   return storedPlacements({ deck: { pages }, skinLayouts: layouts }).map(
     (placement) => placement.item,
   );
@@ -48,7 +48,7 @@ export function removePlacement(
   pages: readonly Page[],
   pageId: string,
   itemId: string,
-  layouts: SkinLayouts = {},
+  layouts: AppletLayouts = {},
 ) {
   const target = pages.find((page) => page.id === pageId);
   const item = target?.items.find((candidate) => candidate.id === itemId);
@@ -67,8 +67,8 @@ export function removePlacement(
       orphanControl: orphan(next, nextLayouts, item.control),
     };
   }
-  for (const [skinId, byPage] of Object.entries(layouts)) {
-    const slots = skinId === 'deck' ? undefined : byPage[pageId];
+  for (const [appletId, byPage] of Object.entries(layouts)) {
+    const slots = appletId === 'deck' ? undefined : byPage[pageId];
     const slotId =
       slots && Object.keys(slots).find((id) => slots[id].some((entry) => entry.id === itemId));
     if (!slots || !slotId) {
@@ -77,7 +77,7 @@ export function removePlacement(
     const found = slots[slotId].find((candidate) => candidate.id === itemId)!;
     const nextLayouts = cloneJson(layouts);
     delete nextLayouts.deck;
-    nextLayouts[skinId][pageId][slotId] = slots[slotId].filter(
+    nextLayouts[appletId][pageId][slotId] = slots[slotId].filter(
       (candidate) => candidate.id !== itemId,
     );
     return {
@@ -95,6 +95,6 @@ export function removePlacement(
   };
 }
 
-function orphan(pages: readonly Page[], skinLayouts: SkinLayouts, controlId: string) {
+function orphan(pages: readonly Page[], skinLayouts: AppletLayouts, controlId: string) {
   return hasPlacement({ deck: { pages }, skinLayouts }, controlId) ? undefined : controlId;
 }

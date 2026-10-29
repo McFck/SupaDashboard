@@ -5,7 +5,7 @@
   import type { Trigger } from '../scenario';
   import { availableGestures } from '../../controls/model';
   import { settings } from '../../settings/state.svelte';
-  import { placementById } from '../../layout/skin-layouts';
+  import { placementById } from '../../layout/applet-layouts';
   import Choice from '../../plugins/ui/Choice.svelte';
   import StateViewEditor from '../../controls/editor/StateViewEditor.svelte';
   import StateBindingEditor from '../../controls/editor/StateBindingEditor.svelte';

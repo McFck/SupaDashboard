@@ -1,4 +1,7 @@
-import type { SkinSceneFactory, SkinSceneRenderer } from '../../../features/skins/scene-contracts';
+import type {
+  AppletSceneFactory,
+  AppletSceneRenderer,
+} from '../../../features/applets/scene-contracts';
 import { createHibiyaRenderer, scheduleHibiyaPair } from './lcd/hibiya';
 import { createSakaisujiRenderer } from './lcd/sakaisuji';
 import { createYamanoteRenderer } from './lcd/yamanote';
@@ -36,9 +39,9 @@ function languagesFor(data: SubwaySceneData): string[] {
   );
 }
 
-export const createSubwayScene: SkinSceneFactory<
+export const createSubwayScene: AppletSceneFactory<
   SubwaySceneData | undefined
-> = (): SkinSceneRenderer<SubwaySceneData | undefined> => {
+> = (): AppletSceneRenderer<SubwaySceneData | undefined> => {
   subwaySceneLifecycle.created++;
   const yamanote = createYamanoteRenderer();
   const hibiya = createHibiyaRenderer();

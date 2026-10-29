@@ -1,8 +1,8 @@
 import type { Option, Param, Plugin, SettingsGroup } from '../../features/plugins/contracts';
-import type { SkinStateField } from '../../features/skins/contracts';
+import type { AppletStateField } from '../../features/applets/contracts';
 import SubwayButton from './ui/SubwayButton.svelte';
 import SubwaySlider from './ui/SubwaySlider.svelte';
-import SubwaySkin from './ui/SubwaySkin.svelte';
+import SubwayApplet from './ui/SubwayApplet.svelte';
 import {
   ANNOUNCEMENT_LANGUAGE_PRESETS,
   DISPLAY_LANGUAGE_PRESETS,
@@ -228,7 +228,7 @@ const settings: SettingsGroup[] = [
   },
 ];
 
-const state: SkinStateField[] = [
+const state: AppletStateField[] = [
   { key: 'station', type: 'string', initialValue: 'JY01' },
   { key: 'next', type: 'string', initialValue: 'JY02' },
   { key: 'state', type: 'string', initialValue: 'stopped' },
@@ -343,12 +343,12 @@ export const subwayPlugin: Plugin = {
           : requestSubwayView(String(args.view ?? 'display'), context?.eventAncestry),
     });
 
-    api.registerSkin({
+    api.registerApplet({
       id: 'subway',
       title: 'Subway',
-      component: SubwaySkin,
-      runtime,
-      pageNavigation: 'skin',
+      component: SubwayApplet,
+      start: runtime,
+      pageNavigation: 'applet',
       alters: ['layout', 'logic'],
       design: { width: 1920, height: 480 },
       slots: [
@@ -384,7 +384,7 @@ export const subwayPlugin: Plugin = {
         { id: 'subway.immersion' },
         { id: 'subway.resume' },
       ],
-      controlSkins: { button: { component: SubwayButton }, slider: { component: SubwaySlider } },
+      controlFaces: { button: { component: SubwayButton }, slider: { component: SubwaySlider } },
       state,
       events: [
         { id: 'subway.departed', title: 'Train departed', parameterSuggestions: () => [] },

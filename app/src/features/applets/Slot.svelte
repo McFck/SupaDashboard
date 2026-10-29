@@ -8,11 +8,11 @@
     layoutFor,
     setLayoutItems,
     type LayoutTarget,
-  } from '../layout/skin-layouts';
+  } from '../layout/applet-layouts';
   import { controlTypes } from '../plugins/registry';
   import { settings } from '../settings/state.svelte';
   import DeckGrid from '../layout/ui/DeckGrid.svelte';
-  import { getSkinHostContext } from './context';
+  import { getAppletHostContext } from './context';
 
   let {
     id,
@@ -32,22 +32,22 @@
       target?: LayoutTarget,
     ) => void;
   } = $props();
-  const host = getSkinHostContext();
-  const target = $derived(host && { skinId: host.skin.id, pageId: host.page.id, slotId: id });
-  const slot = $derived(host?.skin.slots.find((entry) => entry.id === id));
+  const host = getAppletHostContext();
+  const target = $derived(host && { appletId: host.applet.id, pageId: host.page.id, slotId: id });
+  const slot = $derived(host?.applet.slots.find((entry) => entry.id === id));
   const activeInView = $derived(
-    host?.skin.views.find((view) => view.id === host.viewId)?.slots.includes(id) ?? false,
+    host?.applet.views.find((view) => view.id === host.viewId)?.slots.includes(id) ?? false,
   );
   const layout = $derived(
-    host && target ? layoutFor(settings, target.skinId, target.pageId, target.slotId) : undefined,
+    host && target ? layoutFor(settings, target.appletId, target.pageId, target.slotId) : undefined,
   );
   const geometry = $derived(layout?.geometry && { ...layout.geometry, items: layout.items });
   const faceMap = $derived.by(() => {
     const result: Record<string, Component<ControlFaceProps>> = {};
-    for (const type of Object.keys(host?.skin.controlSkins ?? {})) {
+    for (const type of Object.keys(host?.applet.controlFaces ?? {})) {
       const defaultFace = controlTypes.get(type)?.face;
       if (host && defaultFace) {
-        result[type] = host.skin.controlSkins?.[type]?.component ?? defaultFace;
+        result[type] = host.applet.controlFaces?.[type]?.component ?? defaultFace;
       }
     }
     return result;
@@ -56,7 +56,7 @@
     height = $state(0);
   const isEditing = $derived(editing || host?.mode === 'editor');
   function resolveSize(typeId: string) {
-    return host && slot ? effectiveSize(host.skin.id, slot, typeId) : undefined;
+    return host && slot ? effectiveSize(host.applet.id, slot, typeId) : undefined;
   }
   function writeItems(items: import('../layout/grid').Item[]) {
     return target ? setLayoutItems(settings, target, items) : false;
@@ -86,8 +86,8 @@
   <div
     bind:clientWidth={width}
     bind:clientHeight={height}
-    data-skin-slot={id}
-    data-skin-input={host.mode === 'runtime' && host.skin.design && activeInView
+    data-applet-slot={id}
+    data-applet-input={host.mode === 'runtime' && host.applet.design && activeInView
       ? 'slot'
       : undefined}
     aria-hidden={!activeInView}
@@ -95,7 +95,7 @@
     class="relative grid h-full w-full place-items-center transition-opacity duration-150 motion-reduce:transition-none"
     class:opacity-0={!activeInView}
     class:pointer-events-none={!activeInView}
-    class:skin-editor-slot={host.mode === 'editor' && host.skin.id !== 'deck'}
+    class:applet-editor-slot={host.mode === 'editor' && host.applet.id !== 'deck'}
   >
     {#if activeInView}
       <div
@@ -121,7 +121,7 @@
           onitemschange={writeItems}
         />
       </div>
-      {#if host.mode === 'editor' && host.skin.id !== 'deck'}
+      {#if host.mode === 'editor' && host.applet.id !== 'deck'}
         <span
           aria-hidden="true"
           class="pointer-events-none absolute left-1 top-1 z-[70] rounded bg-background/90 px-1.5 py-0.5 text-[24px] font-medium text-foreground"
@@ -141,7 +141,7 @@
 {/if}
 
 <style>
-  .skin-editor-slot {
+  .applet-editor-slot {
     outline: 2px dashed #a6d7c3;
     outline-offset: 2px;
     overflow: visible;

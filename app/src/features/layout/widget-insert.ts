@@ -5,7 +5,7 @@ import type { Settings } from '../settings/schema';
 import { newId } from '../settings/state.svelte';
 import { fits } from './grid';
 import { pageItems, removePlacement } from './placements';
-import { effectiveSize, layoutFor, setLayoutItems, type LayoutTarget } from './skin-layouts';
+import { effectiveSize, layoutFor, setLayoutItems, type LayoutTarget } from './applet-layouts';
 
 export type WidgetCopy = { control: ControlConfig; w: number; h: number };
 export type InsertTarget = { item: string } | { cell: { x: number; y: number } };
@@ -20,14 +20,14 @@ export function planInsertion(
   target: InsertTarget,
   slot: LayoutTarget,
 ) {
-  const current = layoutFor(source, slot.skinId, slot.pageId, slot.slotId);
+  const current = layoutFor(source, slot.appletId, slot.pageId, slot.slotId);
   if (!current?.slot || !current.geometry) {
     return undefined;
   }
   const old = 'item' in target ? current.items.find((item) => item.id === target.item) : undefined;
   // Only the cell: spreading the replaced item would carry its ID and control into the pasted placement.
   const at = 'cell' in target ? target.cell : old && { x: old.x, y: old.y };
-  const bounds = effectiveSize(slot.skinId, current.slot, copy.control.type);
+  const bounds = effectiveSize(slot.appletId, current.slot, copy.control.type);
   const remaining = old ? current.items.filter((item) => item.id !== old.id) : current.items;
   if (!at || !bounds) {
     return undefined;
@@ -103,7 +103,7 @@ export function insertWidget(
     controls: [...controls, control],
     variants,
   };
-  const destination = layoutFor(draft, slot.skinId, slot.pageId, slot.slotId);
+  const destination = layoutFor(draft, slot.appletId, slot.pageId, slot.slotId);
   if (!destination || !setLayoutItems(draft, slot, [...destination.items, item])) {
     return undefined;
   }

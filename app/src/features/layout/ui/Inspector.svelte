@@ -5,7 +5,7 @@
   import { controlById, settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
   import type { Selection } from '../grid';
-  import { layoutFor, type LayoutTarget } from '../skin-layouts';
+  import { layoutFor, type LayoutTarget } from '../applet-layouts';
   import AddWidgetPicker from './AddWidgetPicker.svelte';
   import DeckSettings from './DeckSettings.svelte';
   import WidgetInspector from './WidgetInspector.svelte';
@@ -25,7 +25,7 @@
   } = $props();
 
   const target = $derived(
-    layoutFor(settings, layoutTarget.skinId, layoutTarget.pageId, layoutTarget.slotId),
+    layoutFor(settings, layoutTarget.appletId, layoutTarget.pageId, layoutTarget.slotId),
   );
   const item = $derived(
     selection && 'item' in selection
@@ -51,7 +51,7 @@
       {layoutTarget}
       {onselect}
     />
-  {:else if layoutTarget.skinId === 'deck'}
+  {:else if layoutTarget.appletId === 'deck'}
     <DeckSettings {page} />
   {:else}
     <header class="flex h-12 shrink-0 items-center px-4">

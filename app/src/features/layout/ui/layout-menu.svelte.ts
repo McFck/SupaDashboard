@@ -5,7 +5,7 @@ import type { Trigger } from '../../automation/scenario';
 import { settings } from '../../settings/state.svelte';
 import type { Selection } from '../grid';
 import type { MoveMode } from '../move-options';
-import { layoutFor, type LayoutTarget } from '../skin-layouts';
+import { layoutFor, type LayoutTarget } from '../applet-layouts';
 import { pasteInSlot, removeWithDust } from '../slot-edits';
 import { clipboard } from '../widget-clipboard.svelte';
 import { planInsertion, type WidgetCopy } from '../widget-insert';
@@ -47,7 +47,7 @@ export class LayoutMenu {
       if (!(
         sameTarget(this.editor.selection, payload.target) &&
         payload.pageId === this.editor.page.id &&
-        payload.layoutTarget.skinId === this.editor.skin.id &&
+        payload.layoutTarget.appletId === this.editor.applet.id &&
         this.targetExists(payload)
       )) {
         this.closeMenu(payload.generation);
@@ -67,8 +67,8 @@ export class LayoutMenu {
   }
 
   targetExists(payload: MenuState) {
-    const { skinId, pageId, slotId } = payload.layoutTarget;
-    const slot = layoutFor(settings, skinId, pageId, slotId);
+    const { appletId, pageId, slotId } = payload.layoutTarget;
+    const slot = layoutFor(settings, appletId, pageId, slotId);
     if (!settings.deck.pages.some((candidate) => candidate.id === payload.pageId) || !slot) {
       return false;
     }
@@ -159,7 +159,7 @@ export class LayoutMenu {
     if (!(await confirm({ title: 'Replace widget?', action: 'Replace', destructive: true }))) {
       return;
     }
-    const current = layoutFor(settings, slot.skinId, slot.pageId, slot.slotId);
+    const current = layoutFor(settings, slot.appletId, slot.pageId, slot.slotId);
     if (this.editor.page.id !== pageId || !current?.items.some((item) => item.id === id)) {
       return;
     }

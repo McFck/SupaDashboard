@@ -266,11 +266,11 @@ describe('settings history', () => {
         type: 'button',
         variants: [{ id: 'state-one', label: 'One' }],
       };
-      const skinControl: ControlConfig = {
-        id: 'skin-history-control',
-        name: 'Skin Button',
+      const appletControl: ControlConfig = {
+        id: 'applet-history-control',
+        name: 'Applet Button',
         type: 'button',
-        variants: [{ id: 'skin-state', label: 'Skin' }],
+        variants: [{ id: 'applet-state', label: 'Applet' }],
       };
       const firstPage = {
         ...structuredClone(DEFAULTS.deck.pages[0]),
@@ -286,11 +286,13 @@ describe('settings history', () => {
       };
       settings.deck.pages = [firstPage, secondPage];
       settings.deck.activePage = secondPage.id;
-      settings.controls = [control, skinControl];
+      settings.controls = [control, appletControl];
       settings.skinLayouts = {
         subway: {
           [firstPage.id]: {
-            strip: [{ id: 'skin-history-item', control: skinControl.id, x: 0, y: 0, w: 1, h: 1 }],
+            strip: [
+              { id: 'applet-history-item', control: appletControl.id, x: 0, y: 0, w: 1, h: 1 },
+            ],
           },
         },
         unavailable: { [firstPage.id]: { removed: [] } },
@@ -327,9 +329,9 @@ describe('settings history', () => {
       settings.controls = duplicated.controls;
       settings.variants = duplicated.variants;
       settings.skinLayouts = duplicated.skinLayouts;
-      const copiedSkinItem = settings.skinLayouts.subway[duplicated.page.id].strip[0];
-      expect(copiedSkinItem.id).not.toBe('skin-history-item');
-      expect(copiedSkinItem.control).not.toBe(skinControl.id);
+      const copiedAppletItem = settings.skinLayouts.subway[duplicated.page.id].strip[0];
+      expect(copiedAppletItem.id).not.toBe('applet-history-item');
+      expect(copiedAppletItem.control).not.toBe(appletControl.id);
       expect(settings.skinLayouts.unavailable[duplicated.page.id].removed).toEqual([]);
       record('Duplicate page');
       settings.deck.pages = reorderPage(settings.deck.pages, secondPage.id, 0)!.pages;
@@ -361,7 +363,7 @@ describe('settings history', () => {
         'history-item',
       );
       expect(settings.controls.map((entry) => entry.id)).toContain('history-control');
-      expect(settings.skinLayouts.subway[firstPage.id].strip[0].id).toBe('skin-history-item');
+      expect(settings.skinLayouts.subway[firstPage.id].strip[0].id).toBe('applet-history-item');
       expect(settings.skinLayouts.subway).not.toHaveProperty(duplicated.page.id);
     } finally {
       Object.assign(settings, before);

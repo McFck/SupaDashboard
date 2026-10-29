@@ -22,7 +22,7 @@
   import { controlTypes } from '../../plugins/registry';
   import { controlById, settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
-  import type { EffectiveSize, LayoutTarget } from '../skin-layouts';
+  import type { EffectiveSize, LayoutTarget } from '../applet-layouts';
   import { runtimeView } from '../../../app/runtime/state';
   import { registerRemovalNode, removeItem } from '../removal';
   import { storedPlacements } from '../placements';
@@ -73,7 +73,7 @@
 
   const deck = $derived(layout ?? page);
   const targetKey = $derived(
-    target ? `${target.skinId}/${target.pageId}/${target.slotId}` : `deck/${page.id}/main`,
+    target ? `${target.appletId}/${target.pageId}/${target.slotId}` : `deck/${page.id}/main`,
   );
   const intrinsic: FittedDeck = $derived({
     cell: deck.size,

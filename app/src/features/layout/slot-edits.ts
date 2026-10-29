@@ -13,7 +13,7 @@ import {
   movePlacementToSlot,
   setLayoutItems,
   type LayoutTarget,
-} from './skin-layouts';
+} from './applet-layouts';
 import {
   cloneControl,
   insertWidget,
@@ -26,7 +26,7 @@ type Cell = { x: number; y: number };
 type Size = { w: number; h: number };
 
 const slotOf = (target: LayoutTarget) =>
-  layoutFor(settings, target.skinId, target.pageId, target.slotId);
+  layoutFor(settings, target.appletId, target.pageId, target.slotId);
 
 /**
  * Where a widget of `typeId` can go in the slot: on `cell` when it fits there, else the first free spot. The size
@@ -46,7 +46,7 @@ export function findSlotPlacement(
   const occupied = current.items;
   const accepted = !slot.accepts || slot.accepts.includes(typeId);
   const full = slot.max !== undefined && occupied.length >= slot.max;
-  const bounds = effectiveSize(target.skinId, slot, typeId);
+  const bounds = effectiveSize(target.appletId, slot, typeId);
   if (!accepted || full || !bounds) {
     return null;
   }
@@ -113,7 +113,7 @@ export function resizeInSlot(target: LayoutTarget, itemId: string, size: Size) {
   const item = current?.items.find((entry) => entry.id === itemId);
   const control = item && settings.controls.find((entry) => entry.id === item.control);
   const bounds =
-    control && current?.slot && effectiveSize(target.skinId, current.slot, control.type);
+    control && current?.slot && effectiveSize(target.appletId, current.slot, control.type);
   if (!current || !item || !bounds || !current.geometry) {
     return false;
   }
