@@ -1,14 +1,24 @@
 // Generative vinyl: the same artist and title always press the same record. Geometry is in viewBox units (0..100).
 
-const SEED_VERSION = 'v1';
+const SEED_VERSION = 'v2';
 const CACHE_SIZE = 32;
 /** Akira tokens: capsule red, muted teal, off-white and warm greys. */
 const LABEL_COLOURS = ['#d42c26', '#b8322c', '#3cc7c0', '#f2ece6', '#a39a91', '#2a2522'];
 const ACCENT_COLOURS = ['#d42c26', '#3cc7c0', '#f2ece6'];
+const PRESSINGS = [
+  ['#71428c', '#c183bf', '#ead4e7', '#39244f'],
+  ['#ab577e', '#efb5cb', '#f7dfeb', '#6d365f'],
+  ['#e6dfdf', '#e2689a', '#25212b', '#a84675'],
+  ['#376f76', '#83c8bb', '#d6e9d7', '#224b60'],
+  ['#b47735', '#e8bd6c', '#f6e4b9', '#74432c'],
+  ['#494c8e', '#9e9bde', '#d9cbe8', '#292a5b'],
+  ['#17141c', '#78558a', '#bc87ae', '#363142'],
+];
 
 export type Groove = { r: number; width: number; opacity: number };
 export type LabelArc = { d: string; width: number; colour: string };
 export type VinylDesign = {
+  surface: { colour: string; patches: { d: string; colour: string; opacity: number }[] };
   grooves: Groove[];
   accent: { cx: number; cy: number; r: number; colour: string };
   label: { r: number; colour: string; ink: string };
@@ -45,6 +55,27 @@ function arcPath(r: number, from: number, sweep: number) {
     `${round(50 + r * Math.cos(angle))} ${round(50 + r * Math.sin(angle))}`;
   const large = sweep > Math.PI ? 1 : 0;
   return `M ${point(from)} A ${r} ${r} 0 ${large} 1 ${point(from + sweep)}`;
+}
+
+function pressing(next: () => number) {
+  const palette = PRESSINGS[Math.floor(next() * PRESSINGS.length)];
+  const splatter = next() < 0.5;
+  const patches = Array.from({ length: splatter ? 80 : 24 }, () => {
+    const angle = next() * Math.PI * 2;
+    const inner = splatter ? 20 + next() * 24 : 12 + next() * 22;
+    const outer = splatter ? inner + 3 + next() * (46 - inner) : 40 + next() * 9;
+    const middle = (inner + outer) / 2;
+    const spread = splatter ? 0.015 + next() * 0.075 : 0.12 + next() * 0.4;
+    const point = (radius: number, offset: number) =>
+      `${round(50 + radius * Math.cos(angle + offset))} ${round(50 + radius * Math.sin(angle + offset))}`;
+    // Pigment stretches out from the centre as the record is pressed, leaving uneven radial streaks.
+    return {
+      d: `M ${point(inner, 0)} C ${point(middle, -spread * 0.2)} ${point(outer * 0.94, -spread)} ${point(outer, -spread * 0.45)} Q ${point(outer, spread * 0.4)} ${point(outer * 0.9, spread * 0.8)} C ${point(middle, spread * 0.35)} ${point(inner + 3, spread * 0.1)} ${point(inner, 0)} Z`,
+      colour: palette[1 + Math.floor(next() * (palette.length - 1))],
+      opacity: round(splatter ? 0.4 + next() * 0.45 : 0.18 + next() * 0.4),
+    };
+  });
+  return { colour: palette[0], patches };
 }
 
 function press(seed: number): VinylDesign {
@@ -84,6 +115,7 @@ function press(seed: number): VinylDesign {
     colour: '#f2ece6',
   }));
   return {
+    surface: pressing(next),
     grooves,
     marks,
     accent: {

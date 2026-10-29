@@ -122,6 +122,18 @@
   function onTrigger(_trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) {
     tile.run(captured, snapshot, motion);
   }
+
+  function fitArtwork(event: Event) {
+    const image = event.currentTarget;
+    if (image instanceof HTMLImageElement && image.naturalHeight > 0) {
+      const ratio = image.naturalWidth / image.naturalHeight;
+      // Extreme artwork shapes stay contained in the standard sleeve instead of stretching the box.
+      const sleeveRatio = ratio >= 0.8 && ratio <= 1.25 ? ratio : 1.12;
+      image
+        .closest<HTMLElement>('.assembly')
+        ?.style.setProperty('--cover-ratio', String(sleeveRatio));
+    }
+  }
   onDestroy(() => motion.destroy());
 </script>
 
@@ -145,6 +157,7 @@
               src={view.art}
               alt=""
               draggable="false"
+              onload={fitArtwork}
               onerror={() => (brokenArt = view.art)}
             />
           </div>
@@ -273,36 +286,52 @@
     min-height: 0;
     height: 100%;
   }
-  /* Cover 1.12:1 with a 0.94 record peeking a third of its width past the right edge. */
+  /* A third of the record peeks past the sleeve's right edge. */
   .assembly {
+    --cover-ratio: 1.12;
+    --assembly-ratio: calc(var(--cover-ratio) + 0.3133);
     position: relative;
-    width: min(100cqw, 143.3cqh);
-    aspect-ratio: 1.433;
+    width: min(100cqw, calc(100cqh * var(--assembly-ratio)));
+    aspect-ratio: var(--assembly-ratio);
   }
   .record {
     position: absolute;
     top: 3%;
-    left: 34.4%;
-    width: 65.6%;
+    right: 0;
+    height: 94%;
     aspect-ratio: 1;
-    transition:
-      left 260ms ease,
-      top 260ms ease,
-      width 260ms ease;
+  }
+  .assembly.bare {
+    --assembly-ratio: 1;
   }
   .bare .record {
     top: 0;
-    left: 15.1%;
-    width: 69.8%;
+    height: 100%;
   }
   .cover {
     position: absolute;
     inset: 0 auto 0 0;
-    width: 78.2%;
+    width: calc(100% * var(--cover-ratio) / var(--assembly-ratio));
     overflow: hidden;
     border-radius: 8px;
     background: #0f0d0c;
     box-shadow: 0 6px 18px rgb(0 0 0 / 0.5);
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 20%),
+      rgb(255 255 255 / 3%) 35%,
+      transparent 50%,
+      rgb(255 255 255 / 7%) 75%,
+      transparent
+    );
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%);
   }
   .cover img {
     display: block;
@@ -371,10 +400,5 @@
     opacity: 0;
     touch-action: none;
     -webkit-app-region: no-drag;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .record {
-      transition: none;
-    }
   }
 </style>

@@ -41,8 +41,15 @@
         cx="50"
         cy="50"
         r="49.6"
-        fill="#100e0c"
+        fill={design.surface.colour}
       />
+      {#each design.surface.patches as patch, index (index)}
+        <path
+          d={patch.d}
+          fill={patch.colour}
+          fill-opacity={patch.opacity}
+        />
+      {/each}
       {#each grooves as groove, index (index)}
         <circle
           cx="50"
