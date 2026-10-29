@@ -4,6 +4,7 @@ import {
   markNative,
   nativeAppKey,
   nativeIdentity,
+  progressAt,
   providersFor,
   readNowPlayingOptions,
   selectSession,
@@ -111,5 +112,20 @@ describe('boundaries', () => {
     expect(readStatus(widget('http://asset.localhost/cover.png'))).not.toBeNull();
     expect(readStatus(widget('https://example.com/cover.png'))).toBeNull();
     expect(readStatus(widget('file:///C:/secret.png'))).toBeNull();
+  });
+});
+
+describe('playback progress', () => {
+  const timeline = { positionMs: 30_000, startMs: 0, endMs: 100_000, sampledAtMs: 1_000_000 };
+  it.each([
+    ['moves a playing track on from its sample', 'playing', 1_010_000, 0.4],
+    ['holds a paused track at its sample', 'paused', 1_010_000, 0.3],
+    ['never runs past the end of an old sample', 'playing', 9_000_000, 1],
+    ['never moves back for a sample from the future', 'playing', 990_000, 0.3],
+  ] as const)('%s', (_name, state, now, expected) => {
+    expect(progressAt(session('s', { state, timeline }), now)).toBeCloseTo(expected);
+  });
+  it('has no progress without timing', () => {
+    expect(progressAt(session('s'), 0)).toBeNull();
   });
 });

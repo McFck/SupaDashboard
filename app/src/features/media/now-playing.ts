@@ -163,3 +163,31 @@ export function liveApps(candidates: readonly Candidate[]): CatalogueEntry[] {
   }
   return [...apps.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
+
+/**
+ * Which track a widget shows: the session plus the provider's track id, or its text when there is none.
+ * Art, position and play/pause changes keep the key, so they never count as a new track.
+ */
+export function trackKey(candidate: Candidate) {
+  const { session } = candidate;
+  return JSON.stringify([
+    candidateKey(candidate),
+    session.trackId ?? [session.title, session.artist, session.album],
+  ]);
+}
+
+/**
+ * Where playback is at `nowMs`, as a 0..1 fraction, or null when the timing is unknown. Only a playing
+ * track moves; a sample from the future or a jump in the clock never moves it backwards or past the end.
+ */
+export function progressAt(session: NowPlayingSession, nowMs: number) {
+  const timeline = session.timeline;
+  if (!timeline || timeline.endMs <= timeline.startMs) {
+    return null;
+  }
+  const rate = timeline.rate ?? 1;
+  const elapsed =
+    session.state === 'playing' && rate > 0 ? Math.max(0, nowMs - timeline.sampledAtMs) * rate : 0;
+  const position = Math.min(timeline.endMs, timeline.positionMs + elapsed);
+  return Math.max(0, (position - timeline.startMs) / (timeline.endMs - timeline.startMs));
+}

@@ -73,7 +73,7 @@ export type ControlConfig = {
 
 /** Gestures a widget can use: sliders keep their drag axis for the value, so only cross-axis swipes remain. */
 export function availableGestures(type: string, w: number, h: number, compact = false): Gesture[] {
-  if (type === 'button' || type === 'media' || type === 'web')
+  if (type === 'button' || type === 'media' || type === 'web' || type === 'nowPlaying')
     return ['swipeDown', 'swipeUp', 'swipeLeft', 'swipeRight', 'longPress', 'doubleTap'];
   if (type === 'slider')
     return !compact && sliderOrientation(w, h) === 'vertical'
