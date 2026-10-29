@@ -1,18 +1,62 @@
 import { invoke } from '@tauri-apps/api/core';
+import { get } from 'svelte/store';
+import { runtimeView } from '../app/runtime/state';
+import { nativeAppKey } from '../features/media/now-playing';
 import { settings } from '../features/settings/state.svelte';
 import { currentRuntime } from '../app/runtime/session.svelte';
-import { mediaSources } from '../features/plugins/registry';
+import { appOwners, mediaSources } from '../features/plugins/registry';
 import { contentTargets } from '../features/plugins/content-targets';
-import type { PluginApi, Param } from '../features/plugins/contracts';
+import type { Option, PluginApi, Param } from '../features/plugins/contracts';
 import { nativeSessions } from '../platform/media';
+
+const APP_PREFIX = 'app:';
+const appName = (key: string) => {
+  try {
+    return decodeURIComponent(key.slice(APP_PREFIX.length));
+  } catch {
+    return key;
+  }
+};
+
+/**
+ * Registered sources, then live apps and apps plugins know, each addressed as `app:<app id>`. An app a
+ * source already covers (Spotify) keeps its source row; a saved app that is not running stays, unavailable.
+ */
+function sourceOptions(args?: Record<string, unknown>) {
+  const options: Option[] = [...mediaSources.values()].map((s) => ({
+    value: s.id,
+    label: s.title,
+    plugin: s.plugin,
+  }));
+  const claims = [...mediaSources.keys()].filter((id) => id !== 'system');
+  for (const app of get(runtimeView).status.catalogue) {
+    if (!claims.some((claim) => appName(app.key).toLowerCase().includes(claim))) {
+      options.push({ value: app.key, label: app.title });
+    }
+  }
+  for (const [app, plugin] of appOwners) {
+    if (!claims.includes(app)) {
+      const value = nativeAppKey(app);
+      if (!options.some((option) => option.value === value)) {
+        options.push({ value, label: app.charAt(0).toUpperCase() + app.slice(1), plugin });
+      }
+    }
+  }
+  const saved = args?.source;
+  if (typeof saved === 'string' && saved.startsWith(APP_PREFIX)) {
+    if (!options.some((option) => option.value === saved)) {
+      options.push({ value: saved, label: appName(saved), unavailable: true });
+    }
+  }
+  return options;
+}
 
 const sourceParam: Param = {
   key: 'source',
   label: 'Media source',
   type: 'select',
   default: 'system',
-  suggestions: () =>
-    [...mediaSources.values()].map((s) => ({ value: s.id, label: s.title, plugin: s.plugin })),
+  suggestions: sourceOptions,
 };
 const mediaControlParam: Param = {
   key: 'target',
@@ -34,6 +78,14 @@ function delivered(result: unknown) {
 
 const media = (command: Command) => async (a: Record<string, unknown>) => {
   const id = (a.source as string) || 'system';
+  if (id.startsWith(APP_PREFIX)) {
+    const app = appName(id);
+    const result = await invoke('media_command', { target: app, command });
+    if (result === false) {
+      throw new Error(`${app} isn't playing anything`);
+    }
+    return result;
+  }
   const source = mediaSources.get(id);
   if (!source) {
     throw new Error(`Media source "${id}" isn't available (plugin missing?)`);
