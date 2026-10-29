@@ -1,13 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { get, readable, writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import type { AppletRuntimeContext } from '../../../features/applets/contracts';
 import type { RawLineBundle } from './lines';
-import {
-  registerSubwaySurface,
-  createSubwayRuntime,
-  subwaySceneState,
-  type SubwayRuntimeClock,
-} from './runtime';
+import { createSubwayRuntime, subwaySceneState, type SubwayRuntimeClock } from './runtime';
 import type { DoorSequenceApi, LoadedSubwayAssets, RuntimeCueManifest } from '../audio/sound-pack';
 import type { SubwayAudioController } from '../audio/audio';
 
@@ -94,12 +89,13 @@ function makeContext(onEvent?: (id: string) => void) {
     immersion: true,
     dwellSeconds: 0,
   });
+  const active = writable(false);
   const values = new Map<string, unknown>();
   const events: string[] = [];
   const ancestries: Array<{ depth: number; listeners: string[] } | undefined> = [];
   const context: AppletRuntimeContext = {
     config,
-    active: readable(true),
+    active,
     getState: (key) => values.get(key) as never,
     setState: async (key, value) => {
       values.set(key, value);
@@ -112,7 +108,15 @@ function makeContext(onEvent?: (id: string) => void) {
       onEvent?.(id);
     },
   };
-  return { context, values, events, ancestries, config };
+  return { context, values, events, ancestries, config, active };
+}
+
+function driveActive(fixture: { active: { set(value: boolean): void } }, eligible: boolean) {
+  fixture.active.set(eligible);
+  return {
+    setEligible: (value: boolean) => fixture.active.set(value),
+    dispose: () => fixture.active.set(false),
+  };
 }
 
 async function flush(): Promise<void> {
@@ -130,7 +134,7 @@ describe('Subway owner runtime', () => {
     async (type) => {
       const clock = new FakeClock();
       const fixture = makeContext();
-      const surface = registerSubwaySurface(true);
+      const surface = driveActive(fixture, true);
       disposers.push(() => surface.dispose());
       const handle = createSubwayRuntime(fixture.context, {
         clock,
@@ -176,7 +180,7 @@ describe('Subway owner runtime', () => {
     expect(clock.pending).toBe(0);
     expect(handle.dispatch({ type: 'start' })).toBe(false);
 
-    const surface = registerSubwaySurface(true);
+    const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
     await flush();
     expect(clock.pending).toBe(1);
@@ -198,7 +202,7 @@ describe('Subway owner runtime', () => {
     const clock = new FakeClock();
     const fixture = makeContext();
     fixture.config.update((config) => ({ ...config, startStation: 'JY01', dwellSeconds: 0 }));
-    const surface = registerSubwaySurface(false);
+    const surface = driveActive(fixture, false);
     disposers.push(() => surface.dispose());
     const handle = createSubwayRuntime(fixture.context, {
       clock,
@@ -234,50 +238,10 @@ describe('Subway owner runtime', () => {
     expect(handle.getSnapshot()).toMatchObject({ station: 'JY03' });
   });
 
-  it('freezes on the last eligible surface and resumes one shared controller when another surface remains', async () => {
-    const clock = new FakeClock();
-    const fixture = makeContext();
-    const first = registerSubwaySurface(true);
-    const second = registerSubwaySurface(true);
-    disposers.push(
-      () => first.dispose(),
-      () => second.dispose(),
-    );
-    const handle = createSubwayRuntime(fixture.context, {
-      clock,
-      loadAssets: async () => assets,
-      assetBase: 'http://localhost/subway/',
-    });
-    disposers.push(() => handle.dispose());
-    await flush();
-    handle.dispatch({ type: 'start' });
-    clock.advanceBy(15_600 + 4_000);
-    await flush();
-    const before = handle.getSnapshot()!;
-    expect(clock.pending).toBe(1);
-    first.setEligible(false);
-    expect(clock.pending).toBe(1);
-    second.setEligible(false);
-    expect(clock.pending).toBe(0);
-    const frozen = handle.getSnapshot()!;
-    clock.advanceBy(60_000);
-    expect(handle.getSnapshot()).toMatchObject({
-      progress: frozen.progress,
-      speed: frozen.speed,
-      station: frozen.station,
-      state: frozen.state,
-    });
-    second.setEligible(true);
-    expect(clock.pending).toBe(1);
-    clock.advanceBy(30_000);
-    await flush();
-    expect(handle.getSnapshot()!.progress).toBeGreaterThan(before.progress);
-  });
-
   it('does not install a timer when a surface is an editor preview or becomes hidden', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
-    const surface = registerSubwaySurface(false);
+    const surface = driveActive(fixture, false);
     disposers.push(() => surface.dispose());
     const handle = createSubwayRuntime(fixture.context, {
       clock,
@@ -310,7 +274,7 @@ describe('Subway owner runtime', () => {
     disposers.push(() => handle.dispose());
     await flush();
     expect(fixture.values.size).toBe(0);
-    const surface = registerSubwaySurface(true);
+    const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
     await flush();
     expect(fixture.values.get('state')).toBe('unavailable');
@@ -321,7 +285,7 @@ describe('Subway owner runtime', () => {
   it('ignores late asset completion after owner disposal', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
-    const surface = registerSubwaySurface(true);
+    const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
     let resolveAssets!: (loaded: LoadedSubwayAssets) => void;
     const handle = createSubwayRuntime(fixture.context, {
@@ -346,7 +310,7 @@ describe('Subway owner runtime', () => {
       if (id === 'subway.departed')
         handle?.dispatch({ type: 'set-line', lineId: 'hibiya', stationCode: 'H14' });
     });
-    const surface = registerSubwaySurface(true);
+    const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
     handle = createSubwayRuntime(fixture.context, {
       clock,
@@ -369,7 +333,7 @@ describe('Subway owner runtime', () => {
   it('keeps runtime line and immersion overrides through unrelated config changes, then clears each on its own setting edit', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
-    const surface = registerSubwaySurface(true);
+    const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
     const handle = createSubwayRuntime(fixture.context, {
       clock,
@@ -424,7 +388,7 @@ describe('Subway owner runtime', () => {
       station: 'H02',
       dwellSeconds: 0,
     }));
-    const surface = registerSubwaySurface(true);
+    const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
     const handle = createSubwayRuntime(fixture.context, {
       clock,
@@ -472,7 +436,7 @@ describe('Subway owner runtime', () => {
   it('passes scenario ancestry through runtime action events and rejects invalid requested station data without mutation', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
-    const surface = registerSubwaySurface(true);
+    const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
     const handle = createSubwayRuntime(fixture.context, {
       clock,
@@ -496,7 +460,7 @@ describe('Subway owner runtime', () => {
   it('keeps audio inside the eligible owner runtime and unlocks only through immersion commands', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
-    const surface = registerSubwaySurface(true);
+    const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
     const audio: SubwayAudioController = {
       setEnabled: vi.fn(),
