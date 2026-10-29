@@ -5,11 +5,11 @@
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Badge } from '$lib/components/ui/badge';
   import Icon from '../../controls/ui/Icon.svelte';
-  import { pluginState, setPluginEnabled, skins, suggestionsOf } from '../registry';
+  import { pluginState, setPluginEnabled, skins } from '../registry';
   import type { Param, Plugin } from '../contracts';
   import ParamField from './ParamField.svelte';
   import { labelEdit } from '../../layout/history.svelte';
-  import { resolveSkinConfig, validSkinParam } from '../../skins/definition';
+  import { nextSkinSettings, resolveSkinConfig, settingParams } from '../../skins/definition';
   import { settings } from '../../settings/state.svelte';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
@@ -18,34 +18,8 @@
   const pluginSkins = $derived([...skins.values()].filter((skin) => skin.plugin === plugin.id));
   let removing = $state(false);
   function setSkinSetting(skin: (typeof pluginSkins)[number], param: Param, value: unknown) {
-    const current = settings.skinSettings[skin.id] ?? {};
-    const previous = resolveSkinConfig(skin, current);
-    if (!validSkinParam(param, value, previous)) return;
-    const next = { ...current, [param.key]: value };
-    const resolved = { ...previous, [param.key]: value };
-    for (const dependent of skin.settings ?? []) {
-      if (
-        dependent.key === param.key ||
-        validSkinParam(dependent, resolved[dependent.key], resolved)
-      )
-        continue;
-      const options = suggestionsOf(dependent, resolved);
-      const fallback =
-        options?.find((option) => Object.is(option.value, dependent.default))?.value ??
-        options?.[0]?.value;
-      if (fallback === undefined) {
-        delete next[dependent.key];
-        delete resolved[dependent.key];
-      } else {
-        next[dependent.key] = fallback;
-        resolved[dependent.key] = fallback;
-      }
-    }
-    if (
-      Object.keys(next).every((key) => Object.is(next[key], current[key])) &&
-      Object.keys(current).every((key) => Object.is(current[key], next[key]))
-    )
-      return;
+    const next = nextSkinSettings(skin, settings.skinSettings[skin.id] ?? {}, param.key, value);
+    if (!next) return;
     labelEdit(`Change ${skin.title} ${param.label}`);
     settings.skinSettings = { ...settings.skinSettings, [skin.id]: next };
   }
@@ -125,7 +99,7 @@
       {#if skin.settings?.length}
         {@const values = resolveSkinConfig(skin, settings.skinSettings[skin.id] ?? {})}
         <Section title={`${skin.title} settings`}>
-          {#each skin.settings as param (param.key)}
+          {#each settingParams(skin.settings) as param (param.key)}
             <div class="py-3">
               <ParamField
                 {param}
@@ -140,10 +114,6 @@
         </Section>
       {/if}
     {/each}
-  {/if}
-  {#if plugin.settings}
-    {@const Settings = plugin.settings}
-    <Section title="Settings"><Settings /></Section>
   {/if}
   {#if !plugin.default && !plugin.builtin}
     <Section
