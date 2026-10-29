@@ -48,7 +48,7 @@
 {/snippet}
 
 {#if editor.selectedEvent}
-  <div class="grid shrink-0 gap-1.5 border-b px-4 py-3">
+  <div class="grid shrink-0 gap-1.5 px-4 py-3">
     <Label class="text-xs text-muted-foreground">Parameter filter</Label>
     <Choice
       value={editor.selectedEvent.parameter ?? ''}
@@ -85,11 +85,11 @@
   {:else if editor.selectedState === '*' && overrides.length}
     <div class="grid min-w-0 gap-3">
       <section
-        class="grid min-w-0 gap-3 rounded-lg border p-3"
+        class="grid min-w-0 gap-3"
         aria-label="Common steps"
       >
         <div class="flex min-w-0 items-center">
-          <span class="rounded-full border px-2.5 py-1 text-xs font-medium">Common</span>
+          <span class="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">Common</span>
         </div>
         {@render steps(owner)}
       </section>
@@ -97,11 +97,11 @@
         {@const index = editor.stateIndex(stateId)}
         {@const label = stateLabel(stateId, index)}
         <section
-          class="grid min-w-0 gap-3 rounded-lg border p-3"
+          class="grid min-w-0 gap-3"
           aria-label={index < 0 ? 'Unavailable state steps' : `${label} steps`}
         >
           <div class="flex min-w-0 flex-wrap items-center gap-2">
-            <span class="rounded-full border px-2.5 py-1 text-xs font-medium">{label}</span>
+            <span class="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">{label}</span>
             {#if index < 0}
               <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">{stateId}</span>
             {:else if draft.variants[index].label}

@@ -5,7 +5,6 @@
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
-  import { Separator } from '$lib/components/ui/separator';
   import ColorField from '$lib/components/ColorField.svelte';
   import type { ControlConfig } from '../../controls/model';
   import type { Trigger } from '../../automation/scenario';
@@ -117,7 +116,7 @@
   </Button>
 </header>
 <div
-  class="grid min-h-0 min-w-0 flex-1 content-start gap-5 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]"
+  class="grid min-h-0 min-w-0 flex-1 content-start gap-7 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]"
 >
   <div class="grid gap-1.5">
     <label
@@ -160,7 +159,6 @@
       {/each}
     </div>
   </div>
-  <Separator />
   {#if control.type === 'mixer'}
     <section class="grid gap-3">
       <h3 class="section-label">Colour</h3>
@@ -175,15 +173,12 @@
     </section>
   {:else if control.type === 'media'}
     <MediaEditor {control} />
-    <Separator />
     {@render scenarioSection()}
   {:else if control.type === 'web'}
     <WebEditor {control} />
-    <Separator />
     {@render scenarioSection()}
   {:else}
     <VariantList {control} />
-    <Separator />
     {@render scenarioSection()}
   {/if}
 </div>

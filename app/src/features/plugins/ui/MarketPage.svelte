@@ -40,7 +40,10 @@
         if (!abort.signal.aborted) remote = parsed;
       })
       .catch((error) => {
-        if (!abort.signal.aborted) toast.error(String(error));
+        if (!abort.signal.aborted) {
+          console.error(error);
+          toast.error('Could not load catalog');
+        }
       });
     return () => abort.abort();
   });
@@ -49,7 +52,8 @@
     try {
       await setCatalogUrl(url);
     } catch (error) {
-      toast.error(String(error));
+      console.error(error);
+      toast.error('Could not save catalog address');
     } finally {
       saving = false;
     }
@@ -59,7 +63,8 @@
     try {
       await setPluginEnabled(id, true);
     } catch (error) {
-      toast.error(String(error));
+      console.error(error);
+      toast.error('Could not install plugin');
       installing = null;
     }
   }
@@ -73,7 +78,7 @@
         {@const installed = plugins.some((p) => p.id === entry.id)}
         {@const bundled = bundledPlugins.some((p) => p.id === entry.id)}
         <article
-          class="flex min-w-0 flex-col items-start gap-3 rounded-xl border bg-white/[.025] p-4 transition-colors hover:bg-white/[.04]"
+          class="flex min-w-0 flex-col items-start gap-3 rounded-xl bg-white/[.03] p-4 transition-colors hover:bg-white/[.05]"
         >
           <span class="grid size-10 place-items-center rounded-lg bg-accent"
             ><Icon

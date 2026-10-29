@@ -159,10 +159,10 @@
     onCloseAutoFocus={closeAutoFocus}
     class="flex h-[min(760px,calc(100dvh-48px))] w-[min(1100px,calc(100vw-48px))] max-w-none flex-col gap-0 overflow-hidden rounded-xl p-0 data-closed:scale-100 transition-opacity motion-reduce:transition-none"
   >
-    <Dialog.Header class="grid h-28 shrink-0 grid-rows-[48px_64px] gap-0 border-b px-5">
+    <Dialog.Header class="grid h-28 shrink-0 grid-rows-[48px_64px] gap-0 px-5">
       <div class="flex min-w-0 items-center gap-3 pr-9">
         <Dialog.Title class="shrink-0 text-left">Scenario</Dialog.Title>
-        <span class="min-w-0 truncate border-l pl-3 text-sm text-muted-foreground">
+        <span class="min-w-0 truncate text-sm text-muted-foreground">
           {control?.name ?? 'Unavailable'}
         </span>
       </div>
@@ -211,7 +211,7 @@
     {/if}
 
     <Dialog.Footer
-      class="mx-0 mb-0 flex min-h-14 shrink-0 items-center justify-between gap-3 border-t px-6 py-3"
+      class="mx-0 mb-0 flex min-h-14 shrink-0 items-center justify-between gap-3 px-6 py-3"
     >
       <div
         class="min-w-0 flex-1"

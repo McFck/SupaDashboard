@@ -4,7 +4,6 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { Switch } from '$lib/components/ui/switch';
-  import { Separator } from '$lib/components/ui/separator';
   import type { ControlConfig } from '../model';
   import { readMediaOptions, type MediaSource } from '../../media/content';
   import { commit } from '../../layout/history.svelte';
@@ -60,7 +59,6 @@
   {sourceThumbnail}
   onedit={() => (dialogOpen = true)}
 />
-<Separator />
 
 <section class="grid gap-3">
   <h3 class="section-label">Slideshow</h3>

@@ -194,9 +194,9 @@
     class={end ? 'relative' : 'absolute inset-x-0 -top-8 h-7'}
   >
     <Button
-      variant={end ? 'outline' : 'ghost'}
+      variant={end ? 'secondary' : 'ghost'}
       size="sm"
-      class={end ? 'w-full border-dashed' : 'h-6 w-full text-xs text-muted-foreground'}
+      class={end ? 'w-full' : 'h-6 w-full text-xs text-muted-foreground'}
       disabled={atLimit}
       aria-label={end ? 'Add step' : `Insert step before step ${index + 1}`}
       aria-expanded={pickerKey === addKey(index)}
@@ -224,7 +224,8 @@
     }}
     role="list"
     aria-label="Scenario steps"
-    class="grid min-w-0 gap-9 {steps.length ? 'pt-8' : ''}"
+    class="grid min-w-0 gap-9 {steps.length ? 'pt-8' : depth === 0 ? 'watermark h-40' : ''}"
+    data-kana="ステップ"
   >
     {#each steps as step, index (step.id)}
       {#snippet replacePicker()}
@@ -246,9 +247,9 @@
         role="listitem"
         tabindex="-1"
         in:stepEnter={{ id: step.id }}
-        class="relative grid min-w-0 gap-3 rounded-xl border bg-card p-3 outline-none data-sortable-active:shadow-lg data-sortable-active:ring-1 data-sortable-active:ring-ring/40 {highlightedId ===
+        class="relative grid min-w-0 gap-3 rounded-xl bg-card p-3 outline-none data-sortable-active:shadow-lg data-sortable-active:ring-1 data-sortable-active:ring-ring/40 {highlightedId ===
         step.id
-          ? 'ring-2 ring-ring/60'
+          ? 'shadow-[inset_2px_0_0_var(--ring)]'
           : ''}"
       >
         {@render insertion(index)}

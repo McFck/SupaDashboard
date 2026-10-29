@@ -20,7 +20,7 @@
  * Dark only: the dashboard lives on a dim second screen. Skins override these.
  * Akira palette: warm near-black surfaces and greys, one capsule red for focus, active, selected, primary and
  * destructive, and a teal kept for info. Contrast (WCAG): white on --primary 5.0, --ring on --background 5.0,
- * --destructive on --card 5.6, --muted-foreground on --card 6.2.
+ * --destructive on --card 5.3, --muted-foreground on --card 5.8.
  */
 :root {
   color-scheme: dark;
@@ -28,9 +28,9 @@
   --background: #171412;
   --foreground: #f2ece6;
   --sidebar: #131110;
-  --card: #1f1b18;
+  --card: #24201c;
   --card-foreground: #f2ece6;
-  --popover: #1f1b18;
+  --popover: #1b1815;
   --popover-foreground: #f2ece6;
   --primary: #d42c26;
   --primary-foreground: #ffffff;
@@ -214,6 +214,64 @@
 /* The one section label style in the panel: small letter-spaced mono in muted ink. */
 @utility section-label {
   @apply font-mono text-[11px] leading-4 font-normal tracking-[0.08em] text-muted-foreground;
+}
+
+/* Faint film grain over the control panel: a tiled SVG noise at about 2.5% white, never hit-testable. */
+@utility grain {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+/*
+ * Primary cards and dialogs: a hairline edge with the top-left corner cut off. The clip removes the border on the
+ * cut, so a background stripe draws the diagonal; children with their own background must not cover that corner.
+ */
+@utility chamfer {
+  --chamfer: 20px;
+  --chamfer-edge: color-mix(in oklab, var(--foreground) 12%, transparent);
+  border: 1px solid var(--chamfer-edge);
+  clip-path: polygon(var(--chamfer) 0, 100% 0, 100% 100%, 0 100%, 0 var(--chamfer));
+  background-image: linear-gradient(
+    to bottom right,
+    transparent 50%,
+    var(--chamfer-edge) 50%,
+    var(--chamfer-edge) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+  background-size: var(--chamfer) var(--chamfer);
+  background-position: -1px -1px;
+  background-repeat: no-repeat;
+}
+
+/* Empty state: the `data-kana` word set large in faint ink behind the content. */
+@utility watermark {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: attr(data-kana);
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    pointer-events: none;
+    white-space: nowrap;
+    font:
+      700 64px/1 'Yu Gothic UI',
+      Meiryo,
+      sans-serif;
+    letter-spacing: 0.12em;
+    color: var(--foreground);
+    opacity: 0.04;
+  }
 }
 
 /* Widget card: flat neutral surface with a restrained accent tint (set --accent on the element). */

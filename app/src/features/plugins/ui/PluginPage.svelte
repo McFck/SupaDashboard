@@ -73,7 +73,8 @@
       if (!$pluginState.installed[id] || $pluginState.uninstalled.includes(id)) return;
       await setPluginEnabled(id, false);
     } catch (error) {
-      toast.error(String(error));
+      console.error(error);
+      toast.error(`Could not remove ${plugin.title}`);
     } finally {
       removing = false;
     }
@@ -127,7 +128,7 @@
         {@const values = resolveSkinConfig(skin, settings.skinSettings[skin.id] ?? {})}
         <Section title={`${skin.title} settings`}>
           {#each skin.settings as param (param.key)}
-            <div class="border-b py-3.5 last:border-b-0">
+            <div class="py-3">
               <ParamField
                 {param}
                 args={values}

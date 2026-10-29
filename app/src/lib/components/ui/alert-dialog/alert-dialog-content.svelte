@@ -24,7 +24,7 @@
 		data-slot="alert-dialog-content"
 		data-size={size}
 		class={cn(
-			"data-open:opacity-100 data-closed:opacity-0 data-open:scale-100 data-closed:scale-[.97] transition-[opacity,scale] duration-150 bg-popover text-popover-foreground ring-foreground/10 gap-4 rounded-xl p-4 ring-1 max-h-[calc(100dvh-2rem)] overflow-y-auto max-w-96 group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 outline-none",
+			"data-open:opacity-100 data-closed:opacity-0 data-open:scale-100 data-closed:scale-[.97] transition-[opacity,scale] duration-150 bg-popover text-popover-foreground chamfer gap-4 rounded-xl p-4 max-h-[calc(100dvh-2rem)] overflow-y-auto max-w-96 group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 outline-none",
 			className
 		)}
 		{...restProps}

@@ -159,7 +159,7 @@
 </script>
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-  <div class="grid shrink-0 gap-3 border-b p-4">
+  <div class="grid shrink-0 gap-3 p-4">
     <div class="flex flex-wrap items-center gap-2">
       <div class="relative min-w-48 flex-1">
         <Search
@@ -182,7 +182,7 @@
       >
     </div>
     {#if creating}
-      <div class="grid gap-3 rounded-xl border bg-card p-3 sm:grid-cols-2">
+      <div class="grid gap-3 rounded-xl bg-card p-3 sm:grid-cols-2">
         <div class="grid gap-1.5">
           <Label for="new-variable-name">Name</Label><Input
             id="new-variable-name"
@@ -244,7 +244,7 @@
           {@const id = record.definition.id}
           {@const editable = isEditable(record)}
           <article
-            class="grid min-w-0 gap-3 rounded-xl border bg-card p-3 lg:grid-cols-[minmax(0,1fr)_minmax(180px,1fr)_auto] lg:items-center"
+            class="grid min-w-0 gap-3 rounded-xl bg-card p-3 lg:grid-cols-[minmax(0,1fr)_minmax(180px,1fr)_auto] lg:items-center"
           >
             <div class="grid min-w-0 gap-1">
               {#if renamingId === id && editable}
@@ -354,6 +354,11 @@
           </article>
         {/each}
       </div>
-    {:else}<div class="py-8 text-center text-sm text-muted-foreground">No variables</div>{/if}
+    {:else}<div
+        class="watermark py-12 text-center text-sm text-muted-foreground"
+        data-kana="ヘンスウ"
+      >
+        No variables
+      </div>{/if}
   </div>
 </div>

@@ -108,7 +108,7 @@
         data-variant-card
         data-variant-id={variantId(variant, index)}
         animate:flip
-        class="relative grid min-w-0 gap-3 rounded-xl border bg-card p-3 transition-[transform,box-shadow] duration-200 ease-out"
+        class="relative grid min-w-0 gap-3 rounded-xl bg-card p-3 transition-[transform,box-shadow] duration-200 ease-out"
       >
         <div class="flex items-end gap-2">
           {#if control.variants.length > 1}

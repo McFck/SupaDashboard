@@ -118,7 +118,7 @@
   </div>
   {#if Array.isArray(o.channels)}
     {#each fixed as ch, i (i)}
-      <div class="grid min-w-0 gap-3 rounded-xl border bg-card p-3">
+      <div class="grid min-w-0 gap-3 rounded-xl bg-card p-3">
         <div class="flex min-w-0 items-end gap-2">
           <IconPicker
             value={ch.icon}

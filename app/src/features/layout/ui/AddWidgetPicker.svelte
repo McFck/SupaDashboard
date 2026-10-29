@@ -108,7 +108,7 @@
         aria-disabled={!fit}
         onclick={() => addNew(type.type)}
         class:opacity-45={!fit}
-        class="flex items-center gap-3 rounded-xl border border-white/[.07] bg-white/[.02] p-3 text-left transition hover:border-white/20 hover:bg-white/[.05]"
+        class="flex items-center gap-3 rounded-xl bg-white/[.03] p-3 text-left transition hover:bg-white/[.06]"
       >
         <span class="grid size-10 place-items-center rounded-lg bg-white/5">
           <Icon

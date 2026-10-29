@@ -72,7 +72,7 @@
 
 <div
   inert={confirmationActive}
-  class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--canvas-surface)] text-foreground"
+  class="grain flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--canvas-surface)] text-foreground"
 >
   {#if isTauri()}<TitleBar />{/if}
   <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">

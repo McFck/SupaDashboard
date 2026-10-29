@@ -108,7 +108,7 @@
           {@const Icon = sourceIcon(source)}
           <div
             data-media-source
-            class="grid min-w-0 gap-2 rounded-md border border-border/60 p-2"
+            class="grid min-w-0 gap-2 rounded-md bg-white/[.03] p-2"
           >
             <div class="flex min-w-0 items-center gap-2">
               <Button
