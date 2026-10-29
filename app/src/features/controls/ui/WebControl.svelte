@@ -15,6 +15,7 @@
     type WebFrameState,
   } from '../../media/web-frame-status';
   import ContentTile from './ContentTile.svelte';
+  import EmptyContent from './EmptyContent.svelte';
 
   let {
     control,
@@ -200,7 +201,9 @@
           ></iframe>
         {/key}
       {/if}
-      {#if frameState.status === 'unavailable'}
+      {#if !options.url.trim()}
+        <EmptyContent icon="Globe" />
+      {:else if frameState.status === 'unavailable'}
         <div
           class="absolute inset-0 grid place-items-center bg-background text-sm text-muted-foreground"
         >
