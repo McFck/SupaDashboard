@@ -32,10 +32,10 @@
     onback={() => (selected = null)}
   />
 {:else}
-  <div class="mx-auto grid max-w-[740px] gap-10 px-6 py-9">
+  <div class="mx-auto grid max-w-[740px] grid-cols-1 gap-10 px-6 py-9">
     <h1 class="font-display text-xl font-semibold tracking-wide">Plugins</h1>
     <Section title="Installed">
-      <div class="grid gap-2">
+      <div class="grid grid-cols-1 gap-2">
         {#each packages as p (p.id)}
           <div class="flex items-center gap-4 rounded-xl bg-white/[.03] pr-4">
             <button
