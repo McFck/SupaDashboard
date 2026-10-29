@@ -1,40 +1,24 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import ArrowRight from '@lucide/svelte/icons/arrow-right';
   import { Button } from '$lib/components/ui/button';
   import type { Page } from '../../../features/settings/schema';
-  import {
-    watchDashboardVisibility,
-    watchIntersection,
-  } from '../../../features/media/content-visibility';
-  import { runtimeView } from '../../../app/runtime/state';
   import { getAppletHostContext } from '../../../features/applets/context';
   import Slot from '../../../features/applets/Slot.svelte';
   import CanvasScene from '../../../features/applets/CanvasScene.svelte';
   import AppletQuickActions from '../../../features/applets/AppletQuickActions.svelte';
   import { createSubwayScene, subwaySceneRevision, type SubwaySceneData } from '../rendering/scene';
   import { regionStyle, subwayComposition } from '../rendering/composition';
-  import {
-    registerSubwaySurface,
-    subwaySceneState,
-    type SubwaySurfaceRegistration,
-  } from '../simulation/runtime';
+  import { subwaySceneState } from '../simulation/runtime';
   import { loadSubwayEditorPreview, type SubwayEditorPreview } from '../rendering/preview';
   import { displayLanguages as displayPresetLanguages } from '../simulation/config';
   import { VisibleScreenClock, type ScreenConfig } from '../rendering/screens';
 
   let { page: _page }: { page: Page } = $props();
   const host = getAppletHostContext();
-  let sceneElement: HTMLDivElement;
-  let runtimeOwner = $state(false),
-    intersecting = $state(false),
-    documentVisible = $state(false),
-    dashboardVisible = $state(false);
   let screenPulse = $state(0);
   let sceneData = $state<SubwaySceneData>();
   let editorPreview = $state<SubwayEditorPreview>();
-  let surfaceRegistration: SubwaySurfaceRegistration | undefined;
   const screenClock = new VisibleScreenClock();
   const sideActive = $derived(host?.viewId === 'cab');
   const compact = $derived((host?.viewport?.width ?? 1920) / (host?.viewport?.height || 480) < 2.8);
@@ -52,75 +36,6 @@
   const line = $derived(sceneData?.line);
   $effect(() => {
     host?.setDesignHeight?.(composition.height);
-  });
-
-  function refreshSurface() {
-    surfaceRegistration?.setEligible(
-      host?.mode === 'runtime' &&
-        host.visible &&
-        host.pageRenderVisible &&
-        runtimeOwner &&
-        intersecting &&
-        documentVisible &&
-        dashboardVisible,
-    );
-  }
-
-  onMount(() => {
-    surfaceRegistration = registerSubwaySurface(false);
-    const stopRuntimeView = runtimeView.subscribe((snapshot) => {
-      runtimeOwner = snapshot.owner;
-      refreshSurface();
-    });
-    const stopIntersection = watchIntersection(sceneElement, (value) => {
-      intersecting = value;
-      refreshSurface();
-    });
-    const onVisibility = () => {
-      documentVisible = document.visibilityState === 'visible';
-      refreshSurface();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    onVisibility();
-    let stopDashboard = () => {};
-    let disposed = false;
-    void watchDashboardVisibility((value) => {
-      dashboardVisible = value;
-      refreshSurface();
-    })
-      .then((stop) => {
-        if (disposed) stop();
-        else stopDashboard = stop;
-      })
-      .catch(() => {});
-    refreshSurface();
-    return () => {
-      disposed = true;
-      stopRuntimeView();
-      stopIntersection();
-      stopDashboard();
-      document.removeEventListener('visibilitychange', onVisibility);
-      surfaceRegistration?.dispose();
-      surfaceRegistration = undefined;
-    };
-  });
-
-  $effect(() => {
-    const mode = host?.mode,
-      visible = host?.visible,
-      pageVisible = host?.pageRenderVisible;
-    const owner = runtimeOwner,
-      inView = intersecting,
-      docVisible = documentVisible,
-      dashboard = dashboardVisible;
-    void mode;
-    void visible;
-    void pageVisible;
-    void owner;
-    void inView;
-    void docVisible;
-    void dashboard;
-    refreshSurface();
   });
 
   $effect(() => {
@@ -170,14 +85,7 @@
               : 'ja-en',
         );
     const config: ScreenConfig = { line: source.line, languages };
-    const active =
-      host?.mode === 'runtime' &&
-      host.visible &&
-      host.pageRenderVisible &&
-      runtimeOwner &&
-      intersecting &&
-      documentVisible &&
-      dashboardVisible;
+    const active = host?.active ?? false;
     const schedule = screenClock.update(source.snapshot, config, performance.now(), active);
     sceneData = {
       ...source,
@@ -201,7 +109,6 @@
 </script>
 
 <div
-  bind:this={sceneElement}
   class="subway-panel absolute inset-0 text-[#e5ecef]"
   class:overflow-hidden={host?.mode === 'runtime'}
   style={`--line-color:${line?.color ?? '#79b52c'}`}

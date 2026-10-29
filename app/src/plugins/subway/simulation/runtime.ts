@@ -38,11 +38,6 @@ export interface SubwayRuntimeOptions {
   audio?: SubwayAudioController;
 }
 
-export interface SubwaySurfaceRegistration {
-  setEligible(eligible: boolean): void;
-  dispose(): void;
-}
-
 export interface SubwayRuntimeHandle {
   dispatch(command: RunCommand, ancestry?: EventAncestry, audioGesture?: boolean): boolean;
   requestLine(
@@ -67,49 +62,12 @@ const browserClock: SubwayRuntimeClock = {
   clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
 };
 
-const surfaces = new Set<{ eligible: boolean }>();
-const surfaceListeners = new Set<(eligible: boolean) => void>();
 const sceneState = writable<SubwaySceneState | undefined>(undefined);
 export const subwaySceneState: Readable<SubwaySceneState | undefined> = {
   subscribe: (run, invalidate) => sceneState.subscribe(run, invalidate),
 };
 let activeRuntime: SubwayRuntimeHandle | undefined;
 let activeRuntimeContext: AppletRuntimeContext | undefined;
-
-function anyEligibleSurface(): boolean {
-  return [...surfaces].some((surface) => surface.eligible);
-}
-
-function notifySurfaceChange(): void {
-  const eligible = anyEligibleSurface();
-  for (const listener of surfaceListeners) listener(eligible);
-}
-
-export function registerSubwaySurface(eligible = false): SubwaySurfaceRegistration {
-  const surface = { eligible };
-  surfaces.add(surface);
-  notifySurfaceChange();
-  let disposed = false;
-  return {
-    setEligible(value) {
-      if (disposed || surface.eligible === value) return;
-      surface.eligible = value;
-      notifySurfaceChange();
-    },
-    dispose() {
-      if (disposed) return;
-      disposed = true;
-      surfaces.delete(surface);
-      notifySurfaceChange();
-    },
-  };
-}
-
-function subscribeSurfaceEligibility(listener: (eligible: boolean) => void): () => void {
-  surfaceListeners.add(listener);
-  listener(anyEligibleSurface());
-  return () => surfaceListeners.delete(listener);
-}
 
 function buildCuePlans(
   lines: readonly LineDefinition[],
@@ -259,7 +217,7 @@ export function createSubwayRuntime(
   let currentConfig = get(context.config);
   let appliedConfig: ReturnType<typeof normalizeSubwayConfig> | undefined;
   const overrides = { line: false, direction: false, startStation: false, immersion: false };
-  const unsubscribeSurface = subscribeSurfaceEligibility((value) => {
+  const unsubscribeActive = context.active.subscribe((value) => {
     if (eligible === value) return;
     eligible = value;
     audio.setVisible(value);
@@ -517,7 +475,7 @@ export function createSubwayRuntime(
     alive = false;
     epoch++;
     clearWake();
-    unsubscribeSurface();
+    unsubscribeActive();
     unsubscribeConfig();
     audio.dispose();
     if (activeRuntime === handle) {

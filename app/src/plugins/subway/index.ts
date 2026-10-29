@@ -214,7 +214,7 @@ const state: AppletStateField[] = [
 
 export const subwayPlugin: Plugin = {
   id: 'subway',
-  title: 'Subway skin',
+  title: 'Subway',
   description: 'Japanese passenger-information displays with a compact control strip.',
   icon: 'TrainFront',
   author: 'SupaDashboard',
