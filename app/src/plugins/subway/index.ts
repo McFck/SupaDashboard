@@ -1,4 +1,4 @@
-import type { Option, Param, Plugin } from '../../features/plugins/contracts';
+import type { Option, Param, Plugin, SettingsGroup } from '../../features/plugins/contracts';
 import type { SkinStateField } from '../../features/skins/contracts';
 import SubwayButton from './ui/SubwayButton.svelte';
 import SubwaySlider from './ui/SubwaySlider.svelte';
@@ -41,11 +41,19 @@ const lineOptions: Option[] = [
   { value: '', label: 'Next line' },
   ...SUBWAY_LINE_IDS.map((value) => ({ value, label: lineTitles[value] })),
 ];
+const directionTitles: Record<string, string> = {
+  inner: 'Inner loop',
+  outer: 'Outer loop',
+  'to-kita-senju': 'To Kita-senju',
+  'to-naka-meguro': 'To Naka-meguro',
+  southbound: 'Southbound',
+  northbound: 'Northbound',
+};
 const directionOptions = (line?: string): Option[] => [
   { value: '', label: 'Automatic' },
   ...(directionIds[line ?? ''] ?? Object.values(directionIds).flat()).map((value) => ({
     value,
-    label: value,
+    label: directionTitles[value] ?? value,
   })),
 ];
 const stationOptions = (line?: string): Option[] =>
@@ -99,95 +107,123 @@ const startStationParam: Param = {
   suggestions: (args) => stationOptions(args?.line as string | undefined),
 };
 
-const settings: Param[] = [
+const settings: SettingsGroup[] = [
   {
-    key: 'line',
-    label: 'Line',
-    type: 'select',
-    default: SUBWAY_DEFAULT_CONFIG.line,
-    suggestions: SUBWAY_LINE_IDS.map((value) => ({ value, label: lineTitles[value] })),
-  },
-  {
-    key: 'direction',
-    label: 'Direction',
-    type: 'select',
-    default: SUBWAY_DEFAULT_CONFIG.direction,
-    suggestions: (args) =>
-      directionOptions(args?.line as string | undefined).filter((option) => option.value),
-  },
-  {
-    key: 'startStation',
-    label: 'Start station',
-    type: 'select',
-    default: SUBWAY_DEFAULT_CONFIG.startStation,
-    suggestions: (args) =>
-      stationOptions(args?.line as string | undefined).filter((option) => option.value),
-  },
-  {
-    key: 'carNumber',
-    label: 'Car number',
-    type: 'select',
-    default: '1',
-    suggestions: (args) =>
-      Array.from(
-        { length: args?.line === 'hibiya' ? 7 : args?.line === 'sakaisuji' ? 8 : 11 },
-        (_, index) => ({ value: String(index + 1), label: String(index + 1) }),
-      ),
-  },
-  {
-    key: 'speed',
-    label: 'Run speed (next segment)',
-    type: 'select',
-    default: '1',
-    suggestions: [0.5, 1, 2].map((value) => ({ value: String(value), label: `${value}×` })),
-  },
-  {
-    key: 'displayLanguages',
-    label: 'Display languages',
-    type: 'select',
-    default: SUBWAY_DEFAULT_CONFIG.displayLanguages,
-    suggestions: (args) => displayOptions(args?.line as string | undefined),
-  },
-  {
-    key: 'announcementLanguages',
-    label: 'Announcement languages',
-    type: 'select',
-    default: SUBWAY_DEFAULT_CONFIG.announcementLanguages,
-    suggestions: announcementOptions,
-  },
-  {
-    key: 'immersion',
-    label: 'Immersion',
-    type: 'boolean',
-    default: SUBWAY_DEFAULT_CONFIG.immersion,
-  },
-  {
-    key: 'announcementVolume',
-    label: 'Announcement volume',
-    type: 'number',
-    default: SUBWAY_DEFAULT_CONFIG.announcementVolume,
-  },
-  {
-    key: 'gesture',
-    label: 'Quick actions gesture',
-    type: 'select',
-    default: 'tripleTap',
-    suggestions: [
-      { value: 'tripleTap', label: 'Triple tap' },
-      { value: 'cornerHold', label: 'Corner hold' },
-      { value: 'off', label: 'Off' },
+    id: 'route',
+    title: 'Route',
+    params: [
+      {
+        key: 'line',
+        label: 'Line',
+        type: 'select',
+        default: SUBWAY_DEFAULT_CONFIG.line,
+        suggestions: SUBWAY_LINE_IDS.map((value) => ({ value, label: lineTitles[value] })),
+      },
+      {
+        key: 'direction',
+        label: 'Direction',
+        type: 'select',
+        default: SUBWAY_DEFAULT_CONFIG.direction,
+        suggestions: (args) =>
+          directionOptions(args?.line as string | undefined).filter((option) => option.value),
+      },
+      {
+        key: 'startStation',
+        label: 'Start station',
+        type: 'select',
+        default: SUBWAY_DEFAULT_CONFIG.startStation,
+        suggestions: (args) =>
+          stationOptions(args?.line as string | undefined).filter((option) => option.value),
+      },
+      {
+        key: 'carNumber',
+        label: 'Car number',
+        type: 'select',
+        default: '1',
+        suggestions: (args) =>
+          Array.from(
+            { length: args?.line === 'hibiya' ? 7 : args?.line === 'sakaisuji' ? 8 : 11 },
+            (_, index) => ({ value: String(index + 1), label: String(index + 1) }),
+          ),
+      },
+      {
+        key: 'speed',
+        label: 'Run speed',
+        type: 'select',
+        default: '1',
+        suggestions: [0.5, 1, 2].map((value) => ({ value: String(value), label: `${value}×` })),
+      },
     ],
   },
   {
-    key: 'corner',
-    label: 'Gesture corner',
-    type: 'select',
-    default: 'bottomRight',
-    suggestions: [
-      { value: 'topLeft', label: 'Top left' },
-      { value: 'topRight', label: 'Top right' },
-      { value: 'bottomLeft', label: 'Bottom left' },
-      { value: 'bottomRight', label: 'Bottom right' },
+    id: 'languages',
+    title: 'Languages',
+    params: [
+      {
+        key: 'displayLanguages',
+        label: 'Display',
+        type: 'select',
+        default: SUBWAY_DEFAULT_CONFIG.displayLanguages,
+        suggestions: (args) => displayOptions(args?.line as string | undefined),
+      },
+      {
+        key: 'announcementLanguages',
+        label: 'Announcements',
+        type: 'select',
+        default: SUBWAY_DEFAULT_CONFIG.announcementLanguages,
+        suggestions: announcementOptions,
+      },
+    ],
+  },
+  {
+    id: 'sound',
+    title: 'Sound',
+    params: [
+      {
+        key: 'immersion',
+        label: 'Immersion',
+        type: 'boolean',
+        default: SUBWAY_DEFAULT_CONFIG.immersion,
+      },
+      {
+        key: 'announcementVolume',
+        label: 'Announcement volume',
+        type: 'number',
+        default: SUBWAY_DEFAULT_CONFIG.announcementVolume,
+        min: 0,
+        max: 1,
+        step: 0.05,
+      },
+    ],
+  },
+  {
+    id: 'quick-actions',
+    title: 'Quick actions',
+    params: [
+      {
+        key: 'gesture',
+        label: 'Gesture',
+        type: 'select',
+        default: 'tripleTap',
+        suggestions: [
+          { value: 'tripleTap', label: 'Triple tap' },
+          { value: 'cornerHold', label: 'Corner hold' },
+          { value: 'off', label: 'Off' },
+        ],
+      },
+      {
+        key: 'corner',
+        label: 'Corner',
+        visible: (values) => values.gesture === 'cornerHold',
+        type: 'select',
+        default: 'bottomRight',
+        suggestions: [
+          { value: 'topLeft', label: 'Top left' },
+          { value: 'topRight', label: 'Top right' },
+          { value: 'bottomLeft', label: 'Bottom left' },
+          { value: 'bottomRight', label: 'Bottom right' },
+        ],
+      },
     ],
   },
 ];
