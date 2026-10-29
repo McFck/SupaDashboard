@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { get, writable } from 'svelte/store';
+import { get, readable, writable } from 'svelte/store';
 import type { AppletRuntimeContext } from '../../../features/applets/contracts';
 import type { RawLineBundle } from './lines';
 import {
@@ -99,6 +99,7 @@ function makeContext(onEvent?: (id: string) => void) {
   const ancestries: Array<{ depth: number; listeners: string[] } | undefined> = [];
   const context: AppletRuntimeContext = {
     config,
+    active: readable(true),
     getState: (key) => values.get(key) as never,
     setState: async (key, value) => {
       values.set(key, value);

@@ -44,6 +44,7 @@ export type RuntimeOptions = {
   persistence?: VariablePersistence;
   onFailure?: (failure: ScenarioFailure) => void;
   onQueueFull?: (controlId: string, trigger: Trigger | 'event') => void;
+  onAppletFailed?: (appletId: string) => void;
 };
 
 /** The state a control shows now: its variable binding first, else its manual state. */
@@ -148,6 +149,7 @@ export class RuntimeSession {
       setVariable: (id, value, owner, ancestry) => this.writeVariable(id, value, owner, ancestry),
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(id, parameter, payload, ancestry),
+      onStartFailed: options.onAppletFailed ?? (() => {}),
     });
     this.events.register({ id: 'variables.changed', title: 'Variable changed', plugin: 'core' });
     this.events.register({ id: 'page.changed', title: 'Page changed', plugin: 'core' });
@@ -198,7 +200,7 @@ export class RuntimeSession {
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(id, parameter, payload, ancestry),
     });
-    this.applets.start();
+    this.applets.start(settings.deck.pages.map((page) => page.applet));
     this.stopRemoteSettings = onRemoteSettings((next) => {
       this.applets.reconcile(runtimeAppletValues(next, this.pages.activePage));
     });
@@ -210,6 +212,12 @@ export class RuntimeSession {
       $effect(() => {
         const pages = settings.deck.pages;
         this.pages.reconcile(pages);
+        this.applets.sync(pages.map((page) => page.applet));
+      });
+      $effect(() => {
+        // Separate settings resolve per page, so the shown page decides the values the runtime sees.
+        const activePage = settings.deck.activePage;
+        this.applets.reconcile(runtimeAppletValues(settings, activePage));
       });
     });
     this.publish();

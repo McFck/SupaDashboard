@@ -78,11 +78,17 @@
   );
   setContext(APPLET_HOST_CONTEXT, controller);
   const Applet = $derived(applet.component);
-  onMount(() => controller.mount());
+  let element = $state<HTMLElement>();
+  onMount(() => {
+    if (element) {
+      controller.mount(element);
+    }
+  });
   onDestroy(() => controller.destroy());
 </script>
 
 <div
+  bind:this={element}
   bind:clientWidth={controller.width}
   bind:clientHeight={controller.height}
   data-applet-host

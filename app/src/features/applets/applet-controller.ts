@@ -1,13 +1,15 @@
 import { writable, type Writable } from 'svelte/store';
 import type { VariableStore, VariableValue } from '../automation/variables';
 import type { EventAncestry } from '../plugins/contracts';
+import { appletActive } from './applet-activity';
 import { resolveAppletConfig, validAppletStateValue } from './definition';
 import { type AppletConfig, type AppletDef, type AppletRuntimeContext } from './contracts';
 
 export class AppletController {
   private readonly configs = new Map<string, Writable<AppletConfig>>();
   private readonly signatures = new Map<string, string>();
-  private readonly cleanups: (() => void)[] = [];
+  /** Applets whose `start` ran, in start order; a failed start stays here without a cleanup so it is not retried on every edit. */
+  private readonly running = new Map<string, (() => void) | undefined>();
 
   constructor(
     private readonly host: {
@@ -22,46 +24,82 @@ export class AppletController {
         ancestry?: EventAncestry,
       ): Promise<boolean>;
       emitEvent: AppletRuntimeContext['emitEvent'];
+      onStartFailed(appletId: string): void;
     },
   ) {}
 
-  start() {
+  /** Seeds every applet's view, then runs `sync`. */
+  start(appletIds: readonly (string | undefined)[]) {
     if (!this.host.isOwner()) {
       return;
     }
-    try {
-      for (const applet of this.host.definitions.values()) {
-        this.startApplet(applet);
+    for (const applet of this.host.definitions.values()) {
+      const viewId = `${applet.id}.view`;
+      if (!applet.views.some((view) => view.id === this.host.variables.getValue(viewId))) {
+        void this.setVariable(applet, viewId, applet.defaultView);
       }
-    } catch (error) {
-      this.dispose();
-      throw error;
+    }
+    this.sync(appletIds);
+  }
+
+  /** Runs exactly the applets some page uses (`appletIds`) that are registered, and stops the rest. */
+  sync(appletIds: readonly (string | undefined)[]) {
+    if (!this.host.isOwner()) {
+      return;
+    }
+    const wanted = new Set<string>();
+    for (const id of appletIds) {
+      if (id && this.host.definitions.has(id)) {
+        wanted.add(id);
+      }
+    }
+    for (const id of [...this.running.keys()].reverse()) {
+      if (!wanted.has(id)) {
+        this.stopApplet(id);
+      }
+    }
+    for (const id of wanted) {
+      const applet = this.host.definitions.get(id);
+      if (applet?.start && !this.running.has(id)) {
+        this.startApplet(applet, applet.start);
+      }
     }
   }
 
-  private startApplet(applet: AppletDef) {
-    const viewId = `${applet.id}.view`;
-    if (!applet.views.some((view) => view.id === this.host.variables.getValue(viewId))) {
-      void this.setVariable(applet, viewId, applet.defaultView);
-    }
-    if (!applet.start) {
-      return;
-    }
+  private startApplet(applet: AppletDef, start: NonNullable<AppletDef['start']>) {
     const stored = this.host.getSettings()[applet.id] ?? {};
     const config = writable<AppletConfig>(resolveAppletConfig(applet, stored));
-    this.configs.set(applet.id, config);
-    this.signatures.set(applet.id, JSON.stringify(stored));
     const context: AppletRuntimeContext = {
       config,
+      active: appletActive(applet.id),
       getState: (key) => this.host.variables.getValue(`${applet.id}.${key}`),
       setState: (key, value, ancestry) => this.setState(applet.id, key, value, ancestry),
       setView: (viewId, ancestry) => this.setView(applet.id, viewId, ancestry),
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(applet.id, id, parameter, payload, ancestry),
     };
-    const cleanup = applet.start(context);
-    if (typeof cleanup === 'function') {
-      this.cleanups.push(cleanup);
+    this.configs.set(applet.id, config);
+    this.signatures.set(applet.id, JSON.stringify(stored));
+    try {
+      const cleanup = start(context);
+      this.running.set(applet.id, typeof cleanup === 'function' ? cleanup : undefined);
+    } catch {
+      this.running.set(applet.id, undefined);
+      this.configs.delete(applet.id);
+      this.signatures.delete(applet.id);
+      this.host.onStartFailed(applet.id);
+    }
+  }
+
+  private stopApplet(appletId: string) {
+    const cleanup = this.running.get(appletId);
+    this.running.delete(appletId);
+    this.configs.delete(appletId);
+    this.signatures.delete(appletId);
+    try {
+      cleanup?.();
+    } catch {
+      /* one plugin cleanup must not block the others */
     }
   }
 
@@ -124,15 +162,9 @@ export class AppletController {
   }
 
   dispose() {
-    for (const cleanup of this.cleanups.splice(0).reverse()) {
-      try {
-        cleanup();
-      } catch {
-        /* one plugin cleanup must not block the others */
-      }
+    for (const id of [...this.running.keys()].reverse()) {
+      this.stopApplet(id);
     }
-    this.configs.clear();
-    this.signatures.clear();
   }
 
   private assertOwner() {

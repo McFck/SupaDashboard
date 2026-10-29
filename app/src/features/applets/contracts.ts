@@ -29,6 +29,8 @@ export type AppletStateField = {
 export type AppletConfig = Readonly<Record<string, unknown>>;
 export type AppletRuntimeContext = {
   config: Readable<AppletConfig>;
+  /** True while a page showing this applet is live: visible, on screen, and this window is the owner. */
+  active: Readable<boolean>;
   getState(key: string): VariableValue | undefined;
   setState(
     key: string,

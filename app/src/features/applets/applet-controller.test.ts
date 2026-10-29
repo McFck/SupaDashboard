@@ -3,12 +3,13 @@ import { VariableStore } from '../automation/variables';
 import type { AppletDef } from './contracts';
 import { AppletController } from './applet-controller';
 
-it('disposes earlier applet runtimes when a later startup fails and allows a clean retry', () => {
+function setup(owner = true) {
   const variables = new VariableStore();
-  const disposed: string[] = [];
-  let fail = true;
   const definitions = new Map<string, AppletDef>();
-  for (const id of ['first', 'second', 'third']) {
+  const log: string[] = [];
+  const failed: string[] = [];
+  let failStart = '';
+  for (const id of ['first', 'second']) {
     variables.define(
       {
         id: `${id}.view`,
@@ -29,11 +30,12 @@ it('disposes earlier applet runtimes when a later startup fails and allows a cle
       views: [{ id: 'default', title: 'Default', slots: [] }],
       defaultView: 'default',
       start: () => {
-        if (id === 'third' && fail) {
+        if (id === failStart) {
           throw new Error('Startup failed');
         }
+        log.push(`start ${id}`);
         return () => {
-          disposed.push(id);
+          log.push(`stop ${id}`);
         };
       },
     });
@@ -42,19 +44,60 @@ it('disposes earlier applet runtimes when a later startup fails and allows a cle
     definitions,
     variables,
     getSettings: () => ({}),
-    isOwner: () => true,
-    setVariable: async (id, value, owner) => variables.set(id, value, owner),
+    isOwner: () => owner,
+    setVariable: async (id, value, appletOwner) => variables.set(id, value, appletOwner),
     emitEvent: vi.fn(async () => {}),
+    onStartFailed: (id) => failed.push(id),
   });
+  return {
+    controller,
+    definitions,
+    log,
+    failed,
+    failNext: (id: string) => {
+      failStart = id;
+    },
+  };
+}
 
-  expect(() => controller.start()).toThrow('Startup failed');
-  expect(disposed).toEqual(['second', 'first']);
+it('starts an applet once while pages use it and stops it once when the last page leaves', () => {
+  const { controller, log } = setup();
+  controller.start(['first', undefined]);
+  controller.sync(['first', 'first']);
+  controller.sync(['first', undefined]);
+  expect(log).toEqual(['start first']);
+  controller.sync([undefined, undefined]);
+  controller.sync([undefined]);
+  expect(log).toEqual(['start first', 'stop first']);
+  controller.sync(['first']);
+  controller.dispose();
+  controller.dispose();
+  expect(log).toEqual(['start first', 'stop first', 'start first', 'stop first']);
+});
+
+it('stops an applet whose plugin is no longer registered and ignores unknown ids', () => {
+  const { controller, definitions, log } = setup();
+  controller.start(['first', 'missing']);
+  definitions.delete('first');
+  controller.sync(['first', 'missing']);
+  expect(log).toEqual(['start first', 'stop first']);
+});
+
+it('never starts in a window that does not own the runtime', () => {
+  const { controller, log } = setup(false);
+  controller.start(['first']);
+  controller.sync(['second']);
+  expect(log).toEqual([]);
+});
+
+it('keeps other applets running when one fails to start and does not retry it on every edit', () => {
+  const { controller, log, failed, failNext } = setup();
+  failNext('first');
+  controller.start(['first', 'second']);
+  controller.sync(['first', 'second']);
+  expect(failed).toEqual(['first']);
+  expect(log).toEqual(['start second']);
   expect(controller.updateConfig('first', { changed: true })).toBe(false);
   controller.dispose();
-  expect(disposed).toEqual(['second', 'first']);
-
-  fail = false;
-  controller.start();
-  controller.dispose();
-  expect(disposed).toEqual(['second', 'first', 'third', 'second', 'first']);
+  expect(log).toEqual(['start second', 'stop second']);
 });
