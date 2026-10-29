@@ -12,8 +12,8 @@
   let rotor = $state<HTMLElement>();
   let size = $state(0);
   // Below this width the finest grooves would only read as noise.
-  const grooves = $derived(
-    size < 120 ? design.grooves.filter((groove) => groove.width >= 0.26) : design.grooves,
+  const rings = $derived(
+    size < 120 ? design.rings.filter((ring) => ring.width >= 0.26) : design.rings,
   );
   const spin = new DiscSpin();
 
@@ -23,6 +23,18 @@
   });
   onDestroy(() => spin.destroy());
 </script>
+
+{#snippet shapes(list: VinylDesign['under'])}
+  {#each list as shape, index (index)}
+    <path
+      d={shape.d}
+      fill={shape.fill ?? 'none'}
+      stroke={shape.stroke}
+      stroke-width={shape.width}
+      opacity={shape.opacity}
+    />
+  {/each}
+{/snippet}
 
 <div
   class="disc"
@@ -41,67 +53,29 @@
         cx="50"
         cy="50"
         r="49.6"
-        fill={design.surface.colour}
+        fill={design.base}
       />
-      {#each design.surface.patches as patch, index (index)}
-        <path
-          d={patch.d}
-          fill={patch.colour}
-          fill-opacity={patch.opacity}
-        />
-      {/each}
-      {#each grooves as groove, index (index)}
+      {@render shapes(design.under)}
+      {#each rings as ring, index (index)}
         <circle
           cx="50"
           cy="50"
-          r={groove.r}
+          r={ring.r}
           fill="none"
-          stroke="#f2ece6"
-          stroke-width={groove.width}
-          stroke-opacity={groove.opacity}
+          stroke={ring.colour}
+          stroke-width={ring.width}
+          stroke-opacity={ring.opacity}
         />
       {/each}
-      {#each design.marks as mark, index (index)}
-        <path
-          d={mark.d}
-          fill="none"
-          stroke={mark.colour}
-          stroke-width={mark.width}
-          stroke-linecap="round"
-          stroke-opacity="0.16"
-        />
+      {@render shapes(design.over)}
+      {#each design.text as line, index (index)}
+        <text
+          x="50"
+          y={line.y}
+          font-size={line.size}
+          fill={line.colour}>{line.content}</text
+        >
       {/each}
-      <circle
-        cx={design.accent.cx}
-        cy={design.accent.cy}
-        r={design.accent.r}
-        fill="none"
-        stroke={design.accent.colour}
-        stroke-width="0.35"
-        stroke-opacity="0.5"
-      />
-      <circle
-        cx="50"
-        cy="50"
-        r={design.label.r}
-        fill={design.label.colour}
-      />
-      {#each design.arcs as arc, index (index)}
-        <path
-          d={arc.d}
-          fill="none"
-          stroke={arc.colour}
-          stroke-width={arc.width}
-          stroke-linecap="round"
-          stroke-opacity="0.85"
-        />
-      {/each}
-      <circle
-        cx="50"
-        cy="50"
-        r="1.3"
-        fill="#0f0d0c"
-      />
     </svg>
   </div>
   <span class="sheen"></span>
@@ -114,6 +88,17 @@
     height: 100%;
     border-radius: 50%;
     box-shadow: 0 4px 14px rgb(0 0 0 / 0.45);
+  }
+  path {
+    fill-rule: evenodd;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  text {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-anchor: middle;
   }
   /* The light stays put while the record turns under it. */
   .sheen {
