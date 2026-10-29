@@ -4,7 +4,7 @@
   import Section from '../../../panel/ui/Section.svelte';
   import PluginPage from './PluginPage.svelte';
   const packages = plugins.filter((p) => !p.builtin);
-  let selected = $state<string | null>(null);
+  let { selected = $bindable(null) }: { selected: string | null } = $props();
   const plugin = $derived(packages.find((p) => p.id === selected));
 </script>
 

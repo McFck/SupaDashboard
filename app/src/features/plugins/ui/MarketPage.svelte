@@ -1,43 +1,38 @@
 <script lang="ts">
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
   import Icon from '../../controls/ui/Icon.svelte';
-  import { catalogEntries, type CatalogEntry } from '../plugin-store';
-  import {
-    bundledPlugins,
-    plugins,
-    pluginState,
-    setCatalogUrl,
-    setPluginEnabled,
-  } from '../registry';
-  import catalog from '../../../plugins/catalog.json';
-  import Row from '../../../panel/ui/Row.svelte';
+  import { CATALOG_URL, catalogEntries, type CatalogEntry } from '../plugin-store';
+  import { bundledPlugins, plugins, setPluginEnabled } from '../registry';
   import Section from '../../../panel/ui/Section.svelte';
+
+  let { onopen }: { onopen: (id: string) => void } = $props();
   let remote = $state<CatalogEntry[]>([]);
-  let url = $state('');
-  let saving = $state(false);
   let installing = $state<string | null>(null);
-  const entries = $derived([
-    ...new Map(
-      [...remote, ...catalogEntries(catalog)]
-        .filter((p) => !bundledPlugins.some((b) => b.id === p.id && b.builtin))
-        .map((p) => [p.id, p]),
-    ).values(),
-  ]);
+  const local: CatalogEntry[] = bundledPlugins
+    .filter((p) => !p.builtin)
+    .map((p) => ({
+      id: p.id,
+      title: p.title,
+      author: p.author ?? '',
+      icon: p.icon,
+      description: p.description,
+    }));
+  const entries = $derived([...new Map([...remote, ...local].map((p) => [p.id, p])).values()]);
   $effect(() => {
-    url = $pluginState.catalogUrl;
-  });
-  $effect(() => {
-    const index = $pluginState.catalogUrl;
-    remote = [];
-    if (!index) return;
+    if (!CATALOG_URL) {
+      return;
+    }
     const abort = new AbortController();
-    void fetch(index, { signal: abort.signal })
+    void fetch(CATALOG_URL, { signal: abort.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error('Could not load plugin catalog');
+        if (!response.ok) {
+          throw new Error('Could not load plugin catalog');
+        }
         const parsed = catalogEntries(await response.json());
-        if (!abort.signal.aborted) remote = parsed;
+        if (!abort.signal.aborted) {
+          remote = parsed;
+        }
       })
       .catch((error) => {
         if (!abort.signal.aborted) {
@@ -47,17 +42,6 @@
       });
     return () => abort.abort();
   });
-  async function save() {
-    saving = true;
-    try {
-      await setCatalogUrl(url);
-    } catch (error) {
-      console.error(error);
-      toast.error('Could not save catalog address');
-    } finally {
-      saving = false;
-    }
-  }
   async function install(id: string) {
     installing = id;
     try {
@@ -90,42 +74,26 @@
             <h2 class="text-sm font-semibold">{entry.title}</h2>
             <p class="text-xs text-muted-foreground">{entry.author}</p>
           </div>
-          <Button
-            class="mt-auto w-full"
-            size="sm"
-            variant={installed ? 'secondary' : 'default'}
-            disabled={installed || !bundled || installing !== null}
-            onclick={() => install(entry.id)}>{installed ? 'Installed' : 'Install'}</Button
-          >
+          {#if entry.description}
+            <p class="line-clamp-2 text-xs text-muted-foreground">{entry.description}</p>
+          {/if}
+          {#if installed}
+            <Button
+              class="mt-auto w-full"
+              size="sm"
+              variant="secondary"
+              onclick={() => onopen(entry.id)}>Open</Button
+            >
+          {:else}
+            <Button
+              class="mt-auto w-full"
+              size="sm"
+              disabled={!bundled || installing !== null}
+              onclick={() => install(entry.id)}>Install</Button
+            >
+          {/if}
         </article>
       {/each}
     </div>
-  </Section>
-  <Section title="Catalog">
-    <Row
-      label="Index URL"
-      wide
-    >
-      <form
-        class="flex min-w-0 gap-2"
-        onsubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
-      >
-        <Input
-          type="url"
-          aria-label="Catalog index URL"
-          class="min-w-0 flex-1"
-          bind:value={url}
-        />
-        <Button
-          type="submit"
-          size="sm"
-          variant="outline"
-          disabled={saving}>Save</Button
-        >
-      </form>
-    </Row>
   </Section>
 </div>
