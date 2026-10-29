@@ -6,7 +6,7 @@ use std::cell::Cell;
 use std::mem::size_of;
 use tauri::{Manager, WebviewWindow};
 use windows::Win32::Foundation::{
-    GetLastError, HWND, LPARAM, LRESULT, RECT, SetLastError, WIN32_ERROR, WPARAM,
+    GetLastError, HWND, LPARAM, LRESULT, POINT, RECT, SetLastError, WIN32_ERROR, WPARAM,
 };
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -16,14 +16,14 @@ use windows::Win32::UI::Shell::{
     DefSubclassProc, GetWindowSubclass, RemoveWindowSubclass, SetWindowSubclass,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowExW, GWL_EXSTYLE, GWL_STYLE, GetWindowLongPtrW, GetWindowRect, HTBOTTOM,
-    HTBOTTOMLEFT, HTBOTTOMRIGHT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsIconic,
-    IsWindowVisible, MA_NOACTIVATE, PA_NOACTIVATE, SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT,
-    SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-    SetWindowLongPtrW, SetWindowPos, ShowWindow, WM_CANCELMODE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
-    WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
+    FindWindowExW, GA_ROOT, GWL_EXSTYLE, GWL_STYLE, GetAncestor, GetCursorPos, GetWindowLongPtrW,
+    GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT,
+    HTTOPRIGHT, IsIconic, IsWindowVisible, MA_NOACTIVATE, PA_NOACTIVATE, SC_MAXIMIZE, SC_MOVE,
+    SC_SIZE, STYLESTRUCT, SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, WM_CANCELMODE, WM_ENTERSIZEMOVE,
+    WM_EXITSIZEMOVE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
     WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND, WS_CAPTION,
-    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
+    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX, WindowFromPoint,
 };
 
 /// Identifies our subclass on the window ("SUPA").
@@ -36,7 +36,6 @@ const SYSCOMMAND_MASK: u32 = 0xfff0;
 struct PolicyState {
     events: Events,
     fullscreen: Cell<bool>,
-    tracking_leave: Cell<bool>,
     minimized: Cell<bool>,
     resize_hit_test: Cell<bool>,
 }
@@ -54,7 +53,6 @@ pub fn install(window: &WebviewWindow) -> Result<(), String> {
     let state = Box::into_raw(Box::new(PolicyState {
         events: Events::new(window.app_handle().clone()),
         fullscreen: Cell::new(false),
-        tracking_leave: Cell::new(false),
         minimized: Cell::new(unsafe { IsIconic(hwnd).as_bool() }),
         resize_hit_test: Cell::new(false),
     }));
@@ -111,8 +109,29 @@ pub fn set_interaction_mode(window: &WebviewWindow, fullscreen: bool) -> Result<
     }
     let policy = unsafe { &*(reference_data as *const PolicyState) };
     policy.fullscreen.set(fullscreen);
+    super::touch_surface::cancel(hwnd);
     clear_pointer_state(policy);
     Ok(())
+}
+
+pub fn touch_window_action(
+    window: &WebviewWindow,
+    action: super::touch_window::TouchWindowAction,
+) -> Result<(), String> {
+    let hwnd = hwnd_of(window)?;
+    let mut data = 0;
+    if !unsafe { GetWindowSubclass(hwnd, Some(dashboard_subclass), SUBCLASS_ID, Some(&mut data)) }
+        .as_bool()
+        || data == 0
+    {
+        return Err("dashboard window interaction policy is not installed".into());
+    }
+    // SAFETY: the policy is installed on this live window; this command runs on its UI thread.
+    let policy = unsafe { &*(data as *const PolicyState) };
+    if policy.fullscreen.get() {
+        return Err("window touch gestures are disabled in fullscreen".into());
+    }
+    super::touch_surface::begin_window_action(hwnd, action)
 }
 
 fn apply_style_policy(hwnd: HWND) -> Result<(), String> {
@@ -172,7 +191,6 @@ const fn enforce_ex_style(style: u32) -> u32 {
 
 /// Ends any resize gesture and hover the frontend still believes in.
 fn clear_pointer_state(policy: &PolicyState) {
-    policy.tracking_leave.set(false);
     policy.resize_hit_test.set(false);
     policy.events.resize(false);
     policy.events.hover(false, true);
@@ -196,17 +214,12 @@ unsafe extern "system" fn dashboard_subclass(
         WM_POINTERACTIVATE => Some(LRESULT(PA_NOACTIVATE as isize)),
         WM_SYSCOMMAND => on_syscommand(policy, wparam),
         WM_NCHITTEST => on_hit_test(policy, hwnd, lparam),
-        WM_NCMOUSEMOVE => {
+        WM_NCMOUSEMOVE | WM_NCMOUSELEAVE => {
             on_mouse_move(policy, hwnd);
             None
         }
-        WM_NCMOUSELEAVE => {
-            policy.tracking_leave.set(false);
-            policy.events.hover(false, false);
-            None
-        }
         WM_SHOWWINDOW if wparam.0 == 0 => {
-            policy.tracking_leave.set(false);
+            super::touch_surface::cancel(hwnd);
             policy.events.hover(false, true);
             None
         }
@@ -215,6 +228,7 @@ unsafe extern "system" fn dashboard_subclass(
             None
         }
         WM_EXITSIZEMOVE | WM_CANCELMODE => {
+            super::touch_surface::cancel(hwnd);
             policy.resize_hit_test.set(false);
             policy.events.resize(false);
             None
@@ -240,6 +254,9 @@ unsafe extern "system" fn dashboard_subclass(
             policy.events.visibility(wparam.0 != 0 && !minimized);
         }
         WM_SIZE => {
+            if let Err(error) = super::touch_surface::resize(hwnd) {
+                log::error!("could not resize dashboard input surface: {error}");
+            }
             let minimized = unsafe { IsIconic(hwnd).as_bool() };
             if policy.minimized.get() != minimized {
                 policy.minimized.set(minimized);
@@ -296,18 +313,33 @@ fn hit_code(hit: ResizeHit) -> u32 {
 }
 
 fn on_mouse_move(policy: &PolicyState, hwnd: HWND) {
-    if policy.fullscreen.get() || policy.tracking_leave.get() {
+    let mut point = POINT::default();
+    let mut rect = RECT::default();
+    let position = unsafe { GetCursorPos(&mut point) };
+    let bounds = unsafe { GetWindowRect(hwnd, &mut rect) };
+    let target = unsafe { WindowFromPoint(point) };
+    let hovered = !policy.fullscreen.get()
+        && position.is_ok()
+        && bounds.is_ok()
+        && unsafe { GetAncestor(target, GA_ROOT) } == hwnd
+        && resize_hit(rect.into(), (point.x, point.y), unsafe {
+            GetDpiForWindow(hwnd)
+        })
+        .is_some();
+    policy.events.hover(hovered, false);
+    if !hovered {
         return;
     }
+    // The transparent input child can own the resize band; tracking its parent posts an immediate leave.
     let mut track = TRACKMOUSEEVENT {
         cbSize: size_of::<TRACKMOUSEEVENT>() as u32,
         dwFlags: TME_NONCLIENT | TME_LEAVE,
-        hwndTrack: hwnd,
+        hwndTrack: target,
         dwHoverTime: 0,
     };
-    let tracking = unsafe { TrackMouseEvent(&mut track) }.is_ok();
-    policy.tracking_leave.set(tracking);
-    policy.events.hover(tracking, false);
+    if let Err(error) = unsafe { TrackMouseEvent(&mut track) } {
+        log::warn!("dashboard edge leave tracking failed: {error}");
+    }
 }
 
 fn on_style_changing(wparam: WPARAM, lparam: LPARAM) {
@@ -331,7 +363,6 @@ fn on_destroy(
     reference_data: usize,
 ) -> LRESULT {
     // Keep the original hover-before-resize revision order when the window is destroyed.
-    policy.tracking_leave.set(false);
     policy.events.hover(false, true);
     policy.resize_hit_test.set(false);
     policy.events.resize(false);

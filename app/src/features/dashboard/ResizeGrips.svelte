@@ -20,7 +20,7 @@
     }
     event.preventDefault();
     event.stopPropagation();
-    dashboard.startResize(direction);
+    dashboard.startResize(direction, event.pointerType);
   }
 </script>
 

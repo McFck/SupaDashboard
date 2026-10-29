@@ -55,7 +55,7 @@ impl Geometry {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 pub enum ResizeHit {
     NorthWest,
     North,

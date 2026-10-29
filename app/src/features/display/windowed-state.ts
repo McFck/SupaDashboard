@@ -73,12 +73,27 @@ export class WindowedBounds {
     this.win.step();
     const monitor =
       monitorWithLargestIntersection(actual, snapshot.screens) ?? snapshot.current ?? undefined;
-    const bounds = this.fit(actual, monitor);
-    if (!sameGeometry(bounds, actual)) {
-      await this.restore({ ...snapshot, monitor, bounds });
-    } else {
-      await this.win.moving(() => this.setNativeMinimum(monitor));
-    }
+    await this.win.moving(async () => {
+      await this.setNativeMinimum(monitor);
+      // A DPI change can happen mid-drag; grow at the latest position without clamping it to one monitor.
+      const current = await this.win.readBounds();
+      this.win.step();
+      const minimum = this.minimum(monitor);
+      const bounds = {
+        ...current,
+        width: Math.max(current.width, minimum.width),
+        height: Math.max(current.height, minimum.height),
+      };
+      if (!sameGeometry(bounds, current)) {
+        const placed = await this.win.place(bounds);
+        this.win.step();
+        if (sameGeometry(placed, bounds)) {
+          await this.save(placed, monitor?.name ?? null);
+        } else {
+          this.keep(placed, monitor?.name ?? null);
+        }
+      }
+    });
   }
 
   /** Where the window opens: the saved rectangle, or the deck's natural size, on the chosen monitor. */

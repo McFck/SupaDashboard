@@ -19,6 +19,7 @@ const WINDOW_DRAG_HOLD_MS = 250;
 
 type Session = {
   pointerId: number;
+  pointerType: string;
   startX: number;
   startY: number;
   latestX: number;
@@ -51,7 +52,7 @@ export type PagerHost = {
   fullscreen(): boolean;
   /** The window can be moved by dragging (native and not fullscreen). */
   canDragWindow(): boolean;
-  startWindowDrag(): void;
+  startWindowDrag(pointerType: string): void;
   requestPage(pageId: string): Promise<boolean>;
   /** Pages finished moving: the drag areas must be observed and measured again. */
   onSettled(): void;
@@ -295,7 +296,7 @@ export class Pager {
     const mode = this.pressMode();
     if (mode === 'window' && gap && this.host.canDragWindow()) {
       event.preventDefault();
-      this.host.startWindowDrag();
+      this.host.startWindowDrag(event.pointerType);
     }
     if (mode !== 'swipe') {
       return;
@@ -310,6 +311,7 @@ export class Pager {
 
     const session: Session = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       startX: event.clientX,
       startY: event.clientY,
       latestX: event.clientX,
@@ -371,7 +373,7 @@ export class Pager {
     }
     this.clear(session);
     this.yielded();
-    this.host.startWindowDrag();
+    this.host.startWindowDrag(session.pointerType);
   }
 
   /** The first decisive movement picks the gesture: horizontal swipes pages, vertical drags or yields. */

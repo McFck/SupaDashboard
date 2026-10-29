@@ -41,7 +41,7 @@
     skinNavigates: () => skin.pageNavigation === 'skin',
     fullscreen: () => dashboard.appliedFullscreen,
     canDragWindow: () => isTauri() && !dashboard.appliedFullscreen,
-    startWindowDrag: () => dashboard.startDrag(),
+    startWindowDrag: (pointerType) => dashboard.startDrag(pointerType),
     requestPage: (pageId) => requestPageChange({ page: pageId }, 'swipe'),
     onSettled: () => {
       gaps?.observeNodes();

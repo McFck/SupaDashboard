@@ -1,4 +1,4 @@
-//! The two commands the frontend uses to place and configure the dashboard window.
+//! The commands that place and configure the dashboard window.
 use super::geometry::Geometry;
 use super::policy::{hwnd_of, set_interaction_mode};
 use tauri::{AppHandle, Manager, WebviewWindow};
@@ -11,13 +11,30 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[tauri::command]
 pub async fn dashboard_set_bounds(app: AppHandle, bounds: Geometry) -> Result<Geometry, String> {
     on_main_window(&app, "bounds", move |window| {
-        set_bounds(hwnd_of(&window)?, bounds)
+        let hwnd = hwnd_of(&window)?;
+        unsafe { SendMessageW(hwnd, WM_CANCELMODE, Some(WPARAM(0)), Some(LPARAM(0))) };
+        place_bounds(hwnd, bounds)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn dashboard_touch_window_action(
+    app: AppHandle,
+    action: super::touch_window::TouchWindowAction,
+) -> Result<(), String> {
+    on_main_window(&app, "touch window gesture", move |window| {
+        super::policy::touch_window_action(&window, action)
     })
     .await
 }
 
 #[tauri::command]
 pub async fn dashboard_interaction_mode(app: AppHandle, fullscreen: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or("dashboard main window is unavailable")?;
+    super::touch_surface::install(window).await?;
     on_main_window(&app, "interaction mode", move |window| {
         set_interaction_mode(&window, fullscreen)
     })
@@ -46,7 +63,7 @@ async fn on_main_window<T: Send + 'static>(
         .ok_or_else(|| format!("dashboard UI thread dropped the {operation} result"))?
 }
 
-fn set_bounds(hwnd: HWND, bounds: Geometry) -> Result<Geometry, String> {
+pub(super) fn place_bounds(hwnd: HWND, bounds: Geometry) -> Result<Geometry, String> {
     let (x, y, width, height) = bounds.to_win32()?;
     let place = || unsafe {
         SetWindowPos(
@@ -65,7 +82,6 @@ fn set_bounds(hwnd: HWND, bounds: Geometry) -> Result<Geometry, String> {
         Ok::<_, String>(Geometry::from(rect))
     };
 
-    unsafe { SendMessageW(hwnd, WM_CANCELMODE, Some(WPARAM(0)), Some(LPARAM(0))) };
     let dpi = unsafe { GetDpiForWindow(hwnd) };
     let placed = place()?;
     // Moving onto a monitor with another DPI sends WM_DPICHANGED inside that SetWindowPos, and Tao applies the

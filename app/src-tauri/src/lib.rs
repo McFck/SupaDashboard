@@ -62,6 +62,7 @@ pub fn run() {
             monitors::monitor_names,
             dashboard::commands::dashboard_set_bounds,
             dashboard::commands::dashboard_interaction_mode,
+            dashboard::commands::dashboard_touch_window_action,
             audio::service::audio_snapshot,
             audio::service::audio_update,
             media::media_command,

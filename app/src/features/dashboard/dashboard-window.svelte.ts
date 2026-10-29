@@ -7,6 +7,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { startDisplay, type DisplayController } from '../display/display';
 import type { Page, Settings } from '../settings/schema';
 import { toast } from 'svelte-sonner';
+import { startTouchWindowAction } from '../../platform/window';
 
 type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
 type ResizeEvent = { resizing: boolean; revision: number };
@@ -73,22 +74,25 @@ export class DashboardWindow {
     }
   }
 
-  startDrag() {
-    getCurrentWindow()
-      .startDragging()
-      .catch((error) => console.warn('drag', error));
+  startDrag(pointerType: string) {
+    const action =
+      pointerType === 'touch' ? startTouchWindowAction('Move') : getCurrentWindow().startDragging();
+    void action.catch(() => toast.error('Could not move window'));
   }
 
   startResize(
     direction: Parameters<ReturnType<typeof getCurrentWindow>['startResizeDragging']>[0],
+    pointerType = 'mouse',
   ) {
     if (!isTauri() || this.appliedFullscreen) {
       return;
     }
     this.showResizeCues();
-    void getCurrentWindow()
-      .startResizeDragging(direction)
-      .catch(() => toast.error('Could not resize window'));
+    const action =
+      pointerType === 'touch'
+        ? startTouchWindowAction(direction)
+        : getCurrentWindow().startResizeDragging(direction);
+    void action.catch(() => toast.error('Could not resize window'));
   }
 
   destroy() {
@@ -148,6 +152,11 @@ export class DashboardWindow {
   private async listenToWindow() {
     try {
       const appWindow = getCurrentWindow();
+      this.keep(
+        await listen('dashboard-touch-error', () => {
+          toast.error('Could not process touch input', { id: 'dashboard-touch' });
+        }),
+      );
       this.keep(
         await appWindow.onResized(() => {
           if (this.ready && !this.appliedFullscreen) {

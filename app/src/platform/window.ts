@@ -34,5 +34,12 @@ export const setDashboardBounds = (bounds: Geometry) =>
 export const setDashboardInteractionMode = (fullscreen: boolean) =>
   invoke<void>('dashboard_interaction_mode', { fullscreen });
 
+export const startTouchWindowAction = (
+  action: 'Move' | Parameters<Window['startResizeDragging']>[0],
+) =>
+  invoke<void>('dashboard_touch_window_action', {
+    action: action === 'Move' ? 'Move' : { Resize: action },
+  });
+
 export const openWindowStateStore = () =>
   load('window-state.json', { defaults: {}, autoSave: 200 });

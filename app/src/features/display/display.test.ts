@@ -155,3 +155,32 @@ it('raises the window minimum when moving onto a higher DPI monitor', async () =
     );
   });
 });
+
+it.each([600, 1000])(
+  'keeps a %ipx cross-monitor drag in place after a DPI change',
+  async (width) => {
+    const { deck, scaleChanged, set, setMinSize } = windowFixture();
+    await controller.start({ monitor: null, fullscreen: false, alwaysOnTop: false }, deck);
+    native.screens.push({
+      ...native.screens[0],
+      name: 'second',
+      position: { x: 1920, y: 0 },
+      workArea: { position: { x: 1920, y: 0 }, size: { width: 1920, height: 1040 } },
+      scaleFactor: 2,
+    });
+    set.mockClear();
+    native.bounds = { x: 1750, y: -30, width, height: 400 };
+    scaleChanged();
+    await vi.waitFor(() => {
+      expect(native.bounds).toEqual({ x: 1750, y: -30, width: Math.max(width, 772), height: 400 });
+      expect(setMinSize).toHaveBeenLastCalledWith(
+        expect.objectContaining({ width: 772, height: 400 }),
+      );
+      if (width < 772) {
+        expect(set).toHaveBeenLastCalledWith('dashboard', native.bounds);
+      } else {
+        expect(set).not.toHaveBeenCalled();
+      }
+    });
+  },
+);
