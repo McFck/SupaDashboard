@@ -57,16 +57,14 @@
                   {#if p.author}
                     <span class="shrink-0 text-xs text-muted-foreground">{p.author}</span>
                   {/if}
-                  {#if p.version}
-                    <span class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
-                      >{p.version}</span
-                    >
-                  {/if}
                 </div>
                 {#if p.description}
                   <p class="truncate text-xs text-muted-foreground">{p.description}</p>
                 {/if}
               </div>
+              {#if p.version}
+                <span class="shrink-0 text-xs text-muted-foreground tabular-nums">{p.version}</span>
+              {/if}
             </button>
             <Switch
               aria-label={`Enable ${p.title}`}
