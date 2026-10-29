@@ -3307,6 +3307,7 @@ dependencies = [
  "tauri-plugin-store",
  "webview2-com",
  "windows",
+ "windows-future",
 ]
 
 [[package]]

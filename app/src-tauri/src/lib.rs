@@ -34,6 +34,7 @@ pub fn run() {
                 audio::service::AudioService::start(app.handle().clone())
                     .map_err(std::io::Error::other)?,
             );
+            app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
             panel::spawn_preload(app.handle().clone());
@@ -64,6 +65,9 @@ pub fn run() {
             audio::service::audio_snapshot,
             audio::service::audio_update,
             media::media_command,
+            media::media_sessions_subscribe,
+            media::media_sessions_unsubscribe,
+            media::media_artwork_resolve,
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
