@@ -6,6 +6,6 @@
 
 {#if detail}<Badge
     variant="secondary"
-    class="max-w-40 truncate font-normal text-muted-foreground">{detail}</Badge
+    class="max-w-40 truncate font-normal text-muted-foreground tabular-nums">{detail}</Badge
   >{/if}
 {#if unavailable}<Badge variant="outline">Unavailable</Badge>{/if}
