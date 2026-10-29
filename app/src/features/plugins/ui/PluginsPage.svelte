@@ -50,16 +50,20 @@
                 /></span
               >
               <div class="min-w-0 flex-1">
-                <div class="flex items-baseline justify-between gap-3">
+                <div class="flex items-baseline gap-3">
                   <p class="truncate text-[15px] font-medium">{p.title}</p>
+                  {#if p.author}
+                    <span class="shrink-0 text-xs text-muted-foreground">{p.author}</span>
+                  {/if}
                   {#if p.version}
-                    <span class="shrink-0 font-mono text-xs text-muted-foreground">{p.version}</span
+                    <span class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
+                      >{p.version}</span
                     >
                   {/if}
                 </div>
-                <p class="truncate text-xs text-muted-foreground">
-                  {p.author ?? ''}{p.author && p.description ? ' · ' : ''}{p.description ?? ''}
-                </p>
+                {#if p.description}
+                  <p class="truncate text-xs text-muted-foreground">{p.description}</p>
+                {/if}
               </div>
             </button>
             <Switch
