@@ -5,6 +5,7 @@
   import Minus from '@lucide/svelte/icons/minus';
   import Square from '@lucide/svelte/icons/square';
   import X from '@lucide/svelte/icons/x';
+  import Wordmark from './Wordmark.svelte';
 
   type Platform = 'windows' | 'macos' | 'linux';
 
@@ -33,7 +34,6 @@
   const layout = LAYOUT[platform];
 
   const appWindow = getCurrentWindow();
-  let title = $state('');
   let maximized = $state(false);
   let snapHover = $state(false);
   let maximizeButton: HTMLButtonElement | undefined = $state();
@@ -74,11 +74,6 @@
         stop();
       }
     };
-    void appWindow.title().then((value) => {
-      if (alive) {
-        title = value;
-      }
-    });
     void sync();
     void appWindow.onResized(sync).then(keep);
     void appWindow
@@ -97,9 +92,9 @@
 <header
   data-tauri-drag-region
   style:padding-left="{layout.lightsInset || 12}px"
-  class="flex h-8 shrink-0 select-none items-center justify-between bg-[var(--canvas-surface)] text-xs text-muted-foreground"
+  class="flex h-9 shrink-0 select-none items-center justify-between bg-[var(--canvas-surface)] text-xs text-muted-foreground"
 >
-  <span class="pointer-events-none truncate">{title}</span>
+  <Wordmark />
   {#if layout.buttons}
     <div class="flex h-full">
       <button

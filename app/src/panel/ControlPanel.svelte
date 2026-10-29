@@ -17,7 +17,6 @@
   import ConfirmationHost from '$lib/components/ui/confirmation/ConfirmationHost.svelte';
   import { confirmationState } from '$lib/components/ui/confirmation/confirm.svelte';
   import TitleBar from './TitleBar.svelte';
-  import Wordmark from './Wordmark.svelte';
   import { SIDEBAR_RAIL } from './ui/frame';
 
   type Page = 'layout' | 'settings' | 'plugins' | 'market';
@@ -75,9 +74,7 @@
   inert={confirmationActive}
   class="grain flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--canvas-surface)] text-foreground"
 >
-  {#if isTauri()}<TitleBar />{:else}<header class="flex h-9 shrink-0 items-center px-4">
-      <Wordmark />
-    </header>{/if}
+  {#if isTauri()}<TitleBar />{/if}
   <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
     <nav
       aria-label="Main navigation"
