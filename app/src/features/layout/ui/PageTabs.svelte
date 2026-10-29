@@ -299,7 +299,7 @@
         onkeydown={(event) => keydown(event, page, index)}
         onclick={() => (selectedPageId = page.id)}
         oncontextmenu={(event) => openPageMenu(event, page)}
-        class="h-9 min-w-20 max-w-40 shrink-0 select-none truncate rounded-md px-3 text-sm text-foreground/70 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring aria-selected:bg-muted/70 aria-selected:text-foreground touch-none"
+        class="h-9 min-w-20 max-w-40 shrink-0 select-none truncate rounded-md px-3 font-display text-sm font-medium tracking-wide text-foreground/70 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring aria-selected:bg-muted/70 aria-selected:text-foreground touch-none"
       >
         {page.name}
       </button>

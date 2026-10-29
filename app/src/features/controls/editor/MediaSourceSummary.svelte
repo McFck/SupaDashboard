@@ -16,8 +16,8 @@
 <section class="grid gap-3">
   <div class="flex min-w-0 items-center gap-3">
     <div class="min-w-0 flex-1">
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sources</h3>
-      <span class="text-sm tabular-nums"
+      <h3 class="section-label">Sources</h3>
+      <span class="text-sm font-mono tabular-nums"
         >{sources.length} {sources.length === 1 ? 'source' : 'sources'}</span
       >
     </div>

@@ -83,7 +83,7 @@
 
 <section class="grid gap-3">
   <div class="flex items-center justify-between">
-    <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Variants</h3>
+    <h3 class="section-label">Variants</h3>
     <Button
       variant="ghost"
       size="sm"

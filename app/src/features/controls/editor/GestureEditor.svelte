@@ -44,11 +44,13 @@
     <span class="flex items-center gap-1">
       <Badge
         variant="secondary"
-        class="tabular-nums"><Zap /><span class="sr-only">Triggers </span>{configured.length}</Badge
+        class="font-mono tabular-nums"
+        ><Zap /><span class="sr-only">Triggers </span>{configured.length}</Badge
       >
       <Badge
         variant="secondary"
-        class="tabular-nums"><ListOrdered /><span class="sr-only">Steps </span>{totalSteps}</Badge
+        class="font-mono tabular-nums"
+        ><ListOrdered /><span class="sr-only">Steps </span>{totalSteps}</Badge
       >
     </span>
   </Button>
@@ -61,7 +63,8 @@
       onclick={() => onedit(trigger)}
     >
       <span class="truncate">{TRIGGER_LABELS[trigger]}</span><span
-        class="shrink-0 text-xs tabular-nums text-muted-foreground">{stepCount(trigger)}</span
+        class="shrink-0 text-xs font-mono tabular-nums text-muted-foreground"
+        >{stepCount(trigger)}</span
       >
     </Button>
   {/each}
@@ -72,7 +75,7 @@
       class="justify-between"
       onclick={() => onedit('press')}
     >
-      <span>Events</span><span class="text-xs tabular-nums text-muted-foreground"
+      <span>Events</span><span class="text-xs font-mono tabular-nums text-muted-foreground"
         >{control.scenario.events.length}</span
       >
     </Button>

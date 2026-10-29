@@ -217,7 +217,7 @@
       step={1}
       onValueChange={(v) => onchange(withAlpha(parts.hex, v / 100))}
     />
-    <span class="w-10 text-right text-xs tabular-nums text-muted-foreground"
+    <span class="w-10 text-right text-xs font-mono tabular-nums text-muted-foreground"
       >{Math.round(parts.alpha * 100)}%</span
     >
   </div>

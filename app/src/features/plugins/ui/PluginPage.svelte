@@ -94,19 +94,21 @@
         size={30}
       /></span
     >
-    <h1 class="text-2xl font-semibold tracking-tight">{plugin.title}</h1>
+    <h1 class="font-display text-2xl font-semibold tracking-wide">{plugin.title}</h1>
   </div>
   {#if plugin.description}<p class="text-[15px] leading-relaxed text-muted-foreground">
       {plugin.description}
     </p>{/if}
   <Section>
     <Row label="Author"><span class="text-sm">{plugin.author ?? '—'}</span></Row>
-    <Row label="Version"><span class="text-sm tabular-nums">{plugin.version ?? '—'}</span></Row>
+    <Row label="Version"
+      ><span class="text-sm font-mono tabular-nums">{plugin.version ?? '—'}</span></Row
+    >
     <Row label="Last update"><span class="text-sm">{date(plugin.updated)}</span></Row>
     <Row label="Installed"
       ><span class="text-sm">{date($pluginState.installed[plugin.id])}</span></Row
     >
-    <Row label="Size"><span class="text-sm tabular-nums">{size(plugin.size)}</span></Row>
+    <Row label="Size"><span class="text-sm font-mono tabular-nums">{size(plugin.size)}</span></Row>
   </Section>
   {#if pluginSkins.length}
     <Section title="Skins">

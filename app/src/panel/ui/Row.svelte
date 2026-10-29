@@ -15,7 +15,7 @@
 >
   <label
     for={id}
-    class="min-w-0 flex-1 text-[15px] font-medium">{label}</label
+    class="min-w-0 flex-1 text-[13px] font-medium">{label}</label
   >
   <div class={wide ? 'min-w-0' : 'flex min-w-0 max-w-[70%] shrink justify-end'}>
     {@render children()}

@@ -96,7 +96,7 @@
           step={1}
           onValueChange={setCanvasRadius}
         />
-        <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">
+        <span class="w-10 text-right text-sm font-mono tabular-nums text-muted-foreground">
           {settings.display.background.radius}px
         </span>
       </div>
@@ -126,7 +126,7 @@
             onValueChange={(value) => setGrid(setting.key, value)}
             onValueCommit={() => commitGrid(setting.key)}
           />
-          <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">
+          <span class="w-10 text-right text-sm font-mono tabular-nums text-muted-foreground">
             {page[setting.key]}{setting.unit ?? ''}
           </span>
         </div>

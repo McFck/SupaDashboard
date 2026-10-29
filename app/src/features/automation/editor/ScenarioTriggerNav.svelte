@@ -33,13 +33,15 @@
       onclick={() => editor.selectList(`trigger:${trigger}`)}
     >
       <span class="truncate">{label}</span>
-      <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
+      <span class="shrink-0 text-xs font-mono tabular-nums text-muted-foreground">{steps}</span>
     </Button>
   {/each}
   <div class="mt-2 grid gap-2 border-t pt-3">
     <div class="flex items-center justify-between gap-2">
       <h3 class="text-xs font-semibold text-muted-foreground">Events</h3>
-      <span class="text-xs tabular-nums text-muted-foreground">{draft.scenario.events.length}</span>
+      <span class="text-xs font-mono tabular-nums text-muted-foreground"
+        >{draft.scenario.events.length}</span
+      >
     </div>
     {#each draft.scenario.events as event (event.id)}
       {@const definition = editor.eventDefinition(event.eventId)}
@@ -57,7 +59,9 @@
         >
           <span class="truncate">{editor.eventLabel(event)}</span>
           <PluginMark plugin={definition?.plugin} />
-          <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
+          <span class="ml-auto shrink-0 text-xs font-mono tabular-nums text-muted-foreground"
+            >{steps}</span
+          >
         </Button>
         <Button
           size="icon-sm"

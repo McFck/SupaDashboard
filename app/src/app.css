@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@fontsource-variable/inter';
+@import '@fontsource/chakra-petch/latin-400.css';
+@import '@fontsource/chakra-petch/latin-500.css';
+@import '@fontsource/chakra-petch/latin-600.css';
+@import '@fontsource/chakra-petch/latin-700.css';
 
 @custom-variant dark (&:is(.dark *));
 /* shadcn-svelte classes use short state variants; bits-ui expresses them through data-state / data-orientation. */
@@ -45,6 +49,9 @@
 }
 
 @theme inline {
+  /* Display face for titles, page names and the wordmark; Windows' own mono for counters (the app runs offline). */
+  --font-display: 'Chakra Petch', 'Inter Variable', 'Segoe UI', sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -196,6 +203,11 @@
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
   }
+}
+
+/* The one section label style in the panel: small letter-spaced mono in muted ink. */
+@utility section-label {
+  @apply font-mono text-[11px] leading-4 font-normal tracking-[0.08em] text-muted-foreground;
 }
 
 /* Widget card: flat neutral surface with a restrained accent tint (set --accent on the element). */

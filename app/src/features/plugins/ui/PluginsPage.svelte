@@ -13,7 +13,7 @@
     onback={() => (selected = null)}
   />{:else}
   <div class="mx-auto grid max-w-[740px] gap-10 px-6 py-9">
-    <h1 class="text-xl font-semibold tracking-tight">Plugins</h1>
+    <h1 class="font-display text-xl font-semibold tracking-wide">Plugins</h1>
     <Section title="Installed">
       <div class="grid gap-2">
         {#each packages as p (p.id)}

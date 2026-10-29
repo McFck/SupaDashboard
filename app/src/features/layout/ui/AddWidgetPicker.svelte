@@ -120,7 +120,7 @@
           <span class="min-w-0 truncate">{type.title}</span>
           <PluginMark plugin={type.plugin} />
         </span>
-        <span class="text-xs tabular-nums text-muted-foreground">
+        <span class="text-xs font-mono tabular-nums text-muted-foreground">
           {fit?.w ?? type.size.w}×{fit?.h ?? type.size.h}
         </span>
       </button>
@@ -140,7 +140,7 @@
             : ''}"
         />
         <span class="flex-1">Existing</span>
-        <span class="tabular-nums">{existingRows.length}</span>
+        <span class="font-mono tabular-nums">{existingRows.length}</span>
       </summary>
       <div class="grid min-w-0 gap-2 pt-2">
         <Input
@@ -175,7 +175,7 @@
                 </span>
               </span>
               <span
-                class="shrink-0 text-xs tabular-nums text-muted-foreground"
+                class="shrink-0 text-xs font-mono tabular-nums text-muted-foreground"
                 aria-label="Used in {row.uses} placements"
               >
                 {row.uses}

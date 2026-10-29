@@ -66,7 +66,7 @@
 </script>
 
 <div class="mx-auto grid max-w-[960px] gap-10 px-6 py-9">
-  <h1 class="text-xl font-semibold tracking-tight">Market</h1>
+  <h1 class="font-display text-xl font-semibold tracking-wide">Market</h1>
   <Section>
     <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-3">
       {#each entries as entry (entry.id)}
