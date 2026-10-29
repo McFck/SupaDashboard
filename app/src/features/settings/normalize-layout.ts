@@ -122,7 +122,7 @@ export function normalizeLayout(saved: Record<string, unknown>) {
     throw new Error('Deck pages must be an array');
   }
   const rawPages: unknown[] =
-    (saved.version === 5 || saved.version === 6) && Array.isArray(deck.pages)
+    (saved.version === 5 || saved.version === 6 || saved.version === 7) && Array.isArray(deck.pages)
       ? deck.pages
       : [{ ...structuredClone(DEFAULT_PAGE), ...deck, id: 'page-1', name: 'Page 1' }];
   const pages: Page[] = [];

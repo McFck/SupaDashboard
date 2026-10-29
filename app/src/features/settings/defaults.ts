@@ -42,7 +42,7 @@ export const DEFAULT_PAGE: Page = {
 };
 
 export const DEFAULTS: Settings = {
-  version: 5,
+  version: 7,
   skin: 'deck',
   display: {
     monitor: null,

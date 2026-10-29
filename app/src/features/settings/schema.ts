@@ -1,4 +1,4 @@
-// Persisted settings shape (v5).
+// Persisted settings shape (v7).
 import type { ControlConfig } from '../controls/model';
 import type { DeckSizing, Item } from '../layout/grid';
 
@@ -17,7 +17,7 @@ export type Page = {
 export type Deck = { pages: Page[]; activePage: string };
 
 export type Settings = {
-  version: 5;
+  version: 7;
   skin: string;
   display: {
     monitor: string | null;

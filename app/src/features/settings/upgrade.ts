@@ -87,7 +87,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 6) {
+  if (typeof saved.version === 'number' && saved.version > 7) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -166,8 +166,8 @@ export function upgrade(input: Record<string, unknown>) {
         : { ...structuredClone(DEFAULT_PAGE), items },
     };
   }
-  // v6 was briefly emitted by a development build with this same settings shape; normalize it back to v5.
-  if (saved.version !== 3 && saved.version !== 4 && saved.version !== 5 && saved.version !== 6) {
+  // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
+  if (![3, 4, 5, 6, 7].includes(saved.version as number)) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
 

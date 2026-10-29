@@ -5,6 +5,7 @@ import { DEFAULTS } from './defaults';
 import { isRecord } from '../automation/plain-data';
 import { object, upgrade } from './upgrade';
 import { normalizeLayout } from './normalize-layout';
+import { readNowPlayingOptions } from '../media/now-playing';
 
 /** Bring any saved settings up to the current version without losing the user's controls. */
 export function migrate(input: unknown): Settings {
@@ -23,6 +24,17 @@ export function migrate(input: unknown): Settings {
     }
   }
   const controls = rawControls.map((control) => normalizeControl(control));
+  for (const control of controls) {
+    if (control.type !== 'nowPlaying') {
+      continue;
+    }
+    // A damaged filter must fail the load; falling back to All would silently show another source.
+    const sources = readNowPlayingOptions(control.options);
+    if (!sources) {
+      throw new Error('Now playing sources are malformed');
+    }
+    control.options = { ...control.options, sources };
+  }
   delete saved.slots; // the strip editor was removed; skins reuse the deck's controls
 
   const { deck, skinLayouts, pageIds, itemIds } = normalizeLayout(saved);
@@ -85,7 +97,7 @@ export function migrate(input: unknown): Settings {
   return {
     ...out,
     ...saved,
-    version: 5,
+    version: 7,
     skin: pick(saved.skin, (v) => typeof v === 'string', out.skin),
     controls,
     display: {
