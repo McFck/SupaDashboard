@@ -293,13 +293,6 @@ export async function setPluginEnabled(id: string, enabled: boolean) {
   location.reload();
 }
 
-export async function setCatalogUrl(url: string) {
-  const next = url.trim();
-  if (next && !['https:', 'http:'].includes(new URL(next).protocol))
-    throw new Error('Use an HTTP or HTTPS URL');
-  await persistPlugins({ ...get(pluginState), catalogUrl: next });
-}
-
 export const suggestionsOf = (p: Param, args?: Record<string, unknown>) =>
   typeof p.suggestions === 'function' ? p.suggestions(args) : p.suggestions;
 

@@ -21,6 +21,7 @@
 
   type Page = 'layout' | 'settings' | 'plugins' | 'market';
   let page = $state<Page>('layout');
+  let pluginId = $state<string | null>(null);
   const confirmationActive = $derived(confirmationState.current !== null);
   const NAV: { id: Page; label: string; icon: typeof Monitor }[] = [
     { id: 'layout', label: 'Layout', icon: LayoutGrid },
@@ -114,7 +115,12 @@
               <button
                 {...props}
                 type="button"
-                onclick={() => (page = n.id)}
+                onclick={() => {
+                  page = n.id;
+                  if (n.id === 'plugins') {
+                    pluginId = null;
+                  }
+                }}
                 aria-label={n.label}
                 aria-current={page === n.id ? 'page' : undefined}
                 class="relative ml-2 grid h-10 w-12 shrink-0 place-items-center rounded-lg text-left text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring
@@ -153,8 +159,13 @@
               class="absolute inset-0 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]"
             >
               {#if page === 'settings'}<SettingsPage />
-              {:else if page === 'plugins'}<PluginsPage />
-              {:else}<MarketPage />{/if}
+              {:else if page === 'plugins'}<PluginsPage bind:selected={pluginId} />
+              {:else}<MarketPage
+                  onopen={(id) => {
+                    pluginId = id;
+                    page = 'plugins';
+                  }}
+                />{/if}
             </div>
           {/key}
         {/if}

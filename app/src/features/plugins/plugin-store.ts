@@ -1,7 +1,6 @@
 export type PluginState = {
   uninstalled: string[];
   installed: Record<string, string>;
-  catalogUrl: string;
 };
 export function normalizePluginState(value: unknown): PluginState {
   const raw = value && typeof value === 'object' ? (value as Partial<PluginState>) : {};
@@ -14,9 +13,11 @@ export function normalizePluginState(value: unknown): PluginState {
         raw.installed && typeof raw.installed === 'object' ? raw.installed : {},
       ).filter(([, date]) => typeof date === 'string' && Number.isFinite(Date.parse(date))),
     ),
-    catalogUrl: typeof raw.catalogUrl === 'string' ? raw.catalogUrl : '',
   };
 }
+
+/** Remote plugin index; empty until a catalogue is published, so the Market does not fetch. */
+export const CATALOG_URL: string = '';
 
 export type CatalogEntry = {
   id: string;

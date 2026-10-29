@@ -21,7 +21,6 @@ describe('plugin bookkeeping', () => {
     store.get.mockResolvedValue({
       uninstalled: ['subway', 'spotify'],
       installed: { spotify: '2025-01-01T00:00:00.000Z' },
-      catalogUrl: '',
     });
     const spotify = {
       id: 'spotify',
