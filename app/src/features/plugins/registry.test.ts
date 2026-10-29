@@ -112,3 +112,31 @@ describe('plugin bookkeeping', () => {
     expect(registry.plugins.some((entry) => entry.id === plugin.id)).toBe(false);
   });
 });
+
+describe('status sources', () => {
+  it('links only to the owning plugin media source and refuses host filter keys and foreign ids', async () => {
+    const registry = await import('./registry');
+    const source = (id: string, mediaSourceId?: string) => ({
+      id,
+      title: id,
+      kind: 'nowPlaying' as const,
+      mediaSourceId,
+      subscribe: () => () => {},
+    });
+    registry.install({
+      id: 'one',
+      title: 'One',
+      setup: (api) => {
+        api.registerMediaSource({ id: 'one-media', title: 'One', command: async () => true });
+        api.registerStatusSource(source('one', 'one-media'));
+      },
+    });
+    const attempt = (setup: (api: import('./contracts').PluginApi) => void) =>
+      registry.install({ id: `two-${Math.random()}`, title: 'Two', setup });
+    expect(registry.statusSources.get('one')?.plugin).toBe('one');
+    expect(() => attempt((api) => api.registerStatusSource(source('x', 'one-media')))).toThrow();
+    expect(() => attempt((api) => api.registerStatusSource(source('one')))).toThrow();
+    expect(() => attempt((api) => api.registerStatusSource(source('app:spotify')))).toThrow();
+    expect(() => attempt((api) => api.registerStatusSource(source('known-app:x')))).toThrow();
+  });
+});
