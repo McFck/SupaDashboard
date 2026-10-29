@@ -12,6 +12,7 @@
   import GestureEditor from '../../controls/editor/GestureEditor.svelte';
   import MixerEditor from '../../controls/editor/MixerEditor.svelte';
   import MediaEditor from '../../controls/editor/MediaEditor.svelte';
+  import NowPlayingEditor from '../../controls/editor/NowPlayingEditor.svelte';
   import WebEditor from '../../controls/editor/WebEditor.svelte';
   import type { Item, Selection } from '../grid';
   import { effectiveSize, layoutFor, type LayoutTarget } from '../skin-layouts';
@@ -173,6 +174,9 @@
     </section>
   {:else if control.type === 'media'}
     <MediaEditor {control} />
+    {@render scenarioSection()}
+  {:else if control.type === 'nowPlaying'}
+    <NowPlayingEditor {control} />
     {@render scenarioSection()}
   {:else if control.type === 'web'}
     <WebEditor {control} />

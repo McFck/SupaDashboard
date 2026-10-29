@@ -2,6 +2,7 @@ import { DEFAULT_MIXER_MAX_CHANNELS } from '../features/controls/model';
 import ButtonControl from '../features/controls/ui/ButtonControl.svelte';
 import ButtonFace from '../features/controls/ui/ButtonFace.svelte';
 import MediaControl from '../features/controls/ui/MediaControl.svelte';
+import NowPlayingControl from '../features/controls/ui/NowPlayingControl.svelte';
 import MixerControl from '../features/controls/ui/MixerControl.svelte';
 import SliderControl from '../features/controls/ui/SliderControl.svelte';
 import SliderFace from '../features/controls/ui/SliderFace.svelte';
@@ -86,6 +87,42 @@ export function registerUiControls(api: PluginApi) {
       scenario: emptyScenario(),
       variants: [{ id: 'state-1', label: '' }],
       options: { sources: [], interval: 0, loop: true, muted: true },
+    }),
+  });
+  api.registerControl({
+    type: 'nowPlaying',
+    title: 'Now playing',
+    icon: 'Disc3',
+    component: NowPlayingControl,
+    size: { w: 2, h: 2 },
+    minSize: { w: 2, h: 2 },
+    create: () => ({
+      name: 'Now playing',
+      scenario: {
+        triggers: {
+          swipeLeft: {
+            steps: [
+              {
+                id: 'swipe-left-default',
+                kind: 'action',
+                action: { id: 'media.next', args: { target: 'self' } },
+              },
+            ],
+          },
+          swipeRight: {
+            steps: [
+              {
+                id: 'swipe-right-default',
+                kind: 'action',
+                action: { id: 'media.prev', args: { target: 'self' } },
+              },
+            ],
+          },
+        },
+        events: [],
+      },
+      variants: [{ id: 'state-1', label: '' }],
+      options: { sources: [] },
     }),
   });
   api.registerControl({

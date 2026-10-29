@@ -215,7 +215,12 @@ export function effectiveSize(
   const type = controlTypes.get(typeId);
   if (!type) return undefined;
   const override = skins.get(skinId)?.controlSkins?.[typeId]?.sizes?.[slot.id];
-  const min = override?.min ?? type.minSize ?? { w: 1, h: 1 };
+  // A skin may raise the type's minimum, never lower it: below it the widget cannot draw itself.
+  const floor = type.minSize ?? { w: 1, h: 1 };
+  const min = {
+    w: Math.max(floor.w, override?.min?.w ?? 1),
+    h: Math.max(floor.h, override?.min?.h ?? 1),
+  };
   const preferred = override?.default ?? type.size;
   const gridCapacity =
     slot.grid === 'page' ? { w: Infinity, h: Infinity } : { w: slot.grid.cols, h: slot.grid.rows };
