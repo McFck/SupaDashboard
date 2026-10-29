@@ -133,7 +133,7 @@
     <div class="grid grid-cols-2 gap-3 text-sm">
       {#each AXES as axis (axis.key)}
         <div class="grid gap-2">
-          <span class="text-[13px] text-muted-foreground">{axis.label}</span>
+          <span class="text-sm text-muted-foreground">{axis.label}</span>
           <div class="flex items-center gap-2">
             <Button
               size="icon-sm"

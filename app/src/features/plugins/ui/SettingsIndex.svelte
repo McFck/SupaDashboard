@@ -32,7 +32,7 @@
       href={`#${item.id}`}
       onclick={(event) => go(event, item.id)}
       aria-current={controller?.active === item.id ? 'location' : undefined}
-      class="shrink-0 rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=location]:bg-accent aria-[current=location]:text-foreground"
+      class="shrink-0 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=location]:bg-accent aria-[current=location]:text-foreground"
       >{item.title}</a
     >
   {/each}

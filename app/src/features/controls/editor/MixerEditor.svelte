@@ -125,7 +125,7 @@
             onchange={(icon) => updateChannel(i, { icon })}
           />
           <div class="grid min-w-0 flex-1 gap-1">
-            <Label class="text-[11px] text-muted-foreground">App</Label>
+            <Label class="text-xs text-muted-foreground">App</Label>
             <Input
               list="running-apps"
               value={ch.target}
@@ -143,7 +143,7 @@
           >
         </div>
         <div class="grid gap-1">
-          <Label class="text-[11px] text-muted-foreground">Label</Label>
+          <Label class="text-xs text-muted-foreground">Label</Label>
           <Input
             value={ch.label ?? ''}
             aria-label="Channel label"

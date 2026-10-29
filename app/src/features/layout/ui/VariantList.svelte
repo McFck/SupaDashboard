@@ -127,7 +127,7 @@
             onchange={(name) => (variant.icon = name)}
           />
           <div class="grid min-w-0 flex-1 gap-1">
-            <Label class="text-[11px] text-muted-foreground">Label</Label>
+            <Label class="text-xs text-muted-foreground">Label</Label>
             <Input bind:value={variant.label} />
           </div>
           <Button

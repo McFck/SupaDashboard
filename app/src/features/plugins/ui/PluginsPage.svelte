@@ -51,7 +51,7 @@
               >
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline gap-3">
-                  <p class="truncate text-[15px] font-medium">{p.title}</p>
+                  <p class="truncate text-base font-medium">{p.title}</p>
                   {#if p.author}
                     <span class="shrink-0 text-xs text-muted-foreground">{p.author}</span>
                   {/if}

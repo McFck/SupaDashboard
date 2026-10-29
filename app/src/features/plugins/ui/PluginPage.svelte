@@ -126,7 +126,7 @@
           onCheckedChange={setEnabled}
         />
       </div>
-      {#if plugin.description}<p class="text-[15px] leading-relaxed text-muted-foreground">
+      {#if plugin.description}<p class="text-sm leading-relaxed text-muted-foreground">
           {plugin.description}
         </p>{/if}
     </div>

@@ -123,7 +123,7 @@
     {:else}Condition{/if}
   </span>
   {#if step.kind === 'action' && !actions.has(step.action.id)}<span
-      class="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">Unavailable</span
+      class="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">Unavailable</span
     >{/if}
   <Button
     size="icon-sm"
