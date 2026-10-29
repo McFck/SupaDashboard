@@ -188,7 +188,7 @@
 <div class="flex h-full min-h-0 min-w-0 flex-col overflow-visible">
   <header
     style:padding-right="{inspectorWidth + 16}px"
-    class="flex h-12 min-h-12 shrink-0 items-center gap-2 border-b border-[#262626] bg-[#171717] px-4"
+    class="flex h-12 min-h-12 shrink-0 items-center gap-2 bg-background px-4"
   >
     <PageTabs
       pages={settings.deck.pages}

@@ -96,7 +96,7 @@
   </section>
 {/snippet}
 
-<header class="flex h-12 shrink-0 items-center gap-3 border-b border-[#262626] px-4">
+<header class="flex h-12 shrink-0 items-center gap-3 px-4">
   <p class="min-w-0 flex-1 truncate font-display text-base font-semibold tracking-wide">{title}</p>
   <Button
     size="icon-sm"

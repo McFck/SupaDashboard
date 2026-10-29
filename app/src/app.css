@@ -16,31 +16,36 @@
 @custom-variant data-horizontal (&:where([data-orientation="horizontal"]));
 @custom-variant data-vertical (&:where([data-orientation="vertical"]));
 
-/* shadcn-svelte zinc, dark only: the dashboard lives on a dim second screen. Skins override these. */
+/*
+ * Dark only: the dashboard lives on a dim second screen. Skins override these.
+ * Akira palette: warm near-black surfaces and greys, one capsule red for focus, active, selected, primary and
+ * destructive, and a teal kept for info. Contrast (WCAG): white on --primary 5.0, --ring on --background 5.0,
+ * --destructive on --card 5.6, --muted-foreground on --card 6.2.
+ */
 :root {
   color-scheme: dark;
   --radius: 0.75rem;
-  /* Neutral (untinted) greys and a blue primary, after Eleven's dark theme. */
-  --background: oklch(0.205 0 0);
-  --foreground: oklch(0.985 0 0);
-  --sidebar: oklch(0.178 0 0);
-  --card: oklch(0.235 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.235 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.63 0.19 245);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.29 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.27 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.29 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.707 0.165 254.6);
-  --canvas-surface: #101010;
+  --background: #171412;
+  --foreground: #f2ece6;
+  --sidebar: #131110;
+  --card: #1f1b18;
+  --card-foreground: #f2ece6;
+  --popover: #1f1b18;
+  --popover-foreground: #f2ece6;
+  --primary: #d42c26;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2522;
+  --secondary-foreground: #f2ece6;
+  --muted: #26211e;
+  --muted-foreground: #a39a91;
+  --accent: #2a2522;
+  --accent-foreground: #f2ece6;
+  --destructive: #ff5c52;
+  --info: #3cc7c0;
+  --border: rgb(255 236 220 / 7%);
+  --input: rgb(255 236 220 / 11%);
+  --ring: #ef4a43;
+  --canvas-surface: #0f0d0c;
   --tile-surface: #202020;
   --tile-edge: #333333;
   --empty-cell-surface: #141414;
@@ -72,6 +77,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-info: var(--info);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -186,7 +192,7 @@
   color: var(--destructive);
 }
 .toaster [data-sonner-toast][data-type='info'] [data-icon] svg {
-  color: var(--primary);
+  color: var(--info);
 }
 .toaster [data-sonner-toast][data-removed='true'][data-front='false'][data-expanded='false'] {
   transition:

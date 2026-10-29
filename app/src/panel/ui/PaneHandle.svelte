@@ -26,6 +26,6 @@
   <span
     aria-hidden="true"
     class="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-transparent transition-colors duration-150
-    group-hover:bg-[#3a3a3a] group-focus-visible:bg-ring group-data-[active=true]:bg-primary"
+    group-hover:bg-foreground/20 group-focus-visible:bg-ring group-data-[active=true]:bg-primary"
   ></span>
 </button>

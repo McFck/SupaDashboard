@@ -6,7 +6,7 @@
   import { history, redo, undo } from '../history.svelte';
 </script>
 
-<div class="flex shrink-0 items-center gap-1.5 border-l border-[#262626] pl-3">
+<div class="flex shrink-0 items-center gap-1.5 pl-3">
   <Hint
     text="Undo"
     keys={['Ctrl', 'Z']}
