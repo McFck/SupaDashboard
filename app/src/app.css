@@ -55,8 +55,8 @@
 
 @theme inline {
   /*
-   * Two voices: Inter for content and numbers (tabular figures), Chakra Petch for structure (titles, page names,
-   * section labels, wordmark). Chakra's x-height is about 10% below Inter's, so it runs a step larger or uppercase.
+   * Inter for content and numbers (tabular figures), Chakra Petch for structure (titles, page names, section
+   * labels). Plaster stays local to the wordmark. Chakra's smaller x-height needs a step larger or uppercase.
    * Mono is Windows' own (the app runs offline) and only sets typed codes such as hex colours.
    */
   --font-sans: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
