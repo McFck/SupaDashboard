@@ -1,12 +1,11 @@
 <script lang="ts">
-  import { Switch } from '$lib/components/ui/switch';
   import type { ControlConfig } from '../model';
   import { runtimeView } from '../../../app/runtime/state';
   import { commit } from '../../layout/history.svelte';
   import { KNOWN_APP_PREFIX, readNowPlayingOptions } from '../../media/now-playing';
   import { appOwners, mediaSources, statusSources } from '../../plugins/registry';
-  import OptionTags from '../../plugins/ui/OptionTags.svelte';
-  import PluginMark from '../../plugins/ui/PluginMark.svelte';
+  import CheckList from '../../plugins/ui/CheckList.svelte';
+  import ScopeChoice from '../../../panel/ui/ScopeChoice.svelte';
 
   type Row = { key: string; title: string; plugin?: string; unavailable: boolean; detail?: string };
 
@@ -79,6 +78,12 @@
     control.options = { ...control.options, sources };
   }
 
+  /** Stored `[]` means every source, so "Selected" starts from the first source that can be chosen. */
+  function chooseMode(all: boolean) {
+    const first = rows.find((row) => !row.unavailable);
+    save(all || !first ? [] : [first.key]);
+  }
+
   function toggle(key: string, on: boolean) {
     save(on ? [...selected, key] : selected.filter((entry) => entry !== key));
   }
@@ -94,39 +99,17 @@
   >
     Sources
   </h3>
-  <div class="grid">
-    <div class="flex min-w-0 items-center gap-3 py-2">
-      <label
-        for="{id}-all"
-        class="min-w-0 flex-1 truncate text-sm font-medium">All sources</label
-      >
-      <Switch
-        id="{id}-all"
-        checked={!selected.length}
-        disabled={!selected.length}
-        onCheckedChange={(on) => on && save([])}
-      />
-    </div>
-    {#each rows as row, index (row.key)}
-      <div class="flex min-w-0 items-center gap-3 py-2">
-        <label
-          for="{id}-{index}"
-          class="flex min-w-0 flex-1 items-center gap-1.5 text-sm"
-        >
-          <span class="truncate">{row.title}</span>
-          <PluginMark plugin={row.plugin} />
-        </label>
-        <OptionTags
-          detail={row.detail}
-          unavailable={row.unavailable}
-        />
-        <Switch
-          id="{id}-{index}"
-          checked={selected.includes(row.key)}
-          disabled={row.unavailable && !selected.includes(row.key)}
-          onCheckedChange={(on) => toggle(row.key, on)}
-        />
-      </div>
-    {/each}
-  </div>
+  <ScopeChoice
+    all={!selected.length}
+    count={selected.length}
+    label="Sources"
+    onchange={chooseMode}
+  >
+    <CheckList
+      items={rows}
+      {selected}
+      label="Sources"
+      ontoggle={toggle}
+    />
+  </ScopeChoice>
 </section>
