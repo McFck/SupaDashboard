@@ -51,11 +51,7 @@
       {layoutTarget}
       {onselect}
     />
-  {:else if layoutTarget.appletId === 'deck'}
-    <DeckSettings {page} />
   {:else}
-    <header class="flex h-12 shrink-0 items-center px-4">
-      <p class="flex-1 font-semibold">{target?.slot?.id ?? 'Slot'}</p>
-    </header>
+    <DeckSettings {page} />
   {/if}
 </aside>

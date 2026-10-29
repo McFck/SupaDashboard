@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { Button } from '$lib/components/ui/button';
   import type { Trigger } from '../../automation/scenario';
   import { settings } from '../../settings/state.svelte';
   import ContextMenu from '../../../panel/ui/ContextMenu.svelte';
@@ -23,7 +24,8 @@
   /** Keeps the canvas visible beside the inspector. */
   const CANVAS_MIN_WIDTH = 32;
 
-  let { active = true }: { active?: boolean } = $props();
+  let { active = true, onopenplugin }: { active?: boolean; onopenplugin: (id: string) => void } =
+    $props();
 
   let scenarioOpen = $state(false);
   let scenarioRequest = $state<{ controlId: string; itemId: string; trigger?: Trigger } | null>(
@@ -201,6 +203,15 @@
       ondelete={deletePage}
     />
     <HistoryControls />
+    {#if editor.applet.plugin}
+      {@const pluginId = editor.applet.plugin}
+      <Button
+        variant="ghost"
+        size="sm"
+        class="ml-auto"
+        onclick={() => onopenplugin(pluginId)}>Settings</Button
+      >
+    {/if}
   </header>
   <div
     bind:this={layout}
