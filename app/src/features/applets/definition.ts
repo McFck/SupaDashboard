@@ -9,6 +9,46 @@ const isGroup = (item: Param | SettingsGroup): item is SettingsGroup => 'params'
 const optionsOf = (param: Param, args?: Record<string, unknown>) =>
   typeof param.suggestions === 'function' ? param.suggestions(args) : param.suggestions;
 
+const QUICK_ACTION_GROUP: SettingsGroup = {
+  id: 'quick-actions',
+  title: 'Quick actions',
+  params: [
+    {
+      key: 'gesture',
+      label: 'Gesture',
+      type: 'select',
+      default: 'tripleTap',
+      suggestions: [
+        { value: 'tripleTap', label: 'Triple tap' },
+        { value: 'cornerHold', label: 'Corner hold' },
+        { value: 'off', label: 'Off' },
+      ],
+    },
+    {
+      key: 'corner',
+      label: 'Corner',
+      visible: (values) => values.gesture === 'cornerHold',
+      type: 'select',
+      default: 'bottomRight',
+      suggestions: [
+        { value: 'topLeft', label: 'Top left' },
+        { value: 'topRight', label: 'Top right' },
+        { value: 'bottomLeft', label: 'Bottom left' },
+        { value: 'bottomRight', label: 'Bottom right' },
+      ],
+    },
+  ],
+};
+const QUICK_ACTION_KEYS = QUICK_ACTION_GROUP.params.map((param) => param.key);
+
+/** The host owns the quick-action gesture, so applets with quick actions get its group appended. */
+export function withQuickActionSettings(applet: AppletDef): AppletDef {
+  if (!applet.quickActions?.length) {
+    return applet;
+  }
+  return { ...applet, settings: [...(applet.settings ?? []), QUICK_ACTION_GROUP] };
+}
+
 /** Every param in declaration order, whether declared loose or inside a group. */
 export function settingParams(settings: AppletSettings = []): Param[] {
   return settings.flatMap((item) => (isGroup(item) ? item.params : [item]));
@@ -137,10 +177,7 @@ export function validateAppletDefinition(def: AppletDef) {
     if (!slot.id.trim() || slots.has(slot.id)) {
       fail('slot IDs must be unique and nonempty');
     }
-    const { rect, size, grid } = slot;
-    if (rect && (![rect.x, rect.y].every(Number.isFinite) || !positive(rect.w, rect.h))) {
-      fail(`slot "${slot.id}" has invalid geometry`);
-    }
+    const { size, grid } = slot;
     if (slot.max !== undefined && !positiveInt(slot.max)) {
       fail(`slot "${slot.id}" has invalid max`);
     }
@@ -191,6 +228,9 @@ export function validateAppletDefinition(def: AppletDef) {
     groupIds.add(group.id);
   }
   for (const param of settingParams(def.settings)) {
+    if (QUICK_ACTION_KEYS.includes(param.key)) {
+      fail(`setting "${param.key}" is reserved by the host`);
+    }
     if (paramKeys.has(param.key)) {
       fail(`duplicate setting "${param.key}"`);
     }

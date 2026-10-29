@@ -8,7 +8,7 @@ export const DECK: AppletDef = {
   id: 'deck',
   title: 'Deck',
   component: DeckApplet,
-  slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
+  slots: [{ id: 'main', kind: 'grid', grid: 'page' }],
   views: [{ id: 'default', title: 'Deck', slots: ['main'] }],
   defaultView: 'default',
 };

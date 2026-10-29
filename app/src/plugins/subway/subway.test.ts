@@ -25,12 +25,6 @@ describe('Subway skin registration', () => {
     const { applet } = collect();
     validateAppletDefinition(applet);
     expect(applet.design).toEqual({ width: 1920, height: 480 });
-    expect(applet.slots.find((slot) => slot.id === 'strip')?.rect).toEqual({
-      x: 24,
-      y: 360,
-      w: 1320,
-      h: 96,
-    });
     expect(applet.slots.find((slot) => slot.id === 'strip')).toMatchObject({
       max: 8,
       accepts: ['button', 'slider'],
@@ -38,7 +32,6 @@ describe('Subway skin registration', () => {
     expect(applet.slots.find((slot) => slot.id === 'strip')?.size).toBeUndefined();
     expect(applet.slots.find((slot) => slot.id === 'side')).toMatchObject({
       max: 2,
-      rect: { x: 1392, y: 264, w: 256, h: 192 },
     });
     expect(applet.views).toEqual([
       { id: 'display', title: 'Display', slots: ['strip'] },
@@ -60,8 +53,6 @@ describe('Subway skin registration', () => {
       'announcementLanguages',
       'immersion',
       'announcementVolume',
-      'gesture',
-      'corner',
     ]);
     expect(applet.state?.map((field) => field.key)).toEqual([
       'station',

@@ -4,6 +4,7 @@ import {
   resolveAppletConfig,
   validAppletParam,
   validateAppletDefinition,
+  withQuickActionSettings,
 } from './definition';
 import { type AppletDef } from './contracts';
 import type { Param } from '../plugins/contracts';
@@ -12,7 +13,7 @@ const base = (): AppletDef => ({
   id: 'sample',
   title: 'Sample',
   component: {} as any,
-  slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
+  slots: [{ id: 'main', kind: 'grid', grid: 'page' }],
   views: [{ id: 'default', title: 'Default', slots: ['main'] }],
   defaultView: 'default',
 });
@@ -122,8 +123,8 @@ describe('applet declarations', () => {
   ];
 
   it('resolves grouped and flat declarations identically and keeps hidden and unknown stored values', () => {
-    const stored = { line: 'b', direction: 'up', corner: 'tl', future: 1 };
-    const hidden: Param = { key: 'corner', label: 'Corner', type: 'text', visible: () => false };
+    const stored = { line: 'b', direction: 'up', accent: 'tl', future: 1 };
+    const hidden: Param = { key: 'accent', label: 'Accent', type: 'text', visible: () => false };
     const flat = { ...base(), settings: [...route, hidden] };
     const grouped = {
       ...base(),
@@ -133,7 +134,7 @@ describe('applet declarations', () => {
       ],
     };
     expect(resolveAppletConfig(grouped, stored)).toEqual(resolveAppletConfig(flat, stored));
-    expect(resolveAppletConfig(grouped, stored)).toMatchObject({ corner: 'tl', future: 1 });
+    expect(resolveAppletConfig(grouped, stored)).toMatchObject({ accent: 'tl', future: 1 });
   });
 
   it('resets a dependent setting its parent change invalidated, and reports no-ops as null', () => {
@@ -175,5 +176,21 @@ describe('applet declarations', () => {
     expect(() => validateAppletDefinition({ ...base(), settings: [{ ...num, min: 2 }] })).toThrow(
       'min above max',
     );
+  });
+
+  it('keeps a stored quick-action gesture working once the host owns it, and reserves its keys', () => {
+    const applet = withQuickActionSettings({
+      ...base(),
+      quickActions: [{ id: 'sample.go', args: {} }],
+    });
+    expect(resolveAppletConfig(applet, { gesture: 'cornerHold', corner: 'topLeft' })).toMatchObject(
+      {
+        gesture: 'cornerHold',
+        corner: 'topLeft',
+      },
+    );
+    expect(resolveAppletConfig(applet, {})).toMatchObject({ gesture: 'tripleTap' });
+    const own: Param = { key: 'gesture', label: 'Gesture', type: 'text' };
+    expect(() => validateAppletDefinition({ ...base(), settings: [own] })).toThrow('reserved');
   });
 });

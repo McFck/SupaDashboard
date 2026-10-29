@@ -435,7 +435,7 @@ describe('automation runtime', () => {
           id: appletId,
           title: 'Runtime applet',
           component: {} as import('svelte').Component,
-          slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
+          slots: [{ id: 'main', kind: 'grid', grid: 'page' }],
           views: [
             { id: 'display', title: 'Display', slots: ['main'] },
             { id: 'cab', title: 'Cab', slots: ['main'] },
