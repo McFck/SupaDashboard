@@ -60,7 +60,8 @@
   class="absolute inset-0 transition-opacity duration-150 motion-reduce:transition-none"
   style:opacity
 >
-  {#if videoSource}
+  <!-- Without a url neither element renders: an empty img shows the browser's broken-image icon. -->
+  {#if url && videoSource}
     <video
       bind:this={video}
       src={resourceVisible ? url : undefined}
@@ -87,7 +88,7 @@
       style:object-fit={fit}
       class="block h-full w-full"
     ></video>
-  {:else}
+  {:else if url}
     <img
       src={resourceVisible ? url : undefined}
       alt=""

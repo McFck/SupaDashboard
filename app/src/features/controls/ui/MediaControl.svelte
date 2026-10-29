@@ -21,6 +21,7 @@
   } from '../../media/content';
   import { preloadNextMedia } from '../../media/media-cache';
   import ContentTile from './ContentTile.svelte';
+  import EmptyContent from './EmptyContent.svelte';
   import MediaFrame from './MediaFrame.svelte';
   import { runtimeCommands } from '../../../app/runtime/commands';
 
@@ -212,8 +213,11 @@
   }
 
   function layerOpacity(layer: MediaLayer) {
-    if (layer.token === mediaTarget?.token)
-      return targetReady && !unavailable ? 1 : mediaPrevious ? 0 : 1;
+    // A failed source hides its frame so the browser's broken-image icon never shows.
+    if (layer.token === mediaTarget?.token) {
+      if (targetReady) return unavailable ? 0 : 1;
+      return mediaPrevious ? 0 : 1;
+    }
     return targetReady ? 0 : 1;
   }
 
@@ -299,7 +303,9 @@
               onposition={(time) => rememberPosition(targetLayer.key, time)}
             />
           {/key}
-          {#if targetReady && unavailable}
+          {#if !source}
+            <EmptyContent icon="Image" />
+          {:else if targetReady && unavailable}
             <div
               class="absolute inset-0 grid place-items-center text-sm text-muted-foreground transition-opacity duration-150"
               style:opacity={unavailable ? 1 : 0}
