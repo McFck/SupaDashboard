@@ -256,7 +256,7 @@ export class Pager {
       if (frame.id === targetId) {
         return 0;
       }
-      return frame.id === swipe.sourceId ? -side * swipe.width : frame.offset;
+      return frame.id === swipe.sourceId ? -side * swipe.width : side * swipe.width;
     });
     if (this.generation !== swipe.generation) {
       return;
