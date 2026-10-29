@@ -200,6 +200,7 @@
   <PressFeedback
     bind:this={feedback}
     disabled={pressFeedbackDisabled}
+    pulse={false}
     class="tile-content"
   >
     {#snippet children()}

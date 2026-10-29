@@ -6,9 +6,10 @@
 
   let {
     disabled = false,
+    pulse = true,
     class: surfaceClass = '',
     children,
-  }: { disabled?: boolean; class?: string; children: Snippet } = $props();
+  }: { disabled?: boolean; pulse?: boolean; class?: string; children: Snippet } = $props();
   type Ripple = { x: number; y: number; diameter: number; key: number };
   /** Pointer-local ripple bounds corrected for a uniform scale around the tile center. */
   function pressRippleGeometry(
@@ -61,14 +62,17 @@
       ripple = null;
       return;
     }
-    scaleAnimation = surface.animate(
-      [
-        { transform: 'scale(1)' },
-        { transform: 'scale(.97)', offset: 0.3 },
-        { transform: 'scale(1)' },
-      ],
-      { duration: 280, easing: 'ease-out' },
-    );
+    // A scaled surface re-rasterises its text, so a tile with text to keep still turns the pulse off.
+    if (pulse) {
+      scaleAnimation = surface.animate(
+        [
+          { transform: 'scale(1)' },
+          { transform: 'scale(.97)', offset: 0.3 },
+          { transform: 'scale(1)' },
+        ],
+        { duration: 280, easing: 'ease-out' },
+      );
+    }
     if (rippleNode) {
       rippleAnimation = rippleNode.animate(
         [
