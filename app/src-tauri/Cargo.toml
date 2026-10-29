@@ -23,9 +23,11 @@ tauri-plugin-store = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 webview2-com = "0.39.1"
+windows-future = "0.3.2"
 windows = { version = "0.62", features = [
   "Foundation",
   "Media_Control",
+  "Storage_Streams",
   "Win32_Foundation",
   "Win32_Devices_Display",
   "Win32_Graphics_Dwm",
