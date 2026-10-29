@@ -1,5 +1,7 @@
 import { settings } from '../../features/settings/state.svelte';
 import { setVariableMirror } from '../../features/plugins/registry';
+import { EMPTY_STATUS } from '../../features/media/now-playing';
+import { readStatus } from '../../features/media/now-playing-read';
 import { validSnapshot, type RuntimeRequest } from './protocol';
 import type { RuntimeSync } from './transport';
 import { EMPTY, runtimeView } from './state';
@@ -24,6 +26,7 @@ export function acceptRuntimeSnapshot(value: unknown, revision: number) {
   runtimeView.set({
     ...value,
     content: value.content && typeof value.content === 'object' ? value.content : {},
+    status: readStatus(value.status) ?? EMPTY_STATUS,
     online: true,
     owner: false,
     revision,

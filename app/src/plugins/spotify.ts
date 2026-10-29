@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Plugin } from '../features/plugins/contracts';
+import { nativeSessions } from '../platform/media';
 
 export const spotifyPlugin: Plugin = {
   id: 'spotify',
@@ -23,7 +24,15 @@ export const spotifyPlugin: Plugin = {
       id: 'spotify',
       title: 'Spotify',
       // The native side matches Windows media sessions by app id; "spotify" picks the desktop app.
-      command: (command) => invoke('media_command', { target: 'spotify', command }),
+      command: (command, sessionId) =>
+        invoke('media_command', { target: 'spotify', command, sessionId }),
+    });
+    api.registerStatusSource({
+      id: 'spotify',
+      title: 'Spotify',
+      kind: 'nowPlaying',
+      mediaSourceId: 'spotify',
+      subscribe: nativeSessions('spotify'),
     });
     api.registerAction({
       id: 'spotify.open',

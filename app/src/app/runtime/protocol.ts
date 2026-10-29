@@ -1,6 +1,7 @@
 // The messages windows exchange about the runtime, and their validation at the receiving end.
 import { isRecord } from '../../features/automation/plain-data';
 import type { PageChangeReason } from '../../features/layout/page-controller';
+import { readStatus } from '../../features/media/now-playing-read';
 import type { RuntimeSnapshot } from './state';
 
 const REQUEST_TYPES = [
@@ -115,6 +116,7 @@ export function validSnapshot(value: unknown): value is RuntimeSnapshot {
     isRecord(value) &&
     typeof value.activePage === 'string' &&
     isRecord(value.variables) &&
-    isRecord(value.busy)
+    isRecord(value.busy) &&
+    readStatus(value.status) !== null
   );
 }
