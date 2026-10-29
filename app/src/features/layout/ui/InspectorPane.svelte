@@ -75,7 +75,7 @@
   >
     <div
       aria-hidden="true"
-      class="pointer-events-none absolute inset-y-0 left-0 z-10 w-px bg-[#262626]"
+      class="pointer-events-none absolute inset-y-0 left-0 z-10 w-px bg-border"
     ></div>
     <div class="inspector-content min-h-0 flex-1 overflow-hidden">
       {@render children()}

@@ -17,6 +17,7 @@
   import ConfirmationHost from '$lib/components/ui/confirmation/ConfirmationHost.svelte';
   import { confirmationState } from '$lib/components/ui/confirmation/confirm.svelte';
   import TitleBar from './TitleBar.svelte';
+  import Wordmark from './Wordmark.svelte';
   import { SIDEBAR_RAIL } from './ui/frame';
 
   type Page = 'layout' | 'settings' | 'plugins' | 'market';
@@ -72,9 +73,11 @@
 
 <div
   inert={confirmationActive}
-  class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--canvas-surface)] text-foreground"
+  class="grain flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--canvas-surface)] text-foreground"
 >
-  {#if isTauri()}<TitleBar />{/if}
+  {#if isTauri()}<TitleBar />{:else}<header class="flex h-9 shrink-0 items-center px-4">
+      <Wordmark />
+    </header>{/if}
   <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
     <nav
       aria-label="Main navigation"
@@ -136,7 +139,7 @@
     </nav>
     <main class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
       <div
-        class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl bg-[#171717]"
+        class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl bg-background"
       >
         <div
           class="absolute inset-0 min-h-0 min-w-0"

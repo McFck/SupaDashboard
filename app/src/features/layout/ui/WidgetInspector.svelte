@@ -5,8 +5,6 @@
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
-  import { Separator } from '$lib/components/ui/separator';
   import ColorField from '$lib/components/ColorField.svelte';
   import type { ControlConfig } from '../../controls/model';
   import type { Trigger } from '../../automation/scenario';
@@ -89,7 +87,7 @@
 
 {#snippet scenarioSection()}
   <section class="grid gap-3">
-    <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scenario</h3>
+    <h3 class="section-label">Scenario</h3>
     <GestureEditor
       {control}
       onedit={editScenario}
@@ -97,8 +95,8 @@
   </section>
 {/snippet}
 
-<header class="flex h-12 shrink-0 items-center gap-3 border-b border-[#262626] px-4">
-  <p class="min-w-0 flex-1 truncate text-base font-semibold">{title}</p>
+<header class="flex h-12 shrink-0 items-center gap-3 px-4">
+  <p class="min-w-0 flex-1 truncate font-display text-base font-semibold tracking-wide">{title}</p>
   <Button
     size="icon-sm"
     variant="ghost"
@@ -111,33 +109,31 @@
     size="icon-sm"
     variant="ghost"
     class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-    aria-label="Remove"
+    aria-label="Delete"
     onclick={remove}
   >
     <Trash />
   </Button>
 </header>
 <div
-  class="grid min-h-0 min-w-0 flex-1 content-start gap-5 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]"
+  class="grid min-h-0 min-w-0 flex-1 content-start gap-7 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]"
 >
   <div class="grid gap-1.5">
-    <Label
-      class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-      for="wname"
+    <label
+      class="section-label"
+      for="wname">Name</label
     >
-      Name
-    </Label>
     <Input
       id="wname"
       bind:value={control.name}
     />
   </div>
   <div class="grid gap-1.5">
-    <Label class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size</Label>
+    <h3 class="section-label">Size</h3>
     <div class="grid grid-cols-2 gap-3 text-sm">
       {#each AXES as axis (axis.key)}
         <div class="grid gap-2">
-          <span class="text-xs text-muted-foreground">{axis.label}</span>
+          <span class="text-[13px] text-muted-foreground">{axis.label}</span>
           <div class="flex items-center gap-2">
             <Button
               size="icon-sm"
@@ -148,7 +144,7 @@
             >
               −
             </Button>
-            <span class="w-4 text-center tabular-nums">{item[axis.key]}</span>
+            <span class="w-4 text-center font-mono tabular-nums">{item[axis.key]}</span>
             <Button
               size="icon-sm"
               variant="outline"
@@ -163,30 +159,26 @@
       {/each}
     </div>
   </div>
-  <Separator />
   {#if control.type === 'mixer'}
     <section class="grid gap-3">
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Colour</h3>
+      <h3 class="section-label">Colour</h3>
       <ColorField
         value={control.variants[0]?.color ?? '#b5a0e8'}
         onchange={(color) => (control.variants[0].color = color)}
       />
     </section>
     <section class="grid gap-3">
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Channels</h3>
+      <h3 class="section-label">Channels</h3>
       <MixerEditor controlId={control.id} />
     </section>
   {:else if control.type === 'media'}
     <MediaEditor {control} />
-    <Separator />
     {@render scenarioSection()}
   {:else if control.type === 'web'}
     <WebEditor {control} />
-    <Separator />
     {@render scenarioSection()}
   {:else}
     <VariantList {control} />
-    <Separator />
     {@render scenarioSection()}
   {/if}
 </div>

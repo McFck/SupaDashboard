@@ -40,7 +40,10 @@
         if (!abort.signal.aborted) remote = parsed;
       })
       .catch((error) => {
-        if (!abort.signal.aborted) toast.error(String(error));
+        if (!abort.signal.aborted) {
+          console.error(error);
+          toast.error('Could not load catalog');
+        }
       });
     return () => abort.abort();
   });
@@ -49,7 +52,8 @@
     try {
       await setCatalogUrl(url);
     } catch (error) {
-      toast.error(String(error));
+      console.error(error);
+      toast.error('Could not save catalog address');
     } finally {
       saving = false;
     }
@@ -59,21 +63,22 @@
     try {
       await setPluginEnabled(id, true);
     } catch (error) {
-      toast.error(String(error));
+      console.error(error);
+      toast.error('Could not install plugin');
       installing = null;
     }
   }
 </script>
 
 <div class="mx-auto grid max-w-[960px] gap-10 px-6 py-9">
-  <h1 class="text-xl font-semibold tracking-tight">Market</h1>
+  <h1 class="font-display text-xl font-semibold tracking-wide">Market</h1>
   <Section>
     <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-3">
       {#each entries as entry (entry.id)}
         {@const installed = plugins.some((p) => p.id === entry.id)}
         {@const bundled = bundledPlugins.some((p) => p.id === entry.id)}
         <article
-          class="flex min-w-0 flex-col items-start gap-3 rounded-xl border bg-white/[.025] p-4 transition-colors hover:bg-white/[.04]"
+          class="flex min-w-0 flex-col items-start gap-3 rounded-xl bg-white/[.03] p-4 transition-colors hover:bg-white/[.05]"
         >
           <span class="grid size-10 place-items-center rounded-lg bg-accent"
             ><Icon

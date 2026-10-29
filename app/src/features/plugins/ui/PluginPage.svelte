@@ -73,7 +73,8 @@
       if (!$pluginState.installed[id] || $pluginState.uninstalled.includes(id)) return;
       await setPluginEnabled(id, false);
     } catch (error) {
-      toast.error(String(error));
+      console.error(error);
+      toast.error(`Could not remove ${plugin.title}`);
     } finally {
       removing = false;
     }
@@ -94,19 +95,21 @@
         size={30}
       /></span
     >
-    <h1 class="text-2xl font-semibold tracking-tight">{plugin.title}</h1>
+    <h1 class="font-display text-2xl font-semibold tracking-wide">{plugin.title}</h1>
   </div>
   {#if plugin.description}<p class="text-[15px] leading-relaxed text-muted-foreground">
       {plugin.description}
     </p>{/if}
   <Section>
     <Row label="Author"><span class="text-sm">{plugin.author ?? '—'}</span></Row>
-    <Row label="Version"><span class="text-sm tabular-nums">{plugin.version ?? '—'}</span></Row>
+    <Row label="Version"
+      ><span class="text-sm font-mono tabular-nums">{plugin.version ?? '—'}</span></Row
+    >
     <Row label="Last update"><span class="text-sm">{date(plugin.updated)}</span></Row>
     <Row label="Installed"
       ><span class="text-sm">{date($pluginState.installed[plugin.id])}</span></Row
     >
-    <Row label="Size"><span class="text-sm tabular-nums">{size(plugin.size)}</span></Row>
+    <Row label="Size"><span class="text-sm font-mono tabular-nums">{size(plugin.size)}</span></Row>
   </Section>
   {#if pluginSkins.length}
     <Section title="Skins">
@@ -125,7 +128,7 @@
         {@const values = resolveSkinConfig(skin, settings.skinSettings[skin.id] ?? {})}
         <Section title={`${skin.title} settings`}>
           {#each skin.settings as param (param.key)}
-            <div class="border-b py-3.5 last:border-b-0">
+            <div class="py-3">
               <ParamField
                 {param}
                 args={values}

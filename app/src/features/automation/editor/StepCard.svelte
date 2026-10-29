@@ -188,12 +188,12 @@
             condition={step.condition}
             onchange={(condition) => onupdate({ ...step, condition })}
           />
-          <div class="grid gap-2 rounded-lg border bg-background/30 p-2">
-            <h4 class="text-xs font-semibold text-muted-foreground">Then</h4>
+          <div class="grid gap-2 pl-3">
+            <h4 class="section-label">Then</h4>
             {@render branch('then')}
           </div>
-          <div class="grid gap-2 rounded-lg border bg-background/30 p-2">
-            <h4 class="text-xs font-semibold text-muted-foreground">Else</h4>
+          <div class="grid gap-2 pl-3">
+            <h4 class="section-label">Else</h4>
             {@render branch('else')}
           </div>
         {/if}

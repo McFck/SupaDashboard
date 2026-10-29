@@ -68,7 +68,7 @@
   }
 </script>
 
-<div class="grid gap-3 rounded-lg border bg-background/40 p-3">
+<div class="grid gap-3 rounded-lg bg-background/40 p-3">
   <div class="grid gap-1.5">
     <Label class="text-xs text-muted-foreground">Condition</Label>
     <Choice

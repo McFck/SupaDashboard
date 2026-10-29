@@ -54,7 +54,7 @@
   {:else if layoutTarget.skinId === 'deck'}
     <DeckSettings {page} />
   {:else}
-    <header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4">
+    <header class="flex h-12 shrink-0 items-center px-4">
       <p class="flex-1 font-semibold">{target?.slot?.id ?? 'Slot'}</p>
     </header>
   {/if}

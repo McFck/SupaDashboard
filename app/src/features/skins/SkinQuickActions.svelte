@@ -47,7 +47,8 @@
       if (result.status === 'rejected') throw new Error('Runtime owner is unavailable');
       if (result.status === 'completed') host.setQuickActionsOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
+      console.error(error);
+      toast.error('Quick action failed');
     } finally {
       running = undefined;
     }

@@ -84,7 +84,7 @@
           {@const appearance = stateView(index)}
           <button
             type="button"
-            class="grid min-w-0 gap-1 rounded-lg border bg-card p-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            class="grid min-w-0 gap-1 rounded-lg bg-card p-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             aria-label={`Preview ${role.label} state`}
             onclick={() => {
               selectedId = role.id;
@@ -116,7 +116,7 @@
   {/if}
 
   <section
-    class="grid min-w-0 gap-3 rounded-xl border bg-card p-3"
+    class="grid min-w-0 gap-3 rounded-xl bg-card p-3"
     aria-label="State preview"
   >
     <div class="flex flex-wrap items-center gap-2">
@@ -164,7 +164,7 @@
     </div>
   </section>
 
-  <div class="grid gap-3 rounded-xl border p-3">
+  <div class="grid gap-3 rounded-xl bg-card p-3">
     <div class="flex flex-wrap items-center gap-2">
       <h3 class="min-w-0 flex-1 text-sm font-semibold">States</h3>
       <Button
@@ -244,7 +244,7 @@
   </div>
 
   {#if selected}
-    <div class="grid gap-4 rounded-xl border p-3">
+    <div class="grid gap-4 rounded-xl bg-card p-3">
       <div class="grid gap-1.5">
         <Label
           for={`${id}-state-label`}

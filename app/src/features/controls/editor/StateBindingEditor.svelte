@@ -118,7 +118,7 @@
 </script>
 
 <div class="grid min-h-0 gap-4 overflow-y-auto p-4 [scrollbar-gutter:stable]">
-  <div class="grid gap-2 rounded-xl border p-3">
+  <div class="grid gap-2 rounded-xl bg-card p-3">
     <Label>Variable</Label>
     <Choice
       value={binding?.variableId ?? ''}
@@ -134,7 +134,7 @@
       >{/if}
   </div>
   {#if binding}
-    <div class="grid gap-3 rounded-xl border p-3">
+    <div class="grid gap-3 rounded-xl bg-card p-3">
       <div class="flex items-center gap-2">
         <h3 class="min-w-0 flex-1 text-sm font-semibold">Value mappings</h3>
         <Button
@@ -146,7 +146,7 @@
       </div>
       {#each binding.cases as item, index (index)}
         <div
-          class="grid min-w-0 gap-2 rounded-lg border bg-card p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+          class="grid min-w-0 gap-2 rounded-lg bg-white/[.03] p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
         >
           <div class="grid min-w-0 gap-1.5">
             <Label>Value</Label>

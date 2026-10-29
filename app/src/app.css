@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@fontsource-variable/inter';
+@import '@fontsource/chakra-petch/latin-400.css';
+@import '@fontsource/chakra-petch/latin-500.css';
+@import '@fontsource/chakra-petch/latin-600.css';
+@import '@fontsource/chakra-petch/latin-700.css';
 
 @custom-variant dark (&:is(.dark *));
 /* shadcn-svelte classes use short state variants; bits-ui expresses them through data-state / data-orientation. */
@@ -12,31 +16,36 @@
 @custom-variant data-horizontal (&:where([data-orientation="horizontal"]));
 @custom-variant data-vertical (&:where([data-orientation="vertical"]));
 
-/* shadcn-svelte zinc, dark only: the dashboard lives on a dim second screen. Skins override these. */
+/*
+ * Dark only: the dashboard lives on a dim second screen. Skins override these.
+ * Akira palette: warm near-black surfaces and greys, one capsule red for focus, active, selected, primary and
+ * destructive, and a teal kept for info. Contrast (WCAG): white on --primary 5.0, --ring on --background 5.0,
+ * --destructive on --card 5.3, --muted-foreground on --card 5.8.
+ */
 :root {
   color-scheme: dark;
   --radius: 0.75rem;
-  /* Neutral (untinted) greys and a blue primary, after Eleven's dark theme. */
-  --background: oklch(0.205 0 0);
-  --foreground: oklch(0.985 0 0);
-  --sidebar: oklch(0.178 0 0);
-  --card: oklch(0.235 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.235 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.63 0.19 245);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.29 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.27 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.29 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.707 0.165 254.6);
-  --canvas-surface: #101010;
+  --background: #171412;
+  --foreground: #f2ece6;
+  --sidebar: #131110;
+  --card: #24201c;
+  --card-foreground: #f2ece6;
+  --popover: #1b1815;
+  --popover-foreground: #f2ece6;
+  --primary: #d42c26;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2522;
+  --secondary-foreground: #f2ece6;
+  --muted: #26211e;
+  --muted-foreground: #a39a91;
+  --accent: #2a2522;
+  --accent-foreground: #f2ece6;
+  --destructive: #ff5c52;
+  --info: #3cc7c0;
+  --border: rgb(255 236 220 / 7%);
+  --input: rgb(255 236 220 / 11%);
+  --ring: #ef4a43;
+  --canvas-surface: #0f0d0c;
   --tile-surface: #202020;
   --tile-edge: #333333;
   --empty-cell-surface: #141414;
@@ -45,6 +54,9 @@
 }
 
 @theme inline {
+  /* Display face for titles, page names and the wordmark; Windows' own mono for counters (the app runs offline). */
+  --font-display: 'Chakra Petch', 'Inter Variable', 'Segoe UI', sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -65,6 +77,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-info: var(--info);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -179,7 +192,7 @@
   color: var(--destructive);
 }
 .toaster [data-sonner-toast][data-type='info'] [data-icon] svg {
-  color: var(--primary);
+  color: var(--info);
 }
 .toaster [data-sonner-toast][data-removed='true'][data-front='false'][data-expanded='false'] {
   transition:
@@ -195,6 +208,69 @@
   .toaster .sonner-loading-bar {
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
+  }
+}
+
+/* The one section label style in the panel: small letter-spaced mono in muted ink. */
+@utility section-label {
+  @apply font-mono text-[11px] leading-4 font-normal tracking-[0.08em] text-muted-foreground;
+}
+
+/* Faint film grain over the control panel: a tiled SVG noise at about 2.5% white, never hit-testable. */
+@utility grain {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+/*
+ * Primary cards and dialogs: a hairline edge with the top-left corner cut off. The clip removes the border on the
+ * cut, so a background stripe draws the diagonal; children with their own background must not cover that corner.
+ */
+@utility chamfer {
+  --chamfer: 20px;
+  --chamfer-edge: color-mix(in oklab, var(--foreground) 12%, transparent);
+  border: 1px solid var(--chamfer-edge);
+  clip-path: polygon(var(--chamfer) 0, 100% 0, 100% 100%, 0 100%, 0 var(--chamfer));
+  background-image: linear-gradient(
+    to bottom right,
+    transparent 50%,
+    var(--chamfer-edge) 50%,
+    var(--chamfer-edge) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+  background-size: var(--chamfer) var(--chamfer);
+  background-position: -1px -1px;
+  background-repeat: no-repeat;
+}
+
+/* Empty state: the `data-kana` word set large in faint ink behind the content. */
+@utility watermark {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: attr(data-kana);
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    pointer-events: none;
+    white-space: nowrap;
+    font:
+      700 64px/1 'Yu Gothic UI',
+      Meiryo,
+      sans-serif;
+    letter-spacing: 0.12em;
+    color: var(--foreground);
+    opacity: 0.04;
   }
 }
 

@@ -68,7 +68,7 @@
   }
 </script>
 
-<header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4">
+<header class="flex h-12 shrink-0 items-center px-4">
   <p class="flex-1 font-semibold">Deck</p>
 </header>
 <div
@@ -96,7 +96,7 @@
           step={1}
           onValueChange={setCanvasRadius}
         />
-        <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">
+        <span class="w-10 text-right text-sm font-mono tabular-nums text-muted-foreground">
           {settings.display.background.radius}px
         </span>
       </div>
@@ -126,7 +126,7 @@
             onValueChange={(value) => setGrid(setting.key, value)}
             onValueCommit={() => commitGrid(setting.key)}
           />
-          <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">
+          <span class="w-10 text-right text-sm font-mono tabular-nums text-muted-foreground">
             {page[setting.key]}{setting.unit ?? ''}
           </span>
         </div>

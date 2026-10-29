@@ -170,10 +170,14 @@
     if (closing || actionRun || action.disabled) return;
     actionRun = true;
     close(false);
+    const fail = (error: unknown) => {
+      console.error(error);
+      toast.error(`${action.label} failed`);
+    };
     try {
-      void Promise.resolve(action.run()).catch((error) => toast.error(String(error)));
+      void Promise.resolve(action.run()).catch(fail);
     } catch (error) {
-      toast.error(String(error));
+      fail(error);
     }
   }
 </script>

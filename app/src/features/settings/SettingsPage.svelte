@@ -82,7 +82,7 @@
 </script>
 
 <div class="mx-auto grid max-w-[740px] gap-8 px-6 py-6">
-  <h1 class="text-xl font-semibold tracking-tight">Settings</h1>
+  <h1 class="font-display text-xl font-semibold tracking-wide">Settings</h1>
 
   <Section title="General">
     <Row

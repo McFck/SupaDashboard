@@ -93,7 +93,7 @@
   }
 </script>
 
-<header class="flex h-12 shrink-0 items-center border-b border-[#262626] px-4">
+<header class="flex h-12 shrink-0 items-center px-4">
   <p class="flex-1 font-semibold">Add widget</p>
 </header>
 <div
@@ -108,7 +108,7 @@
         aria-disabled={!fit}
         onclick={() => addNew(type.type)}
         class:opacity-45={!fit}
-        class="flex items-center gap-3 rounded-xl border border-white/[.07] bg-white/[.02] p-3 text-left transition hover:border-white/20 hover:bg-white/[.05]"
+        class="flex items-center gap-3 rounded-xl bg-white/[.03] p-3 text-left transition hover:bg-white/[.06]"
       >
         <span class="grid size-10 place-items-center rounded-lg bg-white/5">
           <Icon
@@ -120,7 +120,7 @@
           <span class="min-w-0 truncate">{type.title}</span>
           <PluginMark plugin={type.plugin} />
         </span>
-        <span class="text-xs tabular-nums text-muted-foreground">
+        <span class="text-xs font-mono tabular-nums text-muted-foreground">
           {fit?.w ?? type.size.w}×{fit?.h ?? type.size.h}
         </span>
       </button>
@@ -140,7 +140,7 @@
             : ''}"
         />
         <span class="flex-1">Existing</span>
-        <span class="tabular-nums">{existingRows.length}</span>
+        <span class="font-mono tabular-nums">{existingRows.length}</span>
       </summary>
       <div class="grid min-w-0 gap-2 pt-2">
         <Input
@@ -175,7 +175,7 @@
                 </span>
               </span>
               <span
-                class="shrink-0 text-xs tabular-nums text-muted-foreground"
+                class="shrink-0 text-xs font-mono tabular-nums text-muted-foreground"
                 aria-label="Used in {row.uses} placements"
               >
                 {row.uses}
