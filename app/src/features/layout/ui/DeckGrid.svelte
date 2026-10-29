@@ -25,6 +25,7 @@
   import type { EffectiveSize, LayoutTarget } from '../skin-layouts';
   import { runtimeView } from '../../../app/runtime/state';
   import { registerRemovalNode, removeItem } from '../removal';
+  import { storedPlacements } from '../placements';
   import { DeckDrag } from './deck-drag.svelte';
   import { prefersReducedMotion } from 'svelte/motion';
   import { TileMotion } from './tile-motion.svelte';
@@ -276,10 +277,10 @@
     if (!animate || prefersReducedMotion.current) {
       return;
     }
-    const ids = new Set(deck.items.map((item) => item.id));
+    const ids = new Set(storedPlacements(settings).map(({ item }) => item.id));
     for (const id of tileNodes.keys()) {
       if (!ids.has(id)) {
-        // Already deleted from the data; this only plays the dust while the tile unmounts.
+        // A move keeps the placement elsewhere; broadcasting deletion dust would hide its destination.
         void removeItem(id, () => true);
       }
     }
