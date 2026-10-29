@@ -6,6 +6,7 @@ import type { SceneInput, SceneRect } from './scene-contracts';
 import { AppletInputRecognizer, type AppletCorner, type AppletGesture } from './input';
 import { resolveAppletConfig } from './definition';
 import { settings } from '../settings/state.svelte';
+import { appletValues } from '../settings/applet-scope';
 import type { RuntimeCommands } from '../../app/runtime/commands';
 
 type HostOptions = Pick<
@@ -107,7 +108,10 @@ export class AppletHostController implements AppletHostContext {
     return { width: this.width, height: this.height };
   }
   get config() {
-    return resolveAppletConfig(this.applet, settings.skinSettings[this.applet.id] ?? {});
+    return resolveAppletConfig(
+      this.applet,
+      appletValues(settings.appletSettings[this.applet.id], this.source.page.id),
+    );
   }
   get page() {
     return Object.assign({}, this.source.page, {

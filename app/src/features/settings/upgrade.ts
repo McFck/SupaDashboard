@@ -87,7 +87,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 7) {
+  if (typeof saved.version === 'number' && saved.version > 8) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -167,9 +167,37 @@ export function upgrade(input: Record<string, unknown>) {
     };
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
-  if (![3, 4, 5, 6, 7].includes(saved.version as number)) {
+  if (![3, 4, 5, 6, 7, 8].includes(saved.version as number)) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
+  if (saved.version !== 8) {
+    saved = toV8(saved);
+  }
 
   return { saved, rawControls };
+}
+
+/** v8: the global `skin` became `Page.applet`, and applet settings gained a shared/per-page scope. */
+function toV8(saved: Record<string, unknown>) {
+  const { skin, skinSettings, skinLayouts, ...rest } = saved;
+  if (skin !== undefined && typeof skin !== 'string') {
+    throw new Error('Settings contain a malformed skin');
+  }
+  const deck = object(rest.deck);
+  if (skin && skin !== 'deck') {
+    // Legacy single-page decks (v3, v4) have no pages yet; normalizeLayout copies their fields into page 1.
+    if (Array.isArray(deck.pages)) {
+      deck.pages = deck.pages.map((page: unknown) =>
+        isRecord(page) ? { ...page, applet: skin } : page,
+      );
+    } else {
+      deck.applet = skin;
+    }
+  }
+  const appletSettings = Object.fromEntries(
+    Object.entries(object(skinSettings))
+      .filter(([id, values]) => !!id && isRecord(values))
+      .map(([id, values]) => [id, { shared: values, separate: false }]),
+  );
+  return { ...rest, version: 8, deck, appletSettings, appletLayouts: object(skinLayouts) };
 }

@@ -71,7 +71,7 @@ export function insertWidget(
   const item = {
     id: newId(
       'i',
-      pageItems(source.deck.pages, source.skinLayouts).map((entry) => entry.id),
+      pageItems(source.deck.pages, source.appletLayouts).map((entry) => entry.id),
     ),
     control: control.id,
     ...plan.at,
@@ -80,16 +80,16 @@ export function insertWidget(
   };
 
   let pages = source.deck.pages;
-  let skinLayouts = source.skinLayouts;
+  let appletLayouts = source.appletLayouts;
   let controls = source.controls;
   const variants = { ...source.variants };
   if (plan.old) {
-    const removed = removePlacement(pages, slot.pageId, plan.old.id, skinLayouts);
+    const removed = removePlacement(pages, slot.pageId, plan.old.id, appletLayouts);
     if (!removed.item) {
       return undefined;
     }
     pages = removed.pages;
-    skinLayouts = removed.skinLayouts;
+    appletLayouts = removed.appletLayouts;
     if (removed.orphanControl) {
       controls = controls.filter((entry) => entry.id !== removed.orphanControl);
       delete variants[removed.orphanControl];
@@ -99,7 +99,7 @@ export function insertWidget(
   const draft: Settings = {
     ...source,
     deck: { ...source.deck, pages: pages.map((page) => ({ ...page, items: [...page.items] })) },
-    skinLayouts,
+    appletLayouts,
     controls: [...controls, control],
     variants,
   };

@@ -1,5 +1,5 @@
 import type { Item } from '../layout/grid';
-import type { Page, Settings } from './schema';
+import type { AppletSettingsEntry, Page, Settings } from './schema';
 import { DEFAULT_PAGE } from './defaults';
 import { isRecord } from '../automation/plain-data';
 import { object, positiveInteger } from './upgrade';
@@ -85,11 +85,14 @@ function normalizePage(
     gap,
     sizing: source.sizing === 'manual' ? 'manual' : 'auto',
     items,
+    ...(typeof source.applet === 'string' && source.applet.length <= 128 && source.applet
+      ? { applet: source.applet }
+      : {}),
   };
 }
 
 function normalizeAppletLayouts(raw: unknown, itemIds: Set<string>) {
-  const layouts: Settings['skinLayouts'] = {};
+  const layouts: Settings['appletLayouts'] = {};
   if (!isRecord(raw)) {
     return layouts;
   }
@@ -116,15 +119,37 @@ function normalizeAppletLayouts(raw: unknown, itemIds: Set<string>) {
   return layouts;
 }
 
+const records = (raw: unknown) =>
+  Object.fromEntries(
+    Object.entries(isRecord(raw) ? raw : {})
+      .filter(([key, value]) => !!key && isRecord(value))
+      .map(([key, value]) => [key, structuredClone(value as Record<string, unknown>)]),
+  );
+
+export function normalizeAppletSettings(raw: unknown) {
+  const entries: Record<string, AppletSettingsEntry> = {};
+  for (const [id, value] of Object.entries(records(raw))) {
+    if (!isRecord(value.shared)) {
+      continue;
+    }
+    const perPage = records(value.perPage);
+    entries[id] = {
+      shared: value.shared,
+      separate: value.separate === true,
+      ...(Object.keys(perPage).length ? { perPage } : {}),
+    };
+  }
+  return entries;
+}
+
 export function normalizeLayout(saved: Record<string, unknown>) {
   const deck = object(saved.deck);
   if (deck.pages !== undefined && !Array.isArray(deck.pages)) {
     throw new Error('Deck pages must be an array');
   }
-  const rawPages: unknown[] =
-    (saved.version === 5 || saved.version === 6 || saved.version === 7) && Array.isArray(deck.pages)
-      ? deck.pages
-      : [{ ...structuredClone(DEFAULT_PAGE), ...deck, id: 'page-1', name: 'Page 1' }];
+  const rawPages: unknown[] = Array.isArray(deck.pages)
+    ? deck.pages
+    : [{ ...structuredClone(DEFAULT_PAGE), ...deck, id: 'page-1', name: 'Page 1' }];
   const pages: Page[] = [];
   const pageIds = new Set<string>(),
     itemIds = new Set<string>();
@@ -145,7 +170,7 @@ export function normalizeLayout(saved: Record<string, unknown>) {
       item.id = uniqueId(item.id, itemIds, 'item');
     }
   }
-  const skinLayouts = normalizeAppletLayouts(saved.skinLayouts, itemIds);
+  const appletLayouts = normalizeAppletLayouts(saved.appletLayouts, itemIds);
   const activePage = pages.find((page) => page.id === deck.activePage)?.id ?? pages[0].id;
-  return { deck: { pages, activePage }, skinLayouts, pageIds, itemIds };
+  return { deck: { pages, activePage }, appletLayouts, pageIds, itemIds };
 }

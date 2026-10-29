@@ -26,13 +26,13 @@ describe('stored placements', () => {
       'item-c',
       'applet-item',
     ]);
-    expect(hasPlacement({ deck: { pages }, skinLayouts: layouts }, 'shared')).toBe(true);
+    expect(hasPlacement({ deck: { pages }, appletLayouts: layouts }, 'shared')).toBe(true);
   });
 
   it('keeps placements of unknown applets and slots, so their controls still count as used', () => {
     const source = {
       deck: { pages: [] },
-      skinLayouts: { unavailable: { 'old-page': { removed: [item('retained', 'kept')] } } },
+      appletLayouts: { unavailable: { 'old-page': { removed: [item('retained', 'kept')] } } },
     };
     expect(storedPlacements(source)).toContainEqual(
       expect.objectContaining({ appletId: 'unavailable', pageId: 'old-page', slotId: 'removed' }),

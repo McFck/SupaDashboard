@@ -42,8 +42,7 @@ export const DEFAULT_PAGE: Page = {
 };
 
 export const DEFAULTS: Settings = {
-  version: 7,
-  skin: 'deck',
+  version: 8,
   display: {
     monitor: null,
     fullscreen: false,
@@ -91,7 +90,7 @@ export const DEFAULTS: Settings = {
     }),
   ],
   deck: { pages: [structuredClone(DEFAULT_PAGE)], activePage: DEFAULT_PAGE.id },
-  skinSettings: {},
-  skinLayouts: {},
+  appletSettings: {},
+  appletLayouts: {},
   variants: {},
 };

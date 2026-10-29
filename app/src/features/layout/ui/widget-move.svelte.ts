@@ -1,6 +1,6 @@
 import { tick } from 'svelte';
 import { toast } from 'svelte-sonner';
-import { applets } from '../../plugins/registry';
+import { appletById } from '../../applets/deck';
 import { settings } from '../../settings/state.svelte';
 import { layoutFor, type LayoutTarget } from '../applet-layouts';
 import { moveToSlot } from '../slot-edits';
@@ -53,7 +53,7 @@ export class WidgetMove {
   }
 
   optionsFor(mode: MoveMode, sourceTarget: LayoutTarget, itemId: string) {
-    const applet = applets.get(sourceTarget.appletId);
+    const applet = appletById(sourceTarget.appletId);
     const slots = applet?.views.find((view) => view.id === this.editor.viewId)?.slots ?? [];
     return buildMoveOptions(settings, applet, slots, mode, sourceTarget, itemId);
   }

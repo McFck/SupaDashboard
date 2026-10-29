@@ -94,7 +94,7 @@ export function placeControl(
   at: Cell & Size,
   label: string,
 ) {
-  const takenIds = pageItems(settings.deck.pages, settings.skinLayouts).map((item) => item.id);
+  const takenIds = pageItems(settings.deck.pages, settings.appletLayouts).map((item) => item.id);
   const id = newId('i', takenIds);
   const items = [...(slotOf(target)?.items ?? []), { id, control: control.id, ...at }];
   return writeSlotItems(target, items, label, control) ? id : undefined;
@@ -163,7 +163,7 @@ export function pasteInSlot(
   }
   commit(label);
   settings.deck.pages = result.settings.deck.pages;
-  settings.skinLayouts = result.settings.skinLayouts;
+  settings.appletLayouts = result.settings.appletLayouts;
   settings.controls = result.settings.controls;
   settings.variants = result.settings.variants;
   return result.itemId;
@@ -178,7 +178,7 @@ export function moveToSlot(itemId: string, destination: LayoutTarget) {
   const page = settings.deck.pages.find((entry) => entry.id === destination.pageId);
   commit(page ? `Move widget to ${page.name}` : 'Move widget');
   settings.deck.pages = result.pages;
-  settings.skinLayouts = result.skinLayouts;
+  settings.appletLayouts = result.appletLayouts;
   return result.item;
 }
 
@@ -223,12 +223,12 @@ export function finishGridResize(pageId: string, from: { rows: number; cols: num
 }
 
 function deletePlacement(pageId: string, itemId: string) {
-  const result = removePlacement(settings.deck.pages, pageId, itemId, settings.skinLayouts);
+  const result = removePlacement(settings.deck.pages, pageId, itemId, settings.appletLayouts);
   if (!result.item) {
     return false;
   }
   settings.deck.pages = result.pages;
-  settings.skinLayouts = result.skinLayouts;
+  settings.appletLayouts = result.appletLayouts;
   if (result.orphanControl) {
     settings.controls = settings.controls.filter((entry) => entry.id !== result.orphanControl);
     delete settings.variants[result.orphanControl];

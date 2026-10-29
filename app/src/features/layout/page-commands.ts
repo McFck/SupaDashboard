@@ -20,7 +20,7 @@ export function addPage(templateId: string) {
     settings.deck.pages,
     settings.controls,
     templateId,
-    settings.skinLayouts,
+    settings.appletLayouts,
   );
   if (!result) {
     return undefined;
@@ -50,7 +50,7 @@ export function duplicatePage(pageId: string) {
     pageId,
     settings.controls,
     settings.variants,
-    settings.skinLayouts,
+    settings.appletLayouts,
   );
   if (!result) {
     return undefined;
@@ -59,7 +59,7 @@ export function duplicatePage(pageId: string) {
   settings.deck.pages = result.pages;
   settings.controls = result.controls;
   settings.variants = result.variants;
-  settings.skinLayouts = result.skinLayouts;
+  settings.appletLayouts = result.appletLayouts;
   return result.page.id;
 }
 
@@ -84,7 +84,7 @@ export function deletePage(pageId: string) {
     pageId,
     settings.controls,
     settings.variants,
-    settings.skinLayouts,
+    settings.appletLayouts,
   );
   if (!result) {
     return undefined;
@@ -93,6 +93,6 @@ export function deletePage(pageId: string) {
   settings.deck.pages = result.pages;
   settings.controls = result.controls;
   settings.variants = result.variants;
-  settings.skinLayouts = result.skinLayouts;
+  settings.appletLayouts = result.appletLayouts;
   return pageAfterRemoval(result.pages, pageId, order) ?? result.pages[0].id;
 }

@@ -1,4 +1,4 @@
-// Persisted settings shape (v7).
+// Persisted settings shape (v8).
 import type { ControlConfig } from '../controls/model';
 import type { DeckSizing, Item } from '../layout/grid';
 
@@ -12,13 +12,21 @@ export type Page = {
   sizing: DeckSizing;
   gap: number;
   items: Item[];
+  /** Applet shown on this page; absent means the built-in deck. Unknown ids are kept. */
+  applet?: string;
+};
+
+export type AppletSettingsEntry = {
+  shared: Record<string, unknown>;
+  /** Pages use `perPage` values (falling back to `shared`); `perPage` is kept when this is switched off. */
+  separate: boolean;
+  perPage?: Record<string, Record<string, unknown>>;
 };
 
 export type Deck = { pages: Page[]; activePage: string };
 
 export type Settings = {
-  version: 7;
-  skin: string;
+  version: 8;
   display: {
     monitor: string | null;
     fullscreen: boolean;
@@ -28,8 +36,8 @@ export type Settings = {
   };
   controls: ControlConfig[];
   deck: Deck;
-  skinSettings: Record<string, Record<string, unknown>>;
-  skinLayouts: Record<string, Record<string, Record<string, Item[]>>>;
+  appletSettings: Record<string, AppletSettingsEntry>;
+  appletLayouts: Record<string, Record<string, Record<string, Item[]>>>;
   /** control id -> active variant (gesture swaps are sticky across restarts) */
   variants: Record<string, number>;
 };

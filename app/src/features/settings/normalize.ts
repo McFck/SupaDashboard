@@ -4,7 +4,7 @@ import type { Settings } from './schema';
 import { DEFAULTS } from './defaults';
 import { isRecord } from '../automation/plain-data';
 import { object, upgrade } from './upgrade';
-import { normalizeLayout } from './normalize-layout';
+import { normalizeAppletSettings, normalizeLayout } from './normalize-layout';
 import { readNowPlayingOptions } from '../media/now-playing';
 
 /** Bring any saved settings up to the current version without losing the user's controls. */
@@ -37,15 +37,9 @@ export function migrate(input: unknown): Settings {
   }
   delete saved.slots; // the strip editor was removed; applets reuse the deck's controls
 
-  const { deck, skinLayouts, pageIds, itemIds } = normalizeLayout(saved);
+  const { deck, appletLayouts, pageIds, itemIds } = normalizeLayout(saved);
   const pages = deck.pages;
-  const skinSettings = isRecord(saved.skinSettings)
-    ? Object.fromEntries(
-        Object.entries(saved.skinSettings)
-          .filter(([id, value]) => !!id && isRecord(value))
-          .map(([id, value]) => [id, structuredClone(value)]),
-      )
-    : {};
+  const appletSettings = normalizeAppletSettings(saved.appletSettings);
 
   // Placements used to share one control (and its state); give every extra placement its own copy.
   const variants: Settings['variants'] = {};
@@ -59,7 +53,7 @@ export function migrate(input: unknown): Settings {
     globalIds = new Set([...pageIds, ...itemIds, ...controls.map((c: ControlConfig) => c.id)]);
   const placementLists = [
     ...pages.map((page) => page.items),
-    ...Object.values(skinLayouts).flatMap((applet) =>
+    ...Object.values(appletLayouts).flatMap((applet) =>
       Object.values(applet).flatMap((page) => Object.values(page)),
     ),
   ];
@@ -97,8 +91,7 @@ export function migrate(input: unknown): Settings {
   return {
     ...out,
     ...saved,
-    version: 7,
-    skin: pick(saved.skin, (v) => typeof v === 'string', out.skin),
+    version: 8,
     controls,
     display: {
       ...out.display,
@@ -115,8 +108,8 @@ export function migrate(input: unknown): Settings {
       },
     },
     deck,
-    skinSettings,
-    skinLayouts,
+    appletSettings,
+    appletLayouts,
     variants,
   };
 }

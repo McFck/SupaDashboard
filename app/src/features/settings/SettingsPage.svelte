@@ -3,12 +3,10 @@
   import { onMount } from 'svelte';
   import { primaryMonitor, type Monitor } from '@tauri-apps/api/window';
   import Star from '@lucide/svelte/icons/star';
-  import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
   import { Button } from '$lib/components/ui/button';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Switch } from '$lib/components/ui/switch';
   import { monitors } from '../../platform/window';
-  import { applets } from '../plugins/registry';
   import { settings } from './state.svelte';
   import { DEFAULTS } from './defaults';
   import { commit } from '../layout/history.svelte';
@@ -83,27 +81,6 @@
 
 <div class="mx-auto grid max-w-[740px] gap-8 px-6 py-6">
   <h1 class="font-display text-xl font-semibold tracking-wide">Settings</h1>
-
-  <Section title="General">
-    <Row
-      label="Skin"
-      for="applet-choice"
-    >
-      <Choice
-        id="applet-choice"
-        class="w-56 min-w-0 max-w-full"
-        value={settings.skin}
-        onchange={(v) => (settings.skin = v)}
-        options={[...applets.values()].map((s) => ({
-          value: s.id,
-          label: s.title,
-          plugin: s.plugin,
-          icon: s.alters?.includes('layout') ? PanelsTopLeft : undefined,
-          iconHint: s.alters?.includes('layout') ? 'Changes layout' : undefined,
-        }))}
-      />
-    </Row>
-  </Section>
 
   <Section title="Dashboard">
     <Row
