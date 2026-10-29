@@ -167,9 +167,7 @@
         {/each}
         <div
           id={aboutId}
-          class="scroll-mt-14 @[900px]:scroll-mt-9 {sections.length >= 3
-            ? 'min-h-[calc(100dvh-5rem)]'
-            : ''}"
+          class="scroll-mt-14 @[900px]:scroll-mt-9"
         >
           <Section title="About">
             <Row label="Last update"><span class="text-sm">{date(plugin.updated)}</span></Row>
