@@ -33,19 +33,32 @@
   let face = $state<HTMLElement>();
   let feedback = $state<PressFeedback>();
   let animation: Animation | undefined;
+  // Pose a settling pull was interrupted at; a new pull continues from there instead of jumping.
+  let base = $state({ x: 0, y: 0 });
   const tile = new ControlTile({ control: () => control, itemId: () => itemId });
 
   const translate = $derived(
     pull && !settling
-      ? `translate3d(${pull.axis === 'x' ? pull.offset : 0}px, ${pull.axis === 'y' ? pull.offset : 0}px, 0)`
+      ? `translate3d(${base.x + (pull.axis === 'x' ? pull.offset : 0)}px, ${base.y + (pull.axis === 'y' ? pull.offset : 0)}px, 0)`
       : 'none',
   );
 
+  function stop() {
+    animation?.cancel();
+    animation = undefined;
+  }
+  /** A new pointer sequence interrupts a settling pull at its rendered pose. */
+  function beginPull() {
+    if (!settling || !face) return;
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(face).transform);
+    stop();
+    base = { x: matrix.m41, y: matrix.m42 };
+    pull = null;
+    settling = false;
+  }
+
   function settle(snapshot: PullSnapshot | null) {
-    if (animation) {
-      animation.cancel();
-      animation = undefined;
-    }
+    stop();
     const active = snapshot ?? pull;
     if (!active || !face) {
       pull = null;
@@ -54,8 +67,8 @@
     }
     pull = active;
     settling = true;
-    const x = active.axis === 'x' ? active.offset : 0;
-    const y = active.axis === 'y' ? active.offset : 0;
+    const x = base.x + (active.axis === 'x' ? active.offset : 0);
+    const y = base.y + (active.axis === 'y' ? active.offset : 0);
     const duration = prefersReducedMotion.current ? 0 : springDuration(Math.hypot(x, y));
     const currentAnimation = springTranslate(
       face,
@@ -67,7 +80,9 @@
     void currentAnimation.finished
       .then(() => {
         if (animation !== currentAnimation) return;
-        animation = undefined;
+        // fill: forwards would otherwise keep overriding the transform of every later pull.
+        stop();
+        base = { x: 0, y: 0 };
         pull = null;
         settling = false;
       })
@@ -77,10 +92,7 @@
     onCommitted?.(committed);
     tile.run(captured);
   }
-  onDestroy(() => {
-    animation?.cancel();
-    animation = undefined;
-  });
+  onDestroy(stop);
 </script>
 
 <div
@@ -113,6 +125,7 @@
             captureTrigger: tile.capture,
             enabled: !pressFeedbackDisabled,
             pullBindings: () => pullBindingsFor(control, tile.current),
+            onStart: beginPull,
             onPull: (value) => {
               if (!settling) pull = value;
             },
