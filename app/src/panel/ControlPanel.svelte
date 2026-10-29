@@ -151,7 +151,13 @@
           inert={page !== 'layout'}
           aria-hidden={page !== 'layout'}
         >
-          <LayoutPage active={page === 'layout'} />
+          <LayoutPage
+            active={page === 'layout'}
+            onopenplugin={(id) => {
+              pluginId = id;
+              page = 'plugins';
+            }}
+          />
         </div>
         {#if page !== 'layout'}
           {#key page}

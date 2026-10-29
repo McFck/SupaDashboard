@@ -1,12 +1,16 @@
 <script lang="ts">
-  // The inspector with nothing selected on the Deck applet: canvas backdrop and grid geometry of the page.
+  // The inspector with nothing selected: the page's applet, the canvas backdrop and the grid geometry of the page.
   import { Slider } from '$lib/components/ui/slider';
   import { Switch } from '$lib/components/ui/switch';
+  import Choice from '../../plugins/ui/Choice.svelte';
+  import { applets } from '../../plugins/registry';
+  import { appletFor } from '../../applets/deck';
   import ColorField from '$lib/components/ColorField.svelte';
   import { splitAlpha, withAlpha } from '$lib/palette';
   import { settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
   import { commit, labelEdit } from '../history.svelte';
+  import { setPageApplet } from '../page-commands';
   import { finishGridResize } from '../slot-edits';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
@@ -17,6 +21,16 @@
   const CANVAS_PALETTE = ['#0a0a0a', '#171717', '#0f172a', '#1e1b4b', '#052e16', '#3f0d12'];
 
   let { page }: { page: Page } = $props();
+
+  const NONE = '';
+  const appletOptions = $derived([
+    { value: NONE, label: 'None' },
+    ...[...applets.values()].map((applet) => ({ value: applet.id, label: applet.title })),
+    ...(page.applet && !applets.has(page.applet)
+      ? [{ value: page.applet, label: page.applet, unavailable: true }]
+      : []),
+  ]);
+  const hasGrid = $derived(appletFor(page).slots.some((slot) => slot.grid === 'page'));
 
   const gridSettings = $derived<GridSetting[]>([
     { key: 'rows', label: 'Rows', min: 1, max: 8 },
@@ -69,11 +83,26 @@
 </script>
 
 <header class="flex h-12 shrink-0 items-center px-4">
-  <p class="flex-1 font-semibold">Deck</p>
+  <p class="flex-1 font-semibold">Page</p>
 </header>
 <div
   class="grid min-h-0 min-w-0 flex-1 content-start gap-6 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]"
 >
+  <Section>
+    <Row
+      label="Applet"
+      for="page-applet"
+    >
+      <Choice
+        id="page-applet"
+        class="w-48"
+        value={page.applet ?? NONE}
+        options={appletOptions}
+        showPluginMark={false}
+        onchange={(value) => setPageApplet(page.id, value || undefined)}
+      />
+    </Row>
+  </Section>
   <Section title="Canvas">
     <Row
       label="Colour"
@@ -102,35 +131,37 @@
       </div>
     </Row>
   </Section>
-  <Section title="Grid">
-    <Row
-      label="Auto fit"
-      for="auto-fit"
-    >
-      <Switch
-        id="auto-fit"
-        checked={page.sizing === 'auto'}
-        onCheckedChange={setSizing}
-      />
-    </Row>
-    {#each gridSettings as setting (setting.key)}
-      <Row label={setting.label}>
-        <div class="flex w-40 items-center gap-3">
-          <Slider
-            type="single"
-            class="min-w-0 flex-1"
-            value={page[setting.key]}
-            min={setting.min}
-            max={setting.max}
-            step={1}
-            onValueChange={(value) => setGrid(setting.key, value)}
-            onValueCommit={() => commitGrid(setting.key)}
-          />
-          <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">
-            {page[setting.key]}{setting.unit ?? ''}
-          </span>
-        </div>
+  {#if hasGrid}
+    <Section title="Grid">
+      <Row
+        label="Auto fit"
+        for="auto-fit"
+      >
+        <Switch
+          id="auto-fit"
+          checked={page.sizing === 'auto'}
+          onCheckedChange={setSizing}
+        />
       </Row>
-    {/each}
-  </Section>
+      {#each gridSettings as setting (setting.key)}
+        <Row label={setting.label}>
+          <div class="flex w-40 items-center gap-3">
+            <Slider
+              type="single"
+              class="min-w-0 flex-1"
+              value={page[setting.key]}
+              min={setting.min}
+              max={setting.max}
+              step={1}
+              onValueChange={(value) => setGrid(setting.key, value)}
+              onValueCommit={() => commitGrid(setting.key)}
+            />
+            <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">
+              {page[setting.key]}{setting.unit ?? ''}
+            </span>
+          </div>
+        </Row>
+      {/each}
+    </Section>
+  {/if}
 </div>

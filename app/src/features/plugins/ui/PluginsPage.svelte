@@ -2,11 +2,13 @@
   import { toast } from 'svelte-sonner';
   import { Switch } from '$lib/components/ui/switch';
   import Icon from '../../controls/ui/Icon.svelte';
-  import { bundledPlugins, pluginState, setPluginEnabled } from '../registry';
+  import { Badge } from '$lib/components/ui/badge';
+  import { applets, bundledPlugins, pluginState, setPluginEnabled } from '../registry';
   import Section from '../../../panel/ui/Section.svelte';
   import PluginPage from './PluginPage.svelte';
   let { selected = $bindable(null) }: { selected: string | null } = $props();
   const packages = bundledPlugins.filter((p) => !p.builtin);
+  const appletPlugins = new Set([...applets.values()].map((applet) => applet.plugin));
   let changing = $state(false);
   const plugin = $derived(packages.find((p) => p.id === selected));
 
@@ -57,6 +59,7 @@
                   {#if p.author}
                     <span class="shrink-0 text-xs text-muted-foreground">{p.author}</span>
                   {/if}
+                  {#if appletPlugins.has(p.id)}<Badge variant="secondary">Applet</Badge>{/if}
                 </div>
                 {#if p.description}
                   <p class="truncate text-xs text-muted-foreground">{p.description}</p>

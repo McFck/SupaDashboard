@@ -63,6 +63,18 @@ export function duplicatePage(pageId: string) {
   return result.page.id;
 }
 
+/** Shows `appletId` on the page, or the deck when absent. The page keeps the layouts of every applet it has used. */
+export function setPageApplet(pageId: string, appletId: string | undefined) {
+  const page = settings.deck.pages.find((entry) => entry.id === pageId);
+  if (!page || page.applet === appletId) {
+    return;
+  }
+  commit('Change applet');
+  const { applet: _previous, ...rest } = page;
+  const next = appletId ? { ...rest, applet: appletId } : rest;
+  settings.deck.pages = settings.deck.pages.map((entry) => (entry.id === pageId ? next : entry));
+}
+
 export function reorderPage(pageId: string, index: number) {
   const result = buildReorderPage(settings.deck.pages, pageId, index);
   if (!result) {
