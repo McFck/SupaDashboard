@@ -83,7 +83,7 @@ fn clip(text: impl ToString, limit: usize) -> String {
     text.to_string().chars().take(limit).collect()
 }
 
-fn same(a: &Session, b: &Session) -> bool {
+pub(super) fn same(a: &Session, b: &Session) -> bool {
     matches!((a.cast::<IUnknown>(), b.cast::<IUnknown>()), (Ok(a), Ok(b)) if a == b)
 }
 

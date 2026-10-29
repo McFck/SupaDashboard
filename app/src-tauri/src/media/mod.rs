@@ -3,6 +3,7 @@
 mod artwork;
 mod model;
 mod sessions;
+mod target;
 
 use artwork::ArtworkCache;
 use model::Snapshot;
@@ -11,10 +12,12 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Sender};
 use std::thread;
+use target::Candidate;
 use tauri::{AppHandle, Emitter as _, Manager as _, State, Webview};
 use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSession as Session,
     GlobalSystemMediaTransportControlsSessionManager as Manager,
+    GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
 };
 
 struct Running {
@@ -135,26 +138,33 @@ impl MediaHub {
     }
 }
 
-/// `target` None / "any" = the session Windows considers current; otherwise a case-insensitive
-/// match on the app id (e.g. "spotify").
-async fn session(target: Option<&str>) -> windows::core::Result<Option<Session>> {
+/// `target` None / "any" = the session the system rules pick (see `target::pick_system`); otherwise an
+/// app id, matched exactly first and by case-insensitive substring second (e.g. "spotify").
+async fn session(target: Option<&str>) -> windows::core::Result<Option<(Session, String)>> {
     let manager = Manager::RequestAsync()?.await?;
-    match target.filter(|t| !t.is_empty() && *t != "any") {
-        None => Ok(manager.GetCurrentSession().ok()),
-        Some(t) => {
-            let t = t.to_lowercase();
-            for s in manager.GetSessions()? {
-                if s.SourceAppUserModelId()?
-                    .to_string()
-                    .to_lowercase()
-                    .contains(&t)
-                {
-                    return Ok(Some(s));
-                }
-            }
-            Ok(None)
-        }
-    }
+    let current = manager.GetCurrentSession().ok();
+    let sessions: Vec<Session> = manager.GetSessions()?.into_iter().collect();
+    let ids = sessions
+        .iter()
+        .map(|s| s.SourceAppUserModelId().map(|id| id.to_string()))
+        .collect::<windows::core::Result<Vec<_>>>()?;
+    let candidates: Vec<Candidate> = sessions
+        .iter()
+        .zip(&ids)
+        .map(|(s, app_id)| Candidate {
+            app_id,
+            playing: s
+                .GetPlaybackInfo()
+                .and_then(|info| info.PlaybackStatus())
+                .is_ok_and(|status| status == Status::Playing),
+            current: current.as_ref().is_some_and(|c| sessions::same(c, s)),
+        })
+        .collect();
+    let picked = match target.filter(|t| !t.is_empty() && *t != "any") {
+        None => target::pick_system(&candidates),
+        Some(t) => target::pick_app(&candidates, t),
+    };
+    Ok(picked.map(|i| (sessions[i].clone(), ids[i].clone())))
 }
 
 /// With `session_id` the command goes to exactly that session of the running worker and fails when it
@@ -169,14 +179,24 @@ pub async fn media_command(
     let result = match session_id {
         Some(id) => hub.transport(id, command).await,
         None => {
-            let result: windows::core::Result<bool> = async {
-                let Some(s) = session(target.as_deref()).await? else {
-                    return Ok(false);
-                };
-                sessions::transport_op(&s, &command)?.await
+            let result: windows::core::Result<Option<(String, windows::core::Result<bool>)>> =
+                async {
+                    let Some((s, app_id)) = session(target.as_deref()).await? else {
+                        return Ok(None);
+                    };
+                    let sent = sessions::transport_op(&s, &command)?.await;
+                    Ok(Some((app_id, sent)))
+                }
+                .await;
+            match result {
+                Ok(None) => Ok(false),
+                Ok(Some((_, Ok(true)))) => Ok(true),
+                Ok(Some((app_id, Ok(false)))) => {
+                    Err(format!("{app_id} rejected the media command"))
+                }
+                Ok(Some((app_id, Err(error)))) => Err(format!("{app_id}: {error}")),
+                Err(error) => Err(error.to_string()),
             }
-            .await;
-            result.map_err(|e| e.to_string())
         }
     };
     hub.wake();
