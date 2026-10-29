@@ -1,4 +1,7 @@
+import { untrack } from 'svelte';
 import { runtimeView } from '../../app/runtime/state';
+import { watchDashboardVisibility, watchIntersection } from '../media/content-visibility';
+import { setSurfaceLive } from './applet-activity';
 import type { AppletHostContext } from './context';
 import type { Page } from '../settings/schema';
 import type { VariableValue } from '../automation/variables';
@@ -27,9 +30,13 @@ export class AppletHostController implements AppletHostContext {
   private designHeight = $state<number>();
   quickActionsOpen = $state(false);
   private runtimeOwner = $state(false);
+  private intersecting = $state(false);
+  private documentVisible = $state(false);
+  private dashboardVisible = $state(false);
   state = $state<Record<string, VariableValue>>({});
   private readonly input = new AppletInputRecognizer(() => this.setQuickActionsOpen(true));
   private unsubscribe = () => {};
+  private stopObserving = () => {};
   readonly fittedHeight = $derived(this.designHeight ?? this.applet.design?.height ?? 0);
   readonly fit = $derived.by(() => {
     const design = this.applet.design;
@@ -66,11 +73,17 @@ export class AppletHostController implements AppletHostContext {
         this.pageRenderVisible,
         this.viewId,
         this.runtimeOwner,
+        this.active,
         JSON.stringify(this.config),
       ];
       void dependencies;
       this.input.reset();
       this.quickActionsOpen = false;
+    });
+    $effect(() => {
+      const active = this.active;
+      untrack(() => setSurfaceLive(this.applet.id, this, active));
+      return () => setSurfaceLive(this.applet.id, this, false);
     });
   }
 
@@ -85,6 +98,17 @@ export class AppletHostController implements AppletHostContext {
   }
   get pageRenderVisible() {
     return this.source.pageRenderVisible;
+  }
+  get onScreen() {
+    return this.visible && this.documentVisible && this.intersecting;
+  }
+  get windowLive() {
+    return (
+      this.mode === 'runtime' && this.runtimeOwner && this.documentVisible && this.dashboardVisible
+    );
+  }
+  get active() {
+    return this.windowLive && this.onScreen && this.pageRenderVisible;
   }
   get selected() {
     return this.source.selected;
@@ -180,7 +204,34 @@ export class AppletHostController implements AppletHostContext {
     this.resetSceneInput();
   }
 
-  mount() {
+  mount(element: HTMLElement) {
+    const onVisibility = () => {
+      this.documentVisible = document.visibilityState === 'visible';
+    };
+    onVisibility();
+    document.addEventListener('visibilitychange', onVisibility);
+    const stopIntersection = watchIntersection(element, (value) => {
+      this.intersecting = value;
+    });
+    let disposed = false;
+    let stopDashboard = () => {};
+    void watchDashboardVisibility((value) => {
+      this.dashboardVisible = value;
+    })
+      .then((stop) => {
+        if (disposed) {
+          stop();
+        } else {
+          stopDashboard = stop;
+        }
+      })
+      .catch(() => {});
+    this.stopObserving = () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      stopIntersection();
+      stopDashboard();
+    };
     this.unsubscribe = runtimeView.subscribe((snapshot) => {
       if (this.runtimeOwner !== snapshot.owner) {
         this.runtimeOwner = snapshot.owner;
@@ -206,6 +257,8 @@ export class AppletHostController implements AppletHostContext {
   destroy() {
     this.unsubscribe();
     this.unsubscribe = () => {};
+    this.stopObserving();
+    this.stopObserving = () => {};
     this.input.dispose();
   }
 }

@@ -3,16 +3,10 @@ import type { AppletHostContext } from './context';
 import type { SceneMode, AppletSceneFactory, AppletSceneRenderer } from './scene-contracts';
 import { SceneScheduler } from './scene';
 import { ScenePointer } from './scene-pointer';
-import { runtimeView } from '../../app/runtime/state';
-import { watchDashboardVisibility, watchIntersection } from '../media/content-visibility';
 
 export class CanvasSceneController<Data> {
   private renderer: AppletSceneRenderer<Data> | undefined;
   private scheduler: SceneScheduler | undefined;
-  private intersecting = $state(false);
-  private documentVisible = $state(false);
-  private dashboardVisible = $state(false);
-  private runtimeOwner = $state(false);
   private rasterWidth = 0;
   private rasterHeight = 0;
   private painted = false;
@@ -81,12 +75,7 @@ export class CanvasSceneController<Data> {
   private eligible() {
     const { width, height } = this.source;
     return (
-      (this.mode === 'frozen' || this.runtimeOwner) &&
-      !!this.host?.visible &&
-      (this.mode === 'frozen' || !!this.host?.pageRenderVisible) &&
-      this.documentVisible &&
-      (this.mode === 'frozen' || this.dashboardVisible) &&
-      this.intersecting &&
+      (this.mode === 'frozen' ? !!this.host?.onScreen : !!this.host?.active) &&
       width > 0 &&
       height > 0 &&
       (this.host?.designScale ?? 1) > 0
@@ -102,9 +91,7 @@ export class CanvasSceneController<Data> {
         !this.painted &&
         untrack(() => this.source.data != null) &&
         this.mode === 'live' &&
-        this.runtimeOwner &&
-        this.documentVisible &&
-        this.dashboardVisible &&
+        !!this.host?.windowLive &&
         width > 0 &&
         height > 0 &&
         (this.host?.designScale ?? 1) > 0)
@@ -149,14 +136,6 @@ export class CanvasSceneController<Data> {
     this.dprQuery.addEventListener('change', this.resize, { once: true });
   }
 
-  private visibility = () => {
-    this.documentVisible = document.visibilityState === 'visible';
-    if (!this.eligible()) {
-      this.pointer.cancel();
-    }
-    this.scheduler?.setActive(this.canPaint());
-  };
-
   private draw(ctx: CanvasRenderingContext2D, time: number) {
     const { canvas, width, height, opaque, view, data } = this.source;
     // Resizing clears the canvas; resize in the same frame as the replacement paint.
@@ -194,49 +173,17 @@ export class CanvasSceneController<Data> {
     );
     this.observe(canvas);
     this.bindDprQuery();
-    this.visibility();
     this.resizeBacking();
     this.scheduler.setActive(this.canPaint());
   }
 
   private observe(canvas: HTMLCanvasElement) {
-    const stopOwner = runtimeView.subscribe((snapshot) => {
-      if (this.runtimeOwner === snapshot.owner) {
-        return;
-      }
-      this.runtimeOwner = snapshot.owner;
-      this.visibility();
-    });
-    const stopIntersection = watchIntersection(canvas, (value) => {
-      this.intersecting = value;
-      this.visibility();
-    });
-    let disposed = false,
-      stopDashboard = () => {};
-    void watchDashboardVisibility((value) => {
-      this.dashboardVisible = value;
-      this.visibility();
-    })
-      .then((stop) => {
-        if (disposed) {
-          stop();
-        } else {
-          stopDashboard = stop;
-        }
-      })
-      .catch(() => {});
     const observer =
       typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(this.resizeBacking);
     observer?.observe(canvas);
-    document.addEventListener('visibilitychange', this.visibility);
     window.addEventListener('resize', this.resize);
     this.cleanup = () => {
-      disposed = true;
-      stopOwner();
-      stopIntersection();
-      stopDashboard();
       observer?.disconnect();
-      document.removeEventListener('visibilitychange', this.visibility);
       window.removeEventListener('resize', this.resize);
       this.scheduler?.dispose();
     };

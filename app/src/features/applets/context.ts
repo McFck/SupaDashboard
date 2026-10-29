@@ -24,6 +24,12 @@ export type AppletHostContext = {
   state: Readonly<Record<string, VariableValue>>;
   visible: boolean;
   pageRenderVisible: boolean;
+  /** Frame visible, tab visible and scrolled into view; the editor preview counts. */
+  onScreen: boolean;
+  /** Runtime only: this window owns the runtime and its tab and the dashboard are visible. */
+  windowLive: boolean;
+  /** Runtime only: a page showing this applet is live and on screen. */
+  active: boolean;
   resolvePresentation?: (control: ControlConfig, variantIndex: number) => TilePresentation;
   selected: Selection;
   onselect?(selection: Selection, target?: LayoutTarget): void;
