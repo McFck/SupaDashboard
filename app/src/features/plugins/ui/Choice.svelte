@@ -41,12 +41,25 @@
     showPluginMark?: boolean;
   } = $props();
   const selected = $derived(options.find((o) => o.value === value));
+  // Leading icons get one fixed slot on every row and the trigger, so all labels share one left edge.
+  const iconSlot = $derived(options.some((o) => o.icon && !o.iconHint));
   const accessibleLabel = $derived(
     ariaLabel && selected?.plugin && pluginTitle(selected.plugin)
       ? `${ariaLabel}, Plugin: ${pluginTitle(selected.plugin)}`
       : ariaLabel,
   );
 </script>
+
+{#snippet leading(o: Option | undefined)}
+  {#if iconSlot}<span class="flex size-4 shrink-0 items-center justify-center"
+      >{#if o?.icon && !o.iconHint}<o.icon
+          size={15}
+          class="size-4"
+          aria-hidden={o.iconLabel ? 'true' : undefined}
+        />{/if}</span
+    >{/if}
+  {#if o?.iconLabel}<span class="sr-only">{o.iconLabel}</span>{/if}
+{/snippet}
 
 <Select.Root
   type="single"
@@ -62,12 +75,7 @@
     aria-labelledby={ariaLabelledby}
     class={className}
   >
-    {#if selected?.icon && !selected.iconHint}<selected.icon
-        size={15}
-        class="size-4 shrink-0"
-        aria-hidden={selected.iconLabel ? 'true' : undefined}
-      />{/if}
-    {#if selected?.iconLabel}<span class="sr-only">{selected.iconLabel}</span>{/if}
+    {@render leading(selected)}
     <span class="min-w-0 flex-1 truncate text-left">{selected?.label ?? placeholder}</span>
     <span class="ml-2 inline-flex shrink-0 items-center gap-2">
       <OptionTags
@@ -98,12 +106,7 @@
           label={o.label}
           disabled={o.disabled}
         >
-          {#if o.icon && !o.iconHint}<o.icon
-              size={15}
-              class="size-4 shrink-0"
-              aria-hidden={o.iconLabel ? 'true' : undefined}
-            />{/if}
-          {#if o.iconLabel}<span class="sr-only">{o.iconLabel}</span>{/if}
+          {@render leading(o)}
           <span class="min-w-0 flex-1 truncate">{o.label}</span>
           <span class="ml-2 inline-flex shrink-0 items-center gap-2">
             <OptionTags
