@@ -1,6 +1,18 @@
-import type { Param } from '../plugins/contracts';
+import type { Param, SettingsGroup } from '../plugins/contracts';
 import type { VariableType } from '../automation/variables';
 import type { SkinDef } from './contracts';
+
+type SkinSettings = NonNullable<SkinDef['settings']>;
+
+const isGroup = (item: Param | SettingsGroup): item is SettingsGroup => 'params' in item;
+
+const optionsOf = (param: Param, args?: Record<string, unknown>) =>
+  typeof param.suggestions === 'function' ? param.suggestions(args) : param.suggestions;
+
+/** Every param in declaration order, whether declared loose or inside a group. */
+export function settingParams(settings: SkinSettings = []): Param[] {
+  return settings.flatMap((item) => (isGroup(item) ? item.params : [item]));
+}
 
 export function validSkinStateValue(type: VariableType, value: unknown) {
   switch (type) {
@@ -20,7 +32,12 @@ export function validSkinParam(param: Param, value: unknown, args?: Record<strin
     return typeof value === 'boolean';
   }
   if (param.type === 'number') {
-    return typeof value === 'number' && Number.isFinite(value);
+    return (
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      (param.min === undefined || value >= param.min) &&
+      (param.max === undefined || value <= param.max)
+    );
   }
   if (typeof value !== 'string') {
     return false;
@@ -28,14 +45,12 @@ export function validSkinParam(param: Param, value: unknown, args?: Record<strin
   if (param.type !== 'select') {
     return true;
   }
-  const options =
-    typeof param.suggestions === 'function' ? param.suggestions(args) : param.suggestions;
-  return options?.some((option) => option.value === value) ?? false;
+  return optionsOf(param, args)?.some((option) => option.value === value) ?? false;
 }
 
 export function resolveSkinConfig(skin: SkinDef, stored: Record<string, unknown> = {}) {
   const config: Record<string, unknown> = { ...stored };
-  for (const param of skin.settings ?? []) {
+  for (const param of settingParams(skin.settings)) {
     const value = Object.hasOwn(stored, param.key) ? stored[param.key] : param.default;
     if (value !== undefined && validSkinParam(param, value)) {
       config[param.key] = value;
@@ -46,6 +61,46 @@ export function resolveSkinConfig(skin: SkinDef, stored: Record<string, unknown>
     }
   }
   return config;
+}
+
+/**
+ * The stored settings after one change, or null when nothing changes. Settings whose value the change
+ * invalidates (a select whose options depend on another setting) fall back to their default or first option.
+ */
+export function nextSkinSettings(
+  skin: SkinDef,
+  stored: Record<string, unknown>,
+  key: string,
+  value: unknown,
+): Record<string, unknown> | null {
+  const params = settingParams(skin.settings);
+  const param = params.find((item) => item.key === key);
+  const previous = resolveSkinConfig(skin, stored);
+  if (!param || !validSkinParam(param, value, previous)) {
+    return null;
+  }
+  const next = { ...stored, [key]: value };
+  const resolved = { ...previous, [key]: value };
+  for (const dependent of params) {
+    if (dependent.key === key || validSkinParam(dependent, resolved[dependent.key], resolved)) {
+      continue;
+    }
+    const options = optionsOf(dependent, resolved);
+    const fallback =
+      options?.find((option) => Object.is(option.value, dependent.default))?.value ??
+      options?.[0]?.value;
+    if (fallback === undefined) {
+      delete next[dependent.key];
+      delete resolved[dependent.key];
+    } else {
+      next[dependent.key] = fallback;
+      resolved[dependent.key] = fallback;
+    }
+  }
+  const unchanged =
+    Object.keys(next).every((k) => Object.is(next[k], stored[k])) &&
+    Object.keys(stored).every((k) => Object.is(stored[k], next[k]));
+  return unchanged ? null : next;
 }
 
 /** Skins are bundled with the app, so this catches developer mistakes; the types cover the rest. */
@@ -108,6 +163,25 @@ export function validateSkinDefinition(def: SkinDef) {
       fail(`state field "${field.key}" has an invalid value`);
     }
     fields.add(field.key);
+  }
+  const groupIds = new Set<string>();
+  const paramKeys = new Set<string>();
+  for (const item of def.settings ?? []) {
+    if (isGroup(item)) {
+      if (!item.id.trim() || groupIds.has(item.id)) {
+        fail('settings group IDs must be unique and nonempty');
+      }
+      groupIds.add(item.id);
+    }
+  }
+  for (const param of settingParams(def.settings)) {
+    if (paramKeys.has(param.key)) {
+      fail(`duplicate setting "${param.key}"`);
+    }
+    if (param.min !== undefined && param.max !== undefined && param.min > param.max) {
+      fail(`setting "${param.key}" has min above max`);
+    }
+    paramKeys.add(param.key);
   }
   const events = new Set<string>();
   for (const event of def.events ?? []) {

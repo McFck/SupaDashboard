@@ -1,6 +1,6 @@
 import type { Component } from 'svelte';
 import type { Readable } from 'svelte/store';
-import type { ActionRef, EventDef, Param } from '../plugins/contracts';
+import type { ActionRef, EventDef, Param, SettingsGroup } from '../plugins/contracts';
 import type { ControlFaceProps } from '../controls/model';
 import type { Page } from '../settings/schema';
 import type { VariableType, VariableValue } from '../automation/variables';
@@ -67,7 +67,8 @@ export type SkinDef = {
   defaultView: string;
   pageNavigation?: 'swipe' | 'skin';
   controlSkins?: Record<string, SkinControlFace>;
-  settings?: Param[];
+  /** Loose params and groups may be mixed; loose ones form a "General" group. */
+  settings?: (Param | SettingsGroup)[];
   quickActions?: ActionRef[];
   state?: SkinStateField[];
   events?: Omit<EventDef, 'plugin'>[];

@@ -51,7 +51,16 @@ export type Param = {
   /** Reloads whatever `suggestions` reads; called when the dropdown opens. */
   refresh?: (args?: Record<string, unknown>) => Promise<unknown>;
   default?: unknown;
+  /** Number only: a value outside [min, max] is rejected. */
+  min?: number;
+  max?: number;
+  step?: number;
+  /** Plugin settings only: hidden, not cleared, while false. Receives the resolved settings. */
+  visible?: (args: Record<string, unknown>) => boolean;
 };
+
+/** A titled group of settings. `id` anchors the local index and is never a storage key. */
+export type SettingsGroup = { id: string; title: string; params: Param[] };
 
 export type ActionDef = {
   plugin?: string;
@@ -124,7 +133,6 @@ export type Plugin = {
   size?: number | string;
   default?: boolean;
   source?: string;
-  settings?: Component;
   /** Part of the app itself: not listed on the Plugins page. */
   builtin?: boolean;
   setup(api: PluginApi): void;

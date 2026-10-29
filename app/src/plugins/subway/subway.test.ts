@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionDef, PluginApi } from '../../features/plugins/contracts';
-import { validateSkinDefinition } from '../../features/skins/definition';
+import { settingParams, validateSkinDefinition } from '../../features/skins/definition';
 import type { SkinDef } from '../../features/skins/contracts';
 import { subwayPlugin } from './index';
 
@@ -50,7 +50,7 @@ describe('Subway skin registration', () => {
 
   it('declares persistent settings, owner projections, events, face-only renderers and required quick actions', () => {
     const { actions, skin } = collect();
-    expect(skin.settings?.map((param) => param.key)).toEqual([
+    expect(settingParams(skin.settings).map((param) => param.key)).toEqual([
       'line',
       'direction',
       'startStation',
