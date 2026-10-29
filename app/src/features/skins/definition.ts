@@ -14,6 +14,24 @@ export function settingParams(settings: SkinSettings = []): Param[] {
   return settings.flatMap((item) => (isGroup(item) ? item.params : [item]));
 }
 
+/** Loose params share one General group, placed at the first loose param. */
+export function settingGroups(settings: SkinSettings = []): SettingsGroup[] {
+  const groups: SettingsGroup[] = [];
+  let general: SettingsGroup | undefined;
+  for (const item of settings) {
+    if (isGroup(item)) {
+      groups.push(item);
+    } else {
+      if (!general) {
+        general = { id: 'general', title: 'General', params: [] };
+        groups.push(general);
+      }
+      general.params.push(item);
+    }
+  }
+  return groups;
+}
+
 export function validSkinStateValue(type: VariableType, value: unknown) {
   switch (type) {
     case 'boolean':
@@ -166,13 +184,11 @@ export function validateSkinDefinition(def: SkinDef) {
   }
   const groupIds = new Set<string>();
   const paramKeys = new Set<string>();
-  for (const item of def.settings ?? []) {
-    if (isGroup(item)) {
-      if (!item.id.trim() || groupIds.has(item.id)) {
-        fail('settings group IDs must be unique and nonempty');
-      }
-      groupIds.add(item.id);
+  for (const group of settingGroups(def.settings)) {
+    if (!group.id.trim() || groupIds.has(group.id)) {
+      fail('settings group IDs must be unique and nonempty');
     }
+    groupIds.add(group.id);
   }
   for (const param of settingParams(def.settings)) {
     if (paramKeys.has(param.key)) {
