@@ -136,7 +136,7 @@
     </nav>
     <main class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
       <div
-        class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl bg-background"
+        class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl border-t border-l border-border bg-background"
       >
         <div
           class="absolute inset-0 min-h-0 min-w-0"

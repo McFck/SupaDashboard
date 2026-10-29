@@ -17,7 +17,7 @@
   <div class="flex min-w-0 items-center gap-3">
     <div class="min-w-0 flex-1">
       <h3 class="section-label">Sources</h3>
-      <span class="text-sm font-mono tabular-nums"
+      <span class="text-sm tabular-nums"
         >{sources.length} {sources.length === 1 ? 'source' : 'sources'}</span
       >
     </div>

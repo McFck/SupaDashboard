@@ -1,8 +1,10 @@
 <script lang="ts">
   import ListOrdered from '@lucide/svelte/icons/list-ordered';
+  import Workflow from '@lucide/svelte/icons/workflow';
   import Zap from '@lucide/svelte/icons/zap';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
+  import { Hint } from '$lib/components/ui/tooltip';
   import type { ControlConfig } from '../model';
   import {
     scenarioStepCount,
@@ -31,27 +33,33 @@
     configured.reduce((count, trigger) => count + stepCount(trigger), 0) +
       events.reduce((count, event) => count + scenarioStepCount(event.list.steps), 0),
   );
+  const triggersText = $derived(
+    `${configured.length} ${configured.length === 1 ? 'trigger' : 'triggers'}`,
+  );
+  const stepsText = $derived(`${totalSteps} ${totalSteps === 1 ? 'step' : 'steps'}`);
 </script>
 
 <div class="grid gap-2">
   <Button
-    variant="outline"
-    size="sm"
+    variant="secondary"
     class="justify-between"
+    aria-label="Edit scenario, {triggersText}, {stepsText}"
     onclick={() => onedit('press')}
   >
-    <span>Edit scenario</span>
+    <span class="flex items-center gap-2"><Workflow />Edit scenario</span>
     <span class="flex items-center gap-1">
-      <Badge
-        variant="secondary"
-        class="font-mono tabular-nums"
-        ><Zap /><span class="sr-only">Triggers </span>{configured.length}</Badge
-      >
-      <Badge
-        variant="secondary"
-        class="font-mono tabular-nums"
-        ><ListOrdered /><span class="sr-only">Steps </span>{totalSteps}</Badge
-      >
+      {#each [{ icon: Zap, count: configured.length, text: triggersText }, { icon: ListOrdered, count: totalSteps, text: stepsText }] as tag (tag.text)}
+        <Hint text={tag.text}>
+          {#snippet children(props)}
+            <Badge
+              {...props}
+              tabindex={-1}
+              variant="outline"
+              class="tabular-nums"><tag.icon />{tag.count}</Badge
+            >
+          {/snippet}
+        </Hint>
+      {/each}
     </span>
   </Button>
   {#each configured as trigger (trigger)}
@@ -63,8 +71,7 @@
       onclick={() => onedit(trigger)}
     >
       <span class="truncate">{TRIGGER_LABELS[trigger]}</span><span
-        class="shrink-0 text-xs font-mono tabular-nums text-muted-foreground"
-        >{stepCount(trigger)}</span
+        class="shrink-0 text-xs tabular-nums text-muted-foreground">{stepCount(trigger)}</span
       >
     </Button>
   {/each}
@@ -75,7 +82,7 @@
       class="justify-between"
       onclick={() => onedit('press')}
     >
-      <span>Events</span><span class="text-xs font-mono tabular-nums text-muted-foreground"
+      <span>Events</span><span class="text-xs tabular-nums text-muted-foreground"
         >{control.scenario.events.length}</span
       >
     </Button>
