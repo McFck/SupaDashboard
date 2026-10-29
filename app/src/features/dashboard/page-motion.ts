@@ -26,6 +26,13 @@ export class PageMotion {
     };
   };
 
+  /** The rendered pose, including a spring that a new swipe is about to interrupt. */
+  offsetOf(id: string) {
+    const node = this.nodes.get(id);
+    const transform = node ? getComputedStyle(node).transform : 'none';
+    return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m41;
+  }
+
   /** Springs every frame from its offset to `destination(frame)`; resolves when all have finished or were cancelled. */
   async spring<T extends Frame>(frames: readonly T[], destination: (frame: T) => number) {
     if (prefersReducedMotion.current) {

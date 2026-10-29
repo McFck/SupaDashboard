@@ -36,6 +36,7 @@ type Swipe = {
   order: string[];
   key: string;
   width: number;
+  offset: number;
   side: number;
   generation: number;
 };
@@ -132,19 +133,22 @@ export class Pager {
   }
 
   private begin() {
-    this.motion.cancel();
     const order = this.host.pages().map((candidate) => candidate.id);
     const sourceId = this.host.pageId();
+    const offset = this.busy ? this.motion.offsetOf(sourceId) : 0;
+    this.motion.cancel();
     this.swipe = {
       sourceId,
       sourceIndex: order.indexOf(sourceId),
       order,
       key: this.currentState(sourceId),
       width: this.host.shell().getBoundingClientRect().width,
+      offset,
       side: 0,
       generation: ++this.generation,
     };
     this.busy = true;
+    this.paint(0);
   }
 
   private currentState(pageId: string) {
@@ -164,7 +168,12 @@ export class Pager {
   private paint(dx: number) {
     const swipe = this.swipe;
     if (swipe) {
-      const { frames, side } = swipeFrames(swipe.order, swipe.sourceIndex, swipe.width, dx);
+      const { frames, side } = swipeFrames(
+        swipe.order,
+        swipe.sourceIndex,
+        swipe.width,
+        swipe.offset + dx,
+      );
       swipe.side = side;
       this.frames = frames;
     }
@@ -185,7 +194,12 @@ export class Pager {
       return;
     }
 
-    const { targetIndex } = pageSwipe(dx, swipe.width, swipe.sourceIndex, swipe.order.length);
+    const { targetIndex } = pageSwipe(
+      swipe.offset + dx,
+      swipe.width,
+      swipe.sourceIndex,
+      swipe.order.length,
+    );
     const targetId = swipe.order[targetIndex] ?? swipe.sourceId;
     let accepted = targetId === swipe.sourceId;
     if (!accepted) {
@@ -268,7 +282,12 @@ export class Pager {
     if (!(target instanceof Element) || !event.isPrimary || event.button !== 0) {
       return;
     }
-    const gap = target.closest('.dashboard-drag-gap');
+    // Gap overlays are absent while pages settle; the actual empty surface can still start a swipe.
+    const gap =
+      !!target.closest('.dashboard-drag-gap') ||
+      (this.busy &&
+        !this.session &&
+        !target.closest(`${INTERACTIVE}, [data-skin-input], .dashboard-page-dots`));
     const skinInput = target.closest('[data-skin-input="scene"], [data-skin-input="slot"]');
     if (!gap && (!skinInput || target.closest(INTERACTIVE))) {
       return;
