@@ -104,7 +104,52 @@ export type MediaSource = {
   plugin?: string;
   id: string;
   title: string;
-  command(command: 'prev' | 'next' | 'toggle' | 'play' | 'pause'): Promise<unknown>;
+  /** With `sessionId` the command goes to exactly that session of the linked status source. */
+  command(
+    command: 'prev' | 'next' | 'toggle' | 'play' | 'pause',
+    sessionId?: string,
+  ): Promise<unknown>;
+};
+
+export type NowPlayingTimeline = {
+  /** Milliseconds. `sampledAtMs` is the UTC time `positionMs` was true at. */
+  positionMs: number;
+  startMs: number;
+  endMs: number;
+  /** Playback speed; absent when the app does not say. */
+  rate?: number;
+  sampledAtMs: number;
+};
+
+/** What a status source reports for one player session. Text only; the host renders it as text. */
+export type NowPlayingSession = {
+  /** Local to the provider; targets `MediaSource.command`. */
+  sessionId: string;
+  trackId?: string;
+  title: string;
+  artist: string;
+  album: string;
+  state: 'playing' | 'paused' | 'stopped' | 'unknown';
+  /** Whether the player considers this its current session. */
+  current: boolean;
+  timeline?: NowPlayingTimeline;
+  /** Handle issued by the native artwork cache; anything else is ignored. */
+  artwork?: string;
+};
+
+export type NowPlayingSourceState =
+  { state: 'ready'; sessions: readonly NowPlayingSession[] } | { state: 'unavailable' };
+
+/** A read model: what a player is showing now. Transport stays with the linked `MediaSource`. */
+export type StatusSourceDef = {
+  plugin?: string;
+  id: string;
+  title: string;
+  kind: 'nowPlaying';
+  /** This plugin's media source that commands this source's sessions. */
+  mediaSourceId?: string;
+  /** Starts reporting; the returned function stops it. Nothing runs until a widget needs it. */
+  subscribe(emit: (state: NowPlayingSourceState) => void, signal: AbortSignal): () => void;
 };
 
 export type PluginApi = {
@@ -113,6 +158,7 @@ export type PluginApi = {
   registerControl(def: ControlTypeDef): void;
   registerSkin(def: SkinDef): void;
   registerMediaSource(def: MediaSource): void;
+  registerStatusSource(def: StatusSourceDef): void;
   registerVariable(def: PluginVariableDef): void;
   listVariables(): VariableRecord[];
   setVariable(id: string, value: VariableValue): Promise<boolean>;

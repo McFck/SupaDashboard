@@ -4,6 +4,7 @@ import { currentRuntime } from '../app/runtime/session.svelte';
 import { mediaSources } from '../features/plugins/registry';
 import { contentTargets } from '../features/plugins/content-targets';
 import type { PluginApi, Param } from '../features/plugins/contracts';
+import { nativeSessions } from '../platform/media';
 
 const sourceParam: Param = {
   key: 'source',
@@ -22,14 +23,40 @@ const mediaControlParam: Param = {
 };
 
 type Command = 'prev' | 'next' | 'toggle';
+
+/** Native sources answer false when no player took the command; that is a failed action. */
+function delivered(result: unknown) {
+  if (result === false) {
+    throw new Error('No player took the media command');
+  }
+  return result;
+}
+
 const media = (command: Command) => async (a: Record<string, unknown>) => {
   const id = (a.source as string) || 'system';
   const source = mediaSources.get(id);
   if (!source) {
     throw new Error(`Media source "${id}" isn't available (plugin missing?)`);
   }
-  return source.command(command);
+  return delivered(await source.command(command));
 };
+
+/** Resolved when the step runs: the widget's session now, addressed exactly, never re-matched by app. */
+async function nowPlayingCommand(controlId: string, command: 'prev' | 'next') {
+  const runtime = currentRuntime();
+  if (!runtime?.isOwner) {
+    throw new Error('Media runtime is unavailable');
+  }
+  const target = runtime.nowPlayingTarget(controlId);
+  if (!target) {
+    throw new Error('Nothing is playing');
+  }
+  const source = target.sourceId ? mediaSources.get(target.sourceId) : undefined;
+  if (!source) {
+    throw new Error('This source cannot be controlled');
+  }
+  return delivered(await source.command(command, target.sessionId));
+}
 const mediaOrSlide =
   (command: 'prev' | 'next') =>
   async (
@@ -52,6 +79,13 @@ const mediaOrSlide =
         }
         return runtime.contentCommand(controlId, command);
       }
+      if (control?.type === 'nowPlaying') {
+        // "system" is the source parameter's default, so only another source is a conflict.
+        if (typeof args.source === 'string' && args.source && args.source !== 'system') {
+          throw new Error('A now-playing target cannot be combined with another media source');
+        }
+        return nowPlayingCommand(controlId, command);
+      }
       if (args.target !== 'self') {
         throw new Error('Media target is unavailable');
       }
@@ -64,7 +98,14 @@ export function registerCoreMedia(api: PluginApi) {
   api.registerMediaSource({
     id: 'system',
     title: 'System',
-    command: (command) => invoke('media_command', { target: 'any', command }),
+    command: (command, sessionId) => invoke('media_command', { target: 'any', command, sessionId }),
+  });
+  api.registerStatusSource({
+    id: 'system',
+    title: 'System',
+    kind: 'nowPlaying',
+    mediaSourceId: 'system',
+    subscribe: nativeSessions(),
   });
 
   api.registerAction({

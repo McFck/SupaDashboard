@@ -13,6 +13,7 @@ import type {
   Plugin,
   PluginApi,
   PluginVariableDef,
+  StatusSourceDef,
   ValueDef,
   ValueRef,
 } from './contracts';
@@ -27,6 +28,7 @@ export const values = new Map<string, ValueDef>();
 export const controlTypes = new Map<string, ControlTypeDef>();
 export const skins = new Map<string, SkinDefinition>();
 export const mediaSources = new Map<string, MediaSource>();
+export const statusSources = new Map<string, StatusSourceDef>();
 export const customIcons = new Map<string, string>();
 export const appIcons = new Map<string, string>();
 /** Which plugin registered each app, so app pickers can show the plugin mark. */
@@ -172,6 +174,30 @@ function registerSkin(owner: string, d: SkinDefinition) {
   skins.set(d.id, { ...d, plugin: owner });
 }
 
+/** `app:` and `known-app:` are filter keys the host builds for applications. */
+function registerStatusSource(owner: string, d: StatusSourceDef) {
+  if (
+    typeof d.id !== 'string' ||
+    !d.id ||
+    d.id.length > 128 ||
+    d.id.startsWith('app:') ||
+    d.id.startsWith('known-app:')
+  ) {
+    throw new Error(`Status source id "${String(d.id)}" is not allowed`);
+  }
+  if (d.kind !== 'nowPlaying' || typeof d.title !== 'string' || typeof d.subscribe !== 'function') {
+    throw new Error(`Status source "${d.id}" is malformed`);
+  }
+  const existing = statusSources.get(d.id);
+  if (existing && existing.plugin !== owner) {
+    throw new Error(`Status source "${d.id}" belongs to another plugin`);
+  }
+  if (d.mediaSourceId !== undefined && mediaSources.get(d.mediaSourceId)?.plugin !== owner) {
+    throw new Error(`Status source "${d.id}" links to a media source of another plugin`);
+  }
+  statusSources.set(d.id, { ...d, plugin: owner });
+}
+
 function createApi(owner: string): PluginApi {
   return {
     registerAction: (d) => void actions.set(d.id, { ...d, plugin: owner }),
@@ -179,6 +205,7 @@ function createApi(owner: string): PluginApi {
     registerControl: (d) => void controlTypes.set(d.type, { ...d, plugin: owner }),
     registerSkin: (d) => registerSkin(owner, d),
     registerMediaSource: (d) => void mediaSources.set(d.id, { ...d, plugin: owner }),
+    registerStatusSource: (d) => registerStatusSource(owner, d),
     registerVariable: (definition) => defineVariable(owner, definition),
     listVariables: () =>
       registryRuntime

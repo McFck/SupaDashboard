@@ -8,6 +8,7 @@ import {
   runAction,
   setRegistryRuntime,
   skins as registeredSkins,
+  statusSources,
 } from '../../features/plugins/registry';
 import { captureEvent, captureTrigger } from '../../features/automation/capture';
 import {
@@ -26,6 +27,8 @@ import { newId, type Trigger } from '../../features/automation/scenario';
 import { PageController, type PageChangeReason } from '../../features/layout/page-controller';
 import { hasPlacement, storedPlacements } from '../../features/layout/placements';
 import { ContentController } from '../../features/media/content-controller';
+import { StatusController } from '../../features/media/status-controller';
+import { resolveArtwork } from '../../platform/media';
 import { SkinController } from '../../features/skins/skin-controller';
 import { startClock } from '../../features/automation/clock';
 import { EMPTY, type RuntimeSnapshot } from './state';
@@ -96,6 +99,7 @@ export class RuntimeSession {
   private readonly runner: ScenarioRunner;
   private readonly quickActions = new Set<AbortController>();
   private readonly content: ContentController;
+  private readonly status: StatusController;
   readonly pages: PageController;
   readonly skins: SkinController;
   private unsubscribeVariables: () => void = () => {};
@@ -115,6 +119,11 @@ export class RuntimeSession {
     this.saver = new VariableSaver(this.variables, options.persistence);
     this.onFailure = options.onFailure ?? (() => {});
     this.content = new ContentController(() => this.publish());
+    this.status = new StatusController({
+      sources: statusSources,
+      onChange: () => this.publish(),
+      resolveArtwork,
+    });
     this.pages = new PageController({
       getDeck: () => settings.deck,
       isOwner: () => this.isOwner,
@@ -307,6 +316,14 @@ export class RuntimeSession {
     return this.content.command(control, command, index);
   }
 
+  /** The session a now-playing widget shows right now, for actions that address it. */
+  nowPlayingTarget(controlId: string) {
+    if (!this.isOwner) {
+      throw new Error('Media runtime is unavailable');
+    }
+    return this.status.target(controlId);
+  }
+
   rememberVideoPosition(controlId: string, source: string, time: number) {
     if (!this.isOwner) {
       return;
@@ -374,10 +391,9 @@ export class RuntimeSession {
     this.execution.reconcile(
       new Map(controls.map((control) => [control.id, fingerprint(control)] as const)),
     );
-    this.content.reconcile(
-      controls,
-      new Set(storedPlacements(settings).map((placement) => placement.item.control)),
-    );
+    const placed = new Set(storedPlacements(settings).map((placement) => placement.item.control));
+    this.content.reconcile(controls, placed);
+    this.status.reconcile(controls, placed);
     this.publish();
   }
 
@@ -412,6 +428,7 @@ export class RuntimeSession {
       this.stopSettingsEffect,
       this.unsubscribeVariables,
       () => this.skins.dispose(),
+      () => this.status.dispose(),
       this.detachRegistry,
       () => this.execution.dispose(),
       () => this.quickActions.forEach((controller) => controller.abort()),
@@ -451,6 +468,7 @@ export class RuntimeSession {
       variables: this.variables.snapshot(),
       busy: this.execution.busy(),
       content: this.content.snapshot(),
+      status: this.status.snapshot(),
     });
   }
 }
