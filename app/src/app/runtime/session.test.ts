@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import { get } from 'svelte/store';
-import { actions, install, skins } from '../../features/plugins/registry';
+import { actions, install, applets } from '../../features/plugins/registry';
 import type { ActionContext } from '../../features/plugins/contracts';
 import { settings, serializeSettings } from '../../features/settings/state.svelte';
 import type { Page, Settings } from '../../features/settings/schema';
@@ -61,8 +61,8 @@ afterEach(async () => {
   actions.delete('page.next');
   actions.delete('page.prev');
   actions.delete('page.goto');
-  const skin = skins.get('runtime-skin');
-  if (skin) skins.set(skin.id, { ...skin, runtime: undefined });
+  const applet = applets.get('runtime-applet');
+  if (applet) applets.set(applet.id, { ...applet, start: undefined });
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -103,7 +103,7 @@ describe('automation runtime', () => {
     }
   });
 
-  it('runs skin quick actions only in a live owner with runner context', async () => {
+  it('runs applet quick actions only in a live owner with runner context', async () => {
     let received: ActionContext | undefined;
     actions.set('test.action', {
       id: 'test.action',
@@ -425,15 +425,15 @@ describe('automation runtime', () => {
     );
   });
 
-  it('keeps skin view and state outside settings history', async () => {
-    const skinId = 'runtime-skin';
+  it('keeps applet view and state outside settings history', async () => {
+    const appletId = 'runtime-applet';
     install({
-      id: 'runtime-skin-plugin',
-      title: 'Runtime skin fixture',
+      id: 'runtime-applet-plugin',
+      title: 'Runtime applet fixture',
       setup: (api) =>
-        api.registerSkin({
-          id: skinId,
-          title: 'Runtime skin',
+        api.registerApplet({
+          id: appletId,
+          title: 'Runtime applet',
           component: {} as import('svelte').Component,
           slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
           views: [
@@ -443,28 +443,28 @@ describe('automation runtime', () => {
           defaultView: 'display',
           settings: [{ key: 'enabled', label: 'Enabled', type: 'boolean', default: false }],
           state: [{ key: 'configured', type: 'boolean', initialValue: false, persistent: true }],
-          events: [{ id: `${skinId}.changed`, title: 'Changed' }],
+          events: [{ id: `${appletId}.changed`, title: 'Changed' }],
         }),
     });
-    settings.skinSettings[skinId] = { enabled: true, future: '保持' };
+    settings.skinSettings[appletId] = { enabled: true, future: '保持' };
     const before = serializeSettings();
     runtime = new RuntimeSession();
     await tick();
-    expect(runtime.variables.getValue(`${skinId}.view`)).toBe('display');
+    expect(runtime.variables.getValue(`${appletId}.view`)).toBe('display');
     expect(serializeSettings()).toBe(before);
 
-    await runtime.skins.setView(skinId, 'cab');
-    runtime.variables.set(`${skinId}.configured`, true, 'runtime-skin-plugin');
-    expect(runtime.variables.getValue(`${skinId}.view`)).toBe('cab');
+    await runtime.applets.setView(appletId, 'cab');
+    runtime.variables.set(`${appletId}.configured`, true, 'runtime-applet-plugin');
+    expect(runtime.variables.getValue(`${appletId}.view`)).toBe('cab');
     expect(
       runtime.variables
         .serializePersistent()
-        .records.find((record) => record.definition.id === `${skinId}.configured`)?.value,
+        .records.find((record) => record.definition.id === `${appletId}.configured`)?.value,
     ).toBe(true);
     expect(
       runtime.variables
         .serializePersistent()
-        .records.some((record) => record.definition.id === `${skinId}.view`),
+        .records.some((record) => record.definition.id === `${appletId}.view`),
     ).toBe(false);
     expect(serializeSettings()).toBe(before);
   });

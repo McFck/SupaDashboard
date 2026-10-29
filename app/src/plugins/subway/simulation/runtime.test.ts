@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { get, writable } from 'svelte/store';
-import type { SkinRuntimeContext } from '../../../features/skins/contracts';
+import type { AppletRuntimeContext } from '../../../features/applets/contracts';
 import type { RawLineBundle } from './lines';
 import {
   registerSubwaySurface,
@@ -97,7 +97,7 @@ function makeContext(onEvent?: (id: string) => void) {
   const values = new Map<string, unknown>();
   const events: string[] = [];
   const ancestries: Array<{ depth: number; listeners: string[] } | undefined> = [];
-  const context: SkinRuntimeContext = {
+  const context: AppletRuntimeContext = {
     config,
     getState: (key) => values.get(key) as never,
     setState: async (key, value) => {

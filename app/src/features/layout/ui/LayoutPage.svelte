@@ -7,7 +7,7 @@
   import { WidgetMove } from './widget-move.svelte';
   import { toast } from 'svelte-sonner';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
-  import SkinLayoutEditor from './SkinLayoutEditor.svelte';
+  import AppletLayoutEditor from './AppletLayoutEditor.svelte';
   import { MAX_PAGES } from '../pages';
   import * as pageCommands from '../page-commands';
   import ScenarioEditor from '../../automation/editor/ScenarioEditor.svelte';
@@ -222,9 +222,9 @@
           class="relative grid h-full min-h-0 w-full min-w-0 place-items-center p-6"
           class:canvas-enter={active && wasInactive}
         >
-          {#key `${editor.page.id}:${editor.skin.id}`}
-            <SkinLayoutEditor
-              skin={editor.skin}
+          {#key `${editor.page.id}:${editor.applet.id}`}
+            <AppletLayoutEditor
+              applet={editor.applet}
               page={editor.page}
               bind:previewViewId={editor.viewId}
               selected={editor.selection}

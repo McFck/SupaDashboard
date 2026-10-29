@@ -1,9 +1,9 @@
 <script lang="ts">
-  // The dashboard window: transparent and frameless; a configurable backdrop sits behind the skin.
+  // The dashboard window: transparent and frameless; a configurable backdrop sits behind the applet.
   import { onMount, tick } from 'svelte';
   import { isTauri } from '@tauri-apps/api/core';
-  import SkinHost from '../skins/SkinHost.svelte';
-  import { skins } from '../plugins/registry';
+  import AppletHost from '../applets/AppletHost.svelte';
+  import { applets } from '../plugins/registry';
   import { settings } from '../settings/state.svelte';
   import { pageById } from '../layout/pages';
   import { runtimeView } from '../../app/runtime/state';
@@ -18,12 +18,12 @@
 
   const { requestPageChange } = runtimeCommands;
 
-  const skin = $derived(skins.get(settings.skin) ?? skins.get('deck')!);
+  const applet = $derived(applets.get(settings.skin) ?? applets.get('deck')!);
   const page = $derived(
     pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!,
   );
   const bg = $derived(settings.display.background);
-  const showDots = $derived(settings.deck.pages.length > 1 && skin.pageNavigation !== 'skin');
+  const showDots = $derived(settings.deck.pages.length > 1 && applet.pageNavigation !== 'applet');
 
   let shell: HTMLDivElement;
   let pageHost: HTMLDivElement;
@@ -37,8 +37,8 @@
     shell: () => shell,
     pages: () => settings.deck.pages,
     pageId: () => page.id,
-    skinId: () => settings.skin,
-    skinNavigates: () => skin.pageNavigation === 'skin',
+    appletId: () => settings.skin,
+    appletNavigates: () => applet.pageNavigation === 'applet',
     fullscreen: () => dashboard.appliedFullscreen,
     canDragWindow: () => isTauri() && !dashboard.appliedFullscreen,
     startWindowDrag: (pointerType) => dashboard.startDrag(pointerType),
@@ -75,7 +75,7 @@
     };
   });
 
-  // The page changed from outside a swipe (dots, actions, another window) or the page order, skin or
+  // The page changed from outside a swipe (dots, actions, another window) or the page order, applet or
   // fullscreen state changed.
   $effect(() => {
     pager.reconcile(page.id);
@@ -131,7 +131,7 @@
     style:opacity={Number.isFinite(bg.opacity) ? Math.max(0, Math.min(1, bg.opacity)) : 0}
   ></div>
   <div
-    class="dashboard-skin"
+    class="dashboard-applet"
     data-has-pages={showDots}
     bind:this={pageHost}
   >
@@ -148,8 +148,8 @@
             style:transform={pageOffset(frame.offset)}
             use:pager.motion.register={frame.id}
           >
-            <SkinHost
-              {skin}
+            <AppletHost
+              {applet}
               page={framePage}
               visible={frame.active}
               pageRenderVisible={true}
@@ -216,7 +216,7 @@
     border-radius: inherit;
   }
 
-  .dashboard-skin {
+  .dashboard-applet {
     position: absolute;
     z-index: 10;
     inset: 0;
@@ -225,7 +225,7 @@
     overflow: hidden;
   }
 
-  .dashboard-skin[data-has-pages='true'] {
+  .dashboard-applet[data-has-pages='true'] {
     bottom: 34px;
     height: auto;
   }

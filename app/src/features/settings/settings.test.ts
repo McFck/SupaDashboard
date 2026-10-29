@@ -100,7 +100,7 @@ describe('settings migration', () => {
     expect(() => migrate({ version: '5', controls: [] })).toThrow('Unsupported settings version');
   });
 
-  it('adds empty skin maps and round-trips Unicode configs and layouts without a second Deck source', () => {
+  it('adds empty applet maps and round-trips Unicode configs and layouts without a second Deck source', () => {
     const old = structuredClone(DEFAULTS) as any;
     delete old.skinSettings;
     delete old.skinLayouts;
@@ -155,7 +155,7 @@ describe('settings migration', () => {
     ]);
   });
 
-  it('gives cross-skin copies independent item and control IDs during normalization', () => {
+  it('gives cross-applet copies independent item and control IDs during normalization', () => {
     const saved = structuredClone(DEFAULTS) as any;
     saved.controls[0].options = { locale: '日本語' };
     saved.controls[0].scenario = {
@@ -174,13 +174,13 @@ describe('settings migration', () => {
     };
     saved.skinLayouts.subway = {
       [saved.deck.pages[0].id]: {
-        strip: [{ id: 'skin-item', control: 'prev', x: 0, y: 0, w: 1, h: 1 }],
+        strip: [{ id: 'applet-item', control: 'prev', x: 0, y: 0, w: 1, h: 1 }],
       },
     };
     const original = structuredClone(saved);
     const migrated = migrate(saved);
     const item = migrated.skinLayouts.subway['page-1'].strip[0];
-    expect(item.id).toBe('skin-item');
+    expect(item.id).toBe('applet-item');
     expect(item.control).not.toBe('prev');
     expect(migrated.controls.find((control) => control.id === item.control)).toMatchObject({
       options: { locale: '日本語' },

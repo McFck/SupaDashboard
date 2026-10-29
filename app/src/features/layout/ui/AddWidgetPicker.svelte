@@ -12,7 +12,7 @@
   import { buildExistingControlRows, searchExistingControls } from '../existing-controls';
   import { cloneControl } from '../widget-insert';
   import { pageItems } from '../placements';
-  import { effectiveSize, layoutFor, type LayoutTarget } from '../skin-layouts';
+  import { effectiveSize, layoutFor, type LayoutTarget } from '../applet-layouts';
   import { findSlotPlacement, newControlId, placeControl } from '../slot-edits';
   import type { Selection } from '../grid';
 
@@ -32,7 +32,7 @@
   let existingQuery = $state('');
 
   const slot = $derived(
-    layoutFor(settings, layoutTarget.skinId, layoutTarget.pageId, layoutTarget.slotId)?.slot,
+    layoutFor(settings, layoutTarget.appletId, layoutTarget.pageId, layoutTarget.slotId)?.slot,
   );
   const allItems = $derived(pageItems(settings.deck.pages, settings.skinLayouts));
   const existingRows = $derived(
@@ -100,7 +100,7 @@
   class="grid min-h-0 min-w-0 flex-1 content-start gap-2 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]"
 >
   {#each [...controlTypes.values()] as type (type.type)}
-    {@const bounds = slot && effectiveSize(layoutTarget.skinId, slot, type.type)}
+    {@const bounds = slot && effectiveSize(layoutTarget.appletId, slot, type.type)}
     {@const fit = bounds ? fitFor(type.type) : null}
     {#if bounds && (!slot?.accepts || slot.accepts.includes(type.type))}
       <button

@@ -24,7 +24,7 @@ type Session = {
   startY: number;
   latestX: number;
   latestY: number;
-  source: 'gap' | 'skin-input';
+  source: 'gap' | 'applet-input';
   mode: 'pending' | 'horizontal' | 'vertical';
   hold?: ReturnType<typeof setTimeout>;
   frame: number | null;
@@ -46,9 +46,9 @@ export type PagerHost = {
   shell(): HTMLElement;
   pages(): Page[];
   pageId(): string;
-  skinId(): string;
-  /** The skin navigates pages itself, so empty-area swipes do nothing. */
-  skinNavigates(): boolean;
+  appletId(): string;
+  /** The applet navigates pages itself, so empty-area swipes do nothing. */
+  appletNavigates(): boolean;
   fullscreen(): boolean;
   /** The window can be moved by dragging (native and not fullscreen). */
   canDragWindow(): boolean;
@@ -85,7 +85,7 @@ export class Pager {
     this.cancelToCurrent();
   }
 
-  /** Called whenever the shown page, page order, skin or fullscreen may have changed. */
+  /** Called whenever the shown page, page order, applet or fullscreen may have changed. */
   reconcile(pageId: string) {
     const current = this.currentState(pageId);
     const expected = this.expected;
@@ -130,7 +130,7 @@ export class Pager {
     if (pages.length <= 1) {
       return 'window';
     }
-    return this.host.skinNavigates() ? 'none' : 'swipe';
+    return this.host.appletNavigates() ? 'none' : 'swipe';
   }
 
   private begin() {
@@ -156,7 +156,7 @@ export class Pager {
     return JSON.stringify([
       pageId,
       pageOrderKey(this.host.pages()),
-      this.host.skinId(),
+      this.host.appletId(),
       this.host.fullscreen(),
     ]);
   }
@@ -288,9 +288,9 @@ export class Pager {
       !!target.closest('.dashboard-drag-gap') ||
       (this.busy &&
         !this.session &&
-        !target.closest(`${INTERACTIVE}, [data-skin-input], .dashboard-page-dots`));
-    const skinInput = target.closest('[data-skin-input="scene"], [data-skin-input="slot"]');
-    if (!gap && (!skinInput || target.closest(INTERACTIVE))) {
+        !target.closest(`${INTERACTIVE}, [data-applet-input], .dashboard-page-dots`));
+    const appletInput = target.closest('[data-applet-input="scene"], [data-applet-input="slot"]');
+    if (!gap && (!appletInput || target.closest(INTERACTIVE))) {
       return;
     }
     const mode = this.pressMode();
@@ -316,7 +316,7 @@ export class Pager {
       startY: event.clientY,
       latestX: event.clientX,
       latestY: event.clientY,
-      source: gap ? 'gap' : 'skin-input',
+      source: gap ? 'gap' : 'applet-input',
       mode: 'pending',
       frame: null,
     };
@@ -382,7 +382,7 @@ export class Pager {
     session.hold = undefined;
     session.mode = mode;
     if (mode === 'vertical') {
-      if (session.source === 'skin-input') {
+      if (session.source === 'applet-input') {
         if (this.clear(session, false)) {
           this.yielded();
         }
@@ -393,7 +393,7 @@ export class Pager {
       }
       return;
     }
-    if (session.source === 'skin-input') {
+    if (session.source === 'applet-input') {
       try {
         this.host.shell().setPointerCapture(session.pointerId);
       } catch {
@@ -469,7 +469,7 @@ export class Pager {
   };
 
   private finish(session: Session, cancelled: boolean) {
-    if (session.source === 'skin-input' && session.mode === 'pending') {
+    if (session.source === 'applet-input' && session.mode === 'pending') {
       if (this.clear(session, false)) {
         this.yielded();
       }

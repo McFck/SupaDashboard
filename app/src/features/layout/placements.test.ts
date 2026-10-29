@@ -14,28 +14,28 @@ const first = page('page-a', [item('item-a', 'shared')]);
 const second = page('page-b', [item('item-b', 'shared'), { ...item('item-c', 'other'), x: 1 }]);
 
 describe('stored placements', () => {
-  it('lists deck and skin placements, ignoring a stale deck alias', () => {
+  it('lists deck and applet placements, ignoring a stale deck alias', () => {
     const pages = [first, second];
     const layouts = {
-      subway: { [second.id]: { strip: [item('skin-item', 'shared')] } },
+      subway: { [second.id]: { strip: [item('applet-item', 'shared')] } },
       deck: { [second.id]: { main: [item('duplicate-deck', 'shared')] } },
     };
     expect(pageItems(pages, layouts).map((entry) => entry.id)).toEqual([
       'item-a',
       'item-b',
       'item-c',
-      'skin-item',
+      'applet-item',
     ]);
     expect(hasPlacement({ deck: { pages }, skinLayouts: layouts }, 'shared')).toBe(true);
   });
 
-  it('keeps placements of unknown skins and slots, so their controls still count as used', () => {
+  it('keeps placements of unknown applets and slots, so their controls still count as used', () => {
     const source = {
       deck: { pages: [] },
       skinLayouts: { unavailable: { 'old-page': { removed: [item('retained', 'kept')] } } },
     };
     expect(storedPlacements(source)).toContainEqual(
-      expect.objectContaining({ skinId: 'unavailable', pageId: 'old-page', slotId: 'removed' }),
+      expect.objectContaining({ appletId: 'unavailable', pageId: 'old-page', slotId: 'removed' }),
     );
     expect(hasPlacement(source, 'kept')).toBe(true);
   });

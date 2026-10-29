@@ -1,13 +1,13 @@
 import { untrack } from 'svelte';
-import type { SkinHostContext } from './context';
-import type { SceneMode, SkinSceneFactory, SkinSceneRenderer } from './scene-contracts';
+import type { AppletHostContext } from './context';
+import type { SceneMode, AppletSceneFactory, AppletSceneRenderer } from './scene-contracts';
 import { SceneScheduler } from './scene';
 import { ScenePointer } from './scene-pointer';
 import { runtimeView } from '../../app/runtime/state';
 import { watchDashboardVisibility, watchIntersection } from '../media/content-visibility';
 
 export class CanvasSceneController<Data> {
-  private renderer: SkinSceneRenderer<Data> | undefined;
+  private renderer: AppletSceneRenderer<Data> | undefined;
   private scheduler: SceneScheduler | undefined;
   private intersecting = $state(false);
   private documentVisible = $state(false);
@@ -24,7 +24,7 @@ export class CanvasSceneController<Data> {
   constructor(
     private readonly source: {
       canvas: HTMLCanvasElement;
-      create: SkinSceneFactory<Data>;
+      create: AppletSceneFactory<Data>;
       width: number;
       height: number;
       view: string;
@@ -32,7 +32,7 @@ export class CanvasSceneController<Data> {
       revision: unknown;
       opaque: boolean;
     },
-    private readonly host?: SkinHostContext,
+    private readonly host?: AppletHostContext,
   ) {
     this.pointer = new ScenePointer({
       canvas: () => this.source.canvas,
@@ -42,25 +42,25 @@ export class CanvasSceneController<Data> {
       renderer: () => this.renderer,
     });
     let lastView: string | undefined,
-      lastSkinId: string | undefined,
+      lastAppletId: string | undefined,
       lastPageId: string | undefined;
     $effect(() => {
       const { view } = this.source;
       const mode = this.mode,
-        skinId = host?.skin.id,
+        appletId = host?.applet.id,
         pageId = host?.page.id;
       const canDraw = this.eligible();
       if (
         mode !== 'live' ||
         view !== lastView ||
-        skinId !== lastSkinId ||
+        appletId !== lastAppletId ||
         pageId !== lastPageId ||
         !canDraw
       ) {
         this.pointer.cancel();
       }
       lastView = view;
-      lastSkinId = skinId;
+      lastAppletId = appletId;
       lastPageId = pageId;
     });
     $effect(() => {

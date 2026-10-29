@@ -78,7 +78,7 @@ describe('paste over a widget', () => {
       settings.variants = { old: 0, keep: 0 };
 
       const id = pasteInSlot(
-        { skinId: 'deck', pageId: 'page', slotId: 'main' },
+        { appletId: 'deck', pageId: 'page', slotId: 'main' },
         { control: control('copied'), w: 1, h: 1 },
         { item: 'old-item' },
         'Paste over widget',

@@ -28,12 +28,12 @@ function newGlobalId(prefix: string, used: Set<string>) {
   return undefined;
 }
 
-type SkinLayouts = Settings['skinLayouts'];
+type AppletLayouts = Settings['skinLayouts'];
 
 function allIds(
   pages: readonly Page[],
   controls: readonly ControlConfig[],
-  layouts: SkinLayouts = {},
+  layouts: AppletLayouts = {},
 ) {
   return new Set([
     ...pages.map((page) => page.id),
@@ -46,7 +46,7 @@ export function addPage(
   pages: readonly Page[],
   controls: readonly ControlConfig[],
   sourcePageId?: string,
-  skinLayouts: SkinLayouts = {},
+  skinLayouts: AppletLayouts = {},
 ) {
   if (pages.length >= MAX_PAGES) return undefined;
   const source = pageById(pages, sourcePageId);
@@ -82,7 +82,7 @@ export function duplicatePage(
   pageId: string,
   controls: readonly ControlConfig[],
   variants: Settings['variants'],
-  skinLayouts: SkinLayouts = {},
+  skinLayouts: AppletLayouts = {},
 ) {
   if (pages.length >= MAX_PAGES) return undefined;
   const source = pages.find((page) => page.id === pageId);
@@ -110,10 +110,10 @@ export function duplicatePage(
   const deckItems = copyItems(source.items);
   if (!deckItems) return undefined;
   copiedItems.push(...deckItems);
-  const nextSkinLayouts = cloneJson(skinLayouts);
-  delete nextSkinLayouts.deck;
-  for (const [skinId, byPage] of Object.entries(skinLayouts)) {
-    if (skinId === 'deck') continue;
+  const nextAppletLayouts = cloneJson(skinLayouts);
+  delete nextAppletLayouts.deck;
+  for (const [appletId, byPage] of Object.entries(skinLayouts)) {
+    if (appletId === 'deck') continue;
     const sourceSlots = byPage[pageId];
     if (!sourceSlots) continue;
     const copiedSlots: Record<string, Item[]> = {};
@@ -122,7 +122,7 @@ export function duplicatePage(
       if (!copies) return undefined;
       copiedSlots[slotId] = copies;
     }
-    nextSkinLayouts[skinId][id] = copiedSlots;
+    nextAppletLayouts[appletId][id] = copiedSlots;
   }
   const page: Page = { ...cloneJson(source), id, name: `${source.name} copy`, items: copiedItems };
   return {
@@ -130,7 +130,7 @@ export function duplicatePage(
     page,
     controls: [...controls, ...copiedControls],
     variants: { ...variants },
-    skinLayouts: nextSkinLayouts,
+    skinLayouts: nextAppletLayouts,
   };
 }
 
@@ -153,14 +153,14 @@ export function deletePage(
   pageId: string,
   controls: readonly ControlConfig[],
   variants: Settings['variants'],
-  skinLayouts: SkinLayouts = {},
+  skinLayouts: AppletLayouts = {},
 ) {
   if (pages.length <= 1 || !pages.some((page) => page.id === pageId)) return undefined;
   const next = pages.filter((page) => page.id !== pageId);
-  const nextSkinLayouts = cloneJson(skinLayouts);
-  delete nextSkinLayouts.deck;
-  for (const byPage of Object.values(nextSkinLayouts)) delete byPage[pageId];
-  const usedControls = new Set(pageItems(next, nextSkinLayouts).map((item) => item.control));
+  const nextAppletLayouts = cloneJson(skinLayouts);
+  delete nextAppletLayouts.deck;
+  for (const byPage of Object.values(nextAppletLayouts)) delete byPage[pageId];
+  const usedControls = new Set(pageItems(next, nextAppletLayouts).map((item) => item.control));
   const removedControls = new Set(
     controls.filter((control) => !usedControls.has(control.id)).map((control) => control.id),
   );
@@ -170,7 +170,7 @@ export function deletePage(
     pages: next,
     controls: controls.filter((control) => !removedControls.has(control.id)),
     variants: nextVariants,
-    skinLayouts: nextSkinLayouts,
+    skinLayouts: nextAppletLayouts,
   };
 }
 

@@ -1,26 +1,26 @@
 import { getContext } from 'svelte';
 import type { ControlConfig, TilePresentation } from '../controls/model';
-import type { SkinConfig, SkinDef } from './contracts';
+import type { AppletConfig, AppletDef } from './contracts';
 import type { Page } from '../settings/schema';
 import type { VariableValue } from '../automation/variables';
 import type { SceneInput, SceneRect } from './scene-contracts';
 import type { Selection } from '../layout/grid';
-import type { LayoutTarget } from '../layout/skin-layouts';
+import type { LayoutTarget } from '../layout/applet-layouts';
 
-export const SKIN_HOST_CONTEXT = Symbol('skin-host');
+export const APPLET_HOST_CONTEXT = Symbol('applet-host');
 
-export type SkinPageContext = Page & { next(): Promise<boolean>; prev(): Promise<boolean> };
+export type AppletPageContext = Page & { next(): Promise<boolean>; prev(): Promise<boolean> };
 
-export type SkinHostContext = {
+export type AppletHostContext = {
   mode: 'runtime' | 'editor';
-  skin: SkinDef;
-  page: SkinPageContext;
+  applet: AppletDef;
+  page: AppletPageContext;
   viewId: string;
   designScale: number;
   designOffset: { x: number; y: number };
   viewport?: { width: number; height: number };
   setDesignHeight?(height: number): void;
-  config: SkinConfig;
+  config: AppletConfig;
   state: Readonly<Record<string, VariableValue>>;
   visible: boolean;
   pageRenderVisible: boolean;
@@ -44,6 +44,6 @@ export type SkinHostContext = {
   setQuickActionsOpen(open: boolean): void;
 };
 
-export function getSkinHostContext() {
-  return getContext<SkinHostContext | undefined>(SKIN_HOST_CONTEXT);
+export function getAppletHostContext() {
+  return getContext<AppletHostContext | undefined>(APPLET_HOST_CONTEXT);
 }

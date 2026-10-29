@@ -14,7 +14,7 @@ beforeEach(() => {
 });
 
 describe('plugin bookkeeping', () => {
-  it('protects plugin installation state and rejects skin ownership collisions', async () => {
+  it('protects plugin installation state and rejects applet ownership collisions', async () => {
     const registry = await import('./registry');
     const setup = vi.fn();
     let ownerApi!: import('./contracts').PluginApi;
@@ -28,9 +28,9 @@ describe('plugin bookkeeping', () => {
       default: true,
       setup: (api: import('./contracts').PluginApi) => {
         ownerApi = api;
-        api.registerSkin({
-          id: 'test.skin',
-          title: 'Test skin',
+        api.registerApplet({
+          id: 'test.applet',
+          title: 'Test applet',
           component: {} as import('svelte').Component,
           slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
           views: [{ id: 'default', title: 'Default', slots: ['main'] }],
@@ -38,8 +38,8 @@ describe('plugin bookkeeping', () => {
           state: [{ key: 'ready', type: 'boolean', initialValue: false, persistent: true }],
           events: [
             {
-              id: 'test.skin.changed',
-              title: 'Skin changed',
+              id: 'test.applet.changed',
+              title: 'Applet changed',
               parameterSuggestions: () => [{ value: 'ready', label: 'Ready' }],
             },
           ],
@@ -48,29 +48,29 @@ describe('plugin bookkeeping', () => {
     };
     await registry.installEnabled(spotify, { id: 'subway', title: 'Subway', setup });
     expect(setup).not.toHaveBeenCalled();
-    const registeredSkin = registry.skins.get('test.skin')!;
+    const registeredApplet = registry.applets.get('test.applet')!;
     expect(() =>
-      ownerApi.registerSkin({
-        ...registeredSkin,
+      ownerApi.registerApplet({
+        ...registeredApplet,
         views: [{ id: 'broken', title: 'Broken', slots: ['missing'] }],
       }),
     ).toThrow('slot references');
-    expect(registry.skins.get('test.skin')).toBe(registeredSkin);
+    expect(registry.applets.get('test.applet')).toBe(registeredApplet);
     registry.install({
       id: 'intruder',
       title: 'Intruder',
       setup: (api) => {
         api.registerVariable({
-          id: 'test.skin.view',
+          id: 'test.applet.view',
           name: 'Reserved view',
           type: 'string',
           initialValue: 'external',
           persistent: false,
           readOnly: true,
         });
-        api.registerSkin({
+        api.registerApplet({
           id: 'test.other',
-          title: 'Intruder skin',
+          title: 'Intruder applet',
           component: {} as import('svelte').Component,
           slots: [{ id: 'main', style: 'region', kind: 'grid', grid: 'page' }],
           views: [{ id: 'default', title: 'Default', slots: ['main'] }],
@@ -79,16 +79,16 @@ describe('plugin bookkeeping', () => {
         });
       },
     });
-    expect(() => ownerApi.registerSkin(registeredSkin)).toThrow('test.skin.view');
+    expect(() => ownerApi.registerApplet(registeredApplet)).toThrow('test.applet.view');
     expect(() =>
-      ownerApi.registerSkin({
-        ...registeredSkin,
+      ownerApi.registerApplet({
+        ...registeredApplet,
         id: 'test.other',
-        title: 'Other skin',
+        title: 'Other applet',
         events: [{ id: 'test.other.changed', title: 'Changed' }],
       }),
     ).toThrow('test.other.view');
-    expect(registry.skins.get('test.skin')).toBe(registeredSkin);
+    expect(registry.applets.get('test.applet')).toBe(registeredApplet);
     expect(store.set.mock.calls[0][1].installed.spotify).toBe('2025-01-01T00:00:00.000Z');
     expect(Number.isFinite(Date.parse(store.set.mock.calls[0][1].installed.subway))).toBe(true);
     await registry.setPluginEnabled('spotify', false);

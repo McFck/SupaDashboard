@@ -104,9 +104,9 @@ function videoPosition(controlId: string, source: string) {
   return currentRuntime()?.videoPosition(controlId, source);
 }
 
-async function setSkinView(skinId: string, viewId: string) {
+async function setAppletView(appletId: string, viewId: string) {
   const runtime = currentRuntime();
-  return runtime?.isOwner ? runtime.skins.setView(skinId, viewId) : false;
+  return runtime?.isOwner ? runtime.applets.setView(appletId, viewId) : false;
 }
 
 export const runtimeCommands = {
@@ -120,6 +120,6 @@ export const runtimeCommands = {
   contentCommand,
   rememberVideoPosition,
   videoPosition,
-  setSkinView,
+  setAppletView,
 };
 export type RuntimeCommands = typeof runtimeCommands;

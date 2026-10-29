@@ -1,13 +1,13 @@
 import { expect, it, vi } from 'vitest';
 import { VariableStore } from '../automation/variables';
-import type { SkinDef } from './contracts';
-import { SkinController } from './skin-controller';
+import type { AppletDef } from './contracts';
+import { AppletController } from './applet-controller';
 
-it('disposes earlier skin runtimes when a later startup fails and allows a clean retry', () => {
+it('disposes earlier applet runtimes when a later startup fails and allows a clean retry', () => {
   const variables = new VariableStore();
   const disposed: string[] = [];
   let fail = true;
-  const definitions = new Map<string, SkinDef>();
+  const definitions = new Map<string, AppletDef>();
   for (const id of ['first', 'second', 'third']) {
     variables.define(
       {
@@ -24,11 +24,11 @@ it('disposes earlier skin runtimes when a later startup fails and allows a clean
     definitions.set(id, {
       id,
       title: id,
-      component: {} as SkinDef['component'],
+      component: {} as AppletDef['component'],
       slots: [],
       views: [{ id: 'default', title: 'Default', slots: [] }],
       defaultView: 'default',
-      runtime: () => {
+      start: () => {
         if (id === 'third' && fail) {
           throw new Error('Startup failed');
         }
@@ -38,7 +38,7 @@ it('disposes earlier skin runtimes when a later startup fails and allows a clean
       },
     });
   }
-  const controller = new SkinController({
+  const controller = new AppletController({
     definitions,
     variables,
     getSettings: () => ({}),

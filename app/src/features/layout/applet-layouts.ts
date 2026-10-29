@@ -1,22 +1,22 @@
 import type { ControlConfig } from '../controls/model';
 import { firstFree, fits, type Grid, type Item } from './grid';
-import { controlTypes, skins } from '../plugins/registry';
+import { controlTypes, applets } from '../plugins/registry';
 import type { Page, Settings } from '../settings/schema';
-import type { SkinSlot } from '../skins/contracts';
+import type { AppletSlot } from '../applets/contracts';
 import { storedPlacements } from './placements';
 
-export type LayoutTarget = { skinId: string; pageId: string; slotId: string };
+export type LayoutTarget = { appletId: string; pageId: string; slotId: string };
 export type LayoutGeometry = Pick<Page, 'rows' | 'cols' | 'size' | 'gap' | 'sizing'>;
 export type LayoutView = LayoutTarget & {
   page: Page;
-  slot?: SkinSlot;
+  slot?: AppletSlot;
   geometry?: LayoutGeometry;
   items: Item[];
 };
 export type Placement = LayoutTarget & {
   item: Item;
   page?: Page;
-  slot?: SkinSlot;
+  slot?: AppletSlot;
   geometry?: LayoutGeometry;
   width?: number;
   height?: number;
@@ -35,44 +35,44 @@ const deckGeometry = (page: Page): LayoutGeometry => ({
   sizing: page.sizing,
 });
 
-function slotFor(skinId: string, slotId: string) {
-  if (skinId === 'deck' && slotId === 'main')
+function slotFor(appletId: string, slotId: string) {
+  if (appletId === 'deck' && slotId === 'main')
     return (
-      skins.get(skinId)?.slots.find((slot) => slot.id === slotId) ??
-      ({ id: 'main', style: 'region', kind: 'grid', grid: 'page' } as SkinSlot)
+      applets.get(appletId)?.slots.find((slot) => slot.id === slotId) ??
+      ({ id: 'main', style: 'region', kind: 'grid', grid: 'page' } as AppletSlot)
     );
-  return skins.get(skinId)?.slots.find((slot) => slot.id === slotId);
+  return applets.get(appletId)?.slots.find((slot) => slot.id === slotId);
 }
 
-function geometryFor(page: Page, slot: SkinSlot): LayoutGeometry {
+function geometryFor(page: Page, slot: AppletSlot): LayoutGeometry {
   return slot.grid === 'page' ? deckGeometry(page) : slot.grid;
 }
 
-/** Reads a skin/page/slot without creating entries. Deck's main slot aliases Page.items. */
+/** Reads a applet/page/slot without creating entries. Deck's main slot aliases Page.items. */
 export function layoutFor(
   source: Settings,
-  skinId: string,
+  appletId: string,
   pageId: string,
   slotId: string,
 ): LayoutView | undefined {
   const page = source.deck.pages.find((entry) => entry.id === pageId);
   if (!page) return undefined;
-  if (skinId === 'deck') {
+  if (appletId === 'deck') {
     if (slotId !== 'main') return undefined;
     return {
-      skinId,
+      appletId,
       pageId,
       slotId,
       page,
-      slot: slotFor(skinId, slotId),
+      slot: slotFor(appletId, slotId),
       geometry: deckGeometry(page),
       items: page.items,
     };
   }
-  const slot = slotFor(skinId, slotId);
-  const items = source.skinLayouts?.[skinId]?.[pageId]?.[slotId] ?? [];
+  const slot = slotFor(appletId, slotId);
+  const items = source.skinLayouts?.[appletId]?.[pageId]?.[slotId] ?? [];
   return {
-    skinId,
+    appletId,
     pageId,
     slotId,
     page,
@@ -84,7 +84,7 @@ export function layoutFor(
 
 function sameTarget(target: LayoutTarget, current: LayoutTarget) {
   return (
-    target.skinId === current.skinId &&
+    target.appletId === current.appletId &&
     target.pageId === current.pageId &&
     target.slotId === current.slotId
   );
@@ -92,7 +92,7 @@ function sameTarget(target: LayoutTarget, current: LayoutTarget) {
 
 /** Validates a prospective write without allocating IDs or changing settings. */
 export function canSetLayoutItems(source: Settings, target: LayoutTarget, items: Item[]) {
-  const current = layoutFor(source, target.skinId, target.pageId, target.slotId);
+  const current = layoutFor(source, target.appletId, target.pageId, target.slotId);
   if (!current || !sameTarget(target, current)) return false;
   const elsewhere = storedPlacements(source).filter((placement) => !sameTarget(target, placement));
   const otherItemIds = new Set(elsewhere.map((placement) => placement.item.id));
@@ -102,35 +102,35 @@ export function canSetLayoutItems(source: Settings, target: LayoutTarget, items:
   return (
     !!current.slot &&
     !!current.geometry &&
-    validSlotItems(source, target.skinId, current.slot, current.geometry, items)
+    validSlotItems(source, target.appletId, current.slot, current.geometry, items)
   );
 }
 
 /** The only layout writer; it resolves stable IDs again before replacing the addressed array. */
 export function setLayoutItems(source: Settings, target: LayoutTarget, items: Item[]) {
-  const current = layoutFor(source, target.skinId, target.pageId, target.slotId);
+  const current = layoutFor(source, target.appletId, target.pageId, target.slotId);
   if (!current || !canSetLayoutItems(source, target, items)) return false;
   if (source.skinLayouts) delete source.skinLayouts.deck;
-  if (target.skinId === 'deck') {
+  if (target.appletId === 'deck') {
     current.page.items = items;
     return true;
   }
   source.skinLayouts ??= {};
-  source.skinLayouts[target.skinId] ??= {};
-  source.skinLayouts[target.skinId][target.pageId] ??= {};
-  source.skinLayouts[target.skinId][target.pageId][target.slotId] = items;
+  source.skinLayouts[target.appletId] ??= {};
+  source.skinLayouts[target.appletId][target.pageId] ??= {};
+  source.skinLayouts[target.appletId][target.pageId][target.slotId] = items;
   return true;
 }
 
-/** Moves one placement between registered skin/page/slot targets without changing its IDs or control. */
+/** Moves one placement between registered applet/page/slot targets without changing its IDs or control. */
 export function movePlacementToSlot(source: Settings, itemId: string, destination: LayoutTarget) {
   const origin = storedPlacements(source).find((placement) => placement.item.id === itemId);
-  const from = origin && layoutFor(source, origin.skinId, origin.pageId, origin.slotId);
-  const to = layoutFor(source, destination.skinId, destination.pageId, destination.slotId);
+  const from = origin && layoutFor(source, origin.appletId, origin.pageId, origin.slotId);
+  const to = layoutFor(source, destination.appletId, destination.pageId, destination.slotId);
   if (!origin || !from || !to?.slot || !to.geometry || sameTarget(origin, destination))
     return undefined;
   const control = source.controls.find((entry) => entry.id === origin.item.control);
-  const bounds = control && effectiveSize(destination.skinId, to.slot, control.type);
+  const bounds = control && effectiveSize(destination.appletId, to.slot, control.type);
   if (!bounds || (to.slot.max !== undefined && to.items.length >= to.slot.max)) return undefined;
   const w = Math.min(bounds.max.w, Math.max(bounds.min.w, origin.item.w));
   const h = Math.min(bounds.max.h, Math.max(bounds.min.h, origin.item.h));
@@ -146,21 +146,21 @@ export function movePlacementToSlot(source: Settings, itemId: string, destinatio
   const pages = source.deck.pages.map((page) => ({
     ...page,
     items:
-      page.id === origin.pageId && origin.skinId === 'deck'
+      page.id === origin.pageId && origin.appletId === 'deck'
         ? page.items.filter((item) => item.id !== itemId)
         : page.items,
   }));
   const skinLayouts: Settings['skinLayouts'] = {};
-  for (const [skinId, byPage] of Object.entries(source.skinLayouts ?? {})) {
-    if (skinId === 'deck') {
+  for (const [appletId, byPage] of Object.entries(source.skinLayouts ?? {})) {
+    if (appletId === 'deck') {
       continue;
     }
-    skinLayouts[skinId] = Object.fromEntries(
+    skinLayouts[appletId] = Object.fromEntries(
       Object.entries(byPage).map(([pageId, slots]) => [pageId, { ...slots }]),
     );
   }
-  if (origin.skinId !== 'deck') {
-    skinLayouts[origin.skinId][origin.pageId][origin.slotId] = from.items.filter(
+  if (origin.appletId !== 'deck') {
+    skinLayouts[origin.appletId][origin.pageId][origin.slotId] = from.items.filter(
       (item) => item.id !== itemId,
     );
   }
@@ -183,9 +183,9 @@ export function placementById(source: Settings, itemId: string): Placement | und
   }
   const { item } = placement;
   const page = source.deck.pages.find((entry) => entry.id === placement.pageId);
-  const slot = slotFor(placement.skinId, placement.slotId);
+  const slot = slotFor(placement.appletId, placement.slotId);
   let geometry: LayoutGeometry | undefined;
-  if (page && placement.skinId === 'deck') {
+  if (page && placement.appletId === 'deck') {
     geometry = deckGeometry(page);
   } else if (page && slot) {
     geometry = geometryFor(page, slot);
@@ -208,14 +208,14 @@ function bounded(value: number, min: number, max: number) {
 }
 
 export function effectiveSize(
-  skinId: string,
-  slot: SkinSlot,
+  appletId: string,
+  slot: AppletSlot,
   typeId: string,
 ): EffectiveSize | undefined {
   const type = controlTypes.get(typeId);
   if (!type) return undefined;
-  const override = skins.get(skinId)?.controlSkins?.[typeId]?.sizes?.[slot.id];
-  // A skin may raise the type's minimum, never lower it: below it the widget cannot draw itself.
+  const override = applets.get(appletId)?.controlFaces?.[typeId]?.sizes?.[slot.id];
+  // A applet may raise the type's minimum, never lower it: below it the widget cannot draw itself.
   const floor = type.minSize ?? { w: 1, h: 1 };
   const min = {
     w: Math.max(floor.w, override?.min?.w ?? 1),
@@ -264,8 +264,8 @@ function validItem(item: Item) {
 
 function validSlotItems(
   source: Settings,
-  skinId: string,
-  slot: SkinSlot,
+  appletId: string,
+  slot: AppletSlot,
   geometry: LayoutGeometry,
   items: readonly Item[],
 ) {
@@ -281,7 +281,7 @@ function validSlotItems(
       (entry) => entry.id === item.control,
     );
     if (!control || (accepted && !accepted.has(control.type))) return false;
-    const bounds = effectiveSize(skinId, slot, control.type);
+    const bounds = effectiveSize(appletId, slot, control.type);
     if (
       !bounds ||
       item.w < bounds.min.w ||

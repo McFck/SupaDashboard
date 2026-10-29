@@ -5,7 +5,7 @@ import { registeredEvents } from '../../plugins/registry';
 import { controlById, settings } from '../../settings/state.svelte';
 import type { Selection } from '../grid';
 import type { MoveMode } from '../move-options';
-import { layoutFor, type LayoutTarget } from '../skin-layouts';
+import { layoutFor, type LayoutTarget } from '../applet-layouts';
 import { duplicateInSlot } from '../slot-edits';
 import { clipboard } from '../widget-clipboard.svelte';
 import { cloneControl } from '../widget-insert';
@@ -31,7 +31,7 @@ export function layoutMenuActions(
   slot: LayoutTarget,
   host: LayoutMenuHost,
 ): MenuAction[] {
-  const source = layoutFor(settings, slot.skinId, slot.pageId, slot.slotId);
+  const source = layoutFor(settings, slot.appletId, slot.pageId, slot.slotId);
   if (!source || pageId !== slot.pageId) {
     return [];
   }

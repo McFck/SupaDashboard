@@ -1,6 +1,6 @@
 import { get, writable, type Readable } from 'svelte/store';
 import type { EventAncestry } from '../../../features/plugins/contracts';
-import type { SkinRuntimeContext } from '../../../features/skins/contracts';
+import type { AppletRuntimeContext } from '../../../features/applets/contracts';
 import { normalizeSubwayLines, stepStation, type LineDefinition } from './lines';
 import { announcementLanguages, firstStationForDirection, normalizeSubwayConfig } from './config';
 import { createSubwayAudio, type SubwayAudioController } from '../audio/audio';
@@ -74,7 +74,7 @@ export const subwaySceneState: Readable<SubwaySceneState | undefined> = {
   subscribe: (run, invalidate) => sceneState.subscribe(run, invalidate),
 };
 let activeRuntime: SubwayRuntimeHandle | undefined;
-let activeRuntimeContext: SkinRuntimeContext | undefined;
+let activeRuntimeContext: AppletRuntimeContext | undefined;
 
 function anyEligibleSurface(): boolean {
   return [...surfaces].some((surface) => surface.eligible);
@@ -226,7 +226,7 @@ function eventFor(effect: Exclude<RunEffect, { type: 'play-cue' }>): {
 }
 
 export function createSubwayRuntime(
-  context: SkinRuntimeContext,
+  context: AppletRuntimeContext,
   options: SubwayRuntimeOptions = {},
 ): SubwayRuntimeHandle {
   const clock = options.clock ?? browserClock;
@@ -650,7 +650,7 @@ export function createSubwayRuntime(
   return handle;
 }
 
-export function runtime(context: SkinRuntimeContext): () => void {
+export function runtime(context: AppletRuntimeContext): () => void {
   const handle = createSubwayRuntime(context);
   activeRuntimeContext = context;
   return () => {

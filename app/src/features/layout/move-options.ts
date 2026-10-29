@@ -1,7 +1,7 @@
 // Destinations offered by "Move to page…" and "Move to slot…" for one placement.
 import type { Settings } from '../settings/schema';
-import type { SkinDef } from '../skins/contracts';
-import { movePlacementToSlot, type LayoutTarget } from './skin-layouts';
+import type { AppletDef } from '../applets/contracts';
+import { movePlacementToSlot, type LayoutTarget } from './applet-layouts';
 
 export type MoveMode = 'page' | 'slot';
 export type MoveOption = {
@@ -18,13 +18,13 @@ export type MoveOption = {
  */
 export function moveOptions(
   source: Settings,
-  skin: SkinDef | undefined,
+  applet: AppletDef | undefined,
   visibleSlots: readonly string[],
   mode: MoveMode,
   from: LayoutTarget,
   itemId: string,
 ): MoveOption[] {
-  if (!skin || !visibleSlots.includes(from.slotId)) {
+  if (!applet || !visibleSlots.includes(from.slotId)) {
     return [];
   }
   const slots = mode === 'page' ? [from.slotId] : visibleSlots;
@@ -34,7 +34,7 @@ export function moveOptions(
       if ((samePage && slotId === from.slotId) || (mode === 'page' && samePage)) {
         return [];
       }
-      const target = { skinId: from.skinId, pageId: page.id, slotId };
+      const target = { appletId: from.appletId, pageId: page.id, slotId };
       return [
         {
           value: `${page.id}::${slotId}`,

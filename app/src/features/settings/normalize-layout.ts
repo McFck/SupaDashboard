@@ -88,13 +88,13 @@ function normalizePage(
   };
 }
 
-function normalizeSkinLayouts(raw: unknown, itemIds: Set<string>) {
+function normalizeAppletLayouts(raw: unknown, itemIds: Set<string>) {
   const layouts: Settings['skinLayouts'] = {};
   if (!isRecord(raw)) {
     return layouts;
   }
-  for (const [skinId, rawPages] of Object.entries(raw)) {
-    if (!skinId || skinId === 'deck' || !isRecord(rawPages)) {
+  for (const [appletId, rawPages] of Object.entries(raw)) {
+    if (!appletId || appletId === 'deck' || !isRecord(rawPages)) {
       continue;
     }
     const pages: Record<string, Record<string, Item[]>> = {};
@@ -111,7 +111,7 @@ function normalizeSkinLayouts(raw: unknown, itemIds: Set<string>) {
       }
       pages[pageId] = slots;
     }
-    layouts[skinId] = pages;
+    layouts[appletId] = pages;
   }
   return layouts;
 }
@@ -135,7 +135,7 @@ export function normalizeLayout(saved: Record<string, unknown>) {
     pages.push(structuredClone(DEFAULT_PAGE));
   }
 
-  // Item IDs share one namespace with page IDs and every skin placement.
+  // Item IDs share one namespace with page IDs and every applet placement.
   itemIds.clear();
   for (const id of pageIds) {
     itemIds.add(id);
@@ -145,7 +145,7 @@ export function normalizeLayout(saved: Record<string, unknown>) {
       item.id = uniqueId(item.id, itemIds, 'item');
     }
   }
-  const skinLayouts = normalizeSkinLayouts(saved.skinLayouts, itemIds);
+  const skinLayouts = normalizeAppletLayouts(saved.skinLayouts, itemIds);
   const activePage = pages.find((page) => page.id === deck.activePage)?.id ?? pages[0].id;
   return { deck: { pages, activePage }, skinLayouts, pageIds, itemIds };
 }

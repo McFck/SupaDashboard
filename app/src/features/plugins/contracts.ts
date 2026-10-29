@@ -2,7 +2,7 @@
 // Type-only, so importing it never initializes registries, settings, storage, or the runtime.
 import type { Component } from 'svelte';
 import type { ControlConfig, ControlFaceProps } from '../controls/model';
-import type { SkinDef } from '../skins/contracts';
+import type { AppletDef } from '../applets/contracts';
 import type { VariableDefinition, VariableRecord, VariableValue } from '../automation/variables';
 
 /** A reference to an action plus its arguments, as stored in settings. */
@@ -156,7 +156,7 @@ export type PluginApi = {
   registerAction(def: ActionDef): void;
   registerValue(def: ValueDef): void;
   registerControl(def: ControlTypeDef): void;
-  registerSkin(def: SkinDef): void;
+  registerApplet(def: AppletDef): void;
   registerMediaSource(def: MediaSource): void;
   registerStatusSource(def: StatusSourceDef): void;
   registerVariable(def: PluginVariableDef): void;

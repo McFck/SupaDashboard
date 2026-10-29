@@ -3,9 +3,9 @@
   generics="Data"
 >
   import { onMount, onDestroy } from 'svelte';
-  import type { SkinSceneFactory } from './scene-contracts';
+  import type { AppletSceneFactory } from './scene-contracts';
   import { CanvasSceneController } from './canvas-scene.svelte';
-  import { getSkinHostContext } from './context';
+  import { getAppletHostContext } from './context';
   let {
     create,
     width,
@@ -16,7 +16,7 @@
     opaque = false,
     class: className = '',
   }: {
-    create: SkinSceneFactory<Data>;
+    create: AppletSceneFactory<Data>;
     width: number;
     height: number;
     view: string;
@@ -54,7 +54,7 @@
         return opaque;
       },
     },
-    getSkinHostContext(),
+    getAppletHostContext(),
   );
   onMount(() => controller.mount());
   onDestroy(() => controller.destroy());
@@ -62,7 +62,7 @@
 
 <canvas
   bind:this={canvas}
-  data-skin-input="scene"
+  data-applet-input="scene"
   aria-hidden="true"
   class={`block touch-none ${className}`}
   style={`width:${width}px;height:${height}px`}

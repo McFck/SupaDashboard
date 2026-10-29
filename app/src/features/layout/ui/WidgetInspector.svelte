@@ -15,7 +15,7 @@
   import NowPlayingEditor from '../../controls/editor/NowPlayingEditor.svelte';
   import WebEditor from '../../controls/editor/WebEditor.svelte';
   import type { Item, Selection } from '../grid';
-  import { effectiveSize, layoutFor, type LayoutTarget } from '../skin-layouts';
+  import { effectiveSize, layoutFor, type LayoutTarget } from '../applet-layouts';
   import { settings } from '../../settings/state.svelte';
   import { duplicateInSlot, removeWithDust, resizeInSlot } from '../slot-edits';
   import VariantList from './VariantList.svelte';
@@ -45,11 +45,11 @@
   const bounds = $derived.by(() => {
     const slot = layoutFor(
       settings,
-      layoutTarget.skinId,
+      layoutTarget.appletId,
       layoutTarget.pageId,
       layoutTarget.slotId,
     )?.slot;
-    return slot && effectiveSize(layoutTarget.skinId, slot, control.type);
+    return slot && effectiveSize(layoutTarget.appletId, slot, control.type);
   });
 
   function resizeBy(axis: Axis, delta: number) {
@@ -74,7 +74,7 @@
       target,
       item.id,
       () =>
-        layoutTarget.skinId === target.skinId &&
+        layoutTarget.appletId === target.appletId &&
         layoutTarget.pageId === target.pageId &&
         layoutTarget.slotId === target.slotId,
     );

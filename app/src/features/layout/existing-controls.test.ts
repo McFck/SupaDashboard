@@ -31,7 +31,7 @@ describe('existing controls', () => {
     });
   });
 
-  it('counts uses from page and skin placements while keeping page-local items separate', () => {
+  it('counts uses from page and applet placements while keeping page-local items separate', () => {
     const pages = [
       {
         id: 'one',
@@ -55,7 +55,7 @@ describe('existing controls', () => {
       },
     ];
     const layouts = {
-      subway: { one: { strip: [{ id: 'skin-item', control: 'b', x: 0, y: 0, w: 1, h: 1 }] } },
+      subway: { one: { strip: [{ id: 'applet-item', control: 'b', x: 0, y: 0, w: 1, h: 1 }] } },
     };
     expect(
       buildExistingControlRows(

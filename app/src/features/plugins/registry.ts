@@ -20,13 +20,13 @@ import type {
 import { settings } from '../settings/state.svelte';
 import type { VariableRecord, VariableStore } from '../automation/variables';
 import { normalizePluginState, type PluginState } from './plugin-store';
-import { validateSkinDefinition } from '../skins/definition';
-import { type SkinDef as SkinDefinition } from '../skins/contracts';
+import { validateAppletDefinition } from '../applets/definition';
+import { type AppletDef as AppletDefinition } from '../applets/contracts';
 
 export const actions = new Map<string, ActionDef>();
 export const values = new Map<string, ValueDef>();
 export const controlTypes = new Map<string, ControlTypeDef>();
-export const skins = new Map<string, SkinDefinition>();
+export const applets = new Map<string, AppletDefinition>();
 export const mediaSources = new Map<string, MediaSource>();
 export const statusSources = new Map<string, StatusSourceDef>();
 export const customIcons = new Map<string, string>();
@@ -38,7 +38,7 @@ export const bundledPlugins: Plugin[] = [];
 export const pluginState = writable<PluginState>(normalizePluginState(null));
 const variableDefinitions = new Map<string, { owner: string; definition: PluginVariableDef }>();
 const eventDefinitions = new Map<string, EventDef>();
-const skinVariableIds = new Map<string, string>();
+const appletVariableIds = new Map<string, string>();
 export function registeredEvents(
   variables: readonly VariableRecord[] = variableMirror ?? [],
 ): EventDef[] {
@@ -106,8 +106,8 @@ function namesOf(definition: PluginVariableDef) {
   return [definition.name, ...(definition.aliases ?? [])];
 }
 
-function registerSkin(owner: string, d: SkinDefinition) {
-  validateSkinDefinition(d);
+function registerApplet(owner: string, d: AppletDefinition) {
+  validateAppletDefinition(d);
   const stateVariables: PluginVariableDef[] = [
     {
       id: `${d.id}.view`,
@@ -142,36 +142,36 @@ function registerSkin(owner: string, d: SkinDefinition) {
   for (const definition of stateVariables) {
     const id = definition.id;
     const current = variableDefinitions.get(id);
-    if (current && (current.owner !== owner || skinVariableIds.get(id) !== d.id)) {
-      throw new Error(`Skin variable "${id}" is already registered`);
+    if (current && (current.owner !== owner || appletVariableIds.get(id) !== d.id)) {
+      throw new Error(`Applet variable "${id}" is already registered`);
     }
     const runtimeRecord = registryRuntime?.variables.get(id);
     if (runtimeRecord && runtimeRecord.definition.owner !== owner) {
-      throw new Error(`Skin variable "${id}" belongs to another plugin`);
+      throw new Error(`Applet variable "${id}" belongs to another plugin`);
     }
     const name = definition.name.trim().toLocaleLowerCase();
     if (names.has(name) || occupiedNames.includes(name))
-      throw new Error(`Skin variable name "${definition.name}" is already in use`);
+      throw new Error(`Applet variable name "${definition.name}" is already in use`);
     names.add(name);
   }
   for (const event of d.events ?? []) {
     const current = eventDefinitions.get(event.id);
     if (current && current.plugin !== owner)
-      throw new Error(`Skin event "${event.id}" belongs to another plugin`);
+      throw new Error(`Applet event "${event.id}" belongs to another plugin`);
   }
-  const existing = skins.get(d.id);
+  const existing = applets.get(d.id);
   if (existing && existing.plugin !== owner)
-    throw new Error(`Skin "${d.id}" belongs to another plugin`);
+    throw new Error(`Applet "${d.id}" belongs to another plugin`);
   for (const definition of stateVariables) {
     defineVariable(owner, definition);
-    skinVariableIds.set(definition.id, d.id);
+    appletVariableIds.set(definition.id, d.id);
   }
   for (const definition of d.events ?? []) {
     const event = copyEvent({ ...definition, plugin: owner });
     eventDefinitions.set(event.id, event);
     registryRuntime?.registerEvent(event);
   }
-  skins.set(d.id, { ...d, plugin: owner });
+  applets.set(d.id, { ...d, plugin: owner });
 }
 
 /** `app:` and `known-app:` are filter keys the host builds for applications. */
@@ -203,7 +203,7 @@ function createApi(owner: string): PluginApi {
     registerAction: (d) => void actions.set(d.id, { ...d, plugin: owner }),
     registerValue: (d) => void values.set(d.id, { ...d, plugin: owner }),
     registerControl: (d) => void controlTypes.set(d.type, { ...d, plugin: owner }),
-    registerSkin: (d) => registerSkin(owner, d),
+    registerApplet: (d) => registerApplet(owner, d),
     registerMediaSource: (d) => void mediaSources.set(d.id, { ...d, plugin: owner }),
     registerStatusSource: (d) => registerStatusSource(owner, d),
     registerVariable: (definition) => defineVariable(owner, definition),

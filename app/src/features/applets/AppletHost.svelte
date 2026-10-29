@@ -1,13 +1,13 @@
 <script lang="ts">
   import { setContext, onMount, onDestroy } from 'svelte';
   import type { ControlConfig, TilePresentation } from '../controls/model';
-  import type { SkinDef } from './contracts';
+  import type { AppletDef } from './contracts';
   import type { Page } from '../settings/schema';
-  import { SKIN_HOST_CONTEXT } from './context';
+  import { APPLET_HOST_CONTEXT } from './context';
   import { runtimeCommands } from '../../app/runtime/commands';
-  import { SkinHostController } from './skin-host.svelte';
+  import { AppletHostController } from './applet-host.svelte';
   let {
-    skin,
+    applet,
     page,
     mode = 'runtime',
     visible = true,
@@ -18,7 +18,7 @@
     onselect,
     oncontext,
   }: {
-    skin: SkinDef;
+    applet: AppletDef;
     page: Page;
     mode?: 'runtime' | 'editor';
     visible?: boolean;
@@ -28,20 +28,20 @@
     selected?: import('../layout/grid').Selection;
     onselect?: (
       selection: import('../layout/grid').Selection,
-      target?: import('../layout/skin-layouts').LayoutTarget,
+      target?: import('../layout/applet-layouts').LayoutTarget,
     ) => void;
     oncontext?: (
       selection: Exclude<import('../layout/grid').Selection, null>,
       x: number,
       y: number,
-      target?: import('../layout/skin-layouts').LayoutTarget,
+      target?: import('../layout/applet-layouts').LayoutTarget,
     ) => void;
   } = $props();
 
-  const controller = new SkinHostController(
+  const controller = new AppletHostController(
     {
-      get skin() {
-        return skin;
+      get applet() {
+        return applet;
       },
       get page() {
         return page;
@@ -76,8 +76,8 @@
       previewViewId = view;
     },
   );
-  setContext(SKIN_HOST_CONTEXT, controller);
-  const Skin = $derived(skin.component);
+  setContext(APPLET_HOST_CONTEXT, controller);
+  const Applet = $derived(applet.component);
   onMount(() => controller.mount());
   onDestroy(() => controller.destroy());
 </script>
@@ -85,23 +85,23 @@
 <div
   bind:clientWidth={controller.width}
   bind:clientHeight={controller.height}
-  data-skin-host
-  data-skin-id={skin.id}
+  data-applet-host
+  data-applet-id={applet.id}
   class="relative h-full w-full"
   class:overflow-hidden={mode === 'runtime'}
   onpointerdowncapture={(event) => controller.onOriginDown(event)}
 >
-  {#if skin.design}
+  {#if applet.design}
     {#if controller.fit}
       <div
         class="absolute left-0 top-0"
-        data-skin-design
-        style={`width:${skin.design.width}px;height:${controller.fittedHeight}px;transform:translate(${controller.designOffset.x}px,${controller.designOffset.y}px) scale(${controller.designScale});transform-origin:top left`}
+        data-applet-design
+        style={`width:${applet.design.width}px;height:${controller.fittedHeight}px;transform:translate(${controller.designOffset.x}px,${controller.designOffset.y}px) scale(${controller.designScale});transform-origin:top left`}
       >
-        <Skin {page} />
+        <Applet {page} />
       </div>
     {/if}
   {:else}
-    <div class="absolute inset-0"><Skin {page} /></div>
+    <div class="absolute inset-0"><Applet {page} /></div>
   {/if}
 </div>

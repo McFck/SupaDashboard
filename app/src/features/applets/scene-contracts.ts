@@ -21,9 +21,9 @@ export type SceneFrame<Data = unknown> = {
   view: string;
   data: Data;
 };
-export type SkinSceneRenderer<Data = unknown> = {
+export type AppletSceneRenderer<Data = unknown> = {
   draw(frame: SceneFrame<Data>): boolean;
   input?(event: SceneInput): void;
   dispose?(): void;
 };
-export type SkinSceneFactory<Data = unknown> = () => SkinSceneRenderer<Data>;
+export type AppletSceneFactory<Data = unknown> = () => AppletSceneRenderer<Data>;
