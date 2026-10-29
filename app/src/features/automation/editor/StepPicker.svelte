@@ -61,7 +61,7 @@
   tabindex="-1"
   aria-label={current ? 'Change step' : 'Add step'}
   onkeydown={keydown}
-  class="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-3 shadow-lg [scrollbar-gutter:stable]"
+  class="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden rounded-lg border bg-popover p-3 shadow-lg"
   style:height={`${height}px`}
 >
   <div class="flex shrink-0 flex-wrap items-center gap-1">
