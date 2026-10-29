@@ -44,8 +44,8 @@ describe('settings migration', () => {
       slots: { 'bottom-strip': ['prev'], dock: ['prev'] },
     };
     const s = migrate(v1);
-    expect(s.version).toBe(7);
-    expect(s.skin).toBe('subway');
+    expect(s.version).toBe(8);
+    expect(s.deck.pages[0].applet).toBe('subway');
     expect(s.display).toMatchObject({
       monitor: 'X',
       fullscreen: true,
@@ -95,39 +95,43 @@ describe('settings migration', () => {
 
   it('uses defaults for missing data and refuses to overwrite a future settings version', () => {
     expect(migrate(undefined)).toEqual(DEFAULTS);
-    expect(() => migrate({ version: 8 })).toThrow('newer than this app supports');
+    expect(() => migrate({ version: 9 })).toThrow('newer than this app supports');
     expect(() => migrate({ version: 99 })).toThrow('newer than this app supports');
     expect(() => migrate({ version: '5', controls: [] })).toThrow('Unsupported settings version');
   });
 
   it('adds empty applet maps and round-trips Unicode configs and layouts without a second Deck source', () => {
     const old = structuredClone(DEFAULTS) as any;
-    delete old.skinSettings;
-    delete old.skinLayouts;
-    expect(migrate(old)).toMatchObject({ skinSettings: {}, skinLayouts: {} });
+    delete old.appletSettings;
+    delete old.appletLayouts;
+    expect(migrate(old)).toMatchObject({ appletSettings: {}, appletLayouts: {} });
 
     const saved = structuredClone(DEFAULTS) as any;
-    saved.skinSettings.ghost = { label: '路線', future: { keep: true } };
-    saved.skinLayouts.ghost = {
+    saved.appletSettings.ghost = {
+      shared: { label: '路線', future: { keep: true } },
+      separate: true,
+      perPage: { [saved.deck.pages[0].id]: { label: '個別' } },
+    };
+    saved.appletLayouts.ghost = {
       [saved.deck.pages[0].id]: {
         hidden: [
           { id: 'ghost-item', control: 'ghost-control', x: 8, y: 0, w: 1, h: 1, extra: 'keep' },
         ],
       },
     };
-    saved.skinLayouts.deck = {
+    saved.appletLayouts.deck = {
       [saved.deck.pages[0].id]: {
         main: [{ id: 'duplicate-deck', control: 'prev', x: 0, y: 0, w: 1, h: 1 }],
       },
     };
     const roundTrip = migrate(saved);
-    expect(roundTrip.skinSettings.ghost).toEqual({ label: '路線', future: { keep: true } });
-    expect(roundTrip.skinLayouts.ghost[saved.deck.pages[0].id].hidden[0]).toMatchObject({
+    expect(roundTrip.appletSettings.ghost).toEqual(saved.appletSettings.ghost);
+    expect(roundTrip.appletLayouts.ghost[saved.deck.pages[0].id].hidden[0]).toMatchObject({
       id: 'ghost-item',
       x: 8,
       extra: 'keep',
     });
-    expect(roundTrip.skinLayouts).not.toHaveProperty('deck');
+    expect(roundTrip.appletLayouts).not.toHaveProperty('deck');
     expect(roundTrip.deck.pages[0].items.map((item) => item.id)).toEqual(
       saved.deck.pages[0].items.map((item: any) => item.id),
     );
@@ -140,7 +144,7 @@ describe('settings migration', () => {
       { id: 'negative', control: 'bad', x: -1, y: 0, w: 1, h: 1 },
       { id: 'fractional', control: 'bad', x: 0.5, y: 0, w: 1, h: 1 },
     ];
-    saved.skinLayouts.unknown = {
+    saved.appletLayouts.unknown = {
       'page-1': {
         removed: [
           { id: 'retained', control: 'missing', x: 20, y: 0, w: 1, h: 1 },
@@ -150,7 +154,7 @@ describe('settings migration', () => {
     };
     const migrated = migrate(saved);
     expect(migrated.deck.pages[0].items.map((item: any) => item.id)).toEqual(['outside']);
-    expect(migrated.skinLayouts.unknown['page-1'].removed.map((item: any) => item.id)).toEqual([
+    expect(migrated.appletLayouts.unknown['page-1'].removed.map((item: any) => item.id)).toEqual([
       'retained',
     ]);
   });
@@ -172,14 +176,14 @@ describe('settings migration', () => {
       },
       events: [],
     };
-    saved.skinLayouts.subway = {
+    saved.appletLayouts.subway = {
       [saved.deck.pages[0].id]: {
         strip: [{ id: 'applet-item', control: 'prev', x: 0, y: 0, w: 1, h: 1 }],
       },
     };
     const original = structuredClone(saved);
     const migrated = migrate(saved);
-    const item = migrated.skinLayouts.subway['page-1'].strip[0];
+    const item = migrated.appletLayouts.subway['page-1'].strip[0];
     expect(item.id).toBe('applet-item');
     expect(item.control).not.toBe('prev');
     expect(migrated.controls.find((control) => control.id === item.control)).toMatchObject({
@@ -326,7 +330,7 @@ describe('settings migration', () => {
     expect(selected.deck.activePage).toBe('other');
   });
 
-  it('upgrades the short-lived v6 settings shape to v7 without losing values', () => {
+  it('upgrades the short-lived v6 settings shape to v8 without losing values', () => {
     const interrupted: any = {
       ...structuredClone(DEFAULTS),
       version: 6,
@@ -334,7 +338,7 @@ describe('settings migration', () => {
       pageRotation: { intervalSeconds: 10 },
     };
     const migrated = migrate(interrupted);
-    expect(migrated).toMatchObject({ version: 7, skin: 'subway' });
+    expect(migrated).toMatchObject({ version: 8, deck: { pages: [{ applet: 'subway' }] } });
     expect(migrated).not.toHaveProperty('pageRotation');
   });
 
@@ -374,6 +378,83 @@ describe('settings migration', () => {
   });
 });
 
+const v7Layout = {
+  subway: {
+    'page-1': { strip: [{ id: 'sw-1', control: 'ghost-a', x: 0, y: 0, w: 1, h: 1 }] },
+    'page-2': { side: [{ id: 'sw-2', control: 'ghost-b', x: 1, y: 2, w: 2, h: 1 }] },
+  },
+};
+const v7Settings = {
+  subway: { line: 'yamanote', gesture: 'cornerHold', future: { keep: '保持' } },
+};
+
+function v7File(skin: unknown, extra: object = {}) {
+  const file = structuredClone(DEFAULTS) as any;
+  delete file.appletSettings;
+  delete file.appletLayouts;
+  file.deck.pages = [
+    { ...file.deck.pages[0], id: 'page-1' },
+    { ...file.deck.pages[0], id: 'page-2', name: 'Page 2', items: [] },
+  ];
+  file.deck.activePage = 'page-1';
+  return {
+    ...file,
+    version: 7,
+    skin,
+    skinSettings: structuredClone(v7Settings),
+    skinLayouts: structuredClone(v7Layout),
+    ...extra,
+  };
+}
+
+describe('settings v7 to v8', () => {
+  it.each([
+    ['subway', 'subway', ['subway', 'subway']],
+    ['an unknown id, so a disabled plugin loses nothing', 'mystery', ['mystery', 'mystery']],
+    ['deck', 'deck', [undefined, undefined]],
+  ])(
+    'moves skin %s to the pages and the settings and layouts to the applet keys',
+    (_, skin, applets) => {
+      const migrated = migrate(v7File(skin));
+      expect(migrated.version).toBe(8);
+      expect(migrated).not.toHaveProperty('skin');
+      expect(migrated).not.toHaveProperty('skinSettings');
+      expect(migrated).not.toHaveProperty('skinLayouts');
+      expect(migrated.deck.pages.map((page) => page.applet)).toEqual(applets);
+      if (!applets[0]) {
+        expect(migrated.deck.pages.every((page) => !('applet' in page))).toBe(true);
+      }
+      expect(migrated.appletSettings).toEqual({
+        subway: { shared: v7Settings.subway, separate: false },
+      });
+      expect(migrated.appletLayouts).toEqual(v7Layout);
+    },
+  );
+
+  it('round-trips a v8 file unchanged', () => {
+    const once = migrate(v7File('subway'));
+    expect(migrate(JSON.parse(JSON.stringify(once)))).toEqual(once);
+  });
+
+  it.each([
+    ['a skin that is not text', { skin: 5 }],
+    ['applet settings that are not an object', { skinSettings: [] }],
+    ['applet layouts that are not an object', { skinLayouts: 'x' }],
+  ])('refuses %s instead of dropping it', (_, patch) => {
+    const file = v7File('deck', patch);
+    const original = structuredClone(file);
+    expect(() => migrate(file)).toThrow();
+    expect(file).toEqual(original);
+  });
+
+  it('drops invalid page applet ids but keeps the page', () => {
+    const file = migrate(v7File('subway')) as any;
+    file.deck.pages[0].applet = '';
+    file.deck.pages[1].applet = 'x'.repeat(129);
+    expect(migrate(file).deck.pages.map((page) => 'applet' in page)).toEqual([false, false]);
+  });
+});
+
 describe('now playing options', () => {
   const withWidget = (version: number, options?: unknown) => {
     const saved: any = { ...structuredClone(DEFAULTS), version };
@@ -389,10 +470,10 @@ describe('now playing options', () => {
   const widget = (settings: ReturnType<typeof migrate>) =>
     settings.controls.find((control) => control.id === 'np');
 
-  it('upgrades v6 to v7 keeping every setting and giving the widget the All filter', () => {
+  it('upgrades v6 to v8 keeping every setting and giving the widget the All filter', () => {
     const v6 = withWidget(6);
     const migrated = migrate(v6);
-    expect(migrated.version).toBe(7);
+    expect(migrated.version).toBe(8);
     expect(widget(migrated)?.options).toEqual({ sources: [] });
     expect({ ...migrated, version: 6, controls: migrated.controls.slice(0, -1) }).toEqual({
       ...v6,

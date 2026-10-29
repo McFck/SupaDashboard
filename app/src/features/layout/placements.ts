@@ -4,13 +4,13 @@ import type { Item } from './grid';
 import type { Page, Settings } from '../settings/schema';
 import type { LayoutTarget } from './applet-layouts';
 
-type AppletLayouts = Settings['skinLayouts'];
-type PlacementSource = { deck: { pages: readonly Page[] }; skinLayouts?: AppletLayouts };
+type AppletLayouts = Settings['appletLayouts'];
+type PlacementSource = { deck: { pages: readonly Page[] }; appletLayouts?: AppletLayouts };
 export type StoredPlacement = LayoutTarget & { item: Item };
 
 const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-/** Deck pages first, then applet slots. A stale `skinLayouts.deck` alias is ignored: deck placements live on pages. */
+/** Deck pages first, then applet slots. A stale `appletLayouts.deck` alias is ignored: deck placements live on pages. */
 export function storedPlacements(source: PlacementSource): StoredPlacement[] {
   const placements: StoredPlacement[] = [];
   for (const page of source.deck.pages) {
@@ -18,7 +18,7 @@ export function storedPlacements(source: PlacementSource): StoredPlacement[] {
       placements.push({ appletId: 'deck', pageId: page.id, slotId: 'main', item });
     }
   }
-  for (const [appletId, pages] of Object.entries(source.skinLayouts ?? {})) {
+  for (const [appletId, pages] of Object.entries(source.appletLayouts ?? {})) {
     if (appletId === 'deck') {
       continue;
     }
@@ -34,7 +34,7 @@ export function storedPlacements(source: PlacementSource): StoredPlacement[] {
 }
 
 export function pageItems(pages: readonly Page[], layouts: AppletLayouts = {}): Item[] {
-  return storedPlacements({ deck: { pages }, skinLayouts: layouts }).map(
+  return storedPlacements({ deck: { pages }, appletLayouts: layouts }).map(
     (placement) => placement.item,
   );
 }
@@ -62,7 +62,7 @@ export function removePlacement(
     delete nextLayouts.deck;
     return {
       pages: next,
-      skinLayouts: nextLayouts,
+      appletLayouts: nextLayouts,
       item,
       orphanControl: orphan(next, nextLayouts, item.control),
     };
@@ -82,19 +82,19 @@ export function removePlacement(
     );
     return {
       pages: pages as Page[],
-      skinLayouts: nextLayouts,
+      appletLayouts: nextLayouts,
       item: found,
       orphanControl: orphan(pages, nextLayouts, found.control),
     };
   }
   return {
     pages: pages as Page[],
-    skinLayouts: layouts,
+    appletLayouts: layouts,
     item: undefined,
     orphanControl: undefined,
   };
 }
 
-function orphan(pages: readonly Page[], skinLayouts: AppletLayouts, controlId: string) {
-  return hasPlacement({ deck: { pages }, skinLayouts }, controlId) ? undefined : controlId;
+function orphan(pages: readonly Page[], appletLayouts: AppletLayouts, controlId: string) {
+  return hasPlacement({ deck: { pages }, appletLayouts }, controlId) ? undefined : controlId;
 }

@@ -33,7 +33,7 @@ describe('grid shrink', () => {
         page('other', [['shared-item', 'shared', 0]]),
         page('empty', []),
       ];
-      settings.skinLayouts = {};
+      settings.appletLayouts = {};
       settings.controls = [button('kept'), button('cut'), button('shared')];
       settings.variants = { cut: 0, shared: 0 };
 
@@ -73,7 +73,7 @@ describe('paste over a widget', () => {
           ],
         },
       ];
-      settings.skinLayouts = {};
+      settings.appletLayouts = {};
       settings.controls = [control('old'), control('keep')];
       settings.variants = { old: 0, keep: 0 };
 

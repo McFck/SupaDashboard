@@ -57,14 +57,16 @@ describe('applet layout storage', () => {
       create: () => ({ name: 'Button', variants: [] }),
     } as any);
     source.controls = [{ id: 'deck-control', name: 'Deck', type: deckTypeId, variants: [] }] as any;
-    source.skinLayouts.deck = { 'page-1': { main: [item('ignored-alias', 'deck-control', 1)] } };
+    source.appletLayouts.deck = { 'page-1': { main: [item('ignored-alias', 'deck-control', 1)] } };
     expect(
       setLayoutItems(source, { appletId: 'deck', pageId: 'page-1', slotId: 'main' }, deckItems),
     ).toBe(true);
     expect(layoutFor(source, 'deck', source.deck.pages[0].id, 'main')?.items).toBe(deckItems);
     expect(source.deck.pages[0].items).toBe(deckItems);
-    expect(source.skinLayouts).toEqual({});
-    source.skinLayouts.deck = { 'page-1': { main: [item('duplicate-alias', 'other-control', 1)] } };
+    expect(source.appletLayouts).toEqual({});
+    source.appletLayouts.deck = {
+      'page-1': { main: [item('duplicate-alias', 'other-control', 1)] },
+    };
     expect(
       storedPlacements(source).filter((placement) => placement.appletId === 'deck'),
     ).toHaveLength(1);
@@ -124,7 +126,7 @@ describe('applet layout storage', () => {
       ]),
     ).toBe(false);
     expect(layoutFor(source, appletId, 'page-1', 'main')?.items).toEqual([first, second]);
-    source.skinLayouts.unavailable = { 'page-1': { hidden: [item('hidden-item', 'a', 0)] } };
+    source.appletLayouts.unavailable = { 'page-1': { hidden: [item('hidden-item', 'a', 0)] } };
     expect(
       setLayoutItems(source, { appletId, pageId: 'page-1', slotId: 'main' }, [first, second]),
     ).toBe(false);
@@ -182,7 +184,7 @@ describe('applet layout storage', () => {
     const destinationPage = { ...source.deck.pages[0], id: 'move-destination', items: [] };
     source.deck.pages = [sourcePage, destinationPage];
     source.controls = [{ id: 'move-control', name: 'Move', type: typeId, variants: [] }] as any;
-    source.skinLayouts = {
+    source.appletLayouts = {
       [appletId]: { [sourcePage.id]: { main: [item('move-item', 'move-control', 1)] } },
     };
 
@@ -193,17 +195,17 @@ describe('applet layout storage', () => {
     });
     expect(moved).toMatchObject({
       item: { id: 'move-item', control: 'move-control', x: 1, y: 0 },
-      skinLayouts: {
+      appletLayouts: {
         [appletId]: {
           [sourcePage.id]: { main: [] },
           [destinationPage.id]: { main: [expect.objectContaining({ id: 'move-item' })] },
         },
       },
     });
-    expect(source.skinLayouts[appletId][sourcePage.id].main).toEqual([
+    expect(source.appletLayouts[appletId][sourcePage.id].main).toEqual([
       item('move-item', 'move-control', 1),
     ]);
-    source.skinLayouts = moved!.skinLayouts;
+    source.appletLayouts = moved!.appletLayouts;
 
     source.deck.pages[0].items = [item('deck-item', 'deck-control', 0)];
     source.controls.push({
@@ -220,10 +222,10 @@ describe('applet layout storage', () => {
     expect(crossApplet?.item).toMatchObject({ id: 'deck-item', control: 'deck-control' });
     expect(crossApplet?.pages[0].items).toEqual([]);
     expect(
-      crossApplet?.skinLayouts[appletId][destinationPage.id].main.map((entry) => entry.id),
+      crossApplet?.appletLayouts[appletId][destinationPage.id].main.map((entry) => entry.id),
     ).toEqual(['move-item', 'deck-item']);
 
-    source.skinLayouts[appletId][destinationPage.id] = {
+    source.appletLayouts[appletId][destinationPage.id] = {
       main: [item('dest-a', 'dest-a-control', 0), item('dest-b', 'dest-b-control', 1)],
     };
     source.controls.push({ id: 'dest-a-control', name: 'A', type: typeId, variants: [] }, {
@@ -232,7 +234,7 @@ describe('applet layout storage', () => {
       type: typeId,
       variants: [],
     } as any);
-    const before = structuredClone(source.skinLayouts);
+    const before = structuredClone(source.appletLayouts);
     expect(
       movePlacementToSlot(source, 'move-item', {
         appletId,
@@ -240,7 +242,7 @@ describe('applet layout storage', () => {
         slotId: 'main',
       }),
     ).toBeUndefined();
-    expect(source.skinLayouts).toEqual(before);
+    expect(source.appletLayouts).toEqual(before);
   });
 
   it('leaves the live settings untouched while computing a move (no copy left on the destination)', () => {
@@ -261,7 +263,7 @@ describe('applet layout storage', () => {
       { id: 'c1', name: 'One', type: typeId, variants: [] },
       { id: 'c2', name: 'Two', type: typeId, variants: [] },
     ] as any;
-    source.skinLayouts = {
+    source.appletLayouts = {
       [appletId]: { 'page-a': { main: [item('applet-item', 'c2', 0)] }, 'page-b': { main: [] } },
     };
     const before = structuredClone(source);
@@ -278,7 +280,7 @@ describe('applet layout storage', () => {
     });
 
     expect(deckMove?.pages[1].items.map((entry) => entry.id)).toEqual(['deck-item']);
-    expect(slotMove?.skinLayouts[appletId]['page-b'].main.map((entry) => entry.id)).toEqual([
+    expect(slotMove?.appletLayouts[appletId]['page-b'].main.map((entry) => entry.id)).toEqual([
       'applet-item',
     ]);
     expect(source).toEqual(before);

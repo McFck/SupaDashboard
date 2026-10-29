@@ -3,7 +3,7 @@
   import { onMount, tick } from 'svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import AppletHost from '../applets/AppletHost.svelte';
-  import { applets } from '../plugins/registry';
+  import { appletFor } from '../applets/deck';
   import { settings } from '../settings/state.svelte';
   import { pageById } from '../layout/pages';
   import { runtimeView } from '../../app/runtime/state';
@@ -18,10 +18,10 @@
 
   const { requestPageChange } = runtimeCommands;
 
-  const applet = $derived(applets.get(settings.skin) ?? applets.get('deck')!);
   const page = $derived(
     pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!,
   );
+  const applet = $derived(appletFor(page));
   const bg = $derived(settings.display.background);
   const showDots = $derived(settings.deck.pages.length > 1 && applet.pageNavigation !== 'applet');
 
@@ -37,7 +37,7 @@
     shell: () => shell,
     pages: () => settings.deck.pages,
     pageId: () => page.id,
-    appletId: () => settings.skin,
+    appletId: () => applet.id,
     appletNavigates: () => applet.pageNavigation === 'applet',
     fullscreen: () => dashboard.appliedFullscreen,
     canDragWindow: () => isTauri() && !dashboard.appliedFullscreen,
@@ -149,7 +149,7 @@
             use:pager.motion.register={frame.id}
           >
             <AppletHost
-              {applet}
+              applet={appletFor(framePage)}
               page={framePage}
               visible={frame.active}
               pageRenderVisible={true}

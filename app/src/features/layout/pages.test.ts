@@ -152,7 +152,7 @@ describe('page helpers', () => {
       control('applet-control'),
       control('retained-control'),
     ];
-    const layouts: Settings['skinLayouts'] = {
+    const layouts: Settings['appletLayouts'] = {
       subway: {
         [source.id]: {
           strip: [{ id: 'applet-owned', control: 'applet-control', x: 0, y: 0, w: 1, h: 1 }],
@@ -164,11 +164,11 @@ describe('page helpers', () => {
       unavailable: { [source.id]: { removed: [] } },
     };
     const copied = duplicatePage([source, page('page-other')], source.id, controls, {}, layouts)!;
-    const copiedItems = copied.skinLayouts.subway[copied.page.id].strip;
+    const copiedItems = copied.appletLayouts.subway[copied.page.id].strip;
     expect(copiedItems).toHaveLength(1);
     expect(copiedItems[0].id).not.toBe('applet-owned');
     expect(copiedItems[0].control).not.toBe('applet-control');
-    expect(copied.skinLayouts.unavailable?.[copied.page.id]?.removed).toEqual([]);
+    expect(copied.appletLayouts.unavailable?.[copied.page.id]?.removed).toEqual([]);
     expect(layouts.subway[source.id].strip[0]).toEqual({
       id: 'applet-owned',
       control: 'applet-control',
@@ -177,7 +177,7 @@ describe('page helpers', () => {
       w: 1,
       h: 1,
     });
-    expect(pageItems(copied.pages, copied.skinLayouts).map((item) => item.id)).toContain(
+    expect(pageItems(copied.pages, copied.appletLayouts).map((item) => item.id)).toContain(
       copiedItems[0].id,
     );
 
@@ -186,10 +186,10 @@ describe('page helpers', () => {
       source.id,
       copied.controls,
       copied.variants,
-      copied.skinLayouts,
+      copied.appletLayouts,
     )!;
-    expect(deleted.skinLayouts.subway).not.toHaveProperty(source.id);
-    expect(deleted.skinLayouts.subway).toHaveProperty('page-other');
+    expect(deleted.appletLayouts.subway).not.toHaveProperty(source.id);
+    expect(deleted.appletLayouts.subway).toHaveProperty('page-other');
     expect(deleted.controls.some((entry) => entry.id === 'retained-control')).toBe(true);
   });
 

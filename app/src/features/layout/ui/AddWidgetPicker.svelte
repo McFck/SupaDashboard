@@ -34,7 +34,7 @@
   const slot = $derived(
     layoutFor(settings, layoutTarget.appletId, layoutTarget.pageId, layoutTarget.slotId)?.slot,
   );
-  const allItems = $derived(pageItems(settings.deck.pages, settings.skinLayouts));
+  const allItems = $derived(pageItems(settings.deck.pages, settings.appletLayouts));
   const existingRows = $derived(
     buildExistingControlRows(settings.controls, allItems, controlTypes).filter(
       (row) => row.uses > 0 && !!fitFor(row.typeId),

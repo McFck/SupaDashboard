@@ -30,6 +30,7 @@ import { ContentController } from '../../features/media/content-controller';
 import { StatusController } from '../../features/media/status-controller';
 import { resolveArtwork } from '../../platform/media';
 import { AppletController } from '../../features/applets/applet-controller';
+import { runtimeAppletValues } from '../../features/settings/applet-scope';
 import { startClock } from '../../features/automation/clock';
 import { EMPTY, type RuntimeSnapshot } from './state';
 import { VariableSaver, type VariablePersistence } from './variable-persistence';
@@ -142,7 +143,7 @@ export class RuntimeSession {
     this.applets = new AppletController({
       definitions: registeredApplets,
       variables: this.variables,
-      getSettings: () => settings.skinSettings,
+      getSettings: () => runtimeAppletValues(settings, this.pages.activePage),
       isOwner: () => this.isOwner,
       setVariable: (id, value, owner, ancestry) => this.writeVariable(id, value, owner, ancestry),
       emitEvent: (id, parameter, payload, ancestry) =>
@@ -199,7 +200,7 @@ export class RuntimeSession {
     });
     this.applets.start();
     this.stopRemoteSettings = onRemoteSettings((next) => {
-      this.applets.reconcile(next.skinSettings);
+      this.applets.reconcile(runtimeAppletValues(next, this.pages.activePage));
     });
     this.stopSettingsEffect = $effect.root(() => {
       $effect(() => {

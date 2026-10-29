@@ -3,7 +3,7 @@
 import { get } from 'svelte/store';
 import { runtimeView } from '../../../app/runtime/state';
 import { layoutPreview, saveLayoutPreview } from '../../../panel/ui/preferences.svelte';
-import { applets } from '../../plugins/registry';
+import { appletFor } from '../../applets/deck';
 import { settings } from '../../settings/state.svelte';
 import type { AppletDef } from '../../applets/contracts';
 import type { Selection } from '../grid';
@@ -32,7 +32,6 @@ function storedView(applet: AppletDef) {
 export class LayoutEditorState {
   selection = $state<Selection>(null);
   pageId = $state('');
-  appletId = $state('');
   viewId = $state('');
   /** The slot the selection belongs to; `target` falls back when it is not shown. */
   selectionTarget = $state<LayoutTarget>({ appletId: '', pageId: '', slotId: '' });
@@ -40,7 +39,8 @@ export class LayoutEditorState {
   pageGeneration = 0;
 
   readonly page = $derived(pageById(settings.deck.pages, this.pageId)!);
-  readonly applet = $derived(applets.get(this.appletId) ?? applets.get('deck')!);
+  /** The shown page decides the applet, so the editor follows page and applet changes made anywhere. */
+  readonly applet = $derived(appletFor(this.page));
   readonly visibleSlots = $derived(
     this.applet.views.find((view) => view.id === this.viewId)?.slots ?? [],
   );
@@ -63,25 +63,21 @@ export class LayoutEditorState {
 
   private previousAppletId: string;
   private previousViewId: string;
-  private previousActiveAppletId = settings.skin;
   private previousPageId: string;
   private previousPageOrder = settings.deck.pages.map((entry) => entry.id);
 
   constructor(private readonly host: EditorStateHost) {
-    const appletId = applets.has(settings.skin) ? settings.skin : 'deck';
-    const applet = applets.get(appletId) ?? applets.get('deck')!;
     this.pageId =
       get(runtimeView).activePage || settings.deck.activePage || settings.deck.pages[0].id;
-    this.appletId = appletId;
+    const applet = this.applet;
     this.viewId = storedView(applet);
     this.selectionTarget = defaultTarget(applet, this.pageId, this.viewId);
-    this.previousAppletId = appletId;
+    this.previousAppletId = applet.id;
     this.previousViewId = this.viewId;
     this.previousPageId = this.pageId;
 
     $effect(() => this.reconcilePages());
     $effect(() => this.reconcilePage());
-    $effect(() => this.followDashboardApplet());
     $effect(() => this.reconcileView());
     $effect(() => this.dropMissingSelection());
   }
@@ -138,51 +134,37 @@ export class LayoutEditorState {
     this.host.pagesChanged(ids);
   }
 
+  /** The shown page or its applet changed: the previewed view and the selection start over. */
   private reconcilePage() {
     const current = this.pageId;
-    if (current === this.previousPageId) {
+    const applet = this.applet;
+    if (current === this.previousPageId && applet.id === this.previousAppletId) {
       return;
     }
     this.previousPageId = current;
+    const viewId = applet.id === this.previousAppletId ? this.viewId : storedView(applet);
+    this.viewId = viewId;
     this.selection = null;
-    this.selectionTarget = defaultTarget(this.applet, this.page.id, this.viewId);
+    this.selectionTarget = defaultTarget(applet, this.page.id, viewId);
     this.host.leave();
-  }
-
-  /** The dashboard switched applets: preview the new one. */
-  private followDashboardApplet() {
-    const appletId = settings.skin;
-    if (appletId === this.previousActiveAppletId) {
-      return;
-    }
-    this.previousActiveAppletId = appletId;
-    const applet = applets.get(appletId);
-    if (!applet) {
-      return;
-    }
-    this.appletId = applet.id;
-    this.viewId = storedView(applet);
-    this.selectionTarget = defaultTarget(applet, this.page.id, this.viewId);
-    this.clearTransient();
   }
 
   /** The previewed applet or view changed: remember the view and keep the selection inside it. */
   private reconcileView() {
-    const appletId = this.appletId;
+    const applet = this.applet;
     const viewId = this.viewId;
-    if (appletId === this.previousAppletId && viewId === this.previousViewId) {
+    if (applet.id === this.previousAppletId && viewId === this.previousViewId) {
       return;
     }
-    this.previousAppletId = appletId;
+    this.previousAppletId = applet.id;
     this.previousViewId = viewId;
-    const applet = applets.get(appletId);
-    const view = applet?.views.find((entry) => entry.id === viewId);
-    if (!applet || !view) {
+    const view = applet.views.find((entry) => entry.id === viewId);
+    if (!view) {
       return;
     }
-    layoutPreview.views[appletId] = viewId;
+    layoutPreview.views[applet.id] = viewId;
     const target = this.selectionTarget;
-    if (!view.slots.includes(target.slotId) || target.appletId !== appletId) {
+    if (!view.slots.includes(target.slotId) || target.appletId !== applet.id) {
       this.selectionTarget = defaultTarget(applet, this.page.id, viewId);
     }
     this.clearTransient();

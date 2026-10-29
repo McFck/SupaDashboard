@@ -243,7 +243,7 @@ describe('automation runtime', () => {
       pageB = page('page-2');
     settings.deck.pages = [pageA, pageB];
     settings.deck.activePage = pageA.id;
-    settings.skinLayouts = {
+    settings.appletLayouts = {
       subway: {
         [pageB.id]: { main: [{ id: 'media-item', control: config.id, x: 0, y: 0, w: 2, h: 2 }] },
       },
@@ -446,7 +446,10 @@ describe('automation runtime', () => {
           events: [{ id: `${appletId}.changed`, title: 'Changed' }],
         }),
     });
-    settings.skinSettings[appletId] = { enabled: true, future: '保持' };
+    settings.appletSettings[appletId] = {
+      shared: { enabled: true, future: '保持' },
+      separate: false,
+    };
     const before = serializeSettings();
     runtime = new RuntimeSession();
     await tick();

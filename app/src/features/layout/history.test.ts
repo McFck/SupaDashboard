@@ -118,7 +118,7 @@ describe('settings history', () => {
         }),
       (next) => (status = next),
     );
-    current.skin = 'subway';
+    current.appletSettings = { subway: { shared: {}, separate: false } };
     stack.observe(editableSnapshot(current));
     vi.advanceTimersByTime(400);
     const remote = structuredClone(current);
@@ -130,7 +130,7 @@ describe('settings history', () => {
     vi.advanceTimersByTime(400);
     expect(status.canUndo).toBe(true);
     stack.undo();
-    expect(current.skin).toBe(DEFAULTS.skin);
+    expect(current.appletSettings).toEqual(DEFAULTS.appletSettings);
     expect(current.variants.toggle).toBe(1);
   });
 
@@ -240,12 +240,12 @@ describe('settings history', () => {
       settings.variants.prev = 1;
       const initial = editableSnapshot(settings);
       const stack = new SnapshotHistory(initial, applyEditableSettings, () => {});
-      settings.skin = 'subway';
+      settings.appletSettings = { subway: { shared: {}, separate: false } };
       settings.deck.pages[1].cols = 9;
       stack.observe(editableSnapshot(settings));
       vi.advanceTimersByTime(400);
       stack.undo();
-      expect(settings.skin).toBe(DEFAULTS.skin);
+      expect(settings.appletSettings).toEqual(DEFAULTS.appletSettings);
       expect(settings.deck.pages[1].cols).toBe(8);
       expect(settings.deck.activePage).toBe('page-second');
       expect(settings.variants.prev).toBe(1);
@@ -287,7 +287,7 @@ describe('settings history', () => {
       settings.deck.pages = [firstPage, secondPage];
       settings.deck.activePage = secondPage.id;
       settings.controls = [control, appletControl];
-      settings.skinLayouts = {
+      settings.appletLayouts = {
         subway: {
           [firstPage.id]: {
             strip: [
@@ -311,7 +311,7 @@ describe('settings history', () => {
         settings.deck.pages,
         settings.controls,
         firstPage.id,
-        settings.skinLayouts,
+        settings.appletLayouts,
       )!;
       settings.deck.pages = added.pages;
       record('Add page');
@@ -323,16 +323,16 @@ describe('settings history', () => {
         firstPage.id,
         settings.controls,
         settings.variants,
-        settings.skinLayouts,
+        settings.appletLayouts,
       )!;
       settings.deck.pages = duplicated.pages;
       settings.controls = duplicated.controls;
       settings.variants = duplicated.variants;
-      settings.skinLayouts = duplicated.skinLayouts;
-      const copiedAppletItem = settings.skinLayouts.subway[duplicated.page.id].strip[0];
+      settings.appletLayouts = duplicated.appletLayouts;
+      const copiedAppletItem = settings.appletLayouts.subway[duplicated.page.id].strip[0];
       expect(copiedAppletItem.id).not.toBe('applet-history-item');
       expect(copiedAppletItem.control).not.toBe(appletControl.id);
-      expect(settings.skinLayouts.unavailable[duplicated.page.id].removed).toEqual([]);
+      expect(settings.appletLayouts.unavailable[duplicated.page.id].removed).toEqual([]);
       record('Duplicate page');
       settings.deck.pages = reorderPage(settings.deck.pages, secondPage.id, 0)!.pages;
       record('Reorder pages');
@@ -341,12 +341,12 @@ describe('settings history', () => {
         duplicated.page.id,
         settings.controls,
         settings.variants,
-        settings.skinLayouts,
+        settings.appletLayouts,
       )!;
       settings.deck.pages = deleted.pages;
       settings.controls = deleted.controls;
       settings.variants = deleted.variants;
-      settings.skinLayouts = deleted.skinLayouts;
+      settings.appletLayouts = deleted.appletLayouts;
       record('Delete page');
 
       for (let index = states.length - 2; index >= 0; index--) {
@@ -363,8 +363,8 @@ describe('settings history', () => {
         'history-item',
       );
       expect(settings.controls.map((entry) => entry.id)).toContain('history-control');
-      expect(settings.skinLayouts.subway[firstPage.id].strip[0].id).toBe('applet-history-item');
-      expect(settings.skinLayouts.subway).not.toHaveProperty(duplicated.page.id);
+      expect(settings.appletLayouts.subway[firstPage.id].strip[0].id).toBe('applet-history-item');
+      expect(settings.appletLayouts.subway).not.toHaveProperty(duplicated.page.id);
     } finally {
       Object.assign(settings, before);
     }

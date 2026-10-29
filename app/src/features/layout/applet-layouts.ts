@@ -3,6 +3,7 @@ import { firstFree, fits, type Grid, type Item } from './grid';
 import { controlTypes, applets } from '../plugins/registry';
 import type { Page, Settings } from '../settings/schema';
 import type { AppletSlot } from '../applets/contracts';
+import { DECK } from '../applets/deck';
 import { storedPlacements } from './placements';
 
 export type LayoutTarget = { appletId: string; pageId: string; slotId: string };
@@ -36,11 +37,9 @@ const deckGeometry = (page: Page): LayoutGeometry => ({
 });
 
 function slotFor(appletId: string, slotId: string) {
-  if (appletId === 'deck' && slotId === 'main')
-    return (
-      applets.get(appletId)?.slots.find((slot) => slot.id === slotId) ??
-      ({ id: 'main', style: 'region', kind: 'grid', grid: 'page' } as AppletSlot)
-    );
+  if (appletId === 'deck') {
+    return DECK.slots.find((slot) => slot.id === slotId);
+  }
   return applets.get(appletId)?.slots.find((slot) => slot.id === slotId);
 }
 
@@ -70,7 +69,7 @@ export function layoutFor(
     };
   }
   const slot = slotFor(appletId, slotId);
-  const items = source.skinLayouts?.[appletId]?.[pageId]?.[slotId] ?? [];
+  const items = source.appletLayouts?.[appletId]?.[pageId]?.[slotId] ?? [];
   return {
     appletId,
     pageId,
@@ -110,15 +109,15 @@ export function canSetLayoutItems(source: Settings, target: LayoutTarget, items:
 export function setLayoutItems(source: Settings, target: LayoutTarget, items: Item[]) {
   const current = layoutFor(source, target.appletId, target.pageId, target.slotId);
   if (!current || !canSetLayoutItems(source, target, items)) return false;
-  if (source.skinLayouts) delete source.skinLayouts.deck;
+  if (source.appletLayouts) delete source.appletLayouts.deck;
   if (target.appletId === 'deck') {
     current.page.items = items;
     return true;
   }
-  source.skinLayouts ??= {};
-  source.skinLayouts[target.appletId] ??= {};
-  source.skinLayouts[target.appletId][target.pageId] ??= {};
-  source.skinLayouts[target.appletId][target.pageId][target.slotId] = items;
+  source.appletLayouts ??= {};
+  source.appletLayouts[target.appletId] ??= {};
+  source.appletLayouts[target.appletId][target.pageId] ??= {};
+  source.appletLayouts[target.appletId][target.pageId][target.slotId] = items;
   return true;
 }
 
@@ -150,25 +149,25 @@ export function movePlacementToSlot(source: Settings, itemId: string, destinatio
         ? page.items.filter((item) => item.id !== itemId)
         : page.items,
   }));
-  const skinLayouts: Settings['skinLayouts'] = {};
-  for (const [appletId, byPage] of Object.entries(source.skinLayouts ?? {})) {
+  const appletLayouts: Settings['appletLayouts'] = {};
+  for (const [appletId, byPage] of Object.entries(source.appletLayouts ?? {})) {
     if (appletId === 'deck') {
       continue;
     }
-    skinLayouts[appletId] = Object.fromEntries(
+    appletLayouts[appletId] = Object.fromEntries(
       Object.entries(byPage).map(([pageId, slots]) => [pageId, { ...slots }]),
     );
   }
   if (origin.appletId !== 'deck') {
-    skinLayouts[origin.appletId][origin.pageId][origin.slotId] = from.items.filter(
+    appletLayouts[origin.appletId][origin.pageId][origin.slotId] = from.items.filter(
       (item) => item.id !== itemId,
     );
   }
-  const next = { ...source, deck: { ...source.deck, pages }, skinLayouts } as Settings;
+  const next = { ...source, deck: { ...source.deck, pages }, appletLayouts } as Settings;
   if (!setLayoutItems(next, destination, [...to.items, moved])) return undefined;
   return {
     pages: next.deck.pages,
-    skinLayouts: next.skinLayouts,
+    appletLayouts: next.appletLayouts,
     item: moved,
     origin,
     destination,

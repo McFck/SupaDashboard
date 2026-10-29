@@ -30,7 +30,7 @@ export const mixer = async () => {
 /** Targets already used by widgets in any layout, so they stay pickable while that app is closed. */
 function usedTargets() {
   const placed = new Set(
-    pageItems(settings.deck.pages, settings.skinLayouts).map((i) => i.control),
+    pageItems(settings.deck.pages, settings.appletLayouts).map((i) => i.control),
   );
   const out: unknown[] = [];
   for (const c of settings.controls) {

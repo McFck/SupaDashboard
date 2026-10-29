@@ -13,6 +13,12 @@
   import { labelEdit } from '../../layout/history.svelte';
   import { nextAppletSettings, resolveAppletConfig, settingGroups } from '../../applets/definition';
   import { settings } from '../../settings/state.svelte';
+  import {
+    appletValues,
+    withAppletValues,
+    withSeparateAppletSettings,
+  } from '../../settings/applet-scope';
+  import { runtimeView } from '../../../app/runtime/state';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
 
@@ -20,6 +26,8 @@
   const pluginApplets = $derived(
     [...applets.values()].filter((applet) => applet.plugin === plugin.id),
   );
+  /** Settings are read and written for the page being shown, which only matters when they are separate. */
+  const pageId = $derived($runtimeView.activePage || settings.deck.activePage);
   const aboutId = $derived(`${plugin.id}-about`);
   const sections = $derived(
     pluginApplets.flatMap((applet) =>
@@ -47,17 +55,27 @@
     }
   }
   function setAppletSetting(applet: (typeof pluginApplets)[number], param: Param, value: unknown) {
-    const next = nextAppletSettings(
-      applet,
-      settings.skinSettings[applet.id] ?? {},
-      param.key,
-      value,
-    );
+    const entry = settings.appletSettings[applet.id];
+    const next = nextAppletSettings(applet, appletValues(entry, pageId), param.key, value);
     if (!next) {
       return;
     }
     labelEdit(`Change ${applet.title} ${param.label}`);
-    settings.skinSettings = { ...settings.skinSettings, [applet.id]: next };
+    settings.appletSettings = {
+      ...settings.appletSettings,
+      [applet.id]: withAppletValues(entry, pageId, next),
+    };
+  }
+  function setSeparate(applet: (typeof pluginApplets)[number], separate: boolean) {
+    labelEdit(`Change ${applet.title} separate settings`);
+    settings.appletSettings = {
+      ...settings.appletSettings,
+      [applet.id]: withSeparateAppletSettings(
+        settings.appletSettings[applet.id],
+        settings.deck.pages.map((page) => page.id),
+        separate,
+      ),
+    };
   }
   function date(value?: string) {
     return value && Number.isFinite(Date.parse(value))
@@ -146,13 +164,26 @@
         <SettingsIndex items={[...sections, { id: aboutId, title: 'About' }]} />
       {/if}
       <div class="grid min-w-0 max-w-[740px] gap-8">
-        {#each sections as { id, title, applet, params } (id)}
-          {@const values = resolveAppletConfig(applet, settings.skinSettings[applet.id] ?? {})}
+        {#each sections as { id, title, applet, params }, index (id)}
+          {@const entry = settings.appletSettings[applet.id]}
+          {@const values = resolveAppletConfig(applet, appletValues(entry, pageId))}
           <div
             {id}
             class="scroll-mt-14 @[900px]:scroll-mt-9"
           >
             <Section {title}>
+              {#if sections.findIndex((section) => section.applet === applet) === index}
+                <Row
+                  label="Separate settings per page"
+                  for={`${id}-separate`}
+                >
+                  <Switch
+                    id={`${id}-separate`}
+                    checked={entry?.separate ?? false}
+                    onCheckedChange={(separate) => setSeparate(applet, separate)}
+                  />
+                </Row>
+              {/if}
               {#each params.filter((param) => param.visible?.(values) ?? true) as param (param.key)}
                 <Row
                   label={param.label}
