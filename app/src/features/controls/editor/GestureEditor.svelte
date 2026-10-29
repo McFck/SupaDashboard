@@ -71,8 +71,7 @@
       onclick={() => onedit(trigger)}
     >
       <span class="truncate">{TRIGGER_LABELS[trigger]}</span><span
-        class="shrink-0 text-xs font-mono tabular-nums text-muted-foreground"
-        >{stepCount(trigger)}</span
+        class="shrink-0 text-xs tabular-nums text-muted-foreground">{stepCount(trigger)}</span
       >
     </Button>
   {/each}
@@ -83,7 +82,7 @@
       class="justify-between"
       onclick={() => onedit('press')}
     >
-      <span>Events</span><span class="text-xs font-mono tabular-nums text-muted-foreground"
+      <span>Events</span><span class="text-xs tabular-nums text-muted-foreground"
         >{control.scenario.events.length}</span
       >
     </Button>

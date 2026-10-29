@@ -54,9 +54,27 @@
 }
 
 @theme inline {
-  /* Display face for titles, page names and the wordmark; Windows' own mono for counters (the app runs offline). */
+  /*
+   * Two voices: Inter for content and numbers (tabular figures), Chakra Petch for structure (titles, page names,
+   * section labels, wordmark). Chakra's x-height is about 10% below Inter's, so it runs a step larger or uppercase.
+   * Mono is Windows' own (the app runs offline) and only sets typed codes such as hex colours.
+   */
+  --font-sans: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
   --font-display: 'Chakra Petch', 'Inter Variable', 'Segoe UI', sans-serif;
   --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  /* Type scale (px / line height). label: section labels, display uppercase. */
+  --text-label: 11px;
+  --text-label--line-height: 16px;
+  --text-xs: 12px; /* captions, counts, tags */
+  --text-xs--line-height: 16px;
+  --text-sm: 14px; /* body, fields, buttons */
+  --text-sm--line-height: 20px;
+  --text-base: 16px; /* display: pane and dialog titles, page tabs */
+  --text-base--line-height: 24px;
+  --text-xl: 20px; /* display: page headings */
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px; /* display: plugin page heading */
+  --text-2xl--line-height: 32px;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -107,7 +125,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+    font-family: var(--font-sans);
     font-feature-settings: 'cv11', 'ss01';
   }
 }
@@ -167,11 +185,7 @@
 }
 .toaster [data-sonner-toast][data-styled='true'] {
   border-radius: 12px;
-  font:
-    12px/16px 'Inter Variable',
-    'Segoe UI',
-    system-ui,
-    sans-serif;
+  font: 12px/16px var(--font-sans);
 }
 .toaster [data-sonner-toast] [data-content] {
   min-width: 0;
@@ -211,9 +225,9 @@
   }
 }
 
-/* The one section label style in the panel: small letter-spaced mono in muted ink. */
+/* The one section label style in the panel: small letter-spaced display caps in muted ink. */
 @utility section-label {
-  @apply font-mono text-[11px] leading-4 font-normal tracking-[0.08em] text-muted-foreground;
+  @apply font-display text-label font-semibold tracking-[0.12em] text-muted-foreground uppercase;
 }
 
 /* Faint film grain over the control panel: a tiled SVG noise at about 2.5% white, never hit-testable. */

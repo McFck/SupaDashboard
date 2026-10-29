@@ -144,7 +144,7 @@
             >
               −
             </Button>
-            <span class="w-4 text-center font-mono tabular-nums">{item[axis.key]}</span>
+            <span class="w-4 text-center tabular-nums">{item[axis.key]}</span>
             <Button
               size="icon-sm"
               variant="outline"
