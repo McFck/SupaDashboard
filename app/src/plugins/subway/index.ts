@@ -196,36 +196,6 @@ const settings: SettingsGroup[] = [
       },
     ],
   },
-  {
-    id: 'quick-actions',
-    title: 'Quick actions',
-    params: [
-      {
-        key: 'gesture',
-        label: 'Gesture',
-        type: 'select',
-        default: 'tripleTap',
-        suggestions: [
-          { value: 'tripleTap', label: 'Triple tap' },
-          { value: 'cornerHold', label: 'Corner hold' },
-          { value: 'off', label: 'Off' },
-        ],
-      },
-      {
-        key: 'corner',
-        label: 'Corner',
-        visible: (values) => values.gesture === 'cornerHold',
-        type: 'select',
-        default: 'bottomRight',
-        suggestions: [
-          { value: 'topLeft', label: 'Top left' },
-          { value: 'topRight', label: 'Top right' },
-          { value: 'bottomLeft', label: 'Bottom left' },
-          { value: 'bottomRight', label: 'Bottom right' },
-        ],
-      },
-    ],
-  },
 ];
 
 const state: AppletStateField[] = [
@@ -349,23 +319,18 @@ export const subwayPlugin: Plugin = {
       component: SubwayApplet,
       start: runtime,
       pageNavigation: 'applet',
-      alters: ['layout', 'logic'],
       design: { width: 1920, height: 480 },
       slots: [
         {
           id: 'strip',
-          style: 'region',
           kind: 'strip',
-          rect: { x: 24, y: 360, w: 1320, h: 96 },
           accepts: ['button', 'slider'],
           max: 8,
           grid: { rows: 1, cols: 8, size: 112, gap: 8, sizing: 'auto' },
         },
         {
           id: 'side',
-          style: 'anchored',
           kind: 'grid',
-          rect: { x: 1392, y: 264, w: 256, h: 192 },
           accepts: ['button'],
           max: 2,
           grid: { rows: 2, cols: 1, size: 112, gap: 8, sizing: 'auto' },

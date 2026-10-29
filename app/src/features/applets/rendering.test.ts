@@ -16,7 +16,7 @@ const applet: AppletDef = {
   slots: [
     {
       id: 'main',
-      style: 'region',
+
       kind: 'grid',
       grid: { rows: 1, cols: 2, size: 80, gap: 8, sizing: 'auto' },
     },

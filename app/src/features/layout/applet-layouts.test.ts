@@ -24,7 +24,7 @@ const applet: AppletDef = {
   slots: [
     {
       id: 'main',
-      style: 'region',
+
       kind: 'grid',
       accepts: [typeId],
       max: 2,

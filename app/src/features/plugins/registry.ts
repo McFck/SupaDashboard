@@ -20,7 +20,7 @@ import type {
 import { settings } from '../settings/state.svelte';
 import type { VariableRecord, VariableStore } from '../automation/variables';
 import { normalizePluginState, type PluginState } from './plugin-store';
-import { validateAppletDefinition } from '../applets/definition';
+import { validateAppletDefinition, withQuickActionSettings } from '../applets/definition';
 import { type AppletDef as AppletDefinition } from '../applets/contracts';
 
 export const actions = new Map<string, ActionDef>();
@@ -171,7 +171,7 @@ function registerApplet(owner: string, d: AppletDefinition) {
     eventDefinitions.set(event.id, event);
     registryRuntime?.registerEvent(event);
   }
-  applets.set(d.id, { ...d, plugin: owner });
+  applets.set(d.id, { ...withQuickActionSettings(d), plugin: owner });
 }
 
 /** `app:` and `known-app:` are filter keys the host builds for applications. */

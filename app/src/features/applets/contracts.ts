@@ -5,15 +5,11 @@ import type { ControlFaceProps } from '../controls/model';
 import type { Page } from '../settings/schema';
 import type { VariableType, VariableValue } from '../automation/variables';
 
-export type AppletRect = { x: number; y: number; w: number; h: number };
-
 export type AppletGrid =
   'page' | { rows: number; cols: number; size: number; gap: number; sizing: 'auto' | 'manual' };
 export type AppletSlot = {
   id: string;
-  style: 'region' | 'anchored';
   kind: 'grid' | 'strip';
-  rect?: AppletRect;
   accepts?: string[];
   max?: number;
   size?: { w: number; h: number };
@@ -60,7 +56,6 @@ export type AppletDef = {
   id: string;
   title: string;
   component: Component<{ page: Page }>;
-  alters?: ('layout' | 'logic')[];
   design?: { width: number; height: number };
   slots: AppletSlot[];
   views: AppletView[];
