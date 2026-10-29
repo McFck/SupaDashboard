@@ -123,7 +123,7 @@
                 variant="secondary"
                 class="tabular-nums">{plugin.version}</Badge
               >{/if}
-            {#if plugin.author}<Badge variant="secondary">{plugin.author}</Badge>{/if}
+            {#if pluginApplets.length}<Badge variant="secondary">Applet</Badge>{/if}
           </div>
         </div>
         <Switch
@@ -133,6 +133,7 @@
           onCheckedChange={setEnabled}
         />
       </div>
+      {#if plugin.author}<p class="text-sm font-medium">{plugin.author}</p>{/if}
       {#if plugin.description}<p class="text-sm leading-relaxed text-muted-foreground">
           {plugin.description}
         </p>{/if}
@@ -182,17 +183,6 @@
               ><span class="text-sm">{date($pluginState.installed[plugin.id])}</span></Row
             >
             <Row label="Size"><span class="text-sm tabular-nums">{size(plugin.size)}</span></Row>
-            {#each pluginApplets as applet (applet.id)}
-              {#if applet.alters?.length}
-                <Row label={applet.title}>
-                  <div class="flex flex-wrap justify-end gap-1.5">
-                    {#each applet.alters as alteration (alteration)}
-                      <Badge variant="secondary">Changes {alteration}</Badge>
-                    {/each}
-                  </div>
-                </Row>
-              {/if}
-            {/each}
             {#if !plugin.default && !plugin.builtin}
               <Row label="Remove plugin">
                 <Button
