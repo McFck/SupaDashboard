@@ -12,6 +12,6 @@
 <DialogPrimitive.Overlay
 	bind:ref
 	data-slot="dialog-overlay"
-	class={cn("data-open:opacity-100 data-closed:opacity-0 transition-opacity duration-150 bg-black/10 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50", className)}
+	class={cn("modal-overlay bg-black/10 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50", className)}
 	{...restProps}
 />

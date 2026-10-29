@@ -403,3 +403,49 @@ html.transparent #app {
     0 1.5rem,
     calc(100% - 1.5rem) 100%;
 }
+
+/* Modal enter/exit. bits-ui delays unmount only while a CSS animation runs (transitions do not count), so these are keyframes. */
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+@keyframes modal-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes modal-rise-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+@utility modal-overlay {
+  &[data-state='open'] {
+    animation: modal-fade 180ms ease-out;
+  }
+  &[data-state='closed'] {
+    animation: modal-fade-out 130ms ease-in forwards;
+  }
+}
+@utility modal-content {
+  &[data-state='open'] {
+    animation: modal-rise 180ms ease-out;
+  }
+  &[data-state='closed'] {
+    animation: modal-rise-out 130ms ease-in forwards;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay,
+  .modal-content {
+    animation: none !important;
+  }
+}
