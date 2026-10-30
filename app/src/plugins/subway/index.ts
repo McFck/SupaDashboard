@@ -301,7 +301,6 @@ export const subwayPlugin: Plugin = {
       title: 'Subway',
       component: SubwayApplet,
       start: runtime,
-      pageNavigation: 'applet',
       design: { width: 1920, height: 480 },
       slots: [
         {

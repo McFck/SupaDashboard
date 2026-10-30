@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines } from '../../simulation/lines';
 import type { RunSnapshot } from '../../simulation/run';
 import { scheduleScreen, sessionKey } from '../../rendering/screens';
-import { VisibleClock } from '../../rendering/engine/visible-clock';
+import { PhaseClock } from '../../rendering/engine/phase-clock';
 import { drawE235Overlay } from './overlay';
 import { lineFactsFor } from '../../data/load';
 import { drawE235RouteMap, e235LoopCell } from './route-map';
@@ -101,14 +101,10 @@ describe('NextStation E235 data and routines', () => {
     expect(new Set(samples.map((schedule) => schedule.invalidationKey)).size).toBeGreaterThan(1);
   });
   it('changes the selected car without restarting the display cycle or reusing the old cached drawing', () => {
-    const clock = new VisibleClock();
+    const clock = new PhaseClock();
     const key = sessionKey(snapshot, { line });
-    const first = scheduleScreen(snapshot, { line, currentCar: 1 }, clock.update(key, 0, true));
-    const selected = scheduleScreen(
-      snapshot,
-      { line, currentCar: 3 },
-      clock.update(key, 4000, true),
-    );
+    const first = scheduleScreen(snapshot, { line, currentCar: 1 }, clock.elapsed(key, 0));
+    const selected = scheduleScreen(snapshot, { line, currentCar: 3 }, clock.elapsed(key, 4000));
     expect(selected.currentCar).toBe(3);
     expect(selected.visibleElapsed).toBe(4000);
     expect(selected.invalidationKey).not.toBe(first.invalidationKey);
@@ -245,10 +241,10 @@ describe('NextStation E235 data and routines', () => {
   });
   it('shows the complete source cycle in a shortened run and keeps its clock through acceleration', () => {
     const moving = { ...snapshot, station: 'JY14', next: 'JY15', screenRunDurationMs: 36_000 };
-    const clock = new VisibleClock(),
+    const clock = new PhaseClock(),
       config = { line, languages: ['ja', 'en'] };
     const at = (state: RunSnapshot, now: number) =>
-      scheduleScreen(state, config, clock.update(sessionKey(state, config), now, true));
+      scheduleScreen(state, config, clock.elapsed(sessionKey(state, config), now));
     expect(at({ ...moving, state: 'departing' }, 0).page).toBe('broad');
     expect(at(moving, 10_000).visibleElapsed).toBe(10_000);
     const transfer = at(moving, 24_000);

@@ -9,12 +9,10 @@ import type { LayoutTarget } from '../layout/applet-layouts';
 
 export const APPLET_HOST_CONTEXT = Symbol('applet-host');
 
-export type AppletPageContext = Page & { next(): Promise<boolean>; prev(): Promise<boolean> };
-
 export type AppletHostContext = {
   mode: 'runtime' | 'editor';
   applet: AppletDef;
-  page: AppletPageContext;
+  page: Page;
   viewId: string;
   designScale: number;
   designOffset: { x: number; y: number };
