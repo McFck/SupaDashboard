@@ -1533,76 +1533,47 @@
         {
           "ja": "東北・山形・秋田・北海道・上越・北陸新幹線",
           "en": "Tōhoku・Yamagata・Akita・Hokkaidō・Jōetsu・Hokuriku Shinkansen",
-          "icons": [
-            {
-              "type": "ShinkansenE5",
-              "lineLetter": null,
-              "color": "#00a000",
-              "secondaryColor": null
-            }
-          ]
+          "icons": ["shinkansen/shinkansene5-00a000"]
         },
         {
           "ja": "東海道・山陽新幹線",
           "en": "Tōkaidō・Sanyō Shinkansen",
-          "icons": [
-            {
-              "type": "Shinkansen700",
-              "lineLetter": null,
-              "color": "#3f7fff",
-              "secondaryColor": null
-            }
-          ]
+          "icons": ["shinkansen/shinkansen700-3f7fff"]
         },
         {
           "ja": "中央線",
           "en": "Chūō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JC", "color": "#ff4000", "secondaryColor": null }
-          ]
+          "icons": ["rail/jc-ff4000"]
         },
         {
           "ja": "東海道線",
           "en": "Tōkaidō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JT", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["rail/jt-ff8c00"]
         },
         {
           "ja": "上野東京ライン",
           "en": "Ueno-Tōkyō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JT", "color": "#ff8c00", "secondaryColor": null },
-            { "type": "LineColor", "lineLetter": "JU", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["rail/jt-ff8c00", "rail/ju-ff8c00"]
         },
         {
           "ja": "横須賀線",
           "en": "Yokosuka Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JO", "color": "#0000ff", "secondaryColor": null }
-          ]
+          "icons": ["rail/jo-0000ff"]
         },
         {
           "ja": "総武線快速",
           "en": "Sōbu Line (Rapid Service)",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JO", "color": "#0000ff", "secondaryColor": null }
-          ]
+          "icons": ["rail/jo-0000ff"]
         },
         {
           "ja": "京葉線",
           "en": "Keiyō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JE", "color": "#f00000", "secondaryColor": null }
-          ]
+          "icons": ["rail/je-f00000"]
         },
         {
           "ja": "丸ノ内線",
           "en": "Marunouchi Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "M", "color": "#ff0000", "secondaryColor": null }
-          ]
+          "icons": ["subway/m-ff0000"]
         }
       ],
       "transferDisplays": [
@@ -2495,16 +2466,12 @@
         {
           "ja": "日比谷線",
           "en": "Hibiya Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "H", "color": "#8c8c8c", "secondaryColor": null }
-          ]
+          "icons": ["subway/h-8c8c8c"]
         },
         {
           "ja": "有楽町線",
           "en": "Yūrakuchō Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "Y", "color": "#a07f00", "secondaryColor": null }
-          ]
+          "icons": ["subway/y-a07f00"]
         }
       ],
       "transferDisplays": [
@@ -2781,23 +2748,17 @@
         {
           "ja": "銀座線",
           "en": "Ginza Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "G", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["subway/g-ff8c00"]
         },
         {
           "ja": "都営浅草線",
           "en": "Toei Asakusa Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "A", "color": "#f0607f", "secondaryColor": null }
-          ]
+          "icons": ["subway/a-f0607f"]
         },
         {
           "ja": "ゆりかもめ",
           "en": "Yurikamome Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         }
       ],
       "transferDisplays": [
@@ -3106,16 +3067,12 @@
         {
           "ja": "東京モノレール羽田空港線",
           "en": "Tōkyō Monorail Haneda Airport Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "都営大江戸線",
           "en": "Toei Ōedo Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "E", "color": "#c00070", "secondaryColor": null }
-          ]
+          "icons": ["subway/e-c00070"]
         }
       ],
       "transferDisplays": [
@@ -3422,9 +3379,7 @@
         {
           "ja": "京浜東北線",
           "en": "Keihin-Tōhoku Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JK", "color": "#00c8ff", "secondaryColor": null }
-          ]
+          "icons": ["rail/jk-00c8ff"]
         }
       ],
       "transferDisplays": [
@@ -3900,49 +3855,32 @@
         {
           "ja": "東海道・山陽新幹線",
           "en": "Tōkaidō・Sanyō Shinkansen",
-          "icons": [
-            {
-              "type": "Shinkansen700",
-              "lineLetter": null,
-              "color": "#3f7fff",
-              "secondaryColor": null
-            }
-          ]
+          "icons": ["shinkansen/shinkansen700-3f7fff"]
         },
         {
           "ja": "京浜東北線",
           "en": "Keihin-Tōhoku Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JK", "color": "#00c8ff", "secondaryColor": null }
-          ]
+          "icons": ["rail/jk-00c8ff"]
         },
         {
           "ja": "東海道線",
           "en": "Tōkaidō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JT", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["rail/jt-ff8c00"]
         },
         {
           "ja": "上野東京ライン",
           "en": "Ueno-Tōkyō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JT", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["rail/jt-ff8c00"]
         },
         {
           "ja": "横須賀線",
           "en": "Yokosuka Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JO", "color": "#0000ff", "secondaryColor": null }
-          ]
+          "icons": ["rail/jo-0000ff"]
         },
         {
           "ja": "京急線",
           "en": "Keikyū Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         }
       ],
       "transferDisplays": [
@@ -4462,32 +4400,22 @@
         {
           "ja": "湘南新宿ライン",
           "en": "Shōnan-Shinjuku Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff8c00", "secondaryColor": null },
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff2a00", "secondaryColor": null }
-          ]
+          "icons": ["rail/js-ff8c00", "rail/js-ff2a00"]
         },
         {
           "ja": "埼京線",
           "en": "Saikyō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JA", "color": "#009b8b", "secondaryColor": null }
-          ]
+          "icons": ["rail/ja-009b8b"]
         },
         {
           "ja": "相鉄線直通",
           "en": "Through service to Sōtetsu Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "りんかい線",
           "en": "Rinkai Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "R", "color": "#0000ff", "secondaryColor": null },
-            { "type": "TrainIcon", "lineLetter": "R", "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["rail/r-0000ff", "train/r-000000"]
         }
       ],
       "transferDisplays": [
@@ -4932,16 +4860,12 @@
         {
           "ja": "東急池上線",
           "en": "Tōkyū Ikegami Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "都営浅草線",
           "en": "Toei Asakusa Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "A", "color": "#f0607f", "secondaryColor": null }
-          ]
+          "icons": ["subway/a-f0607f"]
         }
       ],
       "transferDisplays": [
@@ -5223,23 +5147,17 @@
         {
           "ja": "東急目黒線",
           "en": "Tōkyū Meguro Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "南北線",
           "en": "Namboku Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "N", "color": "#009a98", "secondaryColor": null }
-          ]
+          "icons": ["subway/n-009a98"]
         },
         {
           "ja": "都営三田線",
           "en": "Toei Mita Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "I", "color": "#0000c8", "secondaryColor": null }
-          ]
+          "icons": ["subway/i-0000c8"]
         }
       ],
       "transferDisplays": [
@@ -5566,24 +5484,17 @@
         {
           "ja": "湘南新宿ライン",
           "en": "Shōnan-Shinjuku Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff8c00", "secondaryColor": null },
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff2a00", "secondaryColor": null }
-          ]
+          "icons": ["rail/js-ff8c00", "rail/js-ff2a00"]
         },
         {
           "ja": "埼京線",
           "en": "Saikyō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JA", "color": "#009b8b", "secondaryColor": null }
-          ]
+          "icons": ["rail/ja-009b8b"]
         },
         {
           "ja": "日比谷線",
           "en": "Hibiya Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "H", "color": "#8c8c8c", "secondaryColor": null }
-          ]
+          "icons": ["subway/h-8c8c8c"]
         }
       ],
       "transferDisplays": [
@@ -6055,59 +5966,42 @@
         {
           "ja": "湘南新宿ライン",
           "en": "Shōnan-Shinjuku Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff8c00", "secondaryColor": null },
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff2a00", "secondaryColor": null }
-          ]
+          "icons": ["rail/js-ff8c00", "rail/js-ff2a00"]
         },
         {
           "ja": "埼京線",
           "en": "Saikyō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JA", "color": "#009b8b", "secondaryColor": null }
-          ]
+          "icons": ["rail/ja-009b8b"]
         },
         {
           "ja": "東急東横線",
           "en": "Tōkyū Tōyoko Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "東急田園都市線",
           "en": "Tōkyū Den-en-toshi Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "京王井の頭線",
           "en": "Keiō Inokashira Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "銀座線",
           "en": "Ginza Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "G", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["subway/g-ff8c00"]
         },
         {
           "ja": "半蔵門線",
           "en": "Hanzōmon Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "Z", "color": "#a07fc0", "secondaryColor": null }
-          ]
+          "icons": ["subway/z-a07fc0"]
         },
         {
           "ja": "副都心線",
           "en": "Fukutoshin Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "F", "color": "#c06020", "secondaryColor": null }
-          ]
+          "icons": ["subway/f-c06020"]
         }
       ],
       "transferDisplays": [
@@ -6648,16 +6542,12 @@
         {
           "ja": "千代田線",
           "en": "Chiyoda Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "C", "color": "#00a000", "secondaryColor": null }
-          ]
+          "icons": ["subway/c-00a000"]
         },
         {
           "ja": "副都心線",
           "en": "Fukutoshin Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "F", "color": "#c06020", "secondaryColor": null }
-          ]
+          "icons": ["subway/f-c06020"]
         }
       ],
       "transferDisplays": [
@@ -6940,16 +6830,12 @@
         {
           "ja": "中央線各駅停車",
           "en": "Chūō Line (Local)",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JB", "color": "#f7f700", "secondaryColor": null }
-          ]
+          "icons": ["rail/jb-f7f700"]
         },
         {
           "ja": "都営大江戸線",
           "en": "Toei Ōedo Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "E", "color": "#c00070", "secondaryColor": null }
-          ]
+          "icons": ["subway/e-c00070"]
         }
       ],
       "transferDisplays": [
@@ -7418,66 +7304,47 @@
         {
           "ja": "中央線",
           "en": "Chūō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JC", "color": "#ff4000", "secondaryColor": null }
-          ]
+          "icons": ["rail/jc-ff4000"]
         },
         {
           "ja": "中央線各駅停車",
           "en": "Chūō Line (Local)",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JB", "color": "#f7f700", "secondaryColor": null }
-          ]
+          "icons": ["rail/jb-f7f700"]
         },
         {
           "ja": "湘南新宿ライン",
           "en": "Shōnan-Shinjuku Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff8c00", "secondaryColor": null },
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff2a00", "secondaryColor": null }
-          ]
+          "icons": ["rail/js-ff8c00", "rail/js-ff2a00"]
         },
         {
           "ja": "埼京線",
           "en": "Saikyō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JA", "color": "#009b8b", "secondaryColor": null }
-          ]
+          "icons": ["rail/ja-009b8b"]
         },
         {
           "ja": "小田急線",
           "en": "Odakyū Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "京王線",
           "en": "Keiō Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "丸ノ内線",
           "en": "Marunouchi Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "M", "color": "#ff0000", "secondaryColor": null }
-          ]
+          "icons": ["subway/m-ff0000"]
         },
         {
           "ja": "都営新宿線",
           "en": "Toei Shinjuku Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "S", "color": "#afc850", "secondaryColor": null }
-          ]
+          "icons": ["subway/s-afc850"]
         },
         {
           "ja": "都営大江戸線",
           "en": "Toei Ōedo Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "E", "color": "#c00070", "secondaryColor": null }
-          ]
+          "icons": ["subway/e-c00070"]
         }
       ],
       "transferDisplays": [
@@ -8243,16 +8110,12 @@
         {
           "ja": "西武新宿線",
           "en": "Seibu Shinjuku Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "東西線",
           "en": "Tōzai Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "T", "color": "#00c8ff", "secondaryColor": null }
-          ]
+          "icons": ["subway/t-00c8ff"]
         }
       ],
       "transferDisplays": [
@@ -8833,52 +8696,37 @@
         {
           "ja": "湘南新宿ライン",
           "en": "Shōnan-Shinjuku Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff8c00", "secondaryColor": null },
-            { "type": "LineColor", "lineLetter": "JS", "color": "#ff2a00", "secondaryColor": null }
-          ]
+          "icons": ["rail/js-ff8c00", "rail/js-ff2a00"]
         },
         {
           "ja": "埼京線",
           "en": "Saikyō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JA", "color": "#009b8b", "secondaryColor": null }
-          ]
+          "icons": ["rail/ja-009b8b"]
         },
         {
           "ja": "東武東上線",
           "en": "Tōbu Tōjō Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "西武池袋線",
           "en": "Seibu Ikebukuro Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "丸ノ内線",
           "en": "Marunouchi Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "M", "color": "#ff0000", "secondaryColor": null }
-          ]
+          "icons": ["subway/m-ff0000"]
         },
         {
           "ja": "有楽町線",
           "en": "Yūrakuchō Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "Y", "color": "#f0f000", "secondaryColor": null }
-          ]
+          "icons": ["subway/y-f0f000"]
         },
         {
           "ja": "副都心線",
           "en": "Fukutoshin Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "F", "color": "#c06020", "secondaryColor": null }
-          ]
+          "icons": ["subway/f-c06020"]
         }
       ],
       "transferDisplays": [
@@ -9320,9 +9168,7 @@
         {
           "ja": "都電荒川線",
           "en": "Toden Arakawa Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         }
       ],
       "transferDisplays": [
@@ -9513,9 +9359,7 @@
         {
           "ja": "都営三田線",
           "en": "Toei Mita Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "I", "color": "#0000c8", "secondaryColor": null }
-          ]
+          "icons": ["subway/i-0000c8"]
         }
       ],
       "transferDisplays": [
@@ -9788,9 +9632,7 @@
         {
           "ja": "南北線",
           "en": "Namboku Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "N", "color": "#00c8ff", "secondaryColor": null }
-          ]
+          "icons": ["subway/n-00c8ff"]
         }
       ],
       "transferDisplays": [
@@ -10049,9 +9891,7 @@
         {
           "ja": "京浜東北線",
           "en": "Keihin-Tōhoku Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JK", "color": "#00c8ff", "secondaryColor": null }
-          ]
+          "icons": ["rail/jk-00c8ff"]
         }
       ],
       "transferDisplays": [
@@ -10260,16 +10100,12 @@
         {
           "ja": "日暮里・舎人ライナー",
           "en": "Nippori-Toneri Liner",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "千代田線",
           "en": "Chiyoda Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "C", "color": "#00a000", "secondaryColor": null }
-          ]
+          "icons": ["subway/c-00a000"]
         }
       ],
       "transferDisplays": [
@@ -10681,23 +10517,17 @@
         {
           "ja": "常磐線",
           "en": "Jōban Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JJ", "color": "#00c864", "secondaryColor": null }
-          ]
+          "icons": ["rail/jj-00c864"]
         },
         {
           "ja": "京成線",
           "en": "Keisei Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "日暮里・舎人ライナー",
           "en": "Nippori-Toneri Liner",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         }
       ],
       "transferDisplays": [
@@ -11278,64 +11108,42 @@
         {
           "ja": "東北・山形・秋田・北海道・上越・北陸新幹線",
           "en": "Tōhoku・Yamagata・Akita・Hokkaidō・Jōetsu・Hokuriku Shinkansen",
-          "icons": [
-            {
-              "type": "ShinkansenE5",
-              "lineLetter": null,
-              "color": "#00a000",
-              "secondaryColor": null
-            }
-          ]
+          "icons": ["shinkansen/shinkansene5-00a000"]
         },
         {
           "ja": "宇都宮線 (東北線)",
           "en": "Utsunomiya Line (Tōhoku Line)",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JU", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["rail/ju-ff8c00"]
         },
         {
           "ja": "高崎線",
           "en": "Takasaki Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JU", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["rail/ju-ff8c00"]
         },
         {
           "ja": "常磐線",
           "en": "Jōban Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JJ", "color": "#00c864", "secondaryColor": null }
-          ]
+          "icons": ["rail/jj-00c864"]
         },
         {
           "ja": "上野東京ライン",
           "en": "Ueno-Tōkyō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JU", "color": "#ff8c00", "secondaryColor": null },
-            { "type": "LineColor", "lineLetter": "JJ", "color": "#00c864", "secondaryColor": null }
-          ]
+          "icons": ["rail/ju-ff8c00", "rail/jj-00c864"]
         },
         {
           "ja": "京成線",
           "en": "Keisei Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "銀座線",
           "en": "Ginza Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "G", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["subway/g-ff8c00"]
         },
         {
           "ja": "日比谷線",
           "en": "Hibiya Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "H", "color": "#8c8c8c", "secondaryColor": null }
-          ]
+          "icons": ["subway/h-8c8c8c"]
         }
       ],
       "transferDisplays": [
@@ -12121,9 +11929,7 @@
         {
           "ja": "都営大江戸線",
           "en": "Toei Ōedo Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "E", "color": "#c00070", "secondaryColor": null }
-          ]
+          "icons": ["subway/e-c00070"]
         }
       ],
       "transferDisplays": [
@@ -12452,23 +12258,17 @@
         {
           "ja": "総武線各駅停車",
           "en": "Sōbu Line (Local)",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JB", "color": "#f7f700", "secondaryColor": null }
-          ]
+          "icons": ["rail/jb-f7f700"]
         },
         {
           "ja": "つくばエクスプレス線",
           "en": "Tsukuba Express Line",
-          "icons": [
-            { "type": "TrainIcon", "lineLetter": null, "color": "#000000", "secondaryColor": null }
-          ]
+          "icons": ["train/000000"]
         },
         {
           "ja": "日比谷線",
           "en": "Hibiya Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "H", "color": "#8c8c8c", "secondaryColor": null }
-          ]
+          "icons": ["subway/h-8c8c8c"]
         }
       ],
       "transferDisplays": [
@@ -12804,16 +12604,12 @@
         {
           "ja": "中央線",
           "en": "Chūō Line",
-          "icons": [
-            { "type": "LineColor", "lineLetter": "JC", "color": "#ff4000", "secondaryColor": null }
-          ]
+          "icons": ["rail/jc-ff4000"]
         },
         {
           "ja": "銀座線",
           "en": "Ginza Line",
-          "icons": [
-            { "type": "Subway", "lineLetter": "G", "color": "#ff8c00", "secondaryColor": null }
-          ]
+          "icons": ["subway/g-ff8c00"]
         }
       ],
       "transferDisplays": [

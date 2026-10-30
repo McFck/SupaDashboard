@@ -1,7 +1,8 @@
 import type { ScreenSchedule } from '../../rendering/screens';
 import { CanvasLayerCache } from '../../rendering/engine/canvas-cache';
 import { paintFitted } from '../../rendering/engine/canvas-renderer';
-import { drawBadge, drawFittedText, JAPANESE_FONT } from '../../rendering/lcd/shared';
+import { drawSignBadge } from '../../icons/badge';
+import { drawFittedText, JAPANESE_FONT } from '../../rendering/lcd/shared';
 import { nameOf, displayDestination, stateLabel } from './model';
 import {
   SAKAISUJI_COLORS as C,
@@ -67,7 +68,7 @@ function drawHeader(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void 
     JAPANESE_FONT,
     'center',
   );
-  drawBadge(ctx, next.code, 1745, 24, 60, C.header);
+  drawSignBadge(ctx, next.code, 1745, 24, 60, C.header);
   drawFittedText(ctx, 'です', 1830, 62, 80, 28, 22, C.white);
 }
 

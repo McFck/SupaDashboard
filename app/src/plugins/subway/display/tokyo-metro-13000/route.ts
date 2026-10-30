@@ -1,7 +1,8 @@
 import type { ScreenSchedule } from '../../rendering/screens';
 import { stationMinutes } from '../../rendering/screens';
 import { hibiyaPanelStations, hibiyaRouteWindow } from './model';
-import { routeTransfers, drawTransferSymbol } from './transfers';
+import { drawIcon } from '../../icons/paint';
+import { routeTransfers } from './transfers';
 import { drawFittedText, stationName } from './text';
 import {
   C,
@@ -97,7 +98,7 @@ export function drawRoutePanel(
     routeTransfers(station)
       .slice(0, 5)
       .forEach((sign, i) => {
-        drawTransferSymbol(ctx, sign, x - 65, 552 + i * 23, 20);
+        drawIcon(ctx, sign.icon, x - 65, 552 + i * 23, 20);
         drawFittedText(ctx, sign.ja, x - 40, 562 + i * 23, 150, 18, 13, C.ink, 600);
       });
     ctx.restore();

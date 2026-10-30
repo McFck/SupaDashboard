@@ -1,75 +1,8 @@
 import type { ScreenSchedule } from '../../rendering/screens';
 import { e235Station, e235TransferLayout } from './data';
-import { JA, SANS, label, polygon } from './page-draw';
+import { drawIcon } from '../../icons/paint';
+import { JA, SANS, label } from './page-draw';
 import { target } from './stop';
-
-type Icon = ReturnType<typeof e235Station>['transfers'][number]['icons'][number];
-export function drawE235LineIcon(
-  ctx: CanvasRenderingContext2D,
-  icon: Icon,
-  x: number,
-  y: number,
-  size: number,
-) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(size / 64, size / 64);
-  ctx.fillStyle = icon.color ?? '#000000';
-  if (icon.type === 'Subway') {
-    ctx.beginPath();
-    ctx.arc(32, 32, 32, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(32, 32, 19, 0, Math.PI * 2);
-    ctx.fill();
-    label(ctx, icon.lineLetter ?? '', 32, 43, 30, 38, '#000000', SANS, 700, 'center');
-  } else if (icon.type === 'TrainIcon') {
-    ctx.beginPath();
-    ctx.roundRect(0, 0, 64, 64, 3);
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.roundRect(14, 6, 36, 40, 6);
-    ctx.fill();
-    ctx.fillStyle = icon.color ?? '#000000';
-    ctx.fillRect(25, 8.5, 14, 3);
-    ctx.fillRect(18, 15, 28, 14);
-    for (const cx of [21, 43]) {
-      ctx.beginPath();
-      ctx.arc(cx, 38, 2, 0, 2 * Math.PI);
-      ctx.fill();
-    }
-    polygon(
-      ctx,
-      [
-        [22, 45],
-        [42, 45],
-        [52, 58],
-        [48, 58],
-        [41, 49],
-        [23, 49],
-        [16, 58],
-        [12, 58],
-      ],
-      '#ffffff',
-    );
-  } else if (icon.type.startsWith('Shinkansen')) {
-    ctx.fillRect(0, 0, 64, 64);
-    if (icon.secondaryColor) {
-      ctx.fillStyle = icon.secondaryColor;
-      ctx.fillRect(0, 32, 64, 32);
-    }
-  } else {
-    ctx.beginPath();
-    ctx.roundRect(0, 0, 64, 64, 3);
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(6, 6, 52, 52);
-    label(ctx, icon.lineLetter ?? '', 32, 44, 34, 52, '#000000', SANS, 400, 'center');
-  }
-  ctx.restore();
-}
 
 export function drawE235DetailedTransfers(
   ctx: CanvasRenderingContext2D,
@@ -126,7 +59,7 @@ export function drawE235DetailedTransfers(
       item.transfer.icons[
         item.iconRef ?? Math.floor(model.visibleElapsed / 3000) % item.transfer.icons.length
       ];
-    if (icon) drawE235LineIcon(ctx, icon, x, y, 24);
+    if (icon) drawIcon(ctx, icon, x, y, 24);
     const name = en ? item.aliasEn || item.transfer.en : item.aliasJa || item.transfer.ja;
     name
       .split('\n')

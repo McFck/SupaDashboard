@@ -1,6 +1,7 @@
 // NextStation, Copyright (C) 2015-2020 WatakuCity (tokiensis).
 import data from './yamanote-data.json';
 import type { RunSnapshot } from '../../simulation/run';
+import { iconFor } from '../../icons/catalogue';
 
 export const e235Data = data;
 export const e235Station = (code: string) => data.stations.find((s) => s.code === code)!;
@@ -63,6 +64,9 @@ export function e235TransferLayout(
         aliasJa: '',
         aliasEn: '',
       }))
-    ).map((item) => ({ ...item, transfer: station.transfers[item.ref]! })),
+    ).map((item) => {
+      const transfer = station.transfers[item.ref]!;
+      return { ...item, transfer: { ...transfer, icons: transfer.icons.map(iconFor) } };
+    }),
   };
 }

@@ -2,7 +2,8 @@ import type { ScreenSchedule } from '../../rendering/screens';
 import type { HibiyaPairSchedule } from './schedule';
 import { drawHeader } from './header';
 import { drawRoutePanel } from './route';
-import { routeTransfers, drawTransferSymbol, drawTransferDetail } from './transfers';
+import { drawIcon } from '../../icons/paint';
+import { routeTransfers, drawTransferDetail } from './transfers';
 import { drawFittedText, phrase, fontFamily } from './text';
 import {
   C,
@@ -129,7 +130,7 @@ function drawPlatformGuidance(ctx: CanvasRenderingContext2D, model: ScreenSchedu
     .forEach((sign, i) => {
       const x = 38 + (i % 2) * 600,
         y = 260 + Math.floor(i / 2) * 34;
-      drawTransferSymbol(ctx, sign, x, y, 27);
+      drawIcon(ctx, sign.icon, x, y, 27);
       drawFittedText(ctx, sign.ja + ' / ' + sign.en, x + 36, y + 15, 540, 24, 16, C.ink, 500);
     });
   drawFittedText(

@@ -5,16 +5,17 @@ import type {
 } from '../../../features/controls/model';
 import type { PullSnapshot } from '../../../features/controls/input/pull';
 
-const LINE_ACCENTS: Record<string, string> = {
-  yamanote: '#79b52c',
-  hibiya: '#9caeb7',
-  sakaisuji: '#bc782d',
-};
+import { lineFactsFor } from '../data/load';
+import { iconFor } from '../icons/catalogue';
+
+/** The line's identity symbol; absent for an unknown line id. */
+export function lineIdentity(lineId: unknown) {
+  const facts = lineFactsFor(lineId);
+  return facts ? iconFor(facts.iconId) : undefined;
+}
 
 function subwayAccent(lineId: unknown, appearance: TileAppearance): string {
-  return (
-    appearance.color ?? (typeof lineId === 'string' ? LINE_ACCENTS[lineId] : undefined) ?? '#94a3b8'
-  );
+  return appearance.color ?? lineIdentity(lineId)?.color ?? '#94a3b8';
 }
 
 function facePullTransform(pull: PullSnapshot | null): string | undefined {

@@ -4,6 +4,7 @@ import type { RunSnapshot } from '../../simulation/run';
 import { scheduleScreen, sessionKey } from '../../rendering/screens';
 import { VisibleClock } from '../../rendering/engine/visible-clock';
 import { drawE235Overlay } from './overlay';
+import { lineFactsFor } from '../../data/load';
 import { drawE235RouteMap, e235LoopCell } from './route-map';
 import { e235Data, e235Minutes, e235TrainStop, e235TransferLayout } from './data';
 import { e235Routine } from './schedule';
@@ -174,10 +175,11 @@ describe('NextStation E235 data and routines', () => {
     ).toHaveLength(2);
   });
   it('keeps the native fixed loop geometry', () => {
-    expect(e235LoopCell('JY16')).toEqual({ index: 0, upper: true });
-    expect(e235LoopCell('JY02')).toEqual({ index: 14, upper: true });
-    expect(e235LoopCell('JY17')).toEqual({ index: 0, upper: false });
-    expect(e235LoopCell('JY01')).toEqual({ index: 14, upper: false });
+    const map = lineFactsFor('yamanote')!.loopMap!;
+    expect(e235LoopCell(map, 'JY16')).toEqual({ index: 0, upper: true });
+    expect(e235LoopCell(map, 'JY02')).toEqual({ index: 14, upper: true });
+    expect(e235LoopCell(map, 'JY17')).toEqual({ index: 0, upper: false });
+    expect(e235LoopCell(map, 'JY01')).toEqual({ index: 14, upper: false });
   });
   it('accumulates train-setting minutes, including three-minute intervals in both directions', () => {
     const model = scheduleScreen(snapshot, { line }, 0);
@@ -198,14 +200,14 @@ describe('NextStation E235 data and routines', () => {
     const ikebukuro = e235TransferLayout('JY13', 'inner', 'Transfers', 'ja');
     expect(ikebukuro.lines[0]!.iconRef).toBe(1);
     expect(ikebukuro.lines[0]!.transfer.icons[ikebukuro.lines[0]!.iconRef!]!.color).toBe('#ff2a00');
-    expect(ikebukuro.lines.map((l) => l.transfer.icons[0]!.type)).toEqual([
-      'LineColor',
-      'LineColor',
-      'TrainIcon',
-      'TrainIcon',
-      'Subway',
-      'Subway',
-      'Subway',
+    expect(ikebukuro.lines.map((l) => l.transfer.icons[0]!.shape)).toEqual([
+      'letter-box',
+      'letter-box',
+      'train',
+      'train',
+      'ring',
+      'ring',
+      'ring',
     ]);
   });
   it('uses the actual routine index rather than inferring a cycle from connection count', () => {

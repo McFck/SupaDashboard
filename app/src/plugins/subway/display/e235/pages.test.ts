@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ScreenSchedule } from '../../rendering/screens';
-import { e235Data, e235TransferLayout } from './data';
-import { drawE235DetailedTransfers, drawE235LineIcon } from './icons';
+import { e235TransferLayout } from './data';
+import { drawE235DetailedTransfers } from './transfers';
 import { drawE235Page } from './pages';
 
 function recordingContext() {
@@ -42,23 +42,6 @@ function screen(page: ScreenSchedule['page'], language: ScreenSchedule['language
 }
 
 describe('E235 source transfer layouts', () => {
-  it('keeps all imported Shinkansen icons solid when the source has no secondary colour', () => {
-    const icons = e235Data.stations
-      .flatMap((station) =>
-        station.transfers.flatMap<Parameters<typeof drawE235LineIcon>[1]>(
-          (transfer) => transfer.icons,
-        ),
-      )
-      .filter((icon) => icon.type.startsWith('Shinkansen'));
-    expect(icons.map((icon) => icon.color)).toContain('#3f7fff');
-    expect(icons.map((icon) => icon.color)).toContain('#00a000');
-    for (const icon of icons) {
-      const { ctx, rectangles } = recordingContext();
-      drawE235LineIcon(ctx, icon, 0, 0, 30);
-      expect(rectangles).toEqual([{ color: icon.color, bounds: [0, 0, 64, 64] }]);
-    }
-  });
-
   it('renders Ikebukuro transfers in the source row order with their source icon types', () => {
     const layout = e235TransferLayout('JY13', 'inner', 'Transfers', 'ja');
     const { ctx, text, fillStyles } = recordingContext();
@@ -75,14 +58,14 @@ describe('E235 source transfer layouts', () => {
       [5, 1, 2],
       [6, 2, 0],
     ]);
-    expect(layout.lines.map((item) => item.transfer.icons[0]?.type)).toEqual([
-      'LineColor',
-      'LineColor',
-      'TrainIcon',
-      'TrainIcon',
-      'Subway',
-      'Subway',
-      'Subway',
+    expect(layout.lines.map((item) => item.transfer.icons[0]?.shape)).toEqual([
+      'letter-box',
+      'letter-box',
+      'train',
+      'train',
+      'ring',
+      'ring',
+      'ring',
     ]);
     expect(layout.lines[0]?.iconRef).toBe(1);
     expect(fillStyles).toContain('#ff2a00');

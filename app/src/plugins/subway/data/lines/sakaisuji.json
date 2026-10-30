@@ -2,6 +2,7 @@
   "id": "sakaisuji",
   "title": "Sakaisuji",
   "code": "K",
+  "iconId": "osaka-metro/k",
   "carCount": 8,
   "loop": false,
   "displayLanguages": ["ja-kana"],

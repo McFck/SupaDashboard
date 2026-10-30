@@ -1,4 +1,6 @@
 import type { ScreenSchedule } from '../../rendering/screens';
+import type { LineFacts } from '../../data/contracts';
+import { lineFactsFor } from '../../data/load';
 import { e235Data, e235Minutes } from './data';
 import {
   ACTIVE,
@@ -28,11 +30,15 @@ const UPPER_TRACK = HEADER + 125; // Upper canvas: names 0..120, track at 125..1
 const LOWER_TOP = HEADER + 185 + 2 + 2; // Upper canvas 185 + margins.
 const LOWER_TRACK = LOWER_TOP + 24;
 
-/** Fixed loop layout of the real displays: JY16..JY02 along the top, JY17..JY30, JY01 along the bottom. */
-export function e235LoopCell(code: string) {
-  const n = Number(code.slice(2));
-  if (n >= 2 && n <= 16) return { index: 16 - n, upper: true };
-  return { index: n === 1 ? 14 : n - 17, upper: false };
+/** Cell of a station in the line's two-row loop placement (`loopMap` in the line file). */
+export function e235LoopCell(map: NonNullable<LineFacts['loopMap']>, code: string) {
+  const top = map.upper.indexOf(code);
+  return top >= 0 ? { index: top, upper: true } : { index: map.lower.indexOf(code), upper: false };
+}
+function loopPlacement(model: ScreenSchedule) {
+  const map = lineFactsFor(model.line.id)?.loopMap;
+  if (!map) throw new Error(`Line ${model.line.id} has no loopMap`);
+  return map;
 }
 const cellX = (index: number) => ROW_X + index * CELL + CELL / 2;
 const trackY = (upper: boolean) => (upper ? UPPER_TRACK : LOWER_TRACK) + 18;
@@ -113,14 +119,15 @@ export function drawE235RouteMap(ctx: CanvasRenderingContext2D, model: ScreenSch
   ctx.fillRect(ROW_X + CELL - 27, UPPER_TRACK, 14 * CELL, 36);
   ctx.fillRect(ROW_X + CELL - 27, LOWER_TRACK, 14 * CELL, 36);
   loopEnds(ctx, forward);
-  const target = e235Target(model).code;
+  const target = e235Target(model).code,
+    placement = loopPlacement(model);
   const minutes = new Map(
     [...e235Minutes(model.snapshot, model.route)].filter(
       ([, m]) => m > 0 && m <= e235Data.routeMap.maxArrivalTimeToDisplay!,
     ),
   );
   for (const station of model.line.stations) {
-    const cell = e235LoopCell(station.code),
+    const cell = e235LoopCell(placement, station.code),
       cx = cellX(cell.index),
       cy = trackY(cell.upper);
     const isCurrent = station.code === target,
@@ -191,7 +198,7 @@ export function drawE235RouteMap(ctx: CanvasRenderingContext2D, model: ScreenSch
 /** RouteMap cursor (RunningMarker: 1.2s loop, slides -48 to -28px, fades) or StoppingMarker (1s pulse). */
 export function routeMapMarker(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time: number) {
   const target = e235Target(model),
-    cell = e235LoopCell(target.code),
+    cell = e235LoopCell(loopPlacement(model), target.code),
     cx = cellX(cell.index),
     cy = trackY(cell.upper);
   const forward = !opposite(model);
