@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { copyFile, mkdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT = path.resolve(APP_ROOT, '..');
 const ASSET_ROOT = path.join(REPO_ROOT, 'assets');
-const LINE_IDS = ['yamanote', 'hibiya', 'sakaisuji'];
+const LINE_IDS = JSON.parse(
+  readFileSync(path.join(APP_ROOT, 'src/plugins/subway/data/catalogue.json'), 'utf8'),
+).lines;
 const STATIC_ASSETS = [
   'assets/motion/runtime-cues.json',
   'assets/motion/data.js',

@@ -1,3 +1,4 @@
+import { LINE_CATALOGUE } from '../data/load';
 export type CueRole = 'voice' | 'melody' | 'chime' | 'signal' | 'mechanics' | 'bell';
 export type CueStatus = 'approved' | 'needs ear check' | 'mixed' | string;
 
@@ -111,7 +112,7 @@ export interface MotionAudioInstance {
 
 const bundlePromises = new Map<string, Promise<LoadedSubwayAssets>>();
 const scriptPromises = new Map<string, Promise<void>>();
-const lineIds = ['yamanote', 'hibiya', 'sakaisuji'] as const;
+const lineIds = LINE_CATALOGUE.map((line) => line.id);
 const warnedVariantFallbacks = new Set<string>();
 const doorRoles: Readonly<Record<string, CueRole>> = {
   chime_open: 'chime',

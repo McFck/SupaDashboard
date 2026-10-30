@@ -7,8 +7,8 @@ import {
   ANNOUNCEMENT_LANGUAGE_PRESETS,
   DISPLAY_LANGUAGE_PRESETS,
   SUBWAY_DEFAULT_CONFIG,
-  SUBWAY_LINE_IDS,
 } from './simulation/config';
+import { LINE_CATALOGUE, lineFactsFor } from './data/load';
 import {
   registerSubwayMixerChannel,
   SUBWAY_MIX_MUTED_ID,
@@ -22,57 +22,24 @@ import {
   runtime,
 } from './simulation/runtime';
 
-const lineTitles: Record<string, string> = {
-  yamanote: 'Yamanote',
-  hibiya: 'Hibiya',
-  sakaisuji: 'Sakaisuji',
-};
-const directionIds: Record<string, string[]> = {
-  yamanote: ['inner', 'outer'],
-  hibiya: ['to-kita-senju', 'to-naka-meguro'],
-  sakaisuji: ['southbound', 'northbound'],
-};
-const stationCodes: Record<string, string[]> = {
-  yamanote: Array.from({ length: 30 }, (_, index) => `JY${String(index + 1).padStart(2, '0')}`),
-  hibiya: Array.from({ length: 22 }, (_, index) => `H${String(index + 1).padStart(2, '0')}`),
-  sakaisuji: Array.from({ length: 10 }, (_, index) => `K${String(index + 11).padStart(2, '0')}`),
-};
 const lineOptions: Option[] = [
   { value: '', label: 'Next line' },
-  ...SUBWAY_LINE_IDS.map((value) => ({ value, label: lineTitles[value] })),
+  ...LINE_CATALOGUE.map((line) => ({ value: line.id, label: line.title })),
 ];
-const directionTitles: Record<string, string> = {
-  inner: 'Inner loop',
-  outer: 'Outer loop',
-  'to-kita-senju': 'To Kita-senju',
-  'to-naka-meguro': 'To Naka-meguro',
-  southbound: 'Southbound',
-  northbound: 'Northbound',
-};
 const directionOptions = (line?: string): Option[] => [
   { value: '', label: 'Automatic' },
-  ...(directionIds[line ?? ''] ?? Object.values(directionIds).flat()).map((value) => ({
-    value,
-    label: directionTitles[value] ?? value,
-  })),
+  ...(lineFactsFor(line)?.directions ?? LINE_CATALOGUE.flatMap((item) => item.directions)).map(
+    (direction) => ({ value: direction.id, label: direction.title }),
+  ),
 ];
-const stationOptions = (line?: string): Option[] =>
-  [
-    { value: '', label: 'Default start' },
-    (stationCodes[line ?? ''] ?? Object.values(stationCodes).flat()).map((value) => ({
-      value,
-      label: value,
-    })),
-  ].flat();
+const stationOptions = (line?: string): Option[] => [
+  { value: '', label: 'Default start' },
+  ...(lineFactsFor(line)?.stations ?? LINE_CATALOGUE.flatMap((item) => item.stations)).map(
+    (value) => ({ value, label: value }),
+  ),
+];
 const displayOptions = (line?: string): Option[] => {
-  const values =
-    line === 'sakaisuji'
-      ? ['ja-kana']
-      : line === 'hibiya'
-        ? ['ja-en', 'ja-zh', 'ja-ko']
-        : line === 'yamanote'
-          ? ['ja-en']
-          : DISPLAY_LANGUAGE_PRESETS;
+  const values = lineFactsFor(line)?.displayLanguages ?? DISPLAY_LANGUAGE_PRESETS;
   const titles: Record<string, string> = {
     'ja-en': 'Japanese / English',
     'ja-kana': 'Japanese / kana',
@@ -117,7 +84,7 @@ const settings: SettingsGroup[] = [
         label: 'Line',
         type: 'select',
         default: SUBWAY_DEFAULT_CONFIG.line,
-        suggestions: SUBWAY_LINE_IDS.map((value) => ({ value, label: lineTitles[value] })),
+        suggestions: lineOptions.filter((option) => option.value),
       },
       {
         key: 'direction',
@@ -142,7 +109,11 @@ const settings: SettingsGroup[] = [
         default: '1',
         suggestions: (args) =>
           Array.from(
-            { length: args?.line === 'hibiya' ? 7 : args?.line === 'sakaisuji' ? 8 : 11 },
+            {
+              length:
+                lineFactsFor(args?.line)?.carCount ??
+                Math.max(...LINE_CATALOGUE.map((line) => line.carCount)),
+            },
             (_, index) => ({ value: String(index + 1), label: String(index + 1) }),
           ),
       },

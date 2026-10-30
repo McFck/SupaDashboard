@@ -1,3 +1,5 @@
+import { lineFactsFor } from '../data/load';
+import { SUBWAY_DEFAULT_CONFIG } from '../simulation/config';
 import { normalizeSubwayLine, type LineDefinition } from '../simulation/lines';
 import { createRunState, snapshotRun, type RunSnapshot } from '../simulation/run';
 import { e235Images } from './lcd/e235-pages';
@@ -15,9 +17,8 @@ async function readJson(url: string, signal: AbortSignal): Promise<unknown> {
   return response.json() as Promise<unknown>;
 }
 
-function selectedLine(config: Readonly<Record<string, unknown>>): LineDefinition['id'] {
-  const candidate = config.line;
-  return candidate === 'hibiya' || candidate === 'sakaisuji' ? candidate : 'yamanote';
+function selectedLine(config: Readonly<Record<string, unknown>>): string {
+  return lineFactsFor(config.line)?.id ?? SUBWAY_DEFAULT_CONFIG.line;
 }
 
 export async function loadSubwayEditorPreview(

@@ -1,3 +1,5 @@
+import { LINE_CATALOGUE, lineFactsFor } from '../data/load';
+import type { LineFacts } from '../data/contracts';
 import { buildDirectionDetails, transferSupplements, type SideEvidence } from './station-details';
 
 export type LocalizedNames = Readonly<Record<string, string>>;
@@ -29,13 +31,13 @@ export interface StationDefinition {
 }
 
 export interface LineDefinition {
-  id: 'yamanote' | 'hibiya' | 'sakaisuji';
-  code: 'JY' | 'H' | 'K';
+  id: string;
+  code: string;
   order: number;
   names: LocalizedNames;
   color: string;
   loop: boolean;
-  carCount: 11 | 7 | 8;
+  carCount: number;
   directions: readonly LineDirection[];
   stations: readonly StationDefinition[];
 }
@@ -45,31 +47,6 @@ export interface RawLineBundle {
   pack: unknown;
 }
 
-const LINE_ORDER = ['yamanote', 'hibiya', 'sakaisuji'] as const;
-const LINE_CODE: Record<LineDefinition['id'], LineDefinition['code']> = {
-  yamanote: 'JY',
-  hibiya: 'H',
-  sakaisuji: 'K',
-};
-const CAR_COUNT: Record<LineDefinition['id'], LineDefinition['carCount']> = {
-  yamanote: 11,
-  hibiya: 7,
-  sakaisuji: 8,
-};
-const DIRECTION_SPECS: Record<LineDefinition['id'], readonly { id: string; delta: 1 | -1 }[]> = {
-  yamanote: [
-    { id: 'inner', delta: 1 },
-    { id: 'outer', delta: -1 },
-  ],
-  hibiya: [
-    { id: 'to-kita-senju', delta: 1 },
-    { id: 'to-naka-meguro', delta: -1 },
-  ],
-  sakaisuji: [
-    { id: 'southbound', delta: 1 },
-    { id: 'northbound', delta: -1 },
-  ],
-};
 const CODE_PATTERN = /^[A-Z]{1,3}\d{2}$/;
 const COLOR_PATTERN = /^#[\da-f]{6}$/i;
 const TRANSFER_CODE_PATTERN = /^[A-Z]{1,3}\d{2}$/;
@@ -147,7 +124,7 @@ function sideEvidenceFor(value: unknown, validDirections: ReadonlySet<string>): 
 }
 
 function directionNames(
-  lineId: LineDefinition['id'],
+  facts: LineFacts,
   directionId: string,
   rawLineDirections: RawRecord | undefined,
   rawPackDirections: RawRecord | undefined,
@@ -155,27 +132,20 @@ function directionNames(
 ): LocalizedNames {
   const lineLabel = rawLineDirections?.[directionId];
   const packLabel = rawPackDirections?.[directionId];
-  const endpointJa = (code: string) => stations.find((station) => station.code === code)?.names.ja;
-  if (lineId === 'yamanote') {
+  const direction = facts.directions.find((item) => item.id === directionId);
+  if (facts.loop) {
     const label = nonEmpty(lineLabel ?? packLabel, `Direction ${directionId} label`);
-    return Object.freeze({ ja: label, en: directionId === 'inner' ? 'Inner loop' : 'Outer loop' });
+    return Object.freeze({ ja: label, en: direction?.title ?? directionId });
   }
-  if (lineId === 'hibiya') {
-    const targetCode = directionId === 'to-kita-senju' ? 'H22' : 'H01';
-    return Object.freeze({
-      en: nonEmpty(packLabel ?? lineLabel, `Direction ${directionId} label`),
-      ja: `${endpointJa(targetCode)}方面`,
-    });
-  }
-  const targetCode = directionId === 'northbound' ? 'K11' : 'K20';
+  const endpointJa = stations.find((station) => station.code === direction?.target)?.names.ja;
   return Object.freeze({
     en: nonEmpty(packLabel ?? lineLabel, `Direction ${directionId} label`),
-    ja: `${endpointJa(targetCode)}方面`,
+    ja: `${endpointJa}方面`,
   });
 }
 
 function stationTransfers(
-  lineId: LineDefinition['id'],
+  lineId: string,
   code: string,
   rawStation: RawRecord,
   rawTransfers: RawRecord | undefined,
@@ -223,9 +193,9 @@ export function normalizeSubwayLine(rawLine: unknown, rawPack: unknown): LineDef
   const line = record(rawLine, 'Line definition');
   const pack = record(rawPack, 'Line sound pack');
   const id = nonEmpty(line.id, 'Line id');
-  if (!LINE_ORDER.includes(id as LineDefinition['id']))
-    throw new Error(`Unknown Subway line: ${id}`);
-  const lineId = id as LineDefinition['id'];
+  const facts = lineFactsFor(id);
+  if (!facts) throw new Error(`Unknown Subway line: ${id}`);
+  const lineId = facts.id;
   if (pack.id !== lineId)
     throw new Error(`Line and sound pack ids differ: ${lineId} / ${String(pack.id)}`);
 
@@ -233,7 +203,7 @@ export function normalizeSubwayLine(rawLine: unknown, rawPack: unknown): LineDef
   const color = nonEmpty(line.color, `Line ${lineId} color`);
   if (!COLOR_PATTERN.test(color)) throw new Error(`Invalid line color: ${color}`);
   if (typeof line.loop !== 'boolean') throw new Error(`Line ${lineId} loop flag must be boolean`);
-  if (line.loop !== (lineId === 'yamanote')) throw new Error(`Unexpected loop flag for ${lineId}`);
+  if (line.loop !== facts.loop) throw new Error(`Unexpected loop flag for ${lineId}`);
 
   const rawStations = line.stations;
   const packStations = pack.stations;
@@ -242,7 +212,7 @@ export function normalizeSubwayLine(rawLine: unknown, rawPack: unknown): LineDef
   if (!Array.isArray(packStations) || packStations.length !== rawStations.length) {
     throw new Error(`Line ${lineId} and pack station counts differ`);
   }
-  const expectedCode = LINE_CODE[lineId];
+  const expectedCode = facts.code;
   const seenCodes = new Set<string>();
   const firstCode = nonEmpty(
     record(rawStations[0], `Line ${lineId} station 1`).code,
@@ -261,7 +231,7 @@ export function normalizeSubwayLine(rawLine: unknown, rawPack: unknown): LineDef
     pack.directions === undefined
       ? undefined
       : record(pack.directions, `Pack ${lineId} directions`);
-  const directionSpecs = DIRECTION_SPECS[lineId];
+  const directionSpecs = facts.directions;
   const directionIds = directionSpecs.map((direction) => direction.id);
   for (const labels of [rawLineDirections, rawPackDirections]) {
     if (!labels) continue;
@@ -282,6 +252,10 @@ export function normalizeSubwayLine(rawLine: unknown, rawPack: unknown): LineDef
     if (!CODE_PATTERN.test(code) || !code.startsWith(expectedCode))
       throw new Error(`Invalid station code for ${lineId}: ${code}`);
     if (seenCodes.has(code)) throw new Error(`Duplicate station code: ${code}`);
+    if (facts.stations[order] !== code)
+      throw new Error(
+        `Station ${order + 1} of ${lineId} is ${code}, the catalogue lists ${facts.stations[order]}`,
+      );
     seenCodes.add(code);
 
     const rawPackStation = record(packStations[order], `Pack ${lineId} station ${order + 1}`);
@@ -322,7 +296,7 @@ export function normalizeSubwayLine(rawLine: unknown, rawPack: unknown): LineDef
 
     const details = buildDirectionDetails(
       directionIds,
-      CAR_COUNT[lineId],
+      facts.carCount,
       sideEvidenceFor(rawPackStation, new Set(directionIds)),
     );
     return Object.freeze({
@@ -352,24 +326,18 @@ export function normalizeSubwayLine(rawLine: unknown, rawPack: unknown): LineDef
       Object.freeze({
         id: spec.id,
         delta: spec.delta,
-        names: directionNames(
-          lineId,
-          spec.id,
-          rawLineDirections,
-          rawPackDirections,
-          stationRecords,
-        ),
+        names: directionNames(facts, spec.id, rawLineDirections, rawPackDirections, stationRecords),
       }),
     ),
   );
   return Object.freeze({
     id: lineId,
     code: expectedCode,
-    order: LINE_ORDER.indexOf(lineId),
+    order: LINE_CATALOGUE.indexOf(facts),
     names: name,
     color,
     loop: line.loop,
-    carCount: CAR_COUNT[lineId],
+    carCount: facts.carCount,
     directions,
     stations: Object.freeze(stationRecords),
   });
@@ -385,10 +353,11 @@ export function normalizeSubwayLines(
     if (byId.has(definition.id)) throw new Error(`Duplicate Subway line: ${definition.id}`);
     byId.set(definition.id, definition);
   }
-  if (byId.size !== LINE_ORDER.length || LINE_ORDER.some((id) => !byId.has(id))) {
-    throw new Error(`Subway line catalog must contain ${LINE_ORDER.join(', ')}`);
+  const ids = LINE_CATALOGUE.map((facts) => facts.id);
+  if (byId.size !== ids.length || ids.some((id) => !byId.has(id))) {
+    throw new Error(`Subway line catalog must contain ${ids.join(', ')}`);
   }
-  return Object.freeze(LINE_ORDER.map((id) => byId.get(id)!));
+  return Object.freeze(ids.map((id) => byId.get(id)!));
 }
 
 export function localizedName(names: LocalizedNames, language: string, fallback = ''): string {

@@ -35,6 +35,14 @@ describe('Subway settings boundary', () => {
       expect(normalizeSubwayConfig({ carNumber }, lines).carNumber).toBe(1);
     expect(normalizeSubwayConfig({ line: 'hibiya', carNumber: 8 }, lines).carNumber).toBe(1);
   });
+  it('loads the saved Yamanote inner-loop route unchanged from the catalogue', () => {
+    expect(normalizeSubwayConfig({ line: 'yamanote', direction: 'inner' }, lines)).toMatchObject({
+      line: 'yamanote',
+      direction: 'inner',
+      startStation: 'JY01',
+      displayLanguages: 'ja-en',
+    });
+  });
   it('keeps unknown settings and supplies safe defaults', () => {
     const config = normalizeSubwayConfig({ unknownKey: { retained: true } }, lines);
     expect(config).toMatchObject({
