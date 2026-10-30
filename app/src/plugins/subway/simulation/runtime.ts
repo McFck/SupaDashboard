@@ -66,6 +66,9 @@ export function createSubwayRuntime(
   const assetBase = options.assetBase ?? '/subway/';
   let alive = true;
   let ready = false;
+  /** Some surface of the applet is on screen. */
+  let shown = false;
+  /** The run ticks and plays: while shown, or behind another page while immersion is on. */
   let eligible = false;
   const audio =
     options.audio ??
@@ -92,9 +95,20 @@ export function createSubwayRuntime(
   let appliedConfig: ReturnType<typeof normalizeSubwayConfig> | undefined;
   const overrides = { line: false, direction: false, startStation: false, immersion: false };
   const unsubscribeActive = context.active.subscribe((value) => {
-    if (eligible === value) return;
-    eligible = value;
-    audio.setVisible(value);
+    shown = value;
+    updateEligible();
+    if (shown) publishScene(true);
+  });
+
+  /**
+   * The one place deciding whether the run goes on. Hidden with immersion on, it keeps its wall-clock schedule
+   * and its sound and only skips rendering; hidden without immersion, it pauses and catches up on return.
+   */
+  function updateEligible(): void {
+    const next = shown || (state?.immersion ?? false);
+    if (eligible === next) return;
+    eligible = next;
+    audio.setVisible(next);
     if (!alive || !ready) return;
     if (!state) {
       if (eligible && unavailable) publishUnavailable();
@@ -105,7 +119,7 @@ export function createSubwayRuntime(
       syncConfig();
       autoStartIfNeeded();
     } else dispatch({ type: 'pause' });
-  });
+  }
 
   function publishUnavailable(): void {
     const runtimeEpoch = epoch;
@@ -142,7 +156,7 @@ export function createSubwayRuntime(
   }
 
   function publishScene(force = false): void {
-    if (!alive || !eligible || !state || !lines.length) return;
+    if (!alive || !shown || !state || !lines.length) return;
     const now = clock.now();
     const line = lines.find((item) => item.id === state!.lineId);
     if (!line) return;
@@ -231,8 +245,9 @@ export function createSubwayRuntime(
   }
 
   function dispatch(command: RunCommand, ancestry?: EventAncestry, audioGesture = false): boolean {
-    if (!alive || !ready || (!eligible && command.type !== 'pause') || !state || !lines.length)
-      return false;
+    // Pausing and switching immersion are what change eligibility, so they also apply while not eligible.
+    const always = command.type === 'pause' || command.type === 'set-immersion';
+    if (!alive || !ready || (!eligible && !always) || !state || !lines.length) return false;
     const runtimeEpoch = epoch;
     const previousLine = state.lineId;
     const transition = reduceRun(state, command, clock.now(), lines, plans);
@@ -247,6 +262,7 @@ export function createSubwayRuntime(
     }
     scheduleWake();
     queueEffects(transition.effects, state, runtimeEpoch, command.type === 'pause', ancestry);
+    if (command.type === 'set-immersion') updateEligible();
     return true;
   }
 
@@ -293,7 +309,7 @@ export function createSubwayRuntime(
   }
 
   function setImmersion(enabled?: boolean, ancestry?: EventAncestry): boolean {
-    if (!alive || !ready || !eligible || !state) return false;
+    if (!alive || !ready || !state) return false;
     const requested = enabled ?? !state.immersion;
     if (requested) audio.setEnabled(true, true);
     else audio.setEnabled(false);
@@ -330,9 +346,17 @@ export function createSubwayRuntime(
   activeRuntime = handle;
 
   function syncConfig(): void {
-    if (!alive || !ready || !eligible || !state || !lines.length) return;
+    if (!alive || !ready || !state || !lines.length) return;
     const config = normalizeSubwayConfig(currentConfig, lines);
     const previous = appliedConfig;
+    if (!eligible) {
+      // Paused behind another page: only switching immersion on wakes the run; the rest applies once it runs.
+      if (config.immersion && !previous?.immersion) {
+        overrides.immersion = false;
+        dispatch({ type: 'set-immersion', enabled: true });
+      }
+      return;
+    }
     const routeChanged =
       !previous ||
       config.line !== previous.line ||
@@ -424,6 +448,7 @@ export function createSubwayRuntime(
       audio.setAnnouncementVolume(config.announcementVolume);
       audio.setEnabled(state.immersion);
       audio.transition(snapshotRun(state, clock.now(), lines, plans), []);
+      updateEligible();
       if (eligible) {
         syncConfig();
         if (!autoStartIfNeeded()) {
