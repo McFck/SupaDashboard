@@ -155,6 +155,7 @@
                 value={row.args[param.key]}
                 args={row.args}
                 provider={row.action.plugin}
+                showPluginMark={false}
                 onchange={(value) => setParam(row.index, param.key, value)}
               />
             {/each}
