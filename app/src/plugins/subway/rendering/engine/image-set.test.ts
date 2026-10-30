@@ -28,16 +28,16 @@ it('requests nothing until acquired, then once', async () => {
   const images = fakeImages();
   const set = new ImageSet(urls);
   expect(images).toHaveLength(0);
-  expect(set.pending).toBe(false);
   const first = set.acquire();
   expect(set.acquire()).toBe(first);
   expect(images).toHaveLength(2);
-  expect(set.pending).toBe(true);
+  const settled = vi.fn();
+  set.subscribe(settled);
   for (const image of images) {
     image.onload?.();
   }
   await first;
-  expect(set.pending).toBe(false);
+  expect(settled).toHaveBeenCalledTimes(2);
   expect(set.revision).toBe(2);
 });
 
@@ -48,7 +48,7 @@ it('settles readiness when image requests never complete', async () => {
   const ready = set.acquire();
   await vi.advanceTimersByTimeAsync(15_000);
   await ready;
-  expect(set.pending).toBe(false);
+  expect(set.revision).toBe(2);
   expect(
     images.every((image) => image.onload === null && image.onerror === null && image.src === ''),
   ).toBe(true);
@@ -67,5 +67,5 @@ it('settles readiness even if SVG raster inspection throws', async () => {
     image.onload?.();
   }
   await ready;
-  expect(set.pending).toBe(false);
+  expect(set.revision).toBe(2);
 });

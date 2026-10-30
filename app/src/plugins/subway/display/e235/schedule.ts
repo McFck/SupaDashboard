@@ -1,6 +1,6 @@
 import type { RunSnapshot } from '../../simulation/run';
 import type { ScreenLanguage, ScreenPage } from '../../rendering/screens';
-import { e235Data as data, e235TrainStop } from './data';
+import { e235Data as data, e235Station, e235TrainStop } from './data';
 
 const pages: Record<string, ScreenPage> = {
   RouteMap: 'broad',
@@ -12,6 +12,9 @@ const pages: Record<string, ScreenPage> = {
   PrioritySeat: 'priority',
   MobilePhone: 'mobile',
 };
+// Transfer icons of a line with several of them take turns at this interval.
+export const E235_ICON_DWELL_MS = 3_000;
+const ICON_PAGES = new Set<ScreenPage>(['nearby', 'transfers', 'platform', 'door', 'closing']);
 const locale = (value: string | null): ScreenLanguage =>
   value === 'English' ? 'en' : value === 'Hiragana' ? 'kana' : 'ja';
 function routineStep(
@@ -72,7 +75,18 @@ export function e235Routine(
     page: pages[body.mode!]!,
     language: requested(body.language),
     headerLanguage: requested(main.language, true),
+    iconsRotate:
+      ICON_PAGES.has(pages[body.mode!]!) &&
+      e235Station(code).transfers.some((transfer) => transfer.icons.length > 1),
     pageDeadline: body.deadline * scale,
     languageDeadline: main.deadline,
+  };
+}
+
+// The Yamanote header shows the wall-clock minute, so the screen also wakes at each minute boundary.
+export function e235WallClock(wallMs: number): { label: string; wakeInMs: number } {
+  return {
+    label: new Date(wallMs).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    wakeInMs: 60_000 - (wallMs % 60_000),
   };
 }

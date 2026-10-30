@@ -88,6 +88,18 @@ describe('NextStation E235 data and routines', () => {
       expect(fills, state).toContain('#a00000');
     }
   });
+  it('wakes at each icon rotation while a multi-icon transfer page is shown', () => {
+    const stopped = { ...snapshot, state: 'stopped' as const };
+    const samples = Array.from({ length: 120 }, (_, i) =>
+      scheduleScreen(stopped, { line, languages: ['ja'] }, i * 500),
+    ).filter((schedule) => schedule.page === 'transfers');
+    expect(samples.length).toBeGreaterThan(0);
+    for (const schedule of samples) {
+      const boundary = (Math.floor(schedule.visibleElapsed / 3000) + 1) * 3000;
+      expect(schedule.nextDeadline).toBeLessThanOrEqual(boundary);
+    }
+    expect(new Set(samples.map((schedule) => schedule.invalidationKey)).size).toBeGreaterThan(1);
+  });
   it('changes the selected car without restarting the display cycle or reusing the old cached drawing', () => {
     const clock = new VisibleClock();
     const key = sessionKey(snapshot, { line });

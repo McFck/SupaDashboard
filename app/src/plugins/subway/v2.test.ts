@@ -40,7 +40,7 @@ const data: SubwaySceneData = {
   snapshot,
   config: { displayLanguages: 'ja-en' },
   visibleElapsed: 0,
-  clockLabel: '09:41',
+  wallMs: new Date(2026, 0, 1, 9, 41).getTime(),
 };
 
 describe('Subway v2 content and composition', () => {
@@ -56,7 +56,9 @@ describe('Subway v2 content and composition', () => {
         'display',
       ),
     ).toBe(key);
-    expect(subwaySceneRevision({ ...data, clockLabel: '09:42' }, 'display')).not.toBe(key);
+    expect(
+      subwaySceneRevision({ ...data, wallMs: new Date(2026, 0, 1, 9, 42).getTime() }, 'display'),
+    ).not.toBe(key);
     expect(
       subwaySceneRevision({ ...data, config: { ...data.config, carNumber: '3' } }, 'display'),
     ).not.toBe(key);

@@ -36,6 +36,7 @@ function screen(page: ScreenSchedule['page'], language: ScreenSchedule['language
     page,
     language,
     visibleElapsed: 0,
+    iconPhase: 0,
     snapshot: { state: 'stopped', station: 'JY13', direction: 'inner' },
     station: { code: 'JY13' },
   } as unknown as ScreenSchedule;
