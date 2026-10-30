@@ -1,4 +1,4 @@
-// Persisted settings shape (v8).
+// Persisted settings shape (v9).
 import type { ControlConfig } from '../controls/model';
 import type { DeckSizing, Item } from '../layout/grid';
 
@@ -26,9 +26,10 @@ export type AppletSettingsEntry = {
 export type Deck = { pages: Page[]; activePage: string };
 
 export type Settings = {
-  version: 8;
+  version: 9;
   display: {
     monitor: string | null;
+    monitorLabel: string | null;
     fullscreen: boolean;
     alwaysOnTop: boolean;
     /** Backdrop behind the widgets on the transparent dashboard window: the colour, or the live desktop wallpaper. */

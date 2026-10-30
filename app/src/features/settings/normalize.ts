@@ -91,12 +91,13 @@ export function migrate(input: unknown): Settings {
   return {
     ...out,
     ...saved,
-    version: 8,
+    version: 9,
     controls,
     display: {
       ...out.display,
       ...display,
       monitor: pick(display.monitor, (v) => typeof v === 'string', null),
+      monitorLabel: pick(display.monitorLabel, (v) => typeof v === 'string', null),
       fullscreen: pick(display.fullscreen, (v) => typeof v === 'boolean', false),
       alwaysOnTop: pick(display.alwaysOnTop, (v) => typeof v === 'boolean', false),
       background: {

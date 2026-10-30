@@ -7,6 +7,27 @@ const monitor = (name: string | null, x = 0) => ({
   size: { width: 1920, height: 1080 },
 });
 
+it('keeps a readable disconnected selection and uses the device path after GDI renumbering', () => {
+  const options = buildMonitorOptions(
+    [monitor('DISPLAY17')],
+    [{ name: 'DISPLAY17', friendly: 'DELL U2723QE', path: 'MONITOR#Stable' }],
+  );
+  expect(options[0]).toMatchObject({ value: 'monitor#stable', label: 'DELL U2723QE' });
+  expect(monitorSelectOptions([], 'monitor#stable', options[0].label)[1]).toMatchObject({
+    value: 'monitor#stable',
+    label: 'DELL U2723QE',
+    disabled: true,
+  });
+  expect(
+    buildMonitorOptions(
+      [monitor('DISPLAY22')],
+      [{ name: 'DISPLAY22', friendly: 'DELL U2723QE', path: 'MONITOR#Stable' }],
+    )[0].value,
+  ).toBe(options[0].value);
+  expect(buildMonitorOptions([monitor('DISPLAY17')])[0].label).toBe('1920×1080');
+  expect(monitorSelectOptions(options, 'DISPLAY17')).toHaveLength(2);
+});
+
 it.each([
   {
     monitors: [monitor('B'), monitor('A')],

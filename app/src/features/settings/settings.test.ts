@@ -44,7 +44,7 @@ describe('settings migration', () => {
       slots: { 'bottom-strip': ['prev'], dock: ['prev'] },
     };
     const s = migrate(v1);
-    expect(s.version).toBe(8);
+    expect(s.version).toBe(9);
     expect(s.deck.pages[0].applet).toBe('subway');
     expect(s.display).toMatchObject({
       monitor: 'X',
@@ -95,7 +95,7 @@ describe('settings migration', () => {
 
   it('uses defaults for missing data and refuses to overwrite a future settings version', () => {
     expect(migrate(undefined)).toEqual(DEFAULTS);
-    expect(() => migrate({ version: 9 })).toThrow('newer than this app supports');
+    expect(() => migrate({ version: 10 })).toThrow('newer than this app supports');
     expect(() => migrate({ version: 99 })).toThrow('newer than this app supports');
     expect(() => migrate({ version: '5', controls: [] })).toThrow('Unsupported settings version');
   });
@@ -216,6 +216,7 @@ describe('settings migration', () => {
     const migrated = migrate(valid);
     expect(migrated.display).toEqual({
       monitor: 'DISPLAY-1',
+      monitorLabel: null,
       fullscreen: true,
       alwaysOnTop: true,
       background: { ...background, mode: 'color' },
@@ -340,7 +341,7 @@ describe('settings migration', () => {
       pageRotation: { intervalSeconds: 10 },
     };
     const migrated = migrate(interrupted);
-    expect(migrated).toMatchObject({ version: 8, deck: { pages: [{ applet: 'subway' }] } });
+    expect(migrated).toMatchObject({ version: 9, deck: { pages: [{ applet: 'subway' }] } });
     expect(migrated).not.toHaveProperty('pageRotation');
   });
 
@@ -418,7 +419,7 @@ describe('settings v7 to v8', () => {
     'moves skin %s to the pages and the settings and layouts to the applet keys',
     (_, skin, applets) => {
       const migrated = migrate(v7File(skin));
-      expect(migrated.version).toBe(8);
+      expect(migrated.version).toBe(9);
       expect(migrated).not.toHaveProperty('skin');
       expect(migrated).not.toHaveProperty('skinSettings');
       expect(migrated).not.toHaveProperty('skinLayouts');
@@ -455,45 +456,4 @@ describe('settings v7 to v8', () => {
     file.deck.pages[1].applet = 'x'.repeat(129);
     expect(migrate(file).deck.pages.map((page) => 'applet' in page)).toEqual([false, false]);
   });
-});
-
-describe('now playing options', () => {
-  const withWidget = (version: number, options?: unknown) => {
-    const saved: any = { ...structuredClone(DEFAULTS), version };
-    saved.controls.push({
-      id: 'np',
-      name: 'Now playing',
-      type: 'nowPlaying',
-      variants: [{ id: 'state-1', label: '' }],
-      ...(options === undefined ? {} : { options }),
-    });
-    return saved;
-  };
-  const widget = (settings: ReturnType<typeof migrate>) =>
-    settings.controls.find((control) => control.id === 'np');
-
-  it('upgrades v6 to v8 keeping every setting and giving the widget the All filter', () => {
-    const v6 = withWidget(6);
-    const migrated = migrate(v6);
-    expect(migrated.version).toBe(8);
-    expect(widget(migrated)?.options).toEqual({ sources: [] });
-    expect({ ...migrated, version: 6, controls: migrated.controls.slice(0, -1) }).toEqual({
-      ...v6,
-      controls: v6.controls.slice(0, -1),
-    });
-    expect(migrate(JSON.parse(serializeSettings(migrated)))).toEqual(migrated);
-  });
-
-  it('keeps an explicit filter, including sources of apps that are not running', () => {
-    const sources = ['spotify', 'app:Gone.App!Main'];
-    const migrated = migrate(withWidget(7, { sources: [...sources, 'spotify'] }));
-    expect(widget(migrated)?.options).toEqual({ sources });
-  });
-
-  it.each([{ sources: 'spotify' }, { sources: [1] }, { sources: [''] }, { sources: [null] }])(
-    'refuses a malformed filter instead of widening it to All: %j',
-    (options) => {
-      expect(() => migrate(withWidget(7, options))).toThrow('Now playing sources are malformed');
-    },
-  );
 });

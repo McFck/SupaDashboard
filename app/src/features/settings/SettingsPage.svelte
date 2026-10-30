@@ -28,12 +28,29 @@
 
   const monitorOptions = $derived(buildMonitorOptions(screens, nativeNames, primaryScreen));
   const screenOptions = $derived(
-    monitorSelectOptions(monitorOptions, settings.display.monitor).map((option) => ({
+    monitorSelectOptions(
+      monitorOptions,
+      settings.display.monitor,
+      settings.display.monitorLabel,
+    ).map((option) => ({
       ...option,
       icon: option.primary ? Star : undefined,
       iconLabel: option.primary ? 'Primary display' : undefined,
     })),
   );
+  const selectedMonitor = $derived(
+    monitorOptions.find(
+      (option) =>
+        option.value === settings.display.monitor || option.legacyName === settings.display.monitor,
+    ),
+  );
+
+  function chooseMonitor(value: string) {
+    settings.display.monitor = value === CURRENT_POSITION ? null : value;
+    settings.display.monitorLabel =
+      monitorOptions.find((option) => option.value === value)?.label ?? null;
+    commit('Choose monitor');
+  }
 
   async function refreshMonitors() {
     const generation = ++refreshGeneration;
@@ -90,10 +107,8 @@
       <Choice
         id="monitor-choice"
         class="w-56 min-w-0 max-w-full"
-        value={settings.display.monitor ?? CURRENT_POSITION}
-        onchange={(v) => {
-          settings.display.monitor = v === CURRENT_POSITION ? null : v;
-        }}
+        value={selectedMonitor?.value ?? settings.display.monitor ?? CURRENT_POSITION}
+        onchange={chooseMonitor}
         onopen={() => {
           void refreshMonitors();
         }}

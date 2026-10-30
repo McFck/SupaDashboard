@@ -152,7 +152,9 @@ export class DisplayController {
     }
     if (
       initial.fullscreen === this.fullscreen.active &&
-      (!initial.monitor || initial.monitor === startup.monitor?.name)
+      (!initial.monitor ||
+        initial.monitor === startup.monitor?.name ||
+        initial.monitor === startup.monitor?.legacyName)
     ) {
       this.applied = initial;
     }
@@ -210,11 +212,15 @@ export class DisplayController {
     } else if (this.fullscreen.active) {
       await this.fullscreen.exit(target, request.alwaysOnTop);
     } else if (request.monitor !== last?.monitor) {
-      const chosen = !!request.monitor && target.name === request.monitor;
+      const chosen =
+        !!request.monitor &&
+        (target.name === request.monitor || target.legacyName === request.monitor);
       await this.windowed.moveTo(target, chosen, request.alwaysOnTop);
     }
     await this.show();
-    return !request.monitor || target.name === request.monitor;
+    return (
+      !request.monitor || target.name === request.monitor || target.legacyName === request.monitor
+    );
   }
 
   /** The screen is back (or another one was chosen): open at its remembered rectangle, as at start-up. */
