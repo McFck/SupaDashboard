@@ -4,25 +4,13 @@ import type { AppletRuntimeContext } from '../../../features/applets/contracts';
 import { normalizeSubwayLines, stepStation, type LineDefinition } from './lines';
 import { announcementLanguages, firstStationForDirection, normalizeSubwayConfig } from './config';
 import { createSubwayAudio, type SubwayAudioController } from '../audio/audio';
-import {
-  buildSegmentCuePlan,
-  loadSubwayAssets,
-  loadSubwayMotionEngine,
-  type LoadedSubwayAssets,
-  type SegmentCuePlan,
-} from '../audio/sound-pack';
-import {
-  createRunState,
-  nextRunWake,
-  reduceRun,
-  segmentPlanKey,
-  snapshotRun,
-  type RunCommand,
-  type RunEffect,
-  type RunSnapshot,
-  type SubwayCuePlans,
-  type SubwayRunState,
-} from './run';
+import { loadSubwayAssets, loadSubwayMotionEngine } from '../audio/asset-loader';
+import type { LoadedSubwayAssets } from '../audio/sound-types';
+import { buildCuePlans } from './cue-plans';
+import { resolveLineRequest } from './line-request';
+import { discreteKey, eventFor, project, projectionKeys } from './projection';
+import { createRunState, nextRunWake, reduceRun, snapshotRun, type RunSnapshot } from './run';
+import type { RunCommand, RunEffect, SubwayCuePlans, SubwayRunState } from './run-state';
 
 export interface SubwayRuntimeClock {
   now(): number;
@@ -68,120 +56,6 @@ export const subwaySceneState: Readable<SubwaySceneState | undefined> = {
 };
 let activeRuntime: SubwayRuntimeHandle | undefined;
 let activeRuntimeContext: AppletRuntimeContext | undefined;
-
-function buildCuePlans(
-  lines: readonly LineDefinition[],
-  assets: LoadedSubwayAssets,
-  base: string,
-  languages: readonly string[],
-): SubwayCuePlans {
-  const plans: Record<string, SegmentCuePlan> = {};
-  for (const line of lines) {
-    const bundle = assets.lines[line.id];
-    if (!bundle) throw new Error(`Missing Subway asset bundle: ${line.id}`);
-    for (const station of line.stations)
-      for (const direction of line.directions) {
-        const next = stepStation(line, station.code, direction.id);
-        if (next) {
-          plans[segmentPlanKey(line.id, station.code, next.code, direction.id)] =
-            buildSegmentCuePlan(
-              bundle,
-              station.code,
-              next.code,
-              direction.id,
-              languages,
-              next.transfers.length > 0,
-              assets.catalogue,
-              base,
-              assets.doorSequence,
-            );
-        }
-        plans[segmentPlanKey(line.id, station.code, station.code, direction.id)] =
-          buildSegmentCuePlan(
-            bundle,
-            station.code,
-            station.code,
-            direction.id,
-            languages,
-            station.transfers.length > 0,
-            assets.catalogue,
-            base,
-            assets.doorSequence,
-          );
-      }
-  }
-  return Object.freeze(plans);
-}
-
-const projectionKeys = [
-  'station',
-  'next',
-  'state',
-  'line',
-  'direction',
-  'doorSide',
-  'speed',
-  'progress',
-  'paused',
-  'immersion',
-] as const;
-type ProjectionKey = (typeof projectionKeys)[number];
-
-function project(snapshot: RunSnapshot): Record<ProjectionKey, string | number | boolean> {
-  return {
-    station: snapshot.station,
-    next: snapshot.next,
-    state: snapshot.state,
-    line: snapshot.line,
-    direction: snapshot.direction,
-    doorSide: snapshot.doorSide,
-    speed: snapshot.speed,
-    progress: snapshot.progress,
-    paused: snapshot.paused,
-    immersion: snapshot.immersion,
-  };
-}
-
-function eventFor(effect: Exclude<RunEffect, { type: 'play-cue' }>): {
-  id: string;
-  parameter?: string;
-  payload: unknown;
-} {
-  if (effect.type === 'departed')
-    return {
-      id: 'subway.departed',
-      parameter: effect.from,
-      payload: {
-        line: effect.line,
-        direction: effect.direction,
-        from: effect.from,
-        to: effect.to,
-        generation: effect.generation,
-      },
-    };
-  if (effect.type === 'arrived')
-    return {
-      id: 'subway.arrived',
-      parameter: effect.to,
-      payload: {
-        line: effect.line,
-        direction: effect.direction,
-        from: effect.from,
-        to: effect.to,
-        generation: effect.generation,
-      },
-    };
-  if (effect.type === 'state-changed')
-    return {
-      id: 'subway.stateChanged',
-      parameter: effect.state,
-      payload: { generation: effect.generation },
-    };
-  return {
-    id: effect.type === 'emergency' ? 'subway.emergency' : 'subway.suspended',
-    payload: { generation: effect.generation },
-  };
-}
 
 export function createSubwayRuntime(
   context: AppletRuntimeContext,
@@ -274,17 +148,7 @@ export function createSubwayRuntime(
     if (!line) return;
     const snapshot = snapshotRun(state, now, lines, plans);
     const discrete = [
-      snapshot.station,
-      snapshot.next,
-      snapshot.state,
-      snapshot.line,
-      snapshot.direction,
-      snapshot.doorSide,
-      snapshot.doors,
-      snapshot.paused,
-      snapshot.immersion,
-      snapshot.multiplier,
-      snapshot.generation,
+      discreteKey(snapshot),
       currentConfig.displayLanguages,
       currentConfig.announcementLanguages,
       currentConfig.manualView,
@@ -324,19 +188,7 @@ export function createSubwayRuntime(
         const now = clock.now();
         const snapshot = snapshotRun(nextState, now, lines, plans);
         const values = project(snapshot);
-        const discrete = [
-          snapshot.station,
-          snapshot.next,
-          snapshot.state,
-          snapshot.line,
-          snapshot.direction,
-          snapshot.doorSide,
-          snapshot.doors,
-          snapshot.paused,
-          snapshot.immersion,
-          snapshot.multiplier,
-          snapshot.generation,
-        ].join('|');
+        const discrete = discreteKey(snapshot);
         const discreteChanged = discrete !== lastDiscreteProjection;
         if (settled || discreteChanged || now - lastNumericProjectionAt >= 250) {
           lastDiscreteProjection = discrete;
@@ -417,39 +269,22 @@ export function createSubwayRuntime(
     ancestry?: EventAncestry,
   ): boolean {
     if (!alive || !ready || !eligible || !state || !lines.length) return false;
-    const currentLine = lines.find((item) => item.id === state!.lineId)!;
-    const requestedLine = typeof args.line === 'string' && args.line.trim() ? args.line : undefined;
-    const nextLine =
-      requestedLine === undefined
-        ? lines[(lines.findIndex((item) => item.id === currentLine.id) + 1) % lines.length]
-        : lines.find((item) => item.id === requestedLine);
-    if (!nextLine) return false;
-    const requestedDirection =
-      typeof args.direction === 'string' && args.direction.trim() ? args.direction : undefined;
-    const direction =
-      requestedDirection ??
-      (nextLine.id === currentLine.id &&
-      nextLine.directions.some((item) => item.id === state!.direction)
-        ? state.direction
-        : nextLine.directions[0].id);
-    if (!nextLine.directions.some((item) => item.id === direction)) return false;
-    const requestedStation =
-      typeof args.startStation === 'string' && args.startStation.trim()
-        ? args.startStation
-        : undefined;
-    const stationCode =
-      requestedStation ??
-      (nextLine.id === currentLine.id &&
-      nextLine.stations.some((item) => item.code === state!.stationCode)
-        ? state.stationCode
-        : firstStationForDirection(nextLine, direction));
-    if (!nextLine.stations.some((item) => item.code === stationCode)) return false;
+    const request = resolveLineRequest(lines, state, args);
+    if (!request) return false;
     overrides.line = true;
-    if (requestedDirection !== undefined) overrides.direction = true;
-    if (requestedStation !== undefined || nextLine.id !== currentLine.id)
-      overrides.startStation = true;
+    if (request.named.direction) overrides.direction = true;
+    if (request.named.station) overrides.startStation = true;
     if (
-      !dispatch({ type: 'configure', lineId: nextLine.id, direction, stationCode }, ancestry, true)
+      !dispatch(
+        {
+          type: 'configure',
+          lineId: request.line.id,
+          direction: request.direction,
+          stationCode: request.stationCode,
+        },
+        ancestry,
+        true,
+      )
     )
       return false;
     autoStarted = false;

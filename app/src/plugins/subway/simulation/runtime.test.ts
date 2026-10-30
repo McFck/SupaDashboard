@@ -3,7 +3,7 @@ import { get, writable } from 'svelte/store';
 import type { AppletRuntimeContext } from '../../../features/applets/contracts';
 import type { RawLineBundle } from './lines';
 import { createSubwayRuntime, subwaySceneState, type SubwayRuntimeClock } from './runtime';
-import type { DoorSequenceApi, LoadedSubwayAssets, RuntimeCueManifest } from '../audio/sound-pack';
+import type { DoorSequenceApi, LoadedSubwayAssets, RuntimeCueManifest } from '../audio/sound-types';
 import type { SubwayAudioController } from '../audio/audio';
 
 const files = import.meta.glob('../../../../../assets/lines/*/{line,pack}.json', {
@@ -12,13 +12,7 @@ const files = import.meta.glob('../../../../../assets/lines/*/{line,pack}.json',
 }) as Record<string, unknown>;
 const bundles: Record<string, RawLineBundle> = {};
 for (const [path, value] of Object.entries(files)) {
-  const id = path.includes('/yamanote/')
-    ? 'yamanote'
-    : path.includes('/hibiya/')
-      ? 'hibiya'
-      : path.includes('/sakaisuji/')
-        ? 'sakaisuji'
-        : undefined;
+  const id = ['yamanote', 'hibiya', 'sakaisuji'].find((line) => path.includes(`/${line}/`));
   if (!id) continue;
   bundles[id] ??= { line: undefined, pack: undefined };
   if (path.endsWith('/line.json')) bundles[id].line = value;

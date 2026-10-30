@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunSnapshot } from '../simulation/run';
-import type { ResolvedCue, TrainMotionApi } from './sound-pack';
+import type { ResolvedCue, TrainMotionApi } from './sound-types';
 import { createSubwayAudio } from './audio';
 
 function audioParam() {

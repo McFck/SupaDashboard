@@ -1,12 +1,13 @@
-import type { RunEffect, RunSnapshot } from '../simulation/run';
-import type { MotionAudioInstance, ResolvedCue, TrainMotionApi } from './sound-pack';
-import { loadSubwayMotionEngine } from './sound-pack';
+import type { RunSnapshot } from '../simulation/run';
+import type { RunEffect } from '../simulation/run-state';
+import type { MotionAudioInstance, ResolvedCue, TrainMotionApi } from './sound-types';
+import { loadSubwayMotionEngine } from './asset-loader';
+import { playEmergencyAlert } from './audio-alert';
+import { createCueBufferCache } from './audio-cache';
 import { subscribeSubwayMixerSettings } from './audio-volume';
 
-const CACHE_LIMIT = 32 * 1024 * 1024;
 const MOTION_CALIBRATION = 0.65;
 
-type CachedBuffer = { buffer: AudioBuffer; bytes: number };
 type AudioProfile = { id?: string };
 
 export type SubwayAudioStats = {
@@ -65,13 +66,13 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
   let mixVolume = 1;
   let mixMuted = false;
   let announcementVolume = 0.8;
-  let cacheBytes = 0;
-  let cachePeakBytes = 0;
-  let cacheHits = 0;
   let availabilityKnown: boolean | undefined;
-  const cache = new Map<string, CachedBuffer>();
-  const pending = new Map<string, Promise<AudioBuffer | undefined>>();
-  const pinned = new Map<string, number>();
+  const buffers = createCueBufferCache({
+    fetch: fetchAsset,
+    context: () => context,
+    disposed: () => disposed,
+    warnOnce,
+  });
   const activeSources = new Map<AudioScheduledSourceNode, string | undefined>();
   const failed = new Set<string>();
   const alerts = new Set<number>();
@@ -133,58 +134,6 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     console.warn(`Subway audio unavailable (${key})`, error);
   }
 
-  function setPinned(url: string | undefined, delta: number) {
-    if (!url) return;
-    const next = (pinned.get(url) ?? 0) + delta;
-    if (next > 0) pinned.set(url, next);
-    else pinned.delete(url);
-  }
-
-  function pruneCache() {
-    if (cacheBytes <= CACHE_LIMIT) return;
-    for (const [url, entry] of cache) {
-      if (cacheBytes <= CACHE_LIMIT) break;
-      if (pinned.has(url)) continue;
-      cache.delete(url);
-      cacheBytes -= entry.bytes;
-    }
-  }
-
-  async function decode(cue: ResolvedCue): Promise<AudioBuffer | undefined> {
-    const audioContext = context;
-    if (!audioContext || disposed) return undefined;
-    const existing = cache.get(cue.url);
-    if (existing) {
-      cache.delete(cue.url);
-      cache.set(cue.url, existing);
-      cacheHits++;
-      return existing.buffer;
-    }
-    const underway = pending.get(cue.url);
-    if (underway) return underway;
-    const task = (async () => {
-      try {
-        const response = await fetchAsset(cue.url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const buffer = await audioContext.decodeAudioData(await response.arrayBuffer());
-        if (disposed || audioContext !== context) return undefined;
-        const bytes = buffer.length * buffer.numberOfChannels * 4;
-        cache.set(cue.url, { buffer, bytes });
-        cacheBytes += bytes;
-        cachePeakBytes = Math.max(cachePeakBytes, cacheBytes);
-        pruneCache();
-        return buffer;
-      } catch (error) {
-        warnOnce(cue.url, error);
-        return undefined;
-      } finally {
-        pending.delete(cue.url);
-      }
-    })();
-    pending.set(cue.url, task);
-    return task;
-  }
-
   function stopSources() {
     for (const [source, url] of [...activeSources]) {
       try {
@@ -194,7 +143,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       }
       source.disconnect();
       activeSources.delete(source);
-      setPinned(url, -1);
+      buffers.pin(url, -1);
     }
   }
 
@@ -319,10 +268,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       voiceBus?.disconnect();
       cueBus = undefined;
       voiceBus = undefined;
-      cache.clear();
-      pending.clear();
-      pinned.clear();
-      cacheBytes = 0;
+      buffers.clear();
       if (audioContext && audioContext.state !== 'closed')
         void audioContext.close().catch(() => {});
       setAvailability(false);
@@ -378,35 +324,13 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
 
   function preload(cues: readonly ResolvedCue[]) {
     if (!enabled || !visible || !context) return;
-    for (const cue of cues) void decode(cue);
+    for (const cue of cues) void buffers.decode(cue);
   }
 
   function playAlert(generation: number) {
     if (!context || !cueBus || !enabled || !visible || mixMuted || alerts.has(generation)) return;
     alerts.add(generation);
-    const start = context.currentTime;
-    for (const [frequency, at] of [
-      [660, 0],
-      [880, 0.15],
-    ] as const) {
-      const oscillator = context.createOscillator();
-      const envelope = context.createGain();
-      const onset = start + at;
-      oscillator.frequency.setValueAtTime(frequency, onset);
-      envelope.gain.setValueAtTime(0, onset);
-      envelope.gain.linearRampToValueAtTime(0.16, onset + 0.015);
-      envelope.gain.setValueAtTime(0.16, onset + 0.095);
-      envelope.gain.linearRampToValueAtTime(0, onset + 0.12);
-      oscillator.connect(envelope).connect(cueBus);
-      activeSources.set(oscillator, undefined);
-      oscillator.onended = () => {
-        activeSources.delete(oscillator);
-        oscillator.disconnect();
-        envelope.disconnect();
-      };
-      oscillator.start(onset);
-      oscillator.stop(onset + 0.125);
-    }
+    playEmergencyAlert(context, cueBus, activeSources);
   }
 
   function transition(snapshot: RunSnapshot, effects: readonly RunEffect[]) {
@@ -457,7 +381,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       effect.generation !== audioGeneration
     )
       return;
-    const buffer = await decode(effect.cue);
+    const buffer = await buffers.decode(effect.cue);
     if (
       !buffer ||
       disposed ||
@@ -480,14 +404,14 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     try {
       const source = api.playCue(audioContext, destination, buffer, cue, audioContext.currentTime);
       activeSources.set(source, cue.url);
-      setPinned(cue.url, 1);
+      buffers.pin(cue.url, 1);
       source.addEventListener(
         'ended',
         () => {
           activeSources.delete(source);
-          setPinned(cue.url, -1);
+          buffers.pin(cue.url, -1);
           source.disconnect();
-          pruneCache();
+          buffers.prune();
         },
         { once: true },
       );
@@ -497,11 +421,12 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
   }
 
   function getStats(): SubwayAudioStats {
+    const { bytes, peakBytes, hits } = buffers.stats();
     return {
       activeSources: activeSources.size,
-      decodedCacheBytes: cacheBytes,
-      decodedCachePeakBytes: cachePeakBytes,
-      cacheHits,
+      decodedCacheBytes: bytes,
+      decodedCachePeakBytes: peakBytes,
+      cacheHits: hits,
       syntheticEmergencyAlert: true,
     };
   }
