@@ -5,6 +5,7 @@ import type { Page, Settings } from '../settings/schema';
 export type Geometry = { x: number; y: number; width: number; height: number };
 export type MonitorGeometry = {
   name: string;
+  legacyName?: string;
   position: { x: number; y: number };
   size: { width: number; height: number };
   workArea: { position: { x: number; y: number }; size: { width: number; height: number } };
@@ -77,18 +78,22 @@ export function monitorWithLargestIntersection<
 
 /** The chosen monitor is not connected: the dashboard stays hidden instead of moving to another display. */
 export const chosenMonitorMissing = (
-  screens: readonly { name: string }[],
+  screens: readonly { name: string; legacyName?: string }[],
   preferred: string | null,
-) => !!preferred && !screens.some((screen) => screen.name === preferred);
+) =>
+  !!preferred &&
+  !screens.some((screen) => screen.name === preferred || screen.legacyName === preferred);
 
 /** Monitor for a live display change: the explicit choice, else wherever the window is now, else the primary. */
-export function resolveLiveMonitor<T extends Pick<MonitorGeometry, 'name'>>(
+export function resolveLiveMonitor<T extends Pick<MonitorGeometry, 'name' | 'legacyName'>>(
   screens: T[],
   preferred: string | null,
   current: T | null,
   primary: T | null,
 ): T | undefined {
-  const explicit = preferred ? screens.find((screen) => screen.name === preferred) : undefined;
+  const explicit = preferred
+    ? screens.find((screen) => screen.name === preferred || screen.legacyName === preferred)
+    : undefined;
   const currentScreen = current
     ? screens.find((screen) => screen.name === current.name)
     : undefined;

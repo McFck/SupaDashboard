@@ -42,6 +42,7 @@
     variants.map((variant, index) => ({
       value: stateIdAt({ variants }, index),
       label: variant.label || `State ${index + 1}`,
+      appearance: variant,
     })),
   );
   let selectedId = $state('');

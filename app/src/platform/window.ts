@@ -8,18 +8,34 @@ import {
   type Window,
 } from '@tauri-apps/api/window';
 import type { Geometry, MonitorGeometry } from '../features/display/geometry';
+import { buildMonitorOptions } from '../features/display/monitor-options';
 
 export type WindowStateStore = Awaited<ReturnType<typeof load>>;
 
 export const monitors = () => availableMonitors();
 
 export async function connectedMonitors() {
-  const [screens, current, primary] = await Promise.all([
+  const [screens, current, primary, metadata] = await Promise.all([
     availableMonitors() as Promise<MonitorGeometry[]>,
     currentMonitor() as Promise<MonitorGeometry | null>,
     primaryMonitor() as Promise<MonitorGeometry | null>,
+    invoke<unknown>('monitor_names').catch((error: unknown) => {
+      // GDI names remain usable when Windows cannot report DisplayConfig metadata.
+      console.warn('Monitor identity unavailable', error);
+      return [];
+    }),
   ]);
-  return { screens, current, primary };
+  const options = buildMonitorOptions(screens, Array.isArray(metadata) ? metadata : []);
+  const identify = (monitor: MonitorGeometry): MonitorGeometry => ({
+    ...monitor,
+    legacyName: monitor.name,
+    name: options.find((option) => option.legacyName === monitor.name)?.value ?? monitor.name,
+  });
+  return {
+    screens: screens.map(identify),
+    current: current && identify(current),
+    primary: primary && identify(primary),
+  };
 }
 
 export async function readWindowBounds(win: Window): Promise<Geometry> {

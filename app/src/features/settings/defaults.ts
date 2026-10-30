@@ -42,9 +42,10 @@ export const DEFAULT_PAGE: Page = {
 };
 
 export const DEFAULTS: Settings = {
-  version: 8,
+  version: 9,
   display: {
     monitor: null,
+    monitorLabel: null,
     fullscreen: false,
     alwaysOnTop: false,
     background: { mode: 'color', color: '#0a0a0a', opacity: 0.55, radius: 28 },

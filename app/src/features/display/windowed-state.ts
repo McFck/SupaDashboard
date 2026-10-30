@@ -101,11 +101,14 @@ export class WindowedBounds {
 
   /** Where the window opens: the saved rectangle, or the deck's natural size, on the chosen monitor. */
   async startupPlacement(preferred: string | null, deck: Page) {
-    const saved = await this.remembered(preferred);
     const [{ screens, current, primary }, actual] = await Promise.all([
       connectedMonitors(),
       this.win.readBounds(),
     ]);
+    const target = screens.find(
+      (screen) => screen.name === preferred || screen.legacyName === preferred,
+    );
+    const saved = await this.remembered(target?.name ?? preferred, target?.legacyName);
     const placement = startupPlacement(screens, preferred, saved, primary, actual, deck);
     return {
       screens,
@@ -116,8 +119,11 @@ export class WindowedBounds {
   }
 
   /** The rectangle remembered for `monitor`, else the last one saved before positions were kept per monitor. */
-  private async remembered(monitor: string | null) {
-    const byMonitor = monitor ? (await this.rememberedByMonitor())[monitor] : undefined;
+  private async remembered(monitor: string | null, legacyName?: string) {
+    const entries = await this.rememberedByMonitor();
+    const byMonitor = monitor
+      ? (entries[monitor] ?? (legacyName ? entries[legacyName] : undefined))
+      : undefined;
     return byMonitor ?? (await this.store.get<Geometry>('dashboard'));
   }
 

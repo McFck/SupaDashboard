@@ -11,6 +11,7 @@ export type DisplayMonitor = {
 
 export type MonitorOption = {
   value: string;
+  legacyName?: string;
   label: string;
   ordinal: number;
   primary: boolean;
@@ -19,7 +20,13 @@ export type MonitorOption = {
   disabled?: boolean;
 };
 
-type MonitorNameMetadata = { name: string; friendly?: string; index?: number; primary?: boolean };
+type MonitorNameMetadata = {
+  name: string;
+  friendly?: string;
+  path?: string;
+  index?: number;
+  primary?: boolean;
+};
 
 function validNamedMetadata(rows: readonly unknown[]): Map<string, MonitorNameMetadata> {
   const byName = new Map<string, MonitorNameMetadata>();
@@ -27,13 +34,17 @@ function validNamedMetadata(rows: readonly unknown[]): Map<string, MonitorNameMe
     if (!isRecord(row) || typeof row.name !== 'string' || !row.name.trim() || byName.has(row.name))
       continue;
     const friendly = typeof row.friendly === 'string' ? row.friendly.trim() : '';
+    const path =
+      typeof row.path === 'string' && row.path.trim() ? row.path.trim().toLowerCase() : undefined;
     const index =
       typeof row.index === 'number' && Number.isSafeInteger(row.index) && row.index > 0
         ? row.index
         : undefined;
     const primary = typeof row.primary === 'boolean' ? row.primary : undefined;
-    if (!friendly && index === undefined && primary === undefined) continue;
-    byName.set(row.name, { name: row.name, friendly: friendly || undefined, index, primary });
+    if (!friendly && !path && index === undefined && primary === undefined) {
+      continue;
+    }
+    byName.set(row.name, { name: row.name, friendly: friendly || undefined, path, index, primary });
   }
   return byName;
 }
@@ -71,11 +82,13 @@ export function buildMonitorOptions(
       const nativeName = monitor.name || null;
       const info = nativeName ? byName.get(nativeName) : undefined;
       const ordinal = info?.index ?? index + 1;
-      const friendly = info?.friendly || nativeName?.trim() || 'Display';
+      const resolution = `${monitor.size.width}×${monitor.size.height}`;
+      const friendly = info?.friendly && info.friendly !== nativeName ? info.friendly : resolution;
       return {
-        value: nativeName ?? String(index),
-        label: `${friendly} ${ordinal}`,
-        detail: `${monitor.size.width}×${monitor.size.height}`,
+        value: info?.path ?? nativeName ?? String(index),
+        legacyName: nativeName ?? undefined,
+        label: friendly,
+        detail: resolution,
         ordinal,
         primary: index === primaryIndex,
       };
@@ -86,6 +99,7 @@ export function buildMonitorOptions(
 export function monitorSelectOptions(
   options: readonly MonitorOption[],
   selected: string | null,
+  savedLabel: string | null = null,
 ): MonitorOption[] {
   const local: MonitorOption[] = [
     { value: CURRENT_POSITION, label: 'Current position', ordinal: 0, primary: false },
@@ -93,11 +107,11 @@ export function monitorSelectOptions(
   if (
     selected !== null &&
     selected !== CURRENT_POSITION &&
-    !options.some((option) => option.value === selected)
+    !options.some((option) => option.value === selected || option.legacyName === selected)
   ) {
     local.push({
       value: selected,
-      label: selected,
+      label: savedLabel || 'Display',
       unavailable: true,
       ordinal: 0,
       primary: false,

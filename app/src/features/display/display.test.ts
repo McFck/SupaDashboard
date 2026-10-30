@@ -117,7 +117,17 @@ function windowFixture() {
     () => false,
     () => {},
   );
-  return { deck, set, setMinSize, hide, show, stored, scaleChanged: () => scaleChanged() };
+  return {
+    deck,
+    win,
+    store,
+    set,
+    setMinSize,
+    hide,
+    show,
+    stored,
+    scaleChanged: () => scaleChanged(),
+  };
 }
 
 it('enlarges a saved tiny window to the scaled grid minimum before persisting the restore', async () => {
@@ -126,6 +136,26 @@ it('enlarges a saved tiny window to the scaled grid minimum before persisting th
   expect(native.bounds).toEqual({ x: 50, y: 50, width: 579, height: 351 });
   expect(setMinSize).toHaveBeenLastCalledWith(expect.objectContaining({ width: 579, height: 351 }));
   expect(set).toHaveBeenLastCalledWith('dashboard', native.bounds);
+});
+
+it('restores legacy monitor bounds then keeps them under the device path after GDI renumbering', async () => {
+  const { deck, win, store, stored } = windowFixture();
+  const bounds = { x: 80, y: 90, width: 900, height: 600 };
+  native.screens[0] = { ...native.screens[0], name: 'device-path', legacyName: 'DISPLAY17' };
+  stored.dashboardByMonitor = { DISPLAY17: bounds };
+  await controller.start({ monitor: 'DISPLAY17', fullscreen: false, alwaysOnTop: false }, deck);
+  expect(native.bounds).toEqual(bounds);
+  expect(stored.dashboardByMonitor).toEqual({ DISPLAY17: bounds, 'device-path': bounds });
+  controller.dispose();
+  native.screens[0] = { ...native.screens[0], legacyName: 'DISPLAY22' };
+  controller = new DisplayController(
+    win,
+    store,
+    () => false,
+    () => {},
+  );
+  await controller.start({ monitor: 'device-path', fullscreen: false, alwaysOnTop: false }, deck);
+  expect(native.bounds).toEqual(bounds);
 });
 
 it('does not persist a clamped restore that the OS applied differently', async () => {

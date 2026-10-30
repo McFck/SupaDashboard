@@ -41,6 +41,7 @@
     variants.map((variant, index) => ({
       value: stateIdAt({ variants }, index),
       label: variant.label || `State ${index + 1}`,
+      appearance: variant,
     })),
   );
   const caseType = $derived<VariableType | undefined>(variable?.definition.type);

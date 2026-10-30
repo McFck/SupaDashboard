@@ -7,6 +7,7 @@ use tauri::{AppHandle, Monitor};
 pub struct MonitorName {
     pub name: String,
     pub friendly: String,
+    pub path: String,
     pub index: usize,
     pub primary: bool,
 }
@@ -23,16 +24,17 @@ fn source_key(name: &str) -> String {
     name.to_lowercase()
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct PathNames {
     source: String,
     target_adapter_high: i32,
     target_adapter_low: u32,
     target_id: u32,
     friendly: String,
+    device_path: String,
 }
 
-fn group_friendly_names(paths: &mut [PathNames]) -> HashMap<String, String> {
+fn group_friendly_names(paths: &mut [PathNames]) -> HashMap<String, PathNames> {
     paths.sort_by(|left, right| {
         source_key(&left.source)
             .cmp(&source_key(&right.source))
@@ -43,12 +45,9 @@ fn group_friendly_names(paths: &mut [PathNames]) -> HashMap<String, String> {
 
     let mut result = HashMap::new();
     for path in paths {
-        let friendly = path.friendly.trim();
-        if !friendly.is_empty() {
-            result
-                .entry(source_key(&path.source))
-                .or_insert_with(|| friendly.to_owned());
-        }
+        result
+            .entry(source_key(&path.source))
+            .or_insert_with(|| path.clone());
     }
     result
 }
@@ -68,7 +67,7 @@ fn choose_friendly_name(
 
 fn map_monitor_names(
     names: &[String],
-    display_config: &HashMap<String, String>,
+    display_config: &HashMap<String, PathNames>,
     enum_display: &HashMap<String, String>,
     primary_name: Option<&str>,
 ) -> Vec<MonitorName> {
@@ -80,10 +79,14 @@ fn map_monitor_names(
             MonitorName {
                 name: name.clone(),
                 friendly: choose_friendly_name(
-                    display_config.get(&key).map(String::as_str),
+                    display_config.get(&key).map(|info| info.friendly.as_str()),
                     enum_display.get(&key).map(String::as_str),
                     name,
                 ),
+                path: display_config
+                    .get(&key)
+                    .map(|info| info.device_path.clone())
+                    .unwrap_or_default(),
                 index: index + 1,
                 primary: primary_name == Some(name.as_str()),
             }
@@ -91,7 +94,7 @@ fn map_monitor_names(
         .collect()
 }
 
-fn windows_metadata(names: &[String]) -> (HashMap<String, String>, HashMap<String, String>) {
+fn windows_metadata(names: &[String]) -> (HashMap<String, PathNames>, HashMap<String, String>) {
     let display_config = match display_config_friendly_names() {
         Ok(names) => names,
         Err(error) => {
@@ -112,7 +115,7 @@ fn windows_metadata(names: &[String]) -> (HashMap<String, String>, HashMap<Strin
     (display_config, enum_display)
 }
 
-fn display_config_friendly_names() -> Result<HashMap<String, String>, String> {
+fn display_config_friendly_names() -> Result<HashMap<String, PathNames>, String> {
     use std::mem::size_of;
 
     use windows::Win32::Devices::Display::{
@@ -175,6 +178,11 @@ fn display_config_friendly_names() -> Result<HashMap<String, String>, String> {
             target_adapter_low: path.targetInfo.adapterId.LowPart,
             target_id: path.targetInfo.id,
             friendly,
+            device_path: if target_status == 0 {
+                decode_utf16(&target.monitorDevicePath).to_lowercase()
+            } else {
+                String::new()
+            },
         });
     }
 
@@ -314,6 +322,7 @@ mod tests {
             target_adapter_low: low,
             target_id: target,
             friendly: friendly.to_owned(),
+            device_path: format!("path-{high}-{low}-{target}"),
         }
     }
 
@@ -329,15 +338,22 @@ mod tests {
         let b = group_friendly_names(&mut reversed);
         assert_eq!(a, b);
         assert_eq!(a.len(), 2);
-        assert_eq!(a[&source_key("\\\\.\\DISPLAY1")], "First target");
+        assert_eq!(a[&source_key("\\\\.\\DISPLAY1")].friendly, "First target");
+        assert_eq!(a[&source_key("\\\\.\\DISPLAY1")].device_path, "path-0-1-9");
     }
 
     #[test]
     fn mapping_keeps_snapshot_order_one_based_ids_and_os_primary_name() {
         let names = vec!["DISPLAY2".to_owned(), "DISPLAY1".to_owned()];
         let display = HashMap::from([
-            (source_key("DISPLAY1"), "Same product".to_owned()),
-            (source_key("DISPLAY2"), "Same product".to_owned()),
+            (
+                source_key("DISPLAY1"),
+                metadata("DISPLAY1", 0, 1, 1, "Same product"),
+            ),
+            (
+                source_key("DISPLAY2"),
+                metadata("DISPLAY2", 0, 1, 2, "Same product"),
+            ),
         ]);
         let rows = map_monitor_names(&names, &display, &HashMap::new(), Some("DISPLAY1"));
         assert_eq!(rows[0].index, 1);

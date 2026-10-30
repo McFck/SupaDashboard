@@ -5,6 +5,8 @@
   import { Hint } from '$lib/components/ui/tooltip';
   import OptionTags from './OptionTags.svelte';
   import PluginMark, { pluginTitle } from './PluginMark.svelte';
+  import type { TileAppearance } from '../../controls/model';
+  import StateSwatch from '../../controls/editor/StateSwatch.svelte';
 
   type Option = {
     value: string;
@@ -16,6 +18,7 @@
     plugin?: string;
     detail?: string;
     unavailable?: boolean;
+    appearance?: TileAppearance;
   };
   let {
     value,
@@ -51,6 +54,7 @@
 </script>
 
 {#snippet leading(o: Option | undefined)}
+  {#if o?.appearance}<StateSwatch appearance={o.appearance} />{/if}
   {#if iconSlot}<span class="flex size-4 shrink-0 items-center justify-center"
       >{#if o?.icon && !o.iconHint}<o.icon
           size={15}
