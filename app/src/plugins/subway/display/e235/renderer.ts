@@ -1,16 +1,16 @@
-import type { ScreenSchedule } from '../screens';
-import {
-  drawE235Detailed,
-  drawE235Header,
-  drawE235Overlay,
-  drawE235RouteMap,
-  E235_WIDTH,
-} from './e235';
-import { drawE235Page, drawE235PageOverlay, e235Images } from './e235-pages';
-import { CanvasLayerCache } from '../engine/canvas-cache';
-import { paintFitted } from '../engine/canvas-renderer';
-import { drawFittedText, E235_COLORS as C } from './shared';
+import type { ScreenSchedule } from '../../rendering/screens';
+import { E235_WIDTH } from './draw';
+import { drawE235Detailed } from './detailed-map';
+import { drawE235Header } from './header';
+import { e235Images } from './images';
+import { drawE235Overlay } from './overlay';
+import { drawE235Page, drawE235PageOverlay } from './pages';
+import { drawE235RouteMap } from './route-map';
+import { CanvasLayerCache } from '../../rendering/engine/canvas-cache';
+import { paintFitted } from '../../rendering/engine/canvas-renderer';
+import { drawFittedText } from '../../rendering/lcd/shared';
 
+const INK = '#202629';
 const YAMANOTE_LCD_WIDTH = 1280;
 const E235_SCALE = YAMANOTE_LCD_WIDTH / E235_WIDTH;
 
@@ -32,12 +32,12 @@ function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule) {
   ctx.lineTo(14, 480);
   ctx.closePath();
   ctx.fill();
-  drawFittedText(ctx, '!', 112, 420, 90, 108, 90, C.ink, 700, 'Arial, sans-serif', 'center');
+  drawFittedText(ctx, '!', 112, 420, 90, 108, 90, INK, 700, 'Arial, sans-serif', 'center');
   const strings =
     model.page === 'emergency'
       ? ['緊急停止しました', 'Emergency stop', '紧急停车', '비상 정차']
       : ['運転を見合わせています', 'Service suspended', '暂停服务', '운행 중단'];
-  strings.forEach((text, i) => drawFittedText(ctx, text, 264, 304 + i * 84, 940, 46, 28, C.ink));
+  strings.forEach((text, i) => drawFittedText(ctx, text, 264, 304 + i * 84, 940, 46, 28, INK));
 }
 
 function overlay(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time: number) {

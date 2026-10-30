@@ -4,7 +4,7 @@ import type {
 } from '../../../features/applets/scene-contracts';
 import { createHibiyaRenderer, scheduleHibiyaPair } from './lcd/hibiya';
 import { createSakaisujiRenderer } from './lcd/sakaisuji';
-import { createYamanoteRenderer } from './lcd/yamanote';
+import { createYamanoteRenderer } from '../display/e235/renderer';
 import { displayLanguages, normalizeCarNumber } from '../simulation/config';
 import { scheduleScreen, type ScreenConfig } from './screens';
 import type { SubwaySceneState } from '../simulation/runtime';

@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines } from '../../simulation/lines';
 import type { RunSnapshot } from '../../simulation/run';
-import { scheduleScreen, sessionKey } from '../screens';
-import { VisibleClock } from '../engine/visible-clock';
-import { drawE235RouteMap, drawE235Overlay, e235LoopCell } from './e235';
-import { e235Data, e235Minutes, e235Routine, e235TrainStop, e235TransferLayout } from './e235-data';
-import { drawE235Page, e235DoorFrame, e235PackPlatformObjects } from './e235-pages';
+import { scheduleScreen, sessionKey } from '../../rendering/screens';
+import { VisibleClock } from '../../rendering/engine/visible-clock';
+import { drawE235Overlay } from './overlay';
+import { drawE235RouteMap, e235LoopCell } from './route-map';
+import { e235Data, e235Minutes, e235TrainStop, e235TransferLayout } from './data';
+import { e235Routine } from './schedule';
+import { e235DoorFrame } from './door';
+import { drawE235Page } from './pages';
+import { e235PackPlatformObjects } from './platform';
 
 const lineFiles = import.meta.glob('../../../../../../assets/lines/*/line.json', {
   eager: true,

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { ScreenSchedule } from '../screens';
-import { e235Data, e235TransferLayout } from './e235-data';
-import { drawE235DetailedTransfers, drawE235LineIcon, drawE235Page } from './e235-pages';
+import type { ScreenSchedule } from '../../rendering/screens';
+import { e235Data, e235TransferLayout } from './data';
+import { drawE235DetailedTransfers, drawE235LineIcon } from './icons';
+import { drawE235Page } from './pages';
 
 function recordingContext() {
   const text: string[] = [];
