@@ -59,7 +59,15 @@ pub fn transport_op(
     match command {
         "prev" => session.TrySkipPreviousAsync(),
         "next" => session.TrySkipNextAsync(),
-        "toggle" => session.TryTogglePlayPauseAsync(),
+        // Chromium browsers (Brave, Chrome, Edge) answer true to TryTogglePlayPause but ignore it, so toggle
+        // reads the session's own state and sends an explicit pause or play, which every player honours.
+        "toggle" => match session
+            .GetPlaybackInfo()
+            .and_then(|info| info.PlaybackStatus())
+        {
+            Ok(Status::Playing) => session.TryPauseAsync(),
+            _ => session.TryPlayAsync(),
+        },
         "play" => session.TryPlayAsync(),
         "pause" => session.TryPauseAsync(),
         other => Err(windows::core::Error::new(
