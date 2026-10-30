@@ -1,3 +1,18 @@
+<script
+  lang="ts"
+  module
+>
+  import { SvelteMap } from 'svelte/reactivity';
+
+  /**
+   * Sleeve ratios of loaded covers by URL, shared by every tile, so a tile mounted by a page switch draws its sleeve
+   * at the final size at once instead of resizing when the image loads.
+   */
+  const coverRatios = new SvelteMap<string, number>();
+  // ponytail: whole-cache reset past this many covers; an LRU only if long sessions ever reload covers noticeably.
+  const COVER_RATIO_LIMIT = 200;
+</script>
+
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import { runtimeView } from '../../../app/runtime/state';
@@ -123,6 +138,17 @@
     tile.run(captured, snapshot, motion);
   }
 
+  function fitArtwork(event: Event, url: string) {
+    const image = event.currentTarget;
+    if (image instanceof HTMLImageElement && image.naturalHeight > 0) {
+      const ratio = image.naturalWidth / image.naturalHeight;
+      if (coverRatios.size >= COVER_RATIO_LIMIT) {
+        coverRatios.clear();
+      }
+      // Extreme artwork shapes stay contained in the standard sleeve instead of stretching the box.
+      coverRatios.set(url, ratio >= 0.8 && ratio <= 1.25 ? ratio : 1.12);
+    }
+  }
   onDestroy(() => motion.destroy());
 </script>
 
@@ -132,6 +158,7 @@
       <div
         class="assembly"
         class:bare={!view.art || view.art === brokenArt}
+        style:--cover-ratio={view.art ? coverRatios.get(view.art) : undefined}
       >
         <div class="record">
           <VinylDisc
@@ -141,11 +168,15 @@
           />
         </div>
         {#if view.art && view.art !== brokenArt}
-          <div class="cover">
+          <div
+            class="cover"
+            class:loading={!coverRatios.has(view.art)}
+          >
             <img
               src={view.art}
               alt=""
               draggable="false"
+              onload={(event) => fitArtwork(event, view.art ?? '')}
               onerror={() => (brokenArt = view.art)}
             />
           </div>
@@ -275,7 +306,7 @@
     min-height: 0;
     height: 100%;
   }
-  /* A fixed sleeve keeps cached image loads from resizing the art when a page mounts. */
+  /* A third of the record peeks past the sleeve's right edge. */
   .assembly {
     --cover-ratio: 1.12;
     --assembly-ratio: calc(var(--cover-ratio) + 0.3133);
@@ -328,6 +359,23 @@
     height: 100%;
     object-fit: contain;
     user-select: none;
+    transition: opacity 180ms ease-out;
+  }
+  .cover.loading img {
+    opacity: 0;
+  }
+  .cover.loading {
+    animation: cover-loading 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes cover-loading {
+    to {
+      background: #1c1917;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cover.loading {
+      animation: none;
+    }
   }
   .text {
     display: grid;
