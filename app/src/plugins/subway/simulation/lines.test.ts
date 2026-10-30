@@ -172,6 +172,11 @@ describe('Subway line normalization', () => {
       /Duplicate station code/,
     );
 
+    const reordered = clone(load('hibiya'));
+    reordered.line.stations.reverse();
+    reordered.pack.stations.reverse();
+    expect(() => normalizeSubwayLine(reordered.line, reordered.pack)).toThrow(/catalogue lists/);
+
     const badCode = clone(load('hibiya'));
     badCode.line.stations[0].code = 'H1';
     expect(() => normalizeSubwayLine(badCode.line, badCode.pack)).toThrow(/Invalid station code/);
