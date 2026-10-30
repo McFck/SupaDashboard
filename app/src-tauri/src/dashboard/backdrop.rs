@@ -14,13 +14,14 @@ use windows::Win32::Graphics::Dwm::{
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, FindWindowExW, FindWindowW, GWLP_USERDATA,
-    GetSystemMetrics, GetWindowLongPtrW, GetWindowRect, HTTRANSPARENT, IsIconic, IsWindow,
-    IsWindowVisible, MA_NOACTIVATE, RegisterClassExW, RegisterWindowMessageW, SM_XVIRTUALSCREEN,
-    SM_YVIRTUALSCREEN, SMTO_ABORTIFHUNG, SMTO_BLOCK, SW_HIDE, SWP_NOACTIVATE, SWP_NOOWNERZORDER,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, FindWindowExW, FindWindowW, GW_HWNDPREV,
+    GWL_EXSTYLE, GWLP_USERDATA, GetSystemMetrics, GetWindow, GetWindowLongPtrW, GetWindowRect,
+    HTTRANSPARENT, IsIconic, IsWindow, IsWindowVisible, MA_NOACTIVATE, RegisterClassExW,
+    RegisterWindowMessageW, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SMTO_ABORTIFHUNG, SMTO_BLOCK,
+    SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER,
     SWP_SHOWWINDOW, SendMessageTimeoutW, SetWindowLongPtrW, SetWindowPos, ShowWindow,
     WM_DISPLAYCHANGE, WM_MOUSEACTIVATE, WM_NCHITTEST, WNDCLASSEXW, WS_EX_NOACTIVATE,
-    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_POPUP,
+    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
 };
 use windows::core::{PCWSTR, w};
 
@@ -28,7 +29,7 @@ const CLASS: PCWSTR = w!("SUPADASHBOARD_BACKDROP");
 /// Asks Explorer to draw the wallpaper in a WorkerW of its own behind the icons, as Wallpaper Engine does.
 const SPAWN_WORKER: u32 = 0x052C;
 
-/// What the thumbnails currently show; a sync that would apply the same layout only restacks the window.
+/// What the thumbnails currently show; placement is checked separately against the live window state.
 #[derive(Clone, Copy, PartialEq)]
 struct Layout {
     source: HWND,
@@ -103,18 +104,7 @@ impl Backdrop {
             .map_err(|error| format!("could not read dashboard bounds: {error}"))?;
         let bounds = Geometry::from(rect);
         let (x, y, width, height) = bounds.to_win32()?;
-        unsafe {
-            SetWindowPos(
-                window,
-                Some(self.dashboard),
-                x,
-                y,
-                width,
-                height,
-                SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_SHOWWINDOW,
-            )
-        }
-        .map_err(|error| format!("could not place the backdrop: {error}"))?;
+        self.place_window(window, bounds)?;
 
         let dpi = unsafe { GetDpiForWindow(self.dashboard) }.max(96);
         let radius = if self.fullscreen.get() {
@@ -159,6 +149,40 @@ impl Backdrop {
         Ok(())
     }
 
+    fn place_window(&self, window: HWND, bounds: Geometry) -> Result<(), String> {
+        let mut rect = RECT::default();
+        unsafe { GetWindowRect(window, &mut rect) }
+            .map_err(|error| format!("could not read backdrop bounds: {error}"))?;
+        let actual = Geometry::from(rect);
+        let same_position = (actual.x, actual.y) == (bounds.x, bounds.y);
+        let same_size = (actual.width, actual.height) == (bounds.width, bounds.height);
+        let topmost =
+            |hwnd| unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) } as u32 & WS_EX_TOPMOST.0;
+        // Adjacency alone is not enough at the boundary between topmost and ordinary windows.
+        let same_order = unsafe { GetWindow(window, GW_HWNDPREV) }.ok() == Some(self.dashboard)
+            && topmost(window) == topmost(self.dashboard);
+        let visible = unsafe { IsWindowVisible(window).as_bool() };
+        if same_position && same_size && same_order && visible {
+            return Ok(());
+        }
+        let mut flags = SWP_NOACTIVATE | SWP_NOOWNERZORDER;
+        if same_position {
+            flags |= SWP_NOMOVE;
+        }
+        if same_size {
+            flags |= SWP_NOSIZE;
+        }
+        if same_order {
+            flags |= SWP_NOZORDER;
+        }
+        if !visible {
+            flags |= SWP_SHOWWINDOW;
+        }
+        let (x, y, width, height) = bounds.to_win32()?;
+        unsafe { SetWindowPos(window, Some(self.dashboard), x, y, width, height, flags) }
+            .map_err(|error| format!("could not place the backdrop: {error}"))
+    }
+
     fn window(&self) -> Result<HWND, String> {
         if let Some(window) = self.window.get() {
             return Ok(window);
@@ -186,7 +210,9 @@ impl Backdrop {
         let mut thumbnails = self.thumbnails.take();
         unregister(&mut thumbnails);
         self.applied.set(None);
-        if let Some(window) = self.window.get() {
+        if let Some(window) = self.window.get()
+            && unsafe { IsWindowVisible(window).as_bool() }
+        {
             let _ = unsafe { ShowWindow(window, SW_HIDE) };
         }
     }
@@ -398,45 +424,5 @@ unsafe extern "system" fn backdrop_proc(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::corner_bands;
-
-    fn coverage(width: i32, height: i32, radius: i32) -> Vec<(i32, i32)> {
-        let bands = corner_bands(width, height, radius);
-        (0..height)
-            .map(|row| {
-                let covering: Vec<_> = bands
-                    .iter()
-                    .filter(|band| band.top <= row && row < band.bottom)
-                    .collect();
-                assert_eq!(covering.len(), 1, "row {row} must be covered exactly once");
-                (covering[0].left, covering[0].right)
-            })
-            .collect()
-    }
-
-    #[test]
-    fn rounded_bands_cover_every_row_once_and_leave_the_corners_out() {
-        let rows = coverage(40, 20, 6);
-        assert_eq!(
-            rows[0],
-            (4, 36),
-            "the corner pixels stay uncovered, symmetrically"
-        );
-        assert_eq!(rows[19], rows[0], "top and bottom corners match");
-        assert_eq!(rows[10], (0, 40), "the middle is full width");
-        assert!(rows[..6].windows(2).all(|pair| pair[0].0 >= pair[1].0));
-    }
-
-    #[test]
-    fn a_square_or_oversized_radius_stays_inside_the_window() {
-        assert_eq!(coverage(30, 10, 0), vec![(0, 30); 10]);
-        assert_eq!(corner_bands(30, 10, 0).len(), 1);
-        let pill = coverage(30, 10, 99);
-        assert_eq!(pill.len(), 10);
-        assert!(
-            pill.iter()
-                .all(|(left, right)| 0 <= *left && left < right && *right <= 30)
-        );
-    }
-}
+#[path = "backdrop_tests.rs"]
+mod tests;
