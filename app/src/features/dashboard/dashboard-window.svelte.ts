@@ -7,7 +7,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { startDisplay, type DisplayController } from '../display/display';
 import type { Page, Settings } from '../settings/schema';
 import { toast } from 'svelte-sonner';
-import { startTouchWindowAction } from '../../platform/window';
+import { setDashboardBackdrop, startTouchWindowAction } from '../../platform/window';
 
 type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
 type ResizeEvent = { resizing: boolean; revision: number };
@@ -75,6 +75,18 @@ export class DashboardWindow {
     if (this.ready) {
       this.controller?.request(this.display());
     }
+  }
+
+  /** The native backdrop follows the window's moves and visibility itself; it only hears mode and radius edits. */
+  backdropChanged() {
+    if (!isTauri()) {
+      return;
+    }
+    const { mode, radius } = this.display().background;
+    void setDashboardBackdrop(mode === 'wallpaper', radius).catch((error) => {
+      console.warn('dashboard backdrop', error);
+      toast.error('Could not show wallpaper');
+    });
   }
 
   startDrag(pointerType: string) {

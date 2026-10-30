@@ -34,6 +34,9 @@ export const setDashboardBounds = (bounds: Geometry) =>
 export const setDashboardInteractionMode = (fullscreen: boolean) =>
   invoke<void>('dashboard_interaction_mode', { fullscreen });
 
+export const setDashboardBackdrop = (wallpaper: boolean, radius: number) =>
+  invoke<void>('dashboard_backdrop', { wallpaper, radius });
+
 export const startTouchWindowAction = (
   action: 'Move' | Parameters<Window['startResizeDragging']>[0],
 ) =>

@@ -47,7 +47,7 @@ export const DEFAULTS: Settings = {
     monitor: null,
     fullscreen: false,
     alwaysOnTop: false,
-    background: { color: '#0a0a0a', opacity: 0.55, radius: 28 },
+    background: { mode: 'color', color: '#0a0a0a', opacity: 0.55, radius: 28 },
   },
   controls: [
     media('prev', 'SkipBack', 'Previous', '#67c9eb'),

@@ -1,5 +1,6 @@
 <script lang="ts">
-  // The dashboard window: transparent and frameless; a configurable backdrop sits behind the applet.
+  // The dashboard window: transparent and frameless; a colour backdrop, or the native wallpaper window below it,
+  // sits behind the applet.
   import { onMount, tick } from 'svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import AppletHost from '../applets/AppletHost.svelte';
@@ -101,6 +102,11 @@
   });
 
   $effect(() => {
+    void [bg.mode, bg.radius];
+    dashboard.backdropChanged();
+  });
+
+  $effect(() => {
     void [page.id, page.cols, page.rows, page.gap, showDots];
     dashboard.gridChanged();
   });
@@ -124,12 +130,14 @@
   onpointerenter={dashboard.pointerEnter}
   onpointerleave={dashboard.pointerLeave}
 >
-  <div
-    aria-hidden="true"
-    class="dashboard-backdrop"
-    style:background={bg.color}
-    style:opacity={Number.isFinite(bg.opacity) ? Math.max(0, Math.min(1, bg.opacity)) : 0}
-  ></div>
+  {#if bg.mode === 'color'}
+    <div
+      aria-hidden="true"
+      class="dashboard-backdrop"
+      style:background={bg.color}
+      style:opacity={Number.isFinite(bg.opacity) ? Math.max(0, Math.min(1, bg.opacity)) : 0}
+    ></div>
+  {/if}
   <div
     class="dashboard-applet"
     data-has-pages={showDots}
