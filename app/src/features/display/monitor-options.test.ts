@@ -24,7 +24,7 @@ it('keeps a readable disconnected selection and uses the device path after GDI r
       [{ name: 'DISPLAY22', friendly: 'DELL U2723QE', path: 'MONITOR#Stable' }],
     )[0].value,
   ).toBe(options[0].value);
-  expect(buildMonitorOptions([monitor('DISPLAY17')])[0].label).toBe('1920×1080');
+  expect(buildMonitorOptions([monitor('DISPLAY17')])[0].label).toBe('Display 1');
   expect(monitorSelectOptions(options, 'DISPLAY17')).toHaveLength(2);
 });
 

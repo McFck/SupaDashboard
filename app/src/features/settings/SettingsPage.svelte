@@ -47,8 +47,9 @@
 
   function chooseMonitor(value: string) {
     settings.display.monitor = value === CURRENT_POSITION ? null : value;
-    settings.display.monitorLabel =
-      monitorOptions.find((option) => option.value === value)?.label ?? null;
+    const option = monitorOptions.find((candidate) => candidate.value === value);
+    // Shown while the screen is disconnected; the resolution tells same-named screens apart.
+    settings.display.monitorLabel = option ? `${option.label} (${option.detail})` : null;
     commit('Choose monitor');
   }
 

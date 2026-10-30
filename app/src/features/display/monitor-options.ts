@@ -83,7 +83,9 @@ export function buildMonitorOptions(
       const info = nativeName ? byName.get(nativeName) : undefined;
       const ordinal = info?.index ?? index + 1;
       const resolution = `${monitor.size.width}×${monitor.size.height}`;
-      const friendly = info?.friendly && info.friendly !== nativeName ? info.friendly : resolution;
+      // Screens without EDID data (Windows' "Generic Monitor") report no name, so they go by their number.
+      const friendly =
+        info?.friendly && info.friendly !== nativeName ? info.friendly : `Display ${ordinal}`;
       return {
         value: info?.path ?? nativeName ?? String(index),
         legacyName: nativeName ?? undefined,
