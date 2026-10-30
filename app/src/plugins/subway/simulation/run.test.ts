@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines, type RawLineBundle } from './lines';
+import { createRunState, nextRunWake, reduceRun, snapshotRun } from './run';
 import {
-  createRunState,
-  nextRunWake,
-  reduceRun,
   segmentPlanKey,
-  snapshotRun,
   type RunEffect,
   type RunTransition,
   type SubwayCuePlans,
-} from './run';
+} from './run-state';
 
 const modules = import.meta.glob('../../../../../assets/lines/*/{line,pack}.json', {
   eager: true,
