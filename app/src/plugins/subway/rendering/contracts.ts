@@ -1,5 +1,5 @@
 import type { LineDefinition } from '../simulation/lines';
-import type { HibiyaPairSchedule } from './lcd/hibiya';
+import type { HibiyaPairSchedule } from '../display/tokyo-metro-13000/schedule';
 import type { ScreenSchedule } from './screens';
 
 // Hibiya has two physical screens; the applet shows one of them.

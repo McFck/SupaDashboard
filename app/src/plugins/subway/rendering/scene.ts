@@ -2,7 +2,8 @@ import type {
   AppletSceneFactory,
   AppletSceneRenderer,
 } from '../../../features/applets/scene-contracts';
-import { createHibiyaRenderer, scheduleHibiyaPair } from './lcd/hibiya';
+import { createHibiyaRenderer } from '../display/tokyo-metro-13000/renderer';
+import { scheduleHibiyaPair } from '../display/tokyo-metro-13000/schedule';
 import { createHankyu1300Renderer } from '../display/hankyu-1300/renderer';
 import { createYamanoteRenderer } from './lcd/yamanote';
 import { displayLanguages, normalizeCarNumber } from '../simulation/config';
