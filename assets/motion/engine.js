@@ -84,6 +84,30 @@
     return output;
   }
 
+  // The cabin idle loop is 1.4 s of noise whose repetition is plain at rest. Restitching it from shifted copies with
+  // equal-power crossfades (the material is uncorrelated noise) gives a period of `seconds`; the last piece fades
+  // into the first, so the result still loops without a seam.
+  function lengthenLoop(context, buffer, seconds, fade) {
+    const size = buffer.length, rate = buffer.sampleRate;
+    const overlap = Math.min(Math.floor(size / 4), Math.round(rate * fade));
+    const step = size - overlap;
+    const pieces = Math.max(2, Math.ceil(seconds * rate / step));
+    const length = pieces * step;
+    const output = context.createBuffer(buffer.numberOfChannels, length, rate);
+    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+      const input = buffer.getChannelData(channel), data = output.getChannelData(channel);
+      for (let piece = 0; piece < pieces; piece++) {
+        const shift = Math.floor(size * ((piece * 0.618034) % 1)), start = piece * step;
+        for (let i = 0; i < size; i++) {
+          const weight = i < overlap ? Math.sin(Math.PI / 2 * i / overlap)
+            : i >= step ? Math.cos(Math.PI / 2 * (i - step) / overlap) : 1;
+          data[(start + i) % length] += input[(shift + i) % size] * weight;
+        }
+      }
+    }
+    return output;
+  }
+
   class MotionAudio {
     static async load(context, profile) {
       const entries = [...profile.motors, ...['rolling', 'shoe', 'idle', 'release'].filter(k => profile[k]).map(k => profile[k])];
@@ -113,12 +137,13 @@
       this.master.connect(this.limiter).connect(context.destination);
       this.motors = profile.motors.map(e => this.loop(e, 0.05));
       for (const key of ['rolling', 'shoe', 'idle']) if (profile[key])
-        this[key] = this.loop(profile[key], key === 'rolling' ? 0.12 : 0.06);
+        this[key] = this.loop(profile[key], key === 'rolling' ? 0.12 : 0.06, key === 'idle' ? 12 : 0);
     }
 
-    loop(entry, overlap) {
+    loop(entry, overlap, seconds = 0) {
       const source = this.context.createBufferSource();
-      source.buffer = blendLoop(this.context, this.buffers.get(entry.url), overlap);
+      const buffer = blendLoop(this.context, this.buffers.get(entry.url), overlap);
+      source.buffer = seconds ? lengthenLoop(this.context, buffer, seconds, 0.25) : buffer;
       source.loop = true;
       const gain = this.context.createGain();
       gain.gain.value = 0;
@@ -213,7 +238,7 @@
     return source;
   }
 
-  const api = {curve, mix, releaseEvent, demoState, blendLoop, playCue, MotionAudio};
+  const api = {curve, mix, releaseEvent, demoState, blendLoop, lengthenLoop, playCue, MotionAudio};
   if (typeof module !== 'undefined') module.exports = api;
   else globalThis.TrainMotion = api;
 })();
