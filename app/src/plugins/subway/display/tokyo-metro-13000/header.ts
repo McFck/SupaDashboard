@@ -1,7 +1,8 @@
 import type { ScreenSchedule } from '../../rendering/screens';
 import type { ScreenLanguage } from '../../rendering/screens';
 import { targetStation, destinationName } from './model';
-import { drawFittedText, drawBadge, phrase, fontFamily, stationName } from './text';
+import { drawRingBadge } from '../../icons/badge';
+import { drawFittedText, phrase, fontFamily, stationName } from './text';
 import { C, JAPANESE_FONT, LATIN_FONT } from './layout';
 export function drawHeader(
   ctx: CanvasRenderingContext2D,
@@ -30,7 +31,7 @@ export function drawHeader(
   ctx.fillStyle = '#d5d5cc';
   ctx.fillRect(0, 240, 1280, 2);
   if (panel === 0) {
-    drawBadge(ctx, targetStation(model).code, 1044, 18, 226, C.route);
+    drawRingBadge(ctx, targetStation(model).code, 1044, 18, 226, C.route);
   } else {
     ctx.fillStyle = '#cbccc5';
     ctx.beginPath();

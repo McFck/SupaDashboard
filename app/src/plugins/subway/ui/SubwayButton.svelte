@@ -2,7 +2,7 @@
   import type { ControlFaceProps } from '../../../features/controls/model';
   import { getAppletHostContext } from '../../../features/applets/context';
   import Icon from '../../../features/controls/ui/Icon.svelte';
-  import { subwayButtonFaceModel } from './faces';
+  import { lineIdentity, subwayButtonFaceModel } from './faces';
 
   let { appearance, compact, busy, pull, pixelWidth, pixelHeight }: ControlFaceProps = $props();
   const host = getAppletHostContext();
@@ -19,7 +19,7 @@
       ? 'VolumeX'
       : model.icon,
   );
-  const lineCode = $derived(lineId === 'hibiya' ? 'H' : lineId === 'sakaisuji' ? 'K' : 'JY');
+  const lineCode = $derived(lineIdentity(lineId)?.letter ?? 'JY');
   const iconSize = $derived(Math.max(28, Math.min(pixelWidth, pixelHeight) * 0.44));
 </script>
 

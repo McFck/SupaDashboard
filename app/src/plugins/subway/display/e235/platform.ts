@@ -1,7 +1,7 @@
 import type { ScreenSchedule } from '../../rendering/screens';
 import { e235Station, e235TransferLayout } from './data';
 import { e235Images } from './images';
-import { drawE235LineIcon } from './icons';
+import { drawIcon } from '../../icons/paint';
 import { SANS, carBody, label, polygon } from './page-draw';
 import { stopFor, target, thisSide } from './stop';
 
@@ -67,7 +67,7 @@ export function transferGrid(
       item.transfer.icons[
         item.iconRef ?? Math.floor(model.visibleElapsed / 3000) % item.transfer.icons.length
       ];
-    if (icon) drawE235LineIcon(ctx, icon, x, y, iconSize);
+    if (icon) drawIcon(ctx, icon, x, y, iconSize);
     const tx = x + iconSize + (full ? 6 : 4),
       room =
         widths

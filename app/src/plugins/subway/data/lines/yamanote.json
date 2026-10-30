@@ -2,8 +2,45 @@
   "id": "yamanote",
   "title": "Yamanote",
   "code": "JY",
+  "iconId": "jr-east/yamanote",
   "carCount": 11,
   "loop": true,
+  "loopMap": {
+    "upper": [
+      "JY16",
+      "JY15",
+      "JY14",
+      "JY13",
+      "JY12",
+      "JY11",
+      "JY10",
+      "JY09",
+      "JY08",
+      "JY07",
+      "JY06",
+      "JY05",
+      "JY04",
+      "JY03",
+      "JY02"
+    ],
+    "lower": [
+      "JY17",
+      "JY18",
+      "JY19",
+      "JY20",
+      "JY21",
+      "JY22",
+      "JY23",
+      "JY24",
+      "JY25",
+      "JY26",
+      "JY27",
+      "JY28",
+      "JY29",
+      "JY30",
+      "JY01"
+    ]
+  },
   "displayLanguages": ["ja-en"],
   "directions": [
     {

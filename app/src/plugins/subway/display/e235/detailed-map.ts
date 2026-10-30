@@ -20,7 +20,7 @@ import {
   svg,
   text,
 } from './draw';
-import { drawE235DetailedTransfers } from './icons';
+import { drawE235DetailedTransfers } from './transfers';
 
 /** Five rows from the bottom: circle centre, diameter, minute font, name width and its vertical nudge. */
 const ROWS = [

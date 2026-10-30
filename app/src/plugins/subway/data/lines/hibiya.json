@@ -2,6 +2,7 @@
   "id": "hibiya",
   "title": "Hibiya",
   "code": "H",
+  "iconId": "tokyo-metro/h",
   "carCount": 7,
   "loop": false,
   "displayLanguages": ["ja-en", "ja-zh", "ja-ko"],

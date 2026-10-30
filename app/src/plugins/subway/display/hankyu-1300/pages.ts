@@ -1,5 +1,6 @@
 import type { ScreenSchedule } from '../../rendering/screens';
-import { drawBadge, drawFittedText, JAPANESE_FONT } from '../../rendering/lcd/shared';
+import { drawSignBadge } from '../../icons/badge';
+import { drawFittedText, JAPANESE_FONT } from '../../rendering/lcd/shared';
 import {
   fontFamily,
   nameOf,
@@ -51,7 +52,7 @@ function drawBroad(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void {
     ctx.arc(x, y, 34, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    drawBadge(ctx, station.code, x - 34, y - 34, 68, index === nextIndex ? '#c7dc63' : C.route);
+    drawSignBadge(ctx, station.code, x - 34, y - 34, 68, index === nextIndex ? '#c7dc63' : C.route);
     drawTransfers(ctx, station, model.language, x, 430);
   });
   if (nextIndex >= 0) {
@@ -93,7 +94,7 @@ function drawNearby(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void 
     ctx.arc(x, y, current || next ? 38 : 31, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    drawBadge(ctx, station.code, x - 38, y - 38, 76, next ? '#c7dc63' : C.route);
+    drawSignBadge(ctx, station.code, x - 38, y - 38, 76, next ? '#c7dc63' : C.route);
     drawTransfers(ctx, station, model.language, x, 426);
   });
   const nextIndex = stations.findIndex((station) => station.code === model.snapshot.next);
@@ -269,7 +270,7 @@ function drawTransferDetail(ctx: CanvasRenderingContext2D, model: ScreenSchedule
     const x = 112 + (index % 4) * 440,
       y = 332 + Math.floor(index / 4) * 98;
     if (/^[A-Z]{1,3}\d{2}$/.test(transfer)) {
-      drawBadge(ctx, transfer, x, y - 25, 52, C.route);
+      drawSignBadge(ctx, transfer, x, y - 25, 52, C.route);
     } else {
       drawFittedText(ctx, transfer, x + 76, y, 332, 32, 20, C.ink, 700, fontFamily(model.language));
     }

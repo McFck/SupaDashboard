@@ -1,6 +1,6 @@
 import type { StationDefinition } from '../../simulation/lines';
 import type { ScreenLanguage } from '../../rendering/screens';
-import { C, JAPANESE_FONT, LATIN_FONT } from './layout';
+import { JAPANESE_FONT, LATIN_FONT } from './layout';
 export function drawFittedText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -24,53 +24,6 @@ export function drawFittedText(
   ctx.textAlign = align;
   ctx.textBaseline = 'middle';
   ctx.fillText(text, x, y, width);
-}
-
-export function drawBadge(
-  ctx: CanvasRenderingContext2D,
-  code: string,
-  x: number,
-  y: number,
-  size: number,
-  color: string,
-): void {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = C.white;
-  ctx.beginPath();
-  ctx.arc(x + size / 2, y + size / 2, size * 0.39, 0, Math.PI * 2);
-  ctx.fill();
-  const parts = code.match(/^([A-Z]+)(\d+)$/);
-  drawFittedText(
-    ctx,
-    parts?.[1] ?? code,
-    x + size / 2,
-    y + size * (parts ? 0.33 : 0.51),
-    size * 0.7,
-    size * 0.37,
-    8,
-    C.ink,
-    700,
-    LATIN_FONT,
-    'center',
-  );
-  if (parts) {
-    drawFittedText(
-      ctx,
-      parts[2],
-      x + size / 2,
-      y + size * 0.67,
-      size * 0.7,
-      size * 0.41,
-      8,
-      C.ink,
-      700,
-      LATIN_FONT,
-      'center',
-    );
-  }
 }
 
 const captions: Record<string, Partial<Record<ScreenLanguage, string>>> = {

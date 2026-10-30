@@ -1,6 +1,8 @@
 import { localizedName, type StationDefinition } from '../../simulation/lines';
 import type { ScreenLanguage } from '../../rendering/screens';
-import { drawBadge, drawFittedText } from '../../rendering/lcd/shared';
+import { drawSignBadge } from '../../icons/badge';
+import { iconFor } from '../../icons/catalogue';
+import { drawFittedText } from '../../rendering/lcd/shared';
 import { fontFamily, nameOf } from './model';
 
 export const SAKAISUJI_LCD_WIDTH = 1920;
@@ -79,26 +81,19 @@ export function drawVerticalName(
   );
 }
 
+const OSAKA_LINES: readonly [RegExp, string][] = [
+  [/^T\d|Tanimachi/i, 'osaka-metro/t'],
+  [/^C\d|Chuo/i, 'osaka-metro/c'],
+  [/^N\d|Nagahori/i, 'osaka-metro/n'],
+  [/^M\d|Midosuji/i, 'osaka-metro/m'],
+  [/^S\d|Sennichimae/i, 'osaka-metro/s'],
+];
+
 function transferColor(code: string): string {
-  if (/^T\d/.test(code) || /Tanimachi/i.test(code)) {
-    return '#82539d';
-  }
-  if (/^C\d/.test(code) || /Chuo/i.test(code)) {
-    return '#229780';
-  }
-  if (/^N\d/.test(code) || /Nagahori/i.test(code)) {
-    return '#87ad35';
-  }
-  if (/^M\d/.test(code) || /Midosuji/i.test(code)) {
-    return '#cf363d';
-  }
-  if (/^S\d/.test(code) || /Sennichimae/i.test(code)) {
-    return '#d3759f';
-  }
-  if (/JR|Keihan/i.test(code)) {
-    return '#4a8193';
-  }
-  return '#586f86';
+  const id =
+    OSAKA_LINES.find(([pattern]) => pattern.test(code))?.[1] ??
+    (/JR|Keihan/i.test(code) ? 'generic/jr-keihan' : 'generic/other');
+  return iconFor(id).color;
 }
 
 export function drawTransfers(
@@ -115,7 +110,7 @@ export function drawTransfers(
   let offset = 0;
   for (const transfer of transfers) {
     if (transfer.kind === 'badge') {
-      drawBadge(ctx, transfer.code, x - 18 + offset, y - 13, 36, transferColor(transfer.code));
+      drawSignBadge(ctx, transfer.code, x - 18 + offset, y - 13, 36, transferColor(transfer.code));
       offset += 40;
     } else {
       const text = localizedName(
