@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
+import { runtimeView } from '../app/runtime/state';
 import type { ActionDef, PluginApi } from '../features/plugins/contracts';
 
 const state = vi.hoisted(() => ({
@@ -20,6 +22,7 @@ vi.mock('../app/runtime/session.svelte', () => ({
   currentRuntime: () => ({ isOwner: true, nowPlayingTarget: () => state.target }),
 }));
 vi.mock('../features/plugins/registry', () => ({
+  appOwners: new Map([['discord', 'discord-plugin']]),
   mediaSources: new Map([
     [
       'system',
@@ -74,5 +77,33 @@ describe('media routing', () => {
     await expect(actionMap.get('media.next')?.run({ target: 'self' }, context)).rejects.toThrow(
       'No player',
     );
+  });
+
+  it('sends an app-targeted toggle to that app and names it when nothing answers', async () => {
+    const toggle = (await actions()).get('media.toggle');
+    const source = 'app:Brave.Browser%231';
+    vi.mocked(invoke).mockResolvedValueOnce(true);
+    await toggle?.run({ source }, context);
+    expect(invoke).toHaveBeenCalledWith('media_command', {
+      target: 'Brave.Browser#1',
+      command: 'toggle',
+    });
+    vi.mocked(invoke).mockResolvedValueOnce(false);
+    await expect(toggle?.run({ source }, context)).rejects.toThrow('Brave.Browser#1');
+  });
+
+  it('lists live and plugin-known apps and keeps a saved app that is not running as unavailable', async () => {
+    runtimeView.update((view) => ({
+      ...view,
+      status: { ...view.status, catalogue: [{ key: 'app:Brave', title: 'Brave' }] },
+    }));
+    const toggle = (await actions()).get('media.toggle');
+    const suggestions = toggle?.params?.[0].suggestions as (a?: object) => unknown[];
+    expect(suggestions({ source: 'app:Gone' })).toEqual([
+      { value: 'system', label: 'System', plugin: undefined },
+      { value: 'app:Brave', label: 'Brave' },
+      { value: 'app:discord', label: 'Discord', plugin: 'discord-plugin' },
+      { value: 'app:Gone', label: 'Gone', unavailable: true },
+    ]);
   });
 });
