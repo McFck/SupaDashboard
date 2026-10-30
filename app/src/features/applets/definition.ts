@@ -197,12 +197,8 @@ export function validateAppletDefinition(def: AppletDef) {
     if (!view.id.trim() || views.has(view.id)) {
       fail('view IDs must be unique and nonempty');
     }
-    if (
-      !view.title.trim() ||
-      new Set(view.slots).size !== view.slots.length ||
-      view.slots.some((id) => !slots.has(id))
-    ) {
-      fail(`view "${view.id}" has invalid slot references`);
+    if (!view.title.trim()) {
+      fail(`view "${view.id}" has no title`);
     }
     views.add(view.id);
   }

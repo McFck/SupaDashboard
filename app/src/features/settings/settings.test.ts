@@ -44,7 +44,7 @@ describe('settings migration', () => {
       slots: { 'bottom-strip': ['prev'], dock: ['prev'] },
     };
     const s = migrate(v1);
-    expect(s.version).toBe(9);
+    expect(s.version).toBe(10);
     expect(s.deck.pages[0].applet).toBe('subway');
     expect(s.display).toMatchObject({
       monitor: 'X',
@@ -95,7 +95,7 @@ describe('settings migration', () => {
 
   it('uses defaults for missing data and refuses to overwrite a future settings version', () => {
     expect(migrate(undefined)).toEqual(DEFAULTS);
-    expect(() => migrate({ version: 10 })).toThrow('newer than this app supports');
+    expect(() => migrate({ version: 11 })).toThrow('newer than this app supports');
     expect(() => migrate({ version: 99 })).toThrow('newer than this app supports');
     expect(() => migrate({ version: '5', controls: [] })).toThrow('Unsupported settings version');
   });
@@ -341,7 +341,7 @@ describe('settings migration', () => {
       pageRotation: { intervalSeconds: 10 },
     };
     const migrated = migrate(interrupted);
-    expect(migrated).toMatchObject({ version: 9, deck: { pages: [{ applet: 'subway' }] } });
+    expect(migrated).toMatchObject({ version: 10, deck: { pages: [{ applet: 'subway' }] } });
     expect(migrated).not.toHaveProperty('pageRotation');
   });
 
@@ -384,7 +384,7 @@ describe('settings migration', () => {
 const v7Layout = {
   subway: {
     'page-1': { strip: [{ id: 'sw-1', control: 'ghost-a', x: 0, y: 0, w: 1, h: 1 }] },
-    'page-2': { side: [{ id: 'sw-2', control: 'ghost-b', x: 1, y: 2, w: 2, h: 1 }] },
+    'page-2': { strip: [{ id: 'sw-2', control: 'ghost-b', x: 1, y: 0, w: 2, h: 1 }] },
   },
 };
 const v7Settings = {
@@ -419,7 +419,7 @@ describe('settings v7 to v8', () => {
     'moves skin %s to the pages and the settings and layouts to the applet keys',
     (_, skin, applets) => {
       const migrated = migrate(v7File(skin));
-      expect(migrated.version).toBe(9);
+      expect(migrated.version).toBe(10);
       expect(migrated).not.toHaveProperty('skin');
       expect(migrated).not.toHaveProperty('skinSettings');
       expect(migrated).not.toHaveProperty('skinLayouts');
@@ -455,5 +455,40 @@ describe('settings v7 to v8', () => {
     file.deck.pages[0].applet = '';
     file.deck.pages[1].applet = 'x'.repeat(129);
     expect(migrate(file).deck.pages.map((page) => 'applet' in page)).toEqual([false, false]);
+  });
+});
+
+describe('settings v9 to v10', () => {
+  it('moves the Subway side controls into free strip cells instead of losing them', () => {
+    const file = structuredClone(DEFAULTS) as any;
+    const strip = [0, 1, 3, 4, 5, 6, 7].map((x) => ({
+      id: `strip-${x}`,
+      control: `strip-control-${x}`,
+      x,
+      y: 0,
+      w: 1,
+      h: 1,
+    }));
+    file.version = 9;
+    file.appletLayouts = {
+      subway: {
+        'page-1': {
+          strip,
+          side: [
+            { id: 'side-1', control: 'side-control-1', x: 0, y: 0, w: 1, h: 2 },
+            { id: 'side-2', control: 'side-control-2', x: 0, y: 1, w: 1, h: 1 },
+          ],
+        },
+      },
+    };
+    const migrated = migrate(file);
+    expect(migrated.version).toBe(10);
+    expect(migrated.appletLayouts.subway['page-1']).toEqual({
+      strip: [
+        ...strip,
+        { id: 'side-1', control: 'side-control-1', x: 2, y: 0, w: 1, h: 1 },
+        { id: 'side-2', control: 'side-control-2', x: 8, y: 0, w: 1, h: 1 },
+      ],
+    });
   });
 });

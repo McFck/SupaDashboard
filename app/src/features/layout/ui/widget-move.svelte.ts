@@ -54,8 +54,7 @@ export class WidgetMove {
 
   optionsFor(mode: MoveMode, sourceTarget: LayoutTarget, itemId: string) {
     const applet = appletById(sourceTarget.appletId);
-    const slots = applet?.views.find((view) => view.id === this.editor.viewId)?.slots ?? [];
-    return buildMoveOptions(settings, applet, slots, mode, sourceTarget, itemId);
+    return buildMoveOptions(settings, applet, mode, sourceTarget, itemId);
   }
 
   openMoveDialog(mode: MoveMode, sourceTarget: LayoutTarget, itemId: string) {
@@ -103,7 +102,7 @@ export class WidgetMove {
       this.editor.pageId === pageId &&
       this.editor.applet.id === appletId &&
       !!source?.items.some((item) => item.id === request.itemId) &&
-      this.editor.visibleSlots.includes(slotId)
+      this.editor.slotIds.includes(slotId)
     );
   }
 

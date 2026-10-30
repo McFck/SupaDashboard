@@ -84,10 +84,6 @@ export async function handleRuntimeRequest(runtime: RuntimeSession, request: Run
 }
 
 function changePage(runtime: RuntimeSession, change: PageChangePayload) {
-  if (!('page' in change)) {
-    runtime.changePageInDirection(change.direction, change.reason);
-    return;
-  }
   if (!settings.deck.pages.some((page) => page.id === change.page)) {
     throw new Error('Page is unavailable');
   }

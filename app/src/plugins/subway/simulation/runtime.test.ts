@@ -74,13 +74,13 @@ class FakeClock implements SubwayRuntimeClock {
   }
 }
 
-function makeContext(onEvent?: (id: string) => void) {
+function makeContext(onEvent?: (id: string) => void, immersion = true) {
   const config = writable({
     line: 'yamanote',
     direction: 'inner',
     station: 'JY30',
     speed: 1,
-    immersion: true,
+    immersion,
     dwellSeconds: 0,
   });
   const active = writable(false);
@@ -161,12 +161,11 @@ describe('Subway owner runtime', () => {
   );
   it('starts automatically on the first eligible runtime surface and publishes the owner projection', async () => {
     const clock = new FakeClock();
-    const fixture = makeContext();
+    const fixture = makeContext(undefined, false);
     fixture.config.update((config) => ({ ...config, dwellSeconds: 15 }));
     const handle = createSubwayRuntime(fixture.context, {
       clock,
       loadAssets: async () => assets,
-      assetBase: 'http://localhost/subway/',
     });
     disposers.push(() => handle.dispose());
     await flush();
@@ -194,14 +193,13 @@ describe('Subway owner runtime', () => {
 
   it('auto-starts after an editor-only period and preserves the progressed station across hide/show', async () => {
     const clock = new FakeClock();
-    const fixture = makeContext();
+    const fixture = makeContext(undefined, false);
     fixture.config.update((config) => ({ ...config, startStation: 'JY01', dwellSeconds: 0 }));
     const surface = driveActive(fixture, false);
     disposers.push(() => surface.dispose());
     const handle = createSubwayRuntime(fixture.context, {
       clock,
       loadAssets: async () => assets,
-      assetBase: 'http://localhost/subway/',
     });
     disposers.push(() => handle.dispose());
     await flush();
@@ -230,30 +228,6 @@ describe('Subway owner runtime', () => {
     clock.advanceUntil(() => handle.getSnapshot()?.station === 'JY03');
     await flush();
     expect(handle.getSnapshot()).toMatchObject({ station: 'JY03' });
-  });
-
-  it('does not install a timer when a surface is an editor preview or becomes hidden', async () => {
-    const clock = new FakeClock();
-    const fixture = makeContext();
-    const surface = driveActive(fixture, false);
-    disposers.push(() => surface.dispose());
-    const handle = createSubwayRuntime(fixture.context, {
-      clock,
-      loadAssets: async () => assets,
-      assetBase: 'http://localhost/subway/',
-    });
-    disposers.push(() => handle.dispose());
-    await flush();
-    expect(handle.dispatch({ type: 'start' })).toBe(false);
-    expect(clock.pending).toBe(0);
-    surface.setEligible(true);
-    await flush();
-    expect(clock.pending).toBe(1);
-    expect(handle.getSnapshot()).toMatchObject({ station: 'JY30', next: 'JY01', paused: false });
-    surface.setEligible(false);
-    await flush();
-    expect(clock.pending).toBe(0);
-    expect(fixture.values.get('paused')).toBe(true);
   });
 
   it('projects unavailable after asset loading fails before a surface becomes eligible', async () => {
@@ -332,7 +306,6 @@ describe('Subway owner runtime', () => {
     const handle = createSubwayRuntime(fixture.context, {
       clock,
       loadAssets: async () => assets,
-      assetBase: 'http://localhost/subway/',
     });
     disposers.push(() => handle.dispose());
     await flush();
@@ -451,6 +424,28 @@ describe('Subway owner runtime', () => {
     expect(fixture.ancestries).toContainEqual(ancestry);
   });
 
+  it('keeps immersion running and audible behind another page until it is switched off', async () => {
+    const clock = new FakeClock();
+    const fixture = makeContext();
+    let cues = 0;
+    driveActive(fixture, false);
+    const options = { clock, loadAssets: async () => assets, onCue: () => void cues++ };
+    const handle = createSubwayRuntime(fixture.context, options);
+    disposers.push(() => handle.dispose());
+    await flush();
+    clock.advanceUntil(() => handle.getSnapshot()?.station === 'JY01');
+    await flush();
+    expect(handle.getSnapshot()?.paused).toBe(false);
+    expect(cues).toBeGreaterThan(0);
+
+    expect(handle.setImmersion(false)).toBe(true);
+    const [quiet, heard] = [handle.getSnapshot()!, cues];
+    clock.advanceBy(60_000);
+    await flush();
+    expect(handle.getSnapshot()).toMatchObject({ station: quiet.station, paused: true });
+    expect(cues).toBe(heard);
+  });
+
   it('keeps audio inside the eligible owner runtime and unlocks only through immersion commands', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
@@ -491,6 +486,8 @@ describe('Subway owner runtime', () => {
     expect(handle.requestLine({ line: 'hibiya', startStation: 'H14' })).toBe(true);
     expect(audio.resetLine).toHaveBeenCalledWith(true);
     surface.setEligible(false);
+    expect(audio.setVisible).not.toHaveBeenCalledWith(false);
+    expect(handle.setImmersion(false)).toBe(true);
     expect(audio.setVisible).toHaveBeenLastCalledWith(false);
     handle.dispose();
     expect(audio.dispose).toHaveBeenCalledOnce();

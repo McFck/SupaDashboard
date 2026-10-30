@@ -17,11 +17,8 @@ export type EditorStateHost = {
   leave(): void;
 };
 
-function defaultTarget(applet: AppletDef, pageId: string, viewId: string): LayoutTarget {
-  const view =
-    applet.views.find((entry) => entry.id === viewId) ??
-    applet.views.find((entry) => entry.id === applet.defaultView);
-  return { appletId: applet.id, pageId, slotId: view?.slots[0] ?? applet.slots[0]?.id ?? 'main' };
+function defaultTarget(applet: AppletDef, pageId: string): LayoutTarget {
+  return { appletId: applet.id, pageId, slotId: applet.slots[0]?.id ?? 'main' };
 }
 
 function storedView(applet: AppletDef) {
@@ -41,23 +38,20 @@ export class LayoutEditorState {
   readonly page = $derived(pageById(settings.deck.pages, this.pageId)!);
   /** The shown page decides the applet, so the editor follows page and applet changes made anywhere. */
   readonly applet = $derived(appletFor(this.page));
-  readonly visibleSlots = $derived(
-    this.applet.views.find((view) => view.id === this.viewId)?.slots ?? [],
-  );
+  readonly slotIds = $derived(this.applet.slots.map((slot) => slot.id));
   readonly target = $derived.by((): LayoutTarget => {
     const current = this.selectionTarget;
     const valid =
       current.appletId === this.applet.id &&
       current.pageId === this.page.id &&
-      this.applet.slots.some((slot) => slot.id === current.slotId) &&
-      this.visibleSlots.includes(current.slotId);
+      this.slotIds.includes(current.slotId);
     if (valid) {
       return current;
     }
     return {
       appletId: this.applet.id,
       pageId: this.page.id,
-      slotId: this.visibleSlots[0] ?? this.applet.slots[0]?.id ?? 'main',
+      slotId: this.slotIds[0] ?? 'main',
     };
   });
 
@@ -71,7 +65,7 @@ export class LayoutEditorState {
       get(runtimeView).activePage || settings.deck.activePage || settings.deck.pages[0].id;
     const applet = this.applet;
     this.viewId = storedView(applet);
-    this.selectionTarget = defaultTarget(applet, this.pageId, this.viewId);
+    this.selectionTarget = defaultTarget(applet, this.pageId);
     this.previousAppletId = applet.id;
     this.previousViewId = this.viewId;
     this.previousPageId = this.pageId;
@@ -102,7 +96,7 @@ export class LayoutEditorState {
       pageId === this.page.id &&
       pageId === slot.pageId &&
       this.applet.id === slot.appletId &&
-      this.visibleSlots.includes(slot.slotId)
+      this.slotIds.includes(slot.slotId)
     );
   }
 
@@ -116,7 +110,7 @@ export class LayoutEditorState {
       this.applet.id === appletId &&
       this.viewId === viewId &&
       this.pageGeneration === generation &&
-      this.visibleSlots.includes(slot.slotId);
+      this.slotIds.includes(slot.slotId);
   }
 
   private reconcilePages() {
@@ -145,11 +139,11 @@ export class LayoutEditorState {
     const viewId = applet.id === this.previousAppletId ? this.viewId : storedView(applet);
     this.viewId = viewId;
     this.selection = null;
-    this.selectionTarget = defaultTarget(applet, this.page.id, viewId);
+    this.selectionTarget = defaultTarget(applet, this.page.id);
     this.host.leave();
   }
 
-  /** The previewed applet or view changed: remember the view and keep the selection inside it. */
+  /** The previewed applet or view changed: remember the view and keep the selection inside the applet. */
   private reconcileView() {
     const applet = this.applet;
     const viewId = this.viewId;
@@ -158,14 +152,12 @@ export class LayoutEditorState {
     }
     this.previousAppletId = applet.id;
     this.previousViewId = viewId;
-    const view = applet.views.find((entry) => entry.id === viewId);
-    if (!view) {
+    if (!applet.views.some((entry) => entry.id === viewId)) {
       return;
     }
     layoutPreview.views[applet.id] = viewId;
-    const target = this.selectionTarget;
-    if (!view.slots.includes(target.slotId) || target.appletId !== applet.id) {
-      this.selectionTarget = defaultTarget(applet, this.page.id, viewId);
+    if (this.selectionTarget.appletId !== applet.id) {
+      this.selectionTarget = defaultTarget(applet, this.page.id);
     }
     this.clearTransient();
     saveLayoutPreview();

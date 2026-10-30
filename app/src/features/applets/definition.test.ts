@@ -14,7 +14,7 @@ const base = (): AppletDef => ({
   title: 'Sample',
   component: {} as any,
   slots: [{ id: 'main', kind: 'grid', grid: 'page' }],
-  views: [{ id: 'default', title: 'Default', slots: ['main'] }],
+  views: [{ id: 'default', title: 'Default' }],
   defaultView: 'default',
 });
 
@@ -24,12 +24,6 @@ describe('applet declarations', () => {
     expect(() =>
       validateAppletDefinition({ ...base(), slots: [...base().slots, base().slots[0]] }),
     ).toThrow('slot IDs');
-    expect(() =>
-      validateAppletDefinition({
-        ...base(),
-        views: [{ id: 'other', title: 'Other', slots: ['missing'] }],
-      }),
-    ).toThrow('slot references');
     expect(() => validateAppletDefinition({ ...base(), defaultView: 'missing' })).toThrow(
       'defaultView',
     );

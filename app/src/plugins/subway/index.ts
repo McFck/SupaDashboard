@@ -1,7 +1,5 @@
 import type { Option, Param, Plugin, SettingsGroup } from '../../features/plugins/contracts';
 import type { AppletStateField } from '../../features/applets/contracts';
-import SubwayButton from './ui/SubwayButton.svelte';
-import SubwaySlider from './ui/SubwaySlider.svelte';
 import SubwayApplet from './ui/SubwayApplet.svelte';
 import {
   ANNOUNCEMENT_LANGUAGE_PRESETS,
@@ -305,23 +303,16 @@ export const subwayPlugin: Plugin = {
       slots: [
         {
           id: 'strip',
-          kind: 'strip',
-          accepts: ['button', 'slider'],
-          max: 8,
-          grid: { rows: 1, cols: 8, size: 112, gap: 8, sizing: 'auto' },
-        },
-        {
-          id: 'side',
           kind: 'grid',
-          accepts: ['button'],
-          max: 2,
-          grid: { rows: 2, cols: 1, size: 112, gap: 8, sizing: 'auto' },
+          accepts: ['button', 'slider'],
+          max: 10,
+          grid: { rows: 1, cols: 10, size: 112, gap: 8, sizing: 'auto' },
         },
       ],
       views: [
-        { id: 'display', title: 'Display', slots: ['strip'] },
-        { id: 'map', title: 'Map', slots: ['strip'] },
-        { id: 'cab', title: 'Run', slots: ['strip', 'side'] },
+        { id: 'display', title: 'Display' },
+        { id: 'map', title: 'Map' },
+        { id: 'cab', title: 'Run' },
       ],
       defaultView: 'display',
       settings,
@@ -331,7 +322,6 @@ export const subwayPlugin: Plugin = {
         { id: 'subway.immersion' },
         { id: 'subway.resume' },
       ],
-      controlFaces: { button: { component: SubwayButton }, slider: { component: SubwaySlider } },
       state,
       events: [
         { id: 'subway.departed', title: 'Train departed', parameterSuggestions: () => [] },

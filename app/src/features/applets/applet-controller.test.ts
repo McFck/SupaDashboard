@@ -27,7 +27,7 @@ function setup(owner = true) {
       title: id,
       component: {} as AppletDef['component'],
       slots: [],
-      views: [{ id: 'default', title: 'Default', slots: [] }],
+      views: [{ id: 'default', title: 'Default' }],
       defaultView: 'default',
       start: () => {
         if (id === failStart) {

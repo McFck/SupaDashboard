@@ -4,6 +4,7 @@ import type { MotionAudioInstance, ResolvedCue, TrainMotionApi } from './sound-t
 import { loadSubwayMotionEngine } from './asset-loader';
 import { playEmergencyAlert } from './audio-alert';
 import { createCueBufferCache } from './audio-cache';
+import { effectGain } from './audio-level';
 import { subscribeSubwayMixerSettings } from './audio-volume';
 
 const MOTION_CALIBRATION = 0.65;
@@ -394,8 +395,10 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       return;
     const elapsed = Math.max(0, audioContext.currentTime - scheduledAt);
     if (elapsed >= effect.cue.duration) return;
+    const { role, offset, duration, gain } = effect.cue;
     const cue: ResolvedCue = {
       ...effect.cue,
+      gain: role === 'voice' ? gain : effectGain(buffer, offset, duration, gain),
       offset: effect.cue.offset + elapsed,
       duration: effect.cue.duration - elapsed,
     };

@@ -8,23 +8,12 @@ import { runtimeView, type RuntimeSnapshot } from './state';
 import { requestRuntime } from './client';
 import { controlStateId, currentRuntime } from './session.svelte';
 
-export async function requestPageChange(
-  change: { direction: 'next' | 'prev' } | { page: string },
-  reason: RemotePageChangeReason,
-) {
+export async function requestPageChange(change: { page: string }, reason: RemotePageChangeReason) {
   const runtime = currentRuntime();
-  if (runtime?.isOwner)
-    return 'page' in change
-      ? runtime.changePage(change.page, reason)
-      : runtime.changePageInDirection(change.direction, reason);
-  const payload: PageChangePayload =
-    'page' in change ? { page: change.page, reason } : { direction: change.direction, reason };
+  if (runtime?.isOwner) return runtime.changePage(change.page, reason);
+  const payload: PageChangePayload = { page: change.page, reason };
   const snapshot = (await requestRuntime({ type: 'changePage', payload })) as RuntimeSnapshot;
-  return (
-    !!snapshot &&
-    typeof snapshot.activePage === 'string' &&
-    (!('page' in change) || snapshot.activePage === change.page)
-  );
+  return !!snapshot && snapshot.activePage === change.page;
 }
 
 export async function dispatchRuntimeTrigger(controlId: string, itemId: string, trigger: Trigger) {

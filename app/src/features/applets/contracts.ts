@@ -15,7 +15,7 @@ export type AppletSlot = {
   size?: { w: number; h: number };
   grid: AppletGrid;
 };
-export type AppletView = { id: string; title: string; slots: string[] };
+export type AppletView = { id: string; title: string };
 export type AppletStateField = {
   key: string;
   type: VariableType;

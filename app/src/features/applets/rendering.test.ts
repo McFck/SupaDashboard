@@ -21,7 +21,7 @@ const applet: AppletDef = {
       grid: { rows: 1, cols: 2, size: 80, gap: 8, sizing: 'auto' },
     },
   ],
-  views: [{ id: 'default', title: 'Default', slots: ['main'] }],
+  views: [{ id: 'default', title: 'Default' }],
   defaultView: 'default',
   controlFaces: {
     [typeId]: {

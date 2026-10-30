@@ -2,7 +2,7 @@ import type { EventAncestry } from '../plugins/contracts';
 import type { Settings } from '../settings/schema';
 import { pageAfterRemoval, pageById } from './pages';
 
-export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'applet' | 'reconcile';
+export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'reconcile';
 
 export class PageController {
   activePage: string;
