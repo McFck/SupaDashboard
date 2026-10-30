@@ -3,7 +3,6 @@ import { normalizeSubwayLines } from './simulation/lines';
 import { scheduleScreen, stationMinutes } from './rendering/screens';
 import { createSubwayScene, prepareFrame, type SubwaySceneData } from './rendering/scene';
 import { subwayComposition } from './rendering/composition';
-import { transferColor } from './rendering/lcd/sakaisuji';
 import type { RunSnapshot } from './simulation/run';
 
 const modules = import.meta.glob('../../../../assets/lines/*/{line,pack}.json', {
@@ -138,14 +137,6 @@ describe('Subway v2 content and composition', () => {
           }
         if (line.id !== 'sakaisuji') expect(regions.lcd.w / regions.lcd.h).toBeCloseTo(16 / 9);
       }
-  });
-
-  it('uses actual Osaka line code colours', () => {
-    expect(transferColor('T18')).toBe('#82539d');
-    expect(transferColor('C17')).toBe('#229780');
-    expect(transferColor('N16')).toBe('#87ad35');
-    expect(transferColor('M22')).toBe('#cf363d');
-    expect(transferColor('S17')).toBe('#d3759f');
   });
 
   it('paints the live clock through the real scene renderer', () => {

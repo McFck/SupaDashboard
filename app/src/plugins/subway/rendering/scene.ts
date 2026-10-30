@@ -3,7 +3,7 @@ import type {
   AppletSceneRenderer,
 } from '../../../features/applets/scene-contracts';
 import { createHibiyaRenderer, scheduleHibiyaPair } from './lcd/hibiya';
-import { createSakaisujiRenderer } from './lcd/sakaisuji';
+import { createHankyu1300Renderer } from '../display/hankyu-1300/renderer';
 import { createYamanoteRenderer } from './lcd/yamanote';
 import { displayLanguages, normalizeCarNumber } from '../simulation/config';
 import { scheduleScreen, type ScreenConfig } from './screens';
@@ -86,7 +86,7 @@ export const createSubwayScene: AppletSceneFactory<
   };
   const yamanote = once(createYamanoteRenderer);
   const hibiya = once(createHibiyaRenderer);
-  const sakaisuji = once(createSakaisujiRenderer);
+  const sakaisuji = once(createHankyu1300Renderer);
   return {
     draw({ ctx, width, height, data, time }) {
       ctx.fillStyle = BACKGROUND;
