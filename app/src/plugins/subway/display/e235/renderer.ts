@@ -75,14 +75,10 @@ export function createYamanoteRenderer() {
         animationOrigin = time;
       }
       return paintFitted(ctx, width, height, 1280, 720, () => {
-        const key =
-          model.invalidationKey + '|' + e235Images.revision + '|' + (Math.floor(time / 3000) % 12);
-        if (
-          !cache.draw(ctx, key, 1280, 720, (layer) =>
-            drawStatic(layer, { ...model, visibleElapsed: time }),
-          )
-        )
-          drawStatic(ctx, { ...model, visibleElapsed: time });
+        const key = model.invalidationKey + '|' + e235Images.revision;
+        if (!cache.draw(ctx, key, 1280, 720, (layer) => drawStatic(layer, model))) {
+          drawStatic(ctx, model);
+        }
         return overlay(ctx, model, time - animationOrigin);
       });
     },

@@ -170,11 +170,7 @@ export function drawE235PageOverlay(
 ) {
   if (model.page === 'door' || model.page === 'closing') {
     door(ctx, model, time);
-    return thisSide(model) || e235Images.pending;
+    return thisSide(model);
   }
-  return (
-    e235Images.pending ||
-    (e235Station(target(model)).transfers.some((t) => t.icons.length > 1) &&
-      ['nearby', 'transfers', 'platform'].includes(model.page))
-  );
+  return false;
 }

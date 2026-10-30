@@ -63,10 +63,7 @@ export function transferGrid(
   for (const item of layout.lines) {
     const x = widths.slice(0, item.column!).reduce((a, b) => a + b, 0) + (full ? 2 : 0),
       y = item.row! * rowHeight + (full ? 0 : 5);
-    const icon =
-      item.transfer.icons[
-        item.iconRef ?? Math.floor(model.visibleElapsed / 3000) % item.transfer.icons.length
-      ];
+    const icon = item.transfer.icons[item.iconRef ?? model.iconPhase % item.transfer.icons.length];
     if (icon) drawIcon(ctx, icon, x, y, iconSize);
     const tx = x + iconSize + (full ? 6 : 4),
       room =

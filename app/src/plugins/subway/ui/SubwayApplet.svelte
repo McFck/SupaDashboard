@@ -14,6 +14,7 @@
   import { loadSubwayEditorPreview, type SubwayEditorPreview } from '../rendering/preview';
   import { sessionKey } from '../rendering/screens';
   import { VisibleClock } from '../rendering/engine/visible-clock';
+  import { e235Images } from '../display/e235/images';
 
   let { page: _page }: { page: Page } = $props();
   const host = getAppletHostContext();
@@ -34,6 +35,11 @@
       startStation: host?.config.startStation,
       displayLanguages: host?.config.displayLanguages,
       carNumber: host?.config.carNumber,
+    }),
+  );
+  $effect(() =>
+    e235Images.subscribe(() => {
+      screenPulse++;
     }),
   );
   $effect(() => {
@@ -84,7 +90,7 @@
       {
         ...source,
         visibleElapsed,
-        clockLabel: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        wallMs: Date.now(),
       },
       view,
       screen,

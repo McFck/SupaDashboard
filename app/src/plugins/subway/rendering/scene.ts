@@ -6,12 +6,14 @@ import { createHibiyaRenderer } from '../display/tokyo-metro-13000/renderer';
 import { scheduleHibiyaPair } from '../display/tokyo-metro-13000/schedule';
 import { createHankyu1300Renderer } from '../display/hankyu-1300/renderer';
 import { createYamanoteRenderer } from '../display/e235/renderer';
+import { e235Images } from '../display/e235/images';
+import { e235WallClock } from '../display/e235/schedule';
 import { displayLanguages, normalizeCarNumber } from '../simulation/config';
 import { scheduleScreen, type ScreenConfig } from './screens';
 import type { SubwaySceneState } from '../simulation/runtime';
 import type { PreparedFrame, SubwayScreen } from './contracts';
 
-export type SubwaySceneData = SubwaySceneState & { visibleElapsed: number; clockLabel?: string };
+export type SubwaySceneData = SubwaySceneState & { visibleElapsed: number; wallMs?: number };
 
 const BACKGROUND = '#10171b';
 
@@ -31,15 +33,16 @@ export function prepareFrame(
   screen: SubwayScreen,
 ): PreparedFrame {
   const { line, snapshot, visibleElapsed } = data;
+  const wall =
+    line.id === 'yamanote' && data.wallMs !== undefined ? e235WallClock(data.wallMs) : undefined;
   const config: ScreenConfig = {
     line,
     languages: sceneLanguages(data),
     currentCar: normalizeCarNumber(data.config.carNumber, line.carCount),
-    clock: data.clockLabel,
+    clock: wall?.label,
     manualView: view === 'map' || view === 'cab' ? 'map' : 'display',
   };
-  // Yamanote shows a wall-clock minute, so it also wakes at the next minute boundary.
-  const minuteMs = line.id === 'yamanote' ? 60_000 - (Date.now() % 60_000) : Infinity;
+  const minuteMs = wall?.wakeInMs ?? Infinity;
   const wake = (nextDeadline: number | null) => {
     const delay = Math.min(
       nextDeadline === null ? Infinity : nextDeadline - visibleElapsed,
@@ -65,7 +68,11 @@ export function prepareFrame(
     kind: 'screen',
     line,
     schedule,
-    revision: schedule.invalidationKey,
+    // Late images repaint through the revision; nothing polls for them.
+    revision:
+      line.id === 'yamanote'
+        ? `${schedule.invalidationKey}|${e235Images.revision}`
+        : schedule.invalidationKey,
     wakeInMs: wake(schedule.nextDeadline),
   };
 }

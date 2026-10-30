@@ -1,6 +1,6 @@
 import { localizedName, type LineDefinition, type StationDefinition } from '../simulation/lines';
 import type { RunSnapshot } from '../simulation/run';
-import { e235Routine } from '../display/e235/schedule';
+import { E235_ICON_DWELL_MS, e235Routine } from '../display/e235/schedule';
 import { normalizeCarNumber } from '../simulation/config';
 import { hankyuCycle, hankyuLanguages } from '../display/hankyu-1300/schedule';
 
@@ -50,6 +50,7 @@ export interface ScreenSchedule {
   readonly visibleElapsed: number;
   readonly pageDeadline: number | null;
   readonly languageDeadline: number | null;
+  readonly iconPhase: number;
   readonly nextDeadline: number | null;
   readonly invalidationKey: string;
 }
@@ -196,6 +197,11 @@ export function sessionKey(snapshot: RunSnapshot, config: ScreenConfig): string 
   ].join('|');
 }
 
+function earliest(...deadlines: (number | null)[]): number | null {
+  const due = deadlines.filter((value): value is number => value !== null);
+  return due.length ? Math.min(...due) : null;
+}
+
 export function scheduleScreen(
   snapshot: RunSnapshot,
   config: ScreenConfig,
@@ -252,6 +258,10 @@ export function scheduleScreen(
     page = item.page;
     pageDeadline = visibleElapsed + item.duration - (position - cursor);
   }
+  // Only a rotating E235 icon set depends on the phase, so only then does it end a frame early.
+  const iconsRotate = !!native?.iconsRotate && page === native.page;
+  const iconPhase = Math.floor(visibleElapsed / E235_ICON_DWELL_MS);
+  const iconDeadline = iconsRotate ? (iconPhase + 1) * E235_ICON_DWELL_MS : null;
   const languageDeadline = abnormal
     ? null
     : (native?.languageDeadline ??
@@ -305,6 +315,7 @@ export function scheduleScreen(
     facilityKey,
     currentCar,
     line.id === 'yamanote' ? clock : '',
+    iconsRotate ? iconPhase : '',
   ].join('|');
   return Object.freeze({
     page,
@@ -328,12 +339,8 @@ export function scheduleScreen(
     visibleElapsed,
     pageDeadline,
     languageDeadline,
-    nextDeadline:
-      pageDeadline === null
-        ? languageDeadline
-        : languageDeadline === null
-          ? pageDeadline
-          : Math.min(pageDeadline, languageDeadline),
+    iconPhase,
+    nextDeadline: earliest(pageDeadline, languageDeadline, iconDeadline),
     invalidationKey,
   });
 }

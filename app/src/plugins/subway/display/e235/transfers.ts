@@ -55,10 +55,7 @@ export function drawE235DetailedTransfers(
     const column = item.column!;
     const x = left + (mirror ? 0 : 20) + column * col + 2;
     const y = 300 + rows.slice(0, item.row!).reduce((a, b) => a + b, 0);
-    const icon =
-      item.transfer.icons[
-        item.iconRef ?? Math.floor(model.visibleElapsed / 3000) % item.transfer.icons.length
-      ];
+    const icon = item.transfer.icons[item.iconRef ?? model.iconPhase % item.transfer.icons.length];
     if (icon) drawIcon(ctx, icon, x, y, 24);
     const name = en ? item.aliasEn || item.transfer.en : item.aliasJa || item.transfer.ja;
     name

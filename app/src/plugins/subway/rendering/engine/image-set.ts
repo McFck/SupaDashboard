@@ -47,6 +47,7 @@ export class ImageSet {
   private readonly bounds = new Map<string, Bounds>();
   private loading: Promise<void> | undefined;
   private settled = 0;
+  private readonly listeners = new Set<() => void>();
 
   constructor(
     private readonly urls: Readonly<Record<string, string>>,
@@ -58,8 +59,10 @@ export class ImageSet {
     return this.settled;
   }
 
-  get pending(): boolean {
-    return this.images.size > this.settled;
+  // Calls `listener` whenever a request settles, so the owner can prepare a new frame.
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   acquire(): Promise<void> {
@@ -85,6 +88,9 @@ export class ImageSet {
         clearTimeout(timeout);
         image.onload = image.onerror = null;
         this.settled++;
+        for (const listener of this.listeners) {
+          listener();
+        }
         resolve();
       };
       const timeout = setTimeout(() => {
