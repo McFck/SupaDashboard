@@ -261,5 +261,15 @@
       "wikidata": "Q801026"
     }
   ],
+  "transfers": {
+    "H08": {
+      "ja": "JR線",
+      "en": "JR Lines"
+    },
+    "H17": {
+      "ja": "JR線",
+      "en": "JR Lines"
+    }
+  },
   "source": "Wikidata Q1196223, fetched 2026-10-22"
 }
