@@ -7,23 +7,26 @@
   import Slot from '../../../features/applets/Slot.svelte';
   import CanvasScene from '../../../features/applets/CanvasScene.svelte';
   import AppletQuickActions from '../../../features/applets/AppletQuickActions.svelte';
-  import { createSubwayScene, subwaySceneRevision, type SubwaySceneData } from '../rendering/scene';
-  import { regionStyle, subwayComposition } from '../rendering/composition';
+  import type { PreparedFrame, SubwayScreen } from '../rendering/contracts';
+  import { createSubwayScene, prepareFrame, sceneLanguages } from '../rendering/scene';
+  import { isWidescreen, regionStyle, subwayComposition } from '../rendering/composition';
   import { subwaySceneState } from '../simulation/runtime';
   import { loadSubwayEditorPreview, type SubwayEditorPreview } from '../rendering/preview';
-  import { displayLanguages as displayPresetLanguages } from '../simulation/config';
-  import { VisibleScreenClock, type ScreenConfig } from '../rendering/screens';
+  import { sessionKey } from '../rendering/screens';
+  import { VisibleClock } from '../rendering/engine/visible-clock';
 
   let { page: _page }: { page: Page } = $props();
   const host = getAppletHostContext();
   let screenPulse = $state(0);
-  let sceneData = $state<SubwaySceneData>();
+  let frame = $state.raw<PreparedFrame>();
   let editorPreview = $state<SubwayEditorPreview>();
-  const screenClock = new VisibleScreenClock();
+  const clock = new VisibleClock();
+  const view = $derived(host?.viewId ?? 'display');
+  const screen = $derived<SubwayScreen>(host?.config.screen === 'right' ? 'right' : 'left');
   const sideActive = $derived(host?.viewId === 'cab');
   const compact = $derived((host?.viewport?.width ?? 1920) / (host?.viewport?.height || 480) < 2.8);
-  const composition = $derived(subwayComposition(compact, sceneData?.line.id));
-  const sceneRevision = $derived(subwaySceneRevision(sceneData, host?.viewId ?? 'display'));
+  const line = $derived(frame?.line);
+  const composition = $derived(subwayComposition(compact, line?.id));
   const previewConfig = $derived(
     JSON.stringify({
       line: host?.config.line,
@@ -33,7 +36,6 @@
       carNumber: host?.config.carNumber,
     }),
   );
-  const line = $derived(sceneData?.line);
   $effect(() => {
     host?.setDesignHeight?.(composition.height);
   });
@@ -61,49 +63,37 @@
   });
 
   $effect(() => {
-    const mode = host?.mode;
-    if (mode === 'editor') {
+    if (host?.mode === 'editor') {
       const preview = editorPreview;
-      sceneData = preview ? { ...preview, visibleElapsed: 0 } : undefined;
+      frame = preview ? prepareFrame({ ...preview, visibleElapsed: 0 }, view, screen) : undefined;
       return;
     }
     const source = $subwaySceneState;
-    const pulse = screenPulse;
-    void pulse;
+    void screenPulse;
     if (!source) {
-      sceneData = undefined;
+      frame = undefined;
       return;
     }
-    const rawLanguages = source.config.displayLanguages ?? source.config.languages;
-    const languages = Array.isArray(rawLanguages)
-      ? rawLanguages.filter((item): item is string => typeof item === 'string')
-      : displayPresetLanguages(
-          typeof rawLanguages === 'string'
-            ? rawLanguages
-            : source.line.id === 'sakaisuji'
-              ? 'ja-kana'
-              : 'ja-en',
-        );
-    const config: ScreenConfig = { line: source.line, languages };
     const active = host?.active ?? false;
-    const schedule = screenClock.update(source.snapshot, config, performance.now(), active);
-    sceneData = {
-      ...source,
-      visibleElapsed: schedule.visibleElapsed,
-      clockLabel: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-    };
-    if (!active) return;
-    const delay = Math.min(
-      schedule.nextDeadline === null ? Infinity : schedule.nextDeadline - schedule.visibleElapsed,
-      source.line.id === 'yamanote' ? 60_000 - (Date.now() % 60_000) : Infinity,
+    const visibleElapsed = clock.update(
+      sessionKey(source.snapshot, { line: source.line, languages: sceneLanguages(source) }),
+      performance.now(),
+      active,
     );
-    if (!Number.isFinite(delay)) return;
-    const timeout = window.setTimeout(
-      () => {
-        screenPulse++;
+    const prepared = prepareFrame(
+      {
+        ...source,
+        visibleElapsed,
+        clockLabel: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       },
-      Math.max(0, delay),
+      view,
+      screen,
     );
+    frame = prepared;
+    if (!active || prepared.wakeInMs === null) return;
+    const timeout = window.setTimeout(() => {
+      screenPulse++;
+    }, prepared.wakeInMs);
     return () => window.clearTimeout(timeout);
   });
 </script>
@@ -122,8 +112,8 @@
       width={composition.lcd.w}
       height={composition.lcd.h}
       view={host?.viewId ?? 'display'}
-      data={sceneData}
-      revision={sceneRevision}
+      data={frame}
+      revision={frame?.revision}
       opaque
     />
   </div>
@@ -158,9 +148,9 @@
   </div>
   <nav
     data-applet-input="ui"
-    aria-label="Skin view"
+    aria-label="Applet view"
     class="absolute z-20 grid gap-3"
-    style={`${regionStyle(composition.views)};grid-template-columns:${compact && line?.id === 'yamanote' ? '1fr' : 'repeat(3,minmax(0,1fr))'}`}
+    style={`${regionStyle(composition.views)};grid-template-columns:${compact && isWidescreen(line?.id) ? '1fr' : 'repeat(3,minmax(0,1fr))'}`}
   >
     <Button
       class="h-full min-w-0 px-1 text-[30px] font-semibold"

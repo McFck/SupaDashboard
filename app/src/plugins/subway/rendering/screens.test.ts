@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines, stepStation } from '../simulation/lines';
-import { VisibleScreenClock, scheduleScreen } from './screens';
+import { scheduleScreen } from './screens';
 import type { RunSnapshot } from '../simulation/run';
 
 const lineFiles = import.meta.glob('../../../../../assets/lines/*/line.json', {
@@ -239,19 +239,5 @@ describe('Subway screen scheduler', () => {
     expect(
       scheduleScreen(knownSnapshot, { line: known.line, viewingSide: 'left' }, 0).sideLabel,
     ).toBe('opposite side');
-  });
-
-  it('freezes visible page time while inactive and resets it for a new run phase', () => {
-    const clock = new VisibleScreenClock();
-    const start = clock.update(snapshot(), config, 1_000, true);
-    const hidden = clock.update(snapshot(), config, 9_000, false);
-    const resumed = clock.update(snapshot(), config, 109_000, true);
-    expect(start.visibleElapsed).toBe(0);
-    expect(hidden.visibleElapsed).toBe(8_000);
-    expect(resumed.visibleElapsed).toBe(8_000);
-    expect(resumed.page).toBe('broad');
-    const nextPhase = clock.update(snapshot({ state: 'approaching' }), config, 109_500, true);
-    expect(nextPhase.visibleElapsed).toBe(0);
-    expect(nextPhase.page).toBe('door');
   });
 });

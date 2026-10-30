@@ -2,6 +2,7 @@
 // NextStation, Copyright (C) 2015-2020 WatakuCity (tokiensis).
 import type { ScreenSchedule } from '../screens';
 import { e235Station, e235TrainStop, e235TransferLayout } from './e235-data';
+import { ImageSet } from '../engine/image-set';
 
 const SANS = '"Microsoft Sans Serif", "MS UI Gothic", Arial, sans-serif';
 const JA = 'Meiryo, "Yu Gothic UI", sans-serif';
@@ -178,114 +179,23 @@ export function drawE235DetailedTransfers(
   }
 }
 
-const images = new Map<string, HTMLImageElement>();
-const imageBounds = new Map<string, { x: number; y: number; width: number; height: number }>();
-let revision = 0;
-export const e235AssetsReady =
-  typeof Image === 'undefined'
-    ? Promise.resolve()
-    : Promise.all(
-        [
-          'UpStairs',
-          'UpStairs_small',
-          'DownStairs',
-          'UpEscalator',
-          'DownEscalator',
-          'Elevator',
-          'PrioritySeat',
-          'MobilePhone',
-        ].map(
-          (name) =>
-            new Promise<void>((resolve) => {
-              const image = new Image();
-              images.set(name, image);
-              let settled = false;
-              const finish = () => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(timeout);
-                image.onload = image.onerror = null;
-                revision++;
-                resolve();
-              };
-              const timeout = setTimeout(() => {
-                finish();
-                image.src = '';
-              }, 15_000);
-              image.onload = () => {
-                try {
-                  if (name !== 'PrioritySeat' && name !== 'MobilePhone') {
-                    // WPF SvgPresenter measures the drawing's ink bounds, excluding the SVG viewport whitespace.
-                    const canvas = document.createElement('canvas');
-                    canvas.width = Math.ceil(image.naturalWidth * 4);
-                    canvas.height = Math.ceil(image.naturalHeight * 4);
-                    const ctx = canvas.getContext('2d')!;
-                    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-                    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-                    let left = canvas.width,
-                      top = canvas.height,
-                      right = 0,
-                      bottom = 0;
-                    for (let y = 0; y < canvas.height; y++)
-                      for (let x = 0; x < canvas.width; x++)
-                        if (pixels[(y * canvas.width + x) * 4 + 3]) {
-                          left = Math.min(left, x);
-                          top = Math.min(top, y);
-                          right = Math.max(right, x + 1);
-                          bottom = Math.max(bottom, y + 1);
-                        }
-                    if (right > left)
-                      imageBounds.set(name, {
-                        x: left / 4,
-                        y: top / 4,
-                        width: (right - left) / 4,
-                        height: (bottom - top) / 4,
-                      });
-                  }
-                } catch {
-                  // Keep the original image usable if browser raster inspection is unavailable.
-                  imageBounds.delete(name);
-                } finally {
-                  finish();
-                }
-              };
-              image.onerror = finish;
-              image.src = `${import.meta.env.BASE_URL}subway/e235/${name}.svg`;
-            }),
-        ),
-      ).then(() => undefined);
-export const e235AssetRevision = () => revision;
-export const e235AssetsPending = () => images.size > revision;
-function image(
-  ctx: CanvasRenderingContext2D,
-  name: string,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-) {
-  const img = images.get(name);
-  if (img?.complete && img.naturalWidth) {
-    const bounds = imageBounds.get(name) ?? {
-      x: 0,
-      y: 0,
-      width: img.naturalWidth,
-      height: img.naturalHeight,
-    };
-    const scale = Math.min(width / bounds.width, height / bounds.height);
-    ctx.drawImage(
-      img,
-      bounds.x,
-      bounds.y,
-      bounds.width,
-      bounds.height,
-      x + (width - bounds.width * scale) / 2,
-      y + (height - bounds.height * scale) / 2,
-      bounds.width * scale,
-      bounds.height * scale,
-    );
-  }
-}
+const E235_TRIMMED = new Set([
+  'UpStairs',
+  'UpStairs_small',
+  'DownStairs',
+  'UpEscalator',
+  'DownEscalator',
+  'Elevator',
+]);
+export const e235Images = new ImageSet(
+  Object.fromEntries(
+    [...E235_TRIMMED, 'PrioritySeat', 'MobilePhone'].map((name) => [
+      name,
+      `${import.meta.env.BASE_URL}subway/e235/${name}.svg`,
+    ]),
+  ),
+  (name) => E235_TRIMMED.has(name),
+);
 function target(model: ScreenSchedule) {
   return ['stopped', 'doorsClosing', 'arriving'].includes(model.snapshot.state)
     ? model.station.code
@@ -494,8 +404,15 @@ export function drawE235Platform(ctx: CanvasRenderingContext2D, model: ScreenSch
             // PlatformObjectPackingConverter combines stairs/escalators that face the same way.
             const stairsFirst = (reverse ? items[1]!.key : obj.key)!.endsWith('Stairs');
             if (obj.key!.startsWith('Up')) {
-              image(ctx, stairsFirst ? 'UpStairs' : 'UpEscalator', -18, -60, 36, 50);
-              image(ctx, stairsFirst ? 'UpEscalator' : 'UpStairs_small', -19, -50, 38, 50);
+              e235Images.draw(ctx, stairsFirst ? 'UpStairs' : 'UpEscalator', -18, -60, 36, 50);
+              e235Images.draw(
+                ctx,
+                stairsFirst ? 'UpEscalator' : 'UpStairs_small',
+                -19,
+                -50,
+                38,
+                50,
+              );
             } else if (stairsFirst) {
               ctx.fillStyle = '#808080';
               ctx.fillRect(-16, -50, 34, 20);
@@ -504,13 +421,13 @@ export function drawE235Platform(ctx: CanvasRenderingContext2D, model: ScreenSch
               ctx.beginPath();
               ctx.rect(-16, -50, 34, 50);
               ctx.clip();
-              image(ctx, 'DownStairs', -19, -49, 44, 60);
+              e235Images.draw(ctx, 'DownStairs', -19, -49, 44, 60);
               ctx.restore();
               ctx.save();
               ctx.beginPath();
               ctx.rect(-19, -50, 37, 50);
               ctx.clip();
-              image(ctx, 'DownEscalator', -19, -32, 44, 61);
+              e235Images.draw(ctx, 'DownEscalator', -19, -32, 44, 61);
               ctx.restore();
             } else {
               ctx.fillStyle = '#808080';
@@ -519,13 +436,13 @@ export function drawE235Platform(ctx: CanvasRenderingContext2D, model: ScreenSch
               ctx.beginPath();
               ctx.rect(-19, -54, 37, 50);
               ctx.clip();
-              image(ctx, 'DownEscalator', -19, -54, 46, 64);
+              e235Images.draw(ctx, 'DownEscalator', -19, -54, 46, 64);
               ctx.restore();
               ctx.save();
               ctx.beginPath();
               ctx.rect(-16, -31, 34, 31);
               ctx.clip();
-              image(ctx, 'DownStairs', -19, -31, 44, 60);
+              e235Images.draw(ctx, 'DownStairs', -19, -31, 44, 60);
               ctx.restore();
             }
           } else if (obj.key === 'DownStairs') {
@@ -534,15 +451,15 @@ export function drawE235Platform(ctx: CanvasRenderingContext2D, model: ScreenSch
             ctx.beginPath();
             ctx.rect(-18, -26, 36, 26);
             ctx.clip();
-            image(ctx, 'DownStairs', -21, -25, 45, 60);
+            e235Images.draw(ctx, 'DownStairs', -21, -25, 45, 60);
           } else if (obj.key === 'DownEscalator') {
             ctx.beginPath();
             ctx.rect(-18, -30, 36, 30);
             ctx.clip();
             ctx.fillStyle = '#808080';
             ctx.fillRect(-6, -26, 24, 26);
-            image(ctx, 'DownEscalator', -18, -30, 50, 55);
-          } else image(ctx, obj.key!, -18, -height, 36, height);
+            e235Images.draw(ctx, 'DownEscalator', -18, -30, 50, 55);
+          } else e235Images.draw(ctx, obj.key!, -18, -height, 36, height);
           ctx.restore();
         });
       }),
@@ -894,7 +811,7 @@ export function drawE235Page(ctx: CanvasRenderingContext2D, model: ScreenSchedul
     ctx.beginPath();
     ctx.roundRect(190.5, 165.5, 579, 327, 8);
     ctx.stroke();
-    image(ctx, 'PrioritySeat', 195, 170, 572, (572 * 445.66898) / 800);
+    e235Images.draw(ctx, 'PrioritySeat', 195, 170, 572, (572 * 445.66898) / 800);
     label(
       ctx,
       '優先席を必要とされるお客さまがいらっしゃいましたら、席をお譲りください。',
@@ -920,7 +837,7 @@ export function drawE235Page(ctx: CanvasRenderingContext2D, model: ScreenSchedul
       'center',
     );
   } else if (model.page === 'mobile') {
-    image(ctx, 'MobilePhone', 110, 245, 240, (240 * 349.633) / 400);
+    e235Images.draw(ctx, 'MobilePhone', 110, 245, 240, (240 * 349.633) / 400);
     ctx.font = `42px ${JA}`;
     const textWidth = Math.max(
       ctx.measureText('マナーモードに設定の上、').width,
@@ -943,10 +860,10 @@ export function drawE235PageOverlay(
 ) {
   if (model.page === 'door' || model.page === 'closing') {
     door(ctx, model, time);
-    return thisSide(model) || e235AssetsPending();
+    return thisSide(model) || e235Images.pending;
   }
   return (
-    e235AssetsPending() ||
+    e235Images.pending ||
     (e235Station(target(model)).transfers.some((t) => t.icons.length > 1) &&
       ['nearby', 'transfers', 'platform'].includes(model.page))
   );

@@ -1,6 +1,6 @@
 import { normalizeSubwayLine, type LineDefinition } from '../simulation/lines';
 import { createRunState, snapshotRun, type RunSnapshot } from '../simulation/run';
-import { e235AssetsReady } from './lcd/e235-pages';
+import { e235Images } from './lcd/e235-pages';
 
 export interface SubwayEditorPreview {
   line: LineDefinition;
@@ -29,7 +29,7 @@ export async function loadSubwayEditorPreview(
   const [rawLine, rawPack] = await Promise.all([
     readJson(`${base}/line.json`, signal),
     readJson(`${base}/pack.json`, signal),
-    lineId === 'yamanote' ? e235AssetsReady : Promise.resolve(),
+    lineId === 'yamanote' ? e235Images.acquire() : Promise.resolve(),
   ]);
   if (signal.aborted) throw new DOMException('Subway preview cancelled', 'AbortError');
   const line = normalizeSubwayLine(rawLine, rawPack);

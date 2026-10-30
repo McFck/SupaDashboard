@@ -147,6 +147,18 @@ const settings: SettingsGroup[] = [
           ),
       },
       {
+        key: 'screen',
+        label: 'Screen',
+        type: 'select',
+        default: 'left',
+        suggestions: [
+          { value: 'left', label: 'Left' },
+          { value: 'right', label: 'Right' },
+        ],
+        // Only Hibiya has two physical screens.
+        visible: (args) => args.line === 'hibiya',
+      },
+      {
         key: 'speed',
         label: 'Run speed',
         type: 'select',
