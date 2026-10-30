@@ -123,17 +123,6 @@
     tile.run(captured, snapshot, motion);
   }
 
-  function fitArtwork(event: Event) {
-    const image = event.currentTarget;
-    if (image instanceof HTMLImageElement && image.naturalHeight > 0) {
-      const ratio = image.naturalWidth / image.naturalHeight;
-      // Extreme artwork shapes stay contained in the standard sleeve instead of stretching the box.
-      const sleeveRatio = ratio >= 0.8 && ratio <= 1.25 ? ratio : 1.12;
-      image
-        .closest<HTMLElement>('.assembly')
-        ?.style.setProperty('--cover-ratio', String(sleeveRatio));
-    }
-  }
   onDestroy(() => motion.destroy());
 </script>
 
@@ -157,7 +146,6 @@
               src={view.art}
               alt=""
               draggable="false"
-              onload={fitArtwork}
               onerror={() => (brokenArt = view.art)}
             />
           </div>
@@ -287,7 +275,7 @@
     min-height: 0;
     height: 100%;
   }
-  /* A third of the record peeks past the sleeve's right edge. */
+  /* A fixed sleeve keeps cached image loads from resizing the art when a page mounts. */
   .assembly {
     --cover-ratio: 1.12;
     --assembly-ratio: calc(var(--cover-ratio) + 0.3133);
