@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines } from '../../simulation/lines';
 import type { RunSnapshot } from '../../simulation/run';
-import { scheduleScreen, VisibleScreenClock } from '../screens';
+import { scheduleScreen, sessionKey } from '../screens';
+import { VisibleClock } from '../engine/visible-clock';
 import { drawE235RouteMap, drawE235Overlay, e235LoopCell } from './e235';
 import { e235Data, e235Minutes, e235Routine, e235TrainStop, e235TransferLayout } from './e235-data';
 import { drawE235Page, e235DoorFrame, e235PackPlatformObjects } from './e235-pages';
@@ -83,9 +84,14 @@ describe('NextStation E235 data and routines', () => {
     }
   });
   it('changes the selected car without restarting the display cycle or reusing the old cached drawing', () => {
-    const clock = new VisibleScreenClock();
-    const first = clock.update(snapshot, { line, currentCar: 1 }, 0, true);
-    const selected = clock.update(snapshot, { line, currentCar: 3 }, 4000, true);
+    const clock = new VisibleClock();
+    const key = sessionKey(snapshot, { line });
+    const first = scheduleScreen(snapshot, { line, currentCar: 1 }, clock.update(key, 0, true));
+    const selected = scheduleScreen(
+      snapshot,
+      { line, currentCar: 3 },
+      clock.update(key, 4000, true),
+    );
     expect(selected.currentCar).toBe(3);
     expect(selected.visibleElapsed).toBe(4000);
     expect(selected.invalidationKey).not.toBe(first.invalidationKey);
@@ -221,14 +227,16 @@ describe('NextStation E235 data and routines', () => {
   });
   it('shows the complete source cycle in a shortened run and keeps its clock through acceleration', () => {
     const moving = { ...snapshot, station: 'JY14', next: 'JY15', screenRunDurationMs: 36_000 };
-    const clock = new VisibleScreenClock(),
+    const clock = new VisibleClock(),
       config = { line, languages: ['ja', 'en'] };
-    expect(clock.update({ ...moving, state: 'departing' }, config, 0, true).page).toBe('broad');
-    expect(clock.update(moving, config, 10_000, true).visibleElapsed).toBe(10_000);
-    const transfer = clock.update(moving, config, 24_000, true);
+    const at = (state: RunSnapshot, now: number) =>
+      scheduleScreen(state, config, clock.update(sessionKey(state, config), now, true));
+    expect(at({ ...moving, state: 'departing' }, 0).page).toBe('broad');
+    expect(at(moving, 10_000).visibleElapsed).toBe(10_000);
+    const transfer = at(moving, 24_000);
     expect(transfer.page).toBe('transfers');
     expect(transfer.pageDeadline).toBe(30_000);
-    expect(clock.update(moving, config, 30_000, true).page).toBe('platform');
+    expect(at(moving, 30_000).page).toBe('platform');
   });
   it('distinguishes the native initial matrix row from later and final loop visits', () => {
     expect(e235TrainStop('JY13', 'inner', 'initial').arrivalTime).toBe(0);

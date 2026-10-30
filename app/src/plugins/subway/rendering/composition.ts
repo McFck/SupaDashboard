@@ -1,5 +1,9 @@
+// Yamanote and Hibiya show one 16:9 screen; Sakaisuji's wide panel (and the loading state) keep the wide layout.
+export const isWidescreen = (line = '') => line === 'yamanote' || line === 'hibiya';
+
 export function subwayComposition(compact: boolean, line = '') {
-  if (compact && line === 'yamanote')
+  const widescreen = isWidescreen(line);
+  if (compact && widescreen)
     return {
       height: 1152,
       lcd: { x: 24, y: 24, w: 1280, h: 720 },
@@ -9,7 +13,7 @@ export function subwayComposition(compact: boolean, line = '') {
       views: { x: 1352, y: 248, w: 520, h: 280 },
       pages: { x: 1352, y: 568, w: 520, h: 176 },
     };
-  if (!compact && line === 'yamanote')
+  if (!compact && widescreen)
     return {
       height: 480,
       lcd: { x: 24, y: 24, w: 768, h: 432 },

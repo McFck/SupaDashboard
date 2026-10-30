@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines } from './simulation/lines';
 import { scheduleScreen, stationMinutes } from './rendering/screens';
-import { subwaySceneRevision, createSubwayScene, type SubwaySceneData } from './rendering/scene';
+import { createSubwayScene, prepareFrame, type SubwaySceneData } from './rendering/scene';
 import { subwayComposition } from './rendering/composition';
 import { transferColor } from './rendering/lcd/sakaisuji';
 import type { RunSnapshot } from './simulation/run';
@@ -34,6 +34,8 @@ const snapshot: RunSnapshot = {
   generation: 1,
   multiplier: 1,
 };
+const subwaySceneRevision = (scene: SubwaySceneData, view: string) =>
+  prepareFrame(scene, view, 'left').revision;
 const data: SubwaySceneData = {
   line: lines[0],
   snapshot,
@@ -134,7 +136,7 @@ describe('Subway v2 content and composition', () => {
               a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y,
             ).toBe(true);
           }
-        if (line.id === 'yamanote') expect(regions.lcd.w / regions.lcd.h).toBeCloseTo(16 / 9);
+        if (line.id !== 'sakaisuji') expect(regions.lcd.w / regions.lcd.h).toBeCloseTo(16 / 9);
       }
   });
 
@@ -168,11 +170,15 @@ describe('Subway v2 content and composition', () => {
       mode: 'frozen',
       time: 0,
       view: 'display',
-      data: {
-        ...data,
-        visibleElapsed: 8_000,
-        snapshot: { ...snapshot, direction: 'outer', next: 'JY01' },
-      },
+      data: prepareFrame(
+        {
+          ...data,
+          visibleElapsed: 8_000,
+          snapshot: { ...snapshot, direction: 'outer', next: 'JY01' },
+        },
+        'display',
+        'left',
+      ),
     });
     expect(texts).toEqual(expect.arrayContaining(['09', '41']));
     scene.dispose?.();
@@ -200,26 +206,29 @@ describe('Subway v2 content and composition', () => {
         },
       }) as unknown as CanvasRenderingContext2D;
       const scene = createSubwayScene();
-      scene.draw({
-        ctx,
-        width: 2592,
-        height: 720,
-        mode: 'frozen',
-        time: 0,
-        view: 'display',
-        data: {
-          line: lines[1],
-          snapshot: {
-            ...snapshot,
-            line: 'hibiya',
-            direction: String(direction),
-            station: String(station),
-            next: String(next),
-          },
-          config: { displayLanguages: 'ja-en' },
-          visibleElapsed: 0,
+      const hibiya: SubwaySceneData = {
+        line: lines[1],
+        snapshot: {
+          ...snapshot,
+          line: 'hibiya',
+          direction: String(direction),
+          station: String(station),
+          next: String(next),
         },
-      });
+        config: { displayLanguages: 'ja-en' },
+        visibleElapsed: 0,
+      };
+      for (const screen of ['left', 'right'] as const) {
+        scene.draw({
+          ctx,
+          width: 1280,
+          height: 720,
+          mode: 'frozen',
+          time: 0,
+          view: 'display',
+          data: prepareFrame(hibiya, 'display', screen),
+        });
+      }
       const codes = texts.filter((t) => /^H-\d/.test(t));
       expect(codes).toHaveLength(16);
       expect(codes).toEqual(

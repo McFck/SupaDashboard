@@ -16,11 +16,11 @@ function collect() {
     },
     registerVariable: () => {},
   } as unknown as PluginApi);
-  if (!applet) throw new Error('Subway skin was not registered');
+  if (!applet) throw new Error('Subway applet was not registered');
   return { actions, applet };
 }
 
-describe('Subway skin registration', () => {
+describe('Subway applet registration', () => {
   it('registers the planned host geometry and view slot visibility', () => {
     const { applet } = collect();
     validateAppletDefinition(applet);
@@ -48,6 +48,7 @@ describe('Subway skin registration', () => {
       'direction',
       'startStation',
       'carNumber',
+      'screen',
       'speed',
       'displayLanguages',
       'announcementLanguages',

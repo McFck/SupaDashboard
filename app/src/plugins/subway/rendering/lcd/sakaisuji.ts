@@ -1,6 +1,8 @@
 import { localizedName, type StationDefinition } from '../../simulation/lines';
 import type { ScreenLanguage, ScreenSchedule } from '../screens';
-import { CanvasLayerCache, drawBadge, drawFittedText, JAPANESE_FONT } from './shared';
+import { CanvasLayerCache } from '../engine/canvas-cache';
+import { paintFitted } from '../engine/canvas-renderer';
+import { drawBadge, drawFittedText, JAPANESE_FONT } from './shared';
 
 const SAKAISUJI_LCD_WIDTH = 1920;
 const SAKAISUJI_LCD_HEIGHT = 540;
@@ -568,21 +570,16 @@ export function createSakaisujiRenderer() {
       height: number,
       model: ScreenSchedule,
     ): void {
-      const scale = Math.min(width / SAKAISUJI_LCD_WIDTH, height / SAKAISUJI_LCD_HEIGHT);
-      const x = (width - SAKAISUJI_LCD_WIDTH * scale) / 2;
-      const y = (height - SAKAISUJI_LCD_HEIGHT * scale) / 2;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(scale, scale);
-      const painted = cache.draw(
-        ctx,
-        model.invalidationKey,
-        SAKAISUJI_LCD_WIDTH,
-        SAKAISUJI_LCD_HEIGHT,
-        (layer) => drawStatic(layer, model),
-      );
-      if (!painted) drawStatic(ctx, model);
-      ctx.restore();
+      paintFitted(ctx, width, height, SAKAISUJI_LCD_WIDTH, SAKAISUJI_LCD_HEIGHT, () => {
+        const painted = cache.draw(
+          ctx,
+          model.invalidationKey,
+          SAKAISUJI_LCD_WIDTH,
+          SAKAISUJI_LCD_HEIGHT,
+          (layer) => drawStatic(layer, model),
+        );
+        if (!painted) drawStatic(ctx, model);
+      });
     },
     get cacheSize() {
       return cache.size;

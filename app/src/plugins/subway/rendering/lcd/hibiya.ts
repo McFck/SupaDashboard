@@ -7,7 +7,7 @@ import {
   type ScreenSchedule,
 } from '../screens';
 import type { RunSnapshot } from '../../simulation/run';
-import { CanvasLayerCache } from './shared';
+import { CanvasLayerCache } from '../engine/canvas-cache';
 
 export const HIBIYA_PANEL_WIDTH = 1280;
 export const HIBIYA_PANEL_HEIGHT = 720;
@@ -1044,6 +1044,7 @@ export function createHibiyaRenderer() {
       height: number,
       pair: HibiyaPairSchedule,
       time = pair.left.visibleElapsed,
+      single?: 0 | 1,
     ): boolean {
       if (lastElapsed !== pair.left.visibleElapsed || time < lastTime) {
         origin = time;
@@ -1051,22 +1052,33 @@ export function createHibiyaRenderer() {
       }
       lastTime = time;
       const elapsed = pair.left.visibleElapsed + Math.max(0, time - origin);
-      const scale = Math.min(width / HIBIYA_LCD_WIDTH, height / HIBIYA_LCD_HEIGHT);
-      const x = (width - HIBIYA_LCD_WIDTH * scale) / 2;
+      const panels = single === undefined ? ([0, 1] as const) : ([single] as const);
+      const models = [pair.left, pair.right] as const;
+      const designWidth = single === undefined ? HIBIYA_LCD_WIDTH : HIBIYA_PANEL_WIDTH;
+      const scale = Math.min(width / designWidth, height / HIBIYA_LCD_HEIGHT);
+      const x = (width - designWidth * scale) / 2;
       const y = (height - HIBIYA_LCD_HEIGHT * scale) / 2;
-      const key = `${pair.left.invalidationKey}|${pair.right.invalidationKey}`;
+      const key = panels.map((panel) => `${panel}:${models[panel].invalidationKey}`).join('|');
+      const drawStatic = (target: CanvasRenderingContext2D) => {
+        if (single === undefined) {
+          drawStaticPair(target, pair);
+        } else {
+          drawPanel(target, models[single], single);
+        }
+      };
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(scale, scale);
-      const painted = cache.draw(ctx, key, HIBIYA_LCD_WIDTH, HIBIYA_LCD_HEIGHT, (layer) =>
-        drawStaticPair(layer, pair),
-      );
-      if (!painted) drawStaticPair(ctx, pair);
-      for (const panel of [0, 1] as const) {
-        const model = panel === 0 ? pair.left : pair.right;
+      if (!cache.draw(ctx, key, designWidth, HIBIYA_LCD_HEIGHT, drawStatic)) {
+        drawStatic(ctx);
+      }
+      for (const panel of panels) {
+        const model = models[panel];
         const frame = hibiyaLanguageFrame(model.languages, elapsed, pair.languageOffset + panel);
         ctx.save();
-        ctx.translate(panel * (HIBIYA_PANEL_WIDTH + HIBIYA_MULLION_WIDTH), 0);
+        if (single === undefined) {
+          ctx.translate(panel * (HIBIYA_PANEL_WIDTH + HIBIYA_MULLION_WIDTH), 0);
+        }
         ctx.beginPath();
         ctx.rect(0, 0, panel === 0 ? 1040 : 1158, 224);
         ctx.clip();
@@ -1096,11 +1108,14 @@ export function createHibiyaRenderer() {
         )
           drawPosition(ctx, model, panel, elapsed);
       }
-      ctx.fillStyle = '#101416';
-      ctx.fillRect(HIBIYA_PANEL_WIDTH, 0, HIBIYA_MULLION_WIDTH, HIBIYA_PANEL_HEIGHT);
+      if (single === undefined) {
+        ctx.fillStyle = '#101416';
+        ctx.fillRect(HIBIYA_PANEL_WIDTH, 0, HIBIYA_MULLION_WIDTH, HIBIYA_PANEL_HEIGHT);
+      }
       ctx.restore();
       // Keep the visible clock moving between flips; SceneScheduler suspends hidden/frozen scenes.
-      return pair.left.languages.length > 1 || ['broad', 'nearby'].includes(pair.left.page);
+      const shown = models[single ?? 0];
+      return shown.languages.length > 1 || ['broad', 'nearby'].includes(shown.page);
     },
     get cacheSize() {
       return cache.size;

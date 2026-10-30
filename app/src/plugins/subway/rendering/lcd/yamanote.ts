@@ -6,8 +6,10 @@ import {
   drawE235RouteMap,
   E235_WIDTH,
 } from './e235';
-import { drawE235Page, drawE235PageOverlay, e235AssetRevision } from './e235-pages';
-import { CanvasLayerCache, drawFittedText, E235_COLORS as C } from './shared';
+import { drawE235Page, drawE235PageOverlay, e235Images } from './e235-pages';
+import { CanvasLayerCache } from '../engine/canvas-cache';
+import { paintFitted } from '../engine/canvas-renderer';
+import { drawFittedText, E235_COLORS as C } from './shared';
 
 const YAMANOTE_LCD_WIDTH = 1280;
 const E235_SCALE = YAMANOTE_LCD_WIDTH / E235_WIDTH;
@@ -48,6 +50,7 @@ function overlay(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time: num
 }
 
 export function createYamanoteRenderer() {
+  void e235Images.acquire();
   const cache = new CanvasLayerCache(12);
   let animationKey = '',
     animationOrigin = 0;
@@ -71,21 +74,17 @@ export function createYamanoteRenderer() {
         animationKey = session;
         animationOrigin = time;
       }
-      const scale = Math.min(width / 1280, height / 720);
-      ctx.save();
-      ctx.translate((width - 1280 * scale) / 2, (height - 720 * scale) / 2);
-      ctx.scale(scale, scale);
-      const key =
-        model.invalidationKey + '|' + e235AssetRevision() + '|' + (Math.floor(time / 3000) % 12);
-      if (
-        !cache.draw(ctx, key, 1280, 720, (layer) =>
-          drawStatic(layer, { ...model, visibleElapsed: time }),
+      return paintFitted(ctx, width, height, 1280, 720, () => {
+        const key =
+          model.invalidationKey + '|' + e235Images.revision + '|' + (Math.floor(time / 3000) % 12);
+        if (
+          !cache.draw(ctx, key, 1280, 720, (layer) =>
+            drawStatic(layer, { ...model, visibleElapsed: time }),
+          )
         )
-      )
-        drawStatic(ctx, { ...model, visibleElapsed: time });
-      const animating = overlay(ctx, model, time - animationOrigin);
-      ctx.restore();
-      return animating;
+          drawStatic(ctx, { ...model, visibleElapsed: time });
+        return overlay(ctx, model, time - animationOrigin);
+      });
     },
     get cacheSize() {
       return cache.size;

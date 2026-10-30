@@ -188,7 +188,7 @@ function transferNames(station: StationDefinition, language: ScreenLanguage): st
     .filter(Boolean);
 }
 
-function sessionKey(snapshot: RunSnapshot, config: ScreenConfig): string {
+export function sessionKey(snapshot: RunSnapshot, config: ScreenConfig): string {
   const phase =
     snapshot.line === 'yamanote' && ['departing', 'cruising'].includes(snapshot.state)
       ? 'running'
@@ -357,37 +357,4 @@ export function stationMinutes(model: ScreenSchedule, code: string): number | nu
   return index < 0
     ? null
     : Math.ceil((model.snapshot.remainingMinutes * index) / Math.max(1, model.route.length - 1));
-}
-
-export class VisibleScreenClock {
-  private key = '';
-  private elapsed = 0;
-  private startedAt: number | null = null;
-  private active = false;
-
-  update(
-    snapshot: RunSnapshot,
-    config: ScreenConfig,
-    now: number,
-    active: boolean,
-  ): ScreenSchedule {
-    if (!Number.isFinite(now)) throw new Error('Screen clock must be finite');
-    const nextKey = sessionKey(snapshot, config);
-    if (nextKey !== this.key) {
-      this.key = nextKey;
-      this.elapsed = 0;
-      this.startedAt = active ? now : null;
-      this.active = active;
-    } else {
-      if (this.active && !active && this.startedAt !== null)
-        this.elapsed += Math.max(0, now - this.startedAt);
-      if (!this.active && active) this.startedAt = now;
-      if (this.active && active && this.startedAt !== null && now < this.startedAt)
-        this.startedAt = now;
-      this.active = active;
-    }
-    const visibleElapsed =
-      this.elapsed + (active && this.startedAt !== null ? Math.max(0, now - this.startedAt) : 0);
-    return scheduleScreen(snapshot, config, visibleElapsed);
-  }
 }
