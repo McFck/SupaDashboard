@@ -17,18 +17,12 @@ const REQUEST_TYPES = [
   'changePage',
 ] as const;
 /** Page changes another window may ask the owner for; actions and reconciliation stay in the owner. */
-const REMOTE_PAGE_REASONS = [
-  'dot',
-  'swipe',
-  'applet',
-] as const satisfies readonly PageChangeReason[];
+const REMOTE_PAGE_REASONS = ['dot', 'swipe'] as const satisfies readonly PageChangeReason[];
 const MAX_MESSAGE_SIZE = 256 * 1024;
 const MAX_ID_LENGTH = 128;
 
 export type RemotePageChangeReason = (typeof REMOTE_PAGE_REASONS)[number];
-export type PageChangePayload =
-  | { direction: 'next' | 'prev'; reason: RemotePageChangeReason }
-  | { page: string; reason: RemotePageChangeReason };
+export type PageChangePayload = { page: string; reason: RemotePageChangeReason };
 export type RuntimeRequest =
   | { type: 'changePage'; payload: PageChangePayload }
   | { type: Exclude<(typeof REQUEST_TYPES)[number], 'changePage'>; payload?: unknown };
@@ -59,11 +53,12 @@ export function validPageChangePayload(value: unknown): value is PageChangePaylo
   if (!(REMOTE_PAGE_REASONS as readonly unknown[]).includes(value.reason)) {
     return false;
   }
-  const keys = Object.keys(value).sort().join(',');
-  if (typeof value.page === 'string') {
-    return keys === 'page,reason' && value.page.length > 0 && value.page.length <= MAX_ID_LENGTH;
-  }
-  return keys === 'direction,reason' && (value.direction === 'next' || value.direction === 'prev');
+  return (
+    Object.keys(value).sort().join(',') === 'page,reason' &&
+    typeof value.page === 'string' &&
+    value.page.length > 0 &&
+    value.page.length <= MAX_ID_LENGTH
+  );
 }
 
 function validRequest(request: unknown) {

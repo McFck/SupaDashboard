@@ -45,14 +45,13 @@ describe('runtime sync protocol', () => {
     const owner = bus.endpoint('owner', { owner: true, onRequest: handler });
     const panel = bus.endpoint('panel');
     await expect(
-      panel.request({ type: 'changePage', payload: { direction: 'next', reason: 'dot' } }),
-    ).resolves.toEqual({ direction: 'next', reason: 'dot' });
+      panel.request({ type: 'changePage', payload: { page: 'page-2', reason: 'dot' } }),
+    ).resolves.toEqual({ page: 'page-2', reason: 'dot' });
     for (const payload of [
       { page: 'page-2', direction: 'next', reason: 'dot' },
       { page: 'x'.repeat(129), reason: 'dot' },
-      { page: 'page-2', reason: 'auto' },
-      { direction: 'sideways', reason: 'swipe' },
-      { direction: 'next', reason: 'dot', extra: true },
+      { page: 'page-2', reason: 'applet' },
+      { direction: 'next', reason: 'dot' },
     ])
       expect(validPageChangePayload(payload)).toBe(false);
     await expect(
