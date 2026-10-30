@@ -1,6 +1,6 @@
 import { localizedName, type LineDefinition, type StationDefinition } from '../simulation/lines';
 import type { RunSnapshot } from '../simulation/run';
-import { e235Routine } from './lcd/e235-data';
+import { e235Routine } from '../display/e235/schedule';
 import { normalizeCarNumber } from '../simulation/config';
 import { hankyuCycle, hankyuLanguages } from '../display/hankyu-1300/schedule';
 

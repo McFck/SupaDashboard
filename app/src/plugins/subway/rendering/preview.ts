@@ -2,7 +2,7 @@ import { lineFactsFor } from '../data/load';
 import { SUBWAY_DEFAULT_CONFIG } from '../simulation/config';
 import { normalizeSubwayLine, type LineDefinition } from '../simulation/lines';
 import { createRunState, snapshotRun, type RunSnapshot } from '../simulation/run';
-import { e235Images } from './lcd/e235-pages';
+import { e235Images } from '../display/e235/images';
 
 export interface SubwayEditorPreview {
   line: LineDefinition;

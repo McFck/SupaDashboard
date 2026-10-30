@@ -5,7 +5,7 @@ import type {
 import { createHibiyaRenderer } from '../display/tokyo-metro-13000/renderer';
 import { scheduleHibiyaPair } from '../display/tokyo-metro-13000/schedule';
 import { createHankyu1300Renderer } from '../display/hankyu-1300/renderer';
-import { createYamanoteRenderer } from './lcd/yamanote';
+import { createYamanoteRenderer } from '../display/e235/renderer';
 import { displayLanguages, normalizeCarNumber } from '../simulation/config';
 import { scheduleScreen, type ScreenConfig } from './screens';
 import type { SubwaySceneState } from '../simulation/runtime';

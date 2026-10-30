@@ -1,18 +1,5 @@
 export const JAPANESE_FONT = '"Yu Gothic UI", Meiryo, "Noto Sans JP", sans-serif';
 
-export const E235_COLORS = Object.freeze({
-  header: '#15191b',
-  route: '#79b52c',
-  body: '#fafafa',
-  passed: '#adb0b3',
-  doorPanel: '#164b8a',
-  exit: '#f4e666',
-  currentCar: '#cb292d',
-  ink: '#202629',
-  muted: '#687176',
-  white: '#ffffff',
-});
-
 function fittedFont(
   ctx: CanvasRenderingContext2D,
   text: string,
