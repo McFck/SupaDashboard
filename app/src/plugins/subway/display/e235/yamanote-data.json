@@ -3069,11 +3069,8 @@
           "en": "Tōkyō Monorail Haneda Airport Line",
           "icons": ["train/000000"]
         },
-        {
-          "ja": "都営大江戸線",
-          "en": "Toei Ōedo Line",
-          "icons": ["subway/e-c00070"]
-        }
+        { "ja": "都営浅草線", "en": "Toei Asakusa Line", "icons": ["subway/a-f0607f"] },
+        { "ja": "都営大江戸線", "en": "Toei Ōedo Line", "icons": ["subway/e-c00070"] }
       ],
       "transferDisplays": [
         {
@@ -3083,7 +3080,7 @@
             {
               "mode": "DetailedRouteMap",
               "language": null,
-              "rows": 2,
+              "rows": 3,
               "columns": 1,
               "lines": [
                 {
@@ -3099,6 +3096,15 @@
                   "ref": 1,
                   "iconRef": null,
                   "row": 1,
+                  "column": 0,
+                  "columnSpan": null,
+                  "aliasJa": "",
+                  "aliasEn": ""
+                },
+                {
+                  "ref": 2,
+                  "iconRef": null,
+                  "row": 2,
                   "column": 0,
                   "columnSpan": null,
                   "aliasJa": "",
@@ -3109,7 +3115,7 @@
             {
               "mode": "Transfers",
               "language": null,
-              "rows": 2,
+              "rows": 3,
               "columns": 1,
               "lines": [
                 {
@@ -3125,6 +3131,15 @@
                   "ref": 1,
                   "iconRef": null,
                   "row": 1,
+                  "column": 0,
+                  "columnSpan": null,
+                  "aliasJa": "",
+                  "aliasEn": ""
+                },
+                {
+                  "ref": 2,
+                  "iconRef": null,
+                  "row": 2,
                   "column": 0,
                   "columnSpan": null,
                   "aliasJa": "",
@@ -3136,7 +3151,7 @@
               "mode": "Platform",
               "language": null,
               "rows": 1,
-              "columns": 2,
+              "columns": 3,
               "lines": [
                 {
                   "ref": 0,
@@ -3152,6 +3167,15 @@
                   "iconRef": null,
                   "row": 0,
                   "column": 1,
+                  "columnSpan": null,
+                  "aliasJa": "",
+                  "aliasEn": ""
+                },
+                {
+                  "ref": 2,
+                  "iconRef": null,
+                  "row": 0,
+                  "column": 2,
                   "columnSpan": null,
                   "aliasJa": "",
                   "aliasEn": ""
@@ -10514,21 +10538,9 @@
         }
       ],
       "transfers": [
-        {
-          "ja": "常磐線",
-          "en": "Jōban Line",
-          "icons": ["rail/jj-00c864"]
-        },
-        {
-          "ja": "京成線",
-          "en": "Keisei Line",
-          "icons": ["train/000000"]
-        },
-        {
-          "ja": "日暮里・舎人ライナー",
-          "en": "Nippori-Toneri Liner",
-          "icons": ["train/000000"]
-        }
+        { "ja": "常磐線", "en": "Jōban Line", "icons": ["rail/jj-00c864"] },
+        { "ja": "京成線", "en": "Keisei Line", "icons": ["train/000000"] },
+        { "ja": "日暮里・舎人ライナー", "en": "Nippori-Toneri Liner", "icons": ["train/000000"] }
       ],
       "transferDisplays": [
         {
@@ -10597,7 +10609,7 @@
                 {
                   "ref": 2,
                   "iconRef": null,
-                  "row": 2,
+                  "row": 1,
                   "column": 0,
                   "columnSpan": 2,
                   "aliasJa": "",
@@ -11926,11 +11938,9 @@
         }
       ],
       "transfers": [
-        {
-          "ja": "都営大江戸線",
-          "en": "Toei Ōedo Line",
-          "icons": ["subway/e-c00070"]
-        }
+        { "ja": "銀座線", "en": "Ginza Line", "icons": ["subway/g-ff8c00"] },
+        { "ja": "日比谷線", "en": "Hibiya Line", "icons": ["subway/h-8c8c8c"] },
+        { "ja": "都営大江戸線", "en": "Toei Ōedo Line", "icons": ["subway/e-c00070"] }
       ],
       "transferDisplays": [
         {
@@ -11940,7 +11950,7 @@
             {
               "mode": "DetailedRouteMap",
               "language": null,
-              "rows": 1,
+              "rows": 3,
               "columns": 1,
               "lines": [
                 {
@@ -11951,19 +11961,55 @@
                   "columnSpan": null,
                   "aliasJa": "",
                   "aliasEn": ""
+                },
+                {
+                  "ref": 1,
+                  "iconRef": null,
+                  "row": 1,
+                  "column": 0,
+                  "columnSpan": null,
+                  "aliasJa": "",
+                  "aliasEn": ""
+                },
+                {
+                  "ref": 2,
+                  "iconRef": null,
+                  "row": 2,
+                  "column": 0,
+                  "columnSpan": null,
+                  "aliasJa": "",
+                  "aliasEn": ""
                 }
               ]
             },
             {
               "mode": "Transfers",
               "language": null,
-              "rows": 1,
-              "columns": 1,
+              "rows": 2,
+              "columns": 2,
               "lines": [
                 {
                   "ref": 0,
                   "iconRef": null,
                   "row": 0,
+                  "column": 0,
+                  "columnSpan": null,
+                  "aliasJa": "",
+                  "aliasEn": ""
+                },
+                {
+                  "ref": 1,
+                  "iconRef": null,
+                  "row": 0,
+                  "column": 1,
+                  "columnSpan": null,
+                  "aliasJa": "",
+                  "aliasEn": ""
+                },
+                {
+                  "ref": 2,
+                  "iconRef": null,
+                  "row": 1,
                   "column": 0,
                   "columnSpan": null,
                   "aliasJa": "",
@@ -11975,13 +12021,31 @@
               "mode": "Platform",
               "language": null,
               "rows": 1,
-              "columns": 1,
+              "columns": 3,
               "lines": [
                 {
                   "ref": 0,
                   "iconRef": null,
                   "row": 0,
                   "column": 0,
+                  "columnSpan": null,
+                  "aliasJa": "",
+                  "aliasEn": ""
+                },
+                {
+                  "ref": 1,
+                  "iconRef": null,
+                  "row": 0,
+                  "column": 1,
+                  "columnSpan": null,
+                  "aliasJa": "",
+                  "aliasEn": ""
+                },
+                {
+                  "ref": 2,
+                  "iconRef": null,
+                  "row": 0,
+                  "column": 2,
                   "columnSpan": null,
                   "aliasJa": "",
                   "aliasEn": ""
