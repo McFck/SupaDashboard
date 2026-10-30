@@ -47,7 +47,7 @@
       .then(() => version++)
       .catch(() => toast.error('Could not refresh options'));
   const markedTextSuggestions = $derived(
-    (suggestions ?? []).some((option) => pluginTitle(option.plugin ?? provider)),
+    showPluginMark && (suggestions ?? []).some((option) => pluginTitle(option.plugin ?? provider)),
   );
   const selectOptions = $derived.by((): Option[] => {
     const list = suggestions ?? [],

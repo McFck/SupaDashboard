@@ -38,7 +38,6 @@ describe('Subway applet registration', () => {
       { id: 'map', title: 'Map', slots: ['strip'] },
       { id: 'cab', title: 'Run', slots: ['strip', 'side'] },
     ]);
-    expect(applet.pageNavigation).toBe('applet');
   });
 
   it('declares persistent settings, owner projections, events, face-only renderers and required quick actions', () => {

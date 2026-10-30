@@ -106,7 +106,9 @@
     aria-labelledby="applet-quick-actions-title"
     class="relative z-10 grid max-h-full w-full max-w-sm content-start gap-3 overflow-y-auto rounded-xl border bg-card p-4 shadow-xl"
     style:transform={`scale(${quickActionScale})`}
-    style:max-height="calc(100vh - 2rem)"
+    style:max-height={host?.viewport?.height
+      ? `${host.viewport.height - 32}px`
+      : 'calc(100vh - 2rem)'}
   >
     <header class="flex items-center justify-between gap-3">
       <h2
@@ -155,6 +157,7 @@
                 value={row.args[param.key]}
                 args={row.args}
                 provider={row.action.plugin}
+                showPluginMark={false}
                 onchange={(value) => setParam(row.index, param.key, value)}
               />
             {/each}

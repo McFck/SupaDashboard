@@ -21,6 +21,7 @@ import {
 import { snapshotMotion } from './run-motion';
 
 const MAX_GAP_MS = 5_000;
+const MAX_CATCH_UP_PASSES = 1_000;
 
 export function pushPhase(effects: RunEffect[], state: SubwayRunState, phase: RunPhase): void {
   if (state.phase !== phase)
@@ -318,6 +319,26 @@ export function advance(
     const at = deadline;
     current = withDueCues(current, at, effects);
     current = advanceOne(current, at, line, plans, effects);
+  }
+  return current;
+}
+
+/** Replays every deadline up to `now`, as if the run had never paused. Cues and events that fell due
+ * meanwhile are history, so they are dropped instead of played or emitted in a burst. */
+export function catchUp(
+  state: SubwayRunState,
+  now: number,
+  lines: readonly LineDefinition[],
+  plans: SubwayCuePlans,
+): SubwayRunState {
+  let current: SubwayRunState = { ...state, pausedAt: null };
+  for (let pass = 0; pass < MAX_CATCH_UP_PASSES; pass++) {
+    // lastTickAt = now skips the long-gap freeze in `advance`; the gap here is meant to be replayed.
+    current = advance({ ...current, lastTickAt: now }, now, lines, plans, []);
+    const deadline = dueDeadline(current);
+    if (deadline === null || deadline > now) {
+      break;
+    }
   }
   return current;
 }

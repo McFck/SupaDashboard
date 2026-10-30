@@ -62,7 +62,6 @@ export type AppletDef = {
   slots: AppletSlot[];
   views: AppletView[];
   defaultView: string;
-  pageNavigation?: 'swipe' | 'applet';
   controlFaces?: Record<string, AppletControlFace>;
   /** Loose params and groups may be mixed; loose ones form a "General" group. */
   settings?: (Param | SettingsGroup)[];

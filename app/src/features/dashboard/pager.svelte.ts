@@ -46,9 +46,6 @@ export type PagerHost = {
   shell(): HTMLElement;
   pages(): Page[];
   pageId(): string;
-  appletId(): string;
-  /** The applet navigates pages itself, so empty-area swipes do nothing. */
-  appletNavigates(): boolean;
   fullscreen(): boolean;
   /** The window can be moved by dragging (native and not fullscreen). */
   canDragWindow(): boolean;
@@ -60,7 +57,10 @@ export type PagerHost = {
   onChanged(): void;
 };
 
-const pageOrderKey = (pages: readonly Page[]) => pages.map((page) => page.id).join('\u0000');
+// Each page's applet belongs to the order, so changing one re-frames the pages. Keying on the shown page's
+// applet instead made a swipe onto a page with another applet look like an outside change and snap.
+const pageOrderKey = (pages: readonly Page[]) =>
+  pages.map((page) => `${page.id}\u0001${page.applet ?? ''}`).join('\u0000');
 
 export class Pager {
   frames = $state<PagerFrame[]>([]);
@@ -130,7 +130,7 @@ export class Pager {
     if (pages.length <= 1) {
       return 'window';
     }
-    return this.host.appletNavigates() ? 'none' : 'swipe';
+    return 'swipe';
   }
 
   private begin() {
@@ -153,12 +153,7 @@ export class Pager {
   }
 
   private currentState(pageId: string) {
-    return JSON.stringify([
-      pageId,
-      pageOrderKey(this.host.pages()),
-      this.host.appletId(),
-      this.host.fullscreen(),
-    ]);
+    return JSON.stringify([pageId, pageOrderKey(this.host.pages()), this.host.fullscreen()]);
   }
 
   private activeFrames(pageId = this.host.pageId()) {

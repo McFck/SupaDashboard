@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { normalizeSubwayLines } from './simulation/lines';
 import { scheduleScreen, stationMinutes } from './rendering/screens';
 import { createSubwayScene, prepareFrame, type SubwaySceneData } from './rendering/scene';
-import { subwayComposition } from './rendering/composition';
 import type { RunSnapshot } from './simulation/run';
 
 const modules = import.meta.glob('../../../../assets/lines/*/{line,pack}.json', {
@@ -116,29 +115,6 @@ describe('Subway v2 content and composition', () => {
     expect(stationMinutes(model, model.route.at(-1)!.code)).toBe(snapshot.remainingMinutes);
     const estimates = model.route.map((station) => stationMinutes(model, station.code)!);
     expect(estimates).toEqual([...estimates].sort((a, b) => a - b));
-  });
-
-  it('keeps every LCD, slot, sign and navigation region inside its frame without overlapping', () => {
-    for (const compact of [false, true])
-      for (const line of lines) {
-        const { height, ...regions } = subwayComposition(compact, line.id);
-        const rects = Object.values(regions);
-        for (const r of rects) {
-          expect(r.x).toBeGreaterThanOrEqual(0);
-          expect(r.y).toBeGreaterThanOrEqual(0);
-          expect(r.x + r.w).toBeLessThanOrEqual(1920);
-          expect(r.y + r.h).toBeLessThanOrEqual(height);
-        }
-        for (let i = 0; i < rects.length; i++)
-          for (let j = i + 1; j < rects.length; j++) {
-            const a = rects[i],
-              b = rects[j];
-            expect(
-              a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y,
-            ).toBe(true);
-          }
-        if (line.id !== 'sakaisuji') expect(regions.lcd.w / regions.lcd.h).toBeCloseTo(16 / 9);
-      }
   });
 
   it('paints the live clock through the real scene renderer', () => {

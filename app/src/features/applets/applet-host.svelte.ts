@@ -51,6 +51,9 @@ export class AppletHostController implements AppletHostContext {
       offsetY: (height - fittedHeight * scale) / 2,
     };
   });
+  // Derived, not a getter: the pager replaces its frame objects on every press, and effects reading a getter
+  // would re-run, briefly report the surface dead and drop gestures although nothing changed.
+  readonly active = $derived(this.windowLive && this.onScreen && this.pageRenderVisible);
   readonly viewId = $derived.by(() => {
     const applet = this.applet;
     const value = this.mode === 'editor' ? this.source.previewViewId : this.state.view;
@@ -58,25 +61,27 @@ export class AppletHostController implements AppletHostContext {
       ? value
       : applet.defaultView;
   });
+  private readonly gestureScope = $derived(
+    JSON.stringify([
+      this.applet.id,
+      this.page.id,
+      this.visible,
+      this.pageRenderVisible,
+      this.viewId,
+      this.runtimeOwner,
+      this.active,
+      this.config,
+    ]),
+  );
 
   constructor(
     private readonly source: HostOptions,
-    private readonly commands: Pick<RuntimeCommands, 'requestPageChange' | 'setAppletView'>,
+    private readonly commands: Pick<RuntimeCommands, 'setAppletView'>,
     private readonly preview: (view: string) => void,
   ) {
     $effect(() => {
       // These changes invalidate buffered gestures and close the current quick-action overlay.
-      const dependencies = [
-        this.applet.id,
-        this.page.id,
-        this.visible,
-        this.pageRenderVisible,
-        this.viewId,
-        this.runtimeOwner,
-        this.active,
-        JSON.stringify(this.config),
-      ];
-      void dependencies;
+      void this.gestureScope;
       this.input.reset();
       this.quickActionsOpen = false;
     });
@@ -107,9 +112,6 @@ export class AppletHostController implements AppletHostContext {
       this.mode === 'runtime' && this.runtimeOwner && this.documentVisible && this.dashboardVisible
     );
   }
-  get active() {
-    return this.windowLive && this.onScreen && this.pageRenderVisible;
-  }
   get selected() {
     return this.source.selected;
   }
@@ -138,16 +140,7 @@ export class AppletHostController implements AppletHostContext {
     );
   }
   get page() {
-    return Object.assign({}, this.source.page, {
-      next: () =>
-        this.mode === 'runtime'
-          ? this.commands.requestPageChange({ direction: 'next' }, 'applet')
-          : Promise.resolve(false),
-      prev: () =>
-        this.mode === 'runtime'
-          ? this.commands.requestPageChange({ direction: 'prev' }, 'applet')
-          : Promise.resolve(false),
-    });
+    return this.source.page;
   }
 
   setDesignHeight(next: number) {

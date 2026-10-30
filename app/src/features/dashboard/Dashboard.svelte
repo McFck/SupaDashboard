@@ -22,9 +22,8 @@
   const page = $derived(
     pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!,
   );
-  const applet = $derived(appletFor(page));
   const bg = $derived(settings.display.background);
-  const showDots = $derived(settings.deck.pages.length > 1 && applet.pageNavigation !== 'applet');
+  const showDots = $derived(settings.deck.pages.length > 1);
 
   let shell: HTMLDivElement;
   let pageHost: HTMLDivElement;
@@ -38,8 +37,6 @@
     shell: () => shell,
     pages: () => settings.deck.pages,
     pageId: () => page.id,
-    appletId: () => applet.id,
-    appletNavigates: () => applet.pageNavigation === 'applet',
     fullscreen: () => dashboard.appliedFullscreen,
     canDragWindow: () => isTauri() && !dashboard.appliedFullscreen,
     startWindowDrag: (pointerType) => dashboard.startDrag(pointerType),
