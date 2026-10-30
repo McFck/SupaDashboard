@@ -2,6 +2,7 @@ import { localizedName, type LineDefinition, type StationDefinition } from '../s
 import type { RunSnapshot } from '../simulation/run';
 import { e235Routine } from './lcd/e235-data';
 import { normalizeCarNumber } from '../simulation/config';
+import { hankyuCycle, hankyuLanguages } from '../display/hankyu-1300/schedule';
 
 export type ScreenPage =
   | 'platform'
@@ -57,6 +58,9 @@ const LANGUAGE_DWELL_MS = 6_000;
 const INCIDENT_LANGUAGES: readonly ScreenLanguage[] = ['ja', 'en', 'zh', 'ko'];
 
 function supportedLanguages(config: ScreenConfig): ScreenLanguage[] {
+  if (config.line.id === 'sakaisuji') {
+    return hankyuLanguages(config);
+  }
   const requested = config.languages?.filter(
     (language): language is ScreenLanguage =>
       language === 'ja' ||
@@ -67,14 +71,11 @@ function supportedLanguages(config: ScreenConfig): ScreenLanguage[] {
   );
   const choices: ScreenLanguage[] = requested?.length ? requested : ['ja', 'en'];
   const supports = (language: ScreenLanguage) =>
-    config.line.id === 'sakaisuji'
-      ? (language === 'ja' || language === 'kana') &&
-        config.line.stations.some((station) => station.names[language])
-      : language === 'zh' || language === 'ko'
-        ? config.line.id === 'hibiya'
-        : config.line.stations.some((station) => station.names[language]);
+    language === 'zh' || language === 'ko'
+      ? config.line.id === 'hibiya'
+      : config.line.stations.some((station) => station.names[language]);
   const present = choices.filter(supports);
-  const fallback: ScreenLanguage[] = config.line.id === 'sakaisuji' ? ['ja', 'kana'] : ['ja', 'en'];
+  const fallback: ScreenLanguage[] = ['ja', 'en'];
   return [
     ...new Set(
       present.length
@@ -112,21 +113,7 @@ function cycleFor(
           ];
     return { pages, period: pages.reduce((sum, page) => sum + page.duration, 0) };
   }
-  const base =
-    snapshot.state === 'stopped'
-      ? [
-          { page: 'platform' as const, duration: 6_000 },
-          { page: 'nearby' as const, duration: 6_000 },
-        ]
-      : [
-          { page: 'broad' as const, duration: 8_000 },
-          { page: 'nearby' as const, duration: 8_000 },
-        ];
-  const pages =
-    transfers > 0 && snapshot.state !== 'stopped'
-      ? [...base, { page: 'transfers' as const, duration: 6_000 }]
-      : base;
-  return { pages, period: pages.reduce((sum, page) => sum + page.duration, 0) };
+  return hankyuCycle(snapshot, transfers);
 }
 
 function routeFrom(
