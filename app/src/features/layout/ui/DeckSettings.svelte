@@ -2,6 +2,7 @@
   // The inspector with nothing selected: the page's applet, the canvas backdrop and the grid geometry of the page.
   import { Slider } from '$lib/components/ui/slider';
   import { Switch } from '$lib/components/ui/switch';
+  import * as ToggleGroup from '$lib/components/ui/toggle-group';
   import Choice from '../../plugins/ui/Choice.svelte';
   import { applets } from '../../plugins/registry';
   import { appletFor } from '../../applets/deck';
@@ -45,6 +46,13 @@
     const { hex, alpha } = splitAlpha(value);
     labelEdit('Canvas colour');
     settings.display.background = { ...settings.display.background, color: hex, opacity: alpha };
+  }
+
+  function setCanvasMode(mode: string) {
+    if ((mode === 'color' || mode === 'wallpaper') && mode !== settings.display.background.mode) {
+      commit('Canvas background');
+      settings.display.background = { ...settings.display.background, mode };
+    }
   }
 
   function setCanvasRadius(radius: number) {
@@ -104,16 +112,37 @@
     </Row>
   </Section>
   <Section title="Canvas">
-    <Row
-      label="Colour"
-      wide
-    >
-      <ColorField
-        palette={CANVAS_PALETTE}
-        value={withAlpha(settings.display.background.color, settings.display.background.opacity)}
-        onchange={setCanvasColour}
-      />
+    <Row label="Background">
+      <ToggleGroup.Root
+        type="single"
+        variant="outline"
+        class="w-48"
+        aria-label="Background"
+        value={settings.display.background.mode}
+        onValueChange={setCanvasMode}
+      >
+        <ToggleGroup.Item
+          value="color"
+          class="flex-1">Colour</ToggleGroup.Item
+        >
+        <ToggleGroup.Item
+          value="wallpaper"
+          class="flex-1">Wallpaper</ToggleGroup.Item
+        >
+      </ToggleGroup.Root>
     </Row>
+    {#if settings.display.background.mode === 'color'}
+      <Row
+        label="Colour"
+        wide
+      >
+        <ColorField
+          palette={CANVAS_PALETTE}
+          value={withAlpha(settings.display.background.color, settings.display.background.opacity)}
+          onchange={setCanvasColour}
+        />
+      </Row>
+    {/if}
     <Row label="Corner radius">
       <div class="flex w-40 items-center gap-3">
         <Slider

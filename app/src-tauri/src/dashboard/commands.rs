@@ -41,6 +41,18 @@ pub async fn dashboard_interaction_mode(app: AppHandle, fullscreen: bool) -> Res
     .await
 }
 
+#[tauri::command]
+pub async fn dashboard_backdrop(
+    app: AppHandle,
+    wallpaper: bool,
+    radius: f64,
+) -> Result<(), String> {
+    on_main_window(&app, "backdrop", move |window| {
+        super::policy::set_backdrop(&window, wallpaper, radius)
+    })
+    .await
+}
+
 /// Window calls must run on the UI thread; the result comes back over a channel.
 async fn on_main_window<T: Send + 'static>(
     app: &AppHandle,

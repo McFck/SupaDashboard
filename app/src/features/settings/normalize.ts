@@ -102,6 +102,7 @@ export function migrate(input: unknown): Settings {
       background: {
         ...out.display.background,
         ...background,
+        mode: background.mode === 'wallpaper' ? 'wallpaper' : 'color',
         color: pick(background.color, (v) => typeof v === 'string', out.display.background.color),
         opacity: pick(background.opacity, finite, out.display.background.opacity),
         radius: pick(background.radius, finite, out.display.background.radius),

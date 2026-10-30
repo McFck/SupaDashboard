@@ -218,12 +218,14 @@ describe('settings migration', () => {
       monitor: 'DISPLAY-1',
       fullscreen: true,
       alwaysOnTop: true,
-      background,
+      background: { ...background, mode: 'color' },
     });
     expect(migrated.deck.pages[0]).toMatchObject({ cols: 4, sizing: 'manual', size: 88 });
     expect(migrate(migrated)).toEqual(migrated);
     expect(valid).toEqual(source);
 
+    const modeOf = (mode: unknown) => migrate(old({ background: { mode } }, {})).display.background;
+    expect([modeOf('wallpaper').mode, modeOf('video').mode]).toEqual(['wallpaper', 'color']);
     for (const alwaysOnTop of [undefined, null, 'true', 1]) {
       expect(migrate(old({ alwaysOnTop }, {})).display.alwaysOnTop).toBe(false);
     }

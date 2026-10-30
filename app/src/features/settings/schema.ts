@@ -31,8 +31,8 @@ export type Settings = {
     monitor: string | null;
     fullscreen: boolean;
     alwaysOnTop: boolean;
-    /** Backdrop behind the widgets on the transparent dashboard window. */
-    background: { color: string; opacity: number; radius: number };
+    /** Backdrop behind the widgets on the transparent dashboard window: the colour, or the live desktop wallpaper. */
+    background: { mode: 'color' | 'wallpaper'; color: string; opacity: number; radius: number };
   };
   controls: ControlConfig[];
   deck: Deck;
