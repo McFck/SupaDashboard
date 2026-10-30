@@ -132,6 +132,7 @@ export class ScenarioDraftEditor {
     ...(this.draft?.variants.map((variant, index) => ({
       value: stateIdAt({ variants: this.draft?.variants ?? [] }, index),
       label: variant.label || `State ${index + 1}`,
+      appearance: variant,
     })) ?? []),
   ]);
 

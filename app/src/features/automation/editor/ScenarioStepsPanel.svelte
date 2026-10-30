@@ -5,6 +5,7 @@
   import StepList from './StepList.svelte';
   import type { StepListPath } from './scenario-edit';
   import type { ScenarioDraftEditor } from './scenario-draft.svelte';
+  import StateSwatch from '../../controls/editor/StateSwatch.svelte';
 
   let { editor }: { editor: ScenarioDraftEditor } = $props();
 
@@ -101,6 +102,7 @@
           aria-label={index < 0 ? 'Unavailable state steps' : `${label} steps`}
         >
           <div class="flex min-w-0 flex-wrap items-center gap-2">
+            {#if index >= 0}<StateSwatch appearance={draft.variants[index]} />{/if}
             <span class="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">{label}</span>
             {#if index < 0}
               <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">{stateId}</span>
