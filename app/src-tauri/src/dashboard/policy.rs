@@ -1,5 +1,6 @@
 //! The dashboard window's native behaviour: never take focus, a resize border, and hover, resize and visibility
 //! events for the frontend. It is a window subclass, so every handler runs on the UI thread.
+use super::backdrop::Backdrop;
 use super::events::Events;
 use super::geometry::{Geometry, ResizeHit, resize_hit};
 use std::cell::Cell;
@@ -25,8 +26,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow,
     WM_CANCELMODE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST,
     WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING,
-    WM_SYSCOMMAND, WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
-    WindowFromPoint,
+    WM_SYSCOMMAND, WM_WINDOWPOSCHANGED, WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP,
+    WS_MAXIMIZEBOX, WindowFromPoint,
 };
 
 /// Identifies our subclass on the window ("SUPA").
@@ -38,6 +39,7 @@ const SYSCOMMAND_MASK: u32 = 0xfff0;
 /// runs Tao's queued closures (`set_interaction_mode`), so a `&mut` held across it would alias.
 struct PolicyState {
     events: Events,
+    backdrop: Backdrop,
     fullscreen: Cell<bool>,
     minimized: Cell<bool>,
     resize_hit_test: Cell<bool>,
@@ -55,6 +57,7 @@ pub fn install(window: &WebviewWindow) -> Result<(), String> {
     let hwnd = hwnd_of(window)?;
     let state = Box::into_raw(Box::new(PolicyState {
         events: Events::new(window.app_handle().clone()),
+        backdrop: Backdrop::new(hwnd),
         fullscreen: Cell::new(false),
         minimized: Cell::new(unsafe { IsIconic(hwnd).as_bool() }),
         resize_hit_test: Cell::new(false),
@@ -95,26 +98,37 @@ fn hide_tauri_resize_border(hwnd: HWND) {
     }
 }
 
-pub fn set_interaction_mode(window: &WebviewWindow, fullscreen: bool) -> Result<(), String> {
+/// Runs `work` with the installed policy; callers run on the dashboard's UI thread.
+fn with_policy<T>(
+    window: &WebviewWindow,
+    work: impl FnOnce(HWND, &PolicyState) -> Result<T, String>,
+) -> Result<T, String> {
     let hwnd = hwnd_of(window)?;
-    let mut reference_data = 0usize;
-    let found = unsafe {
-        GetWindowSubclass(
-            hwnd,
-            Some(dashboard_subclass),
-            SUBCLASS_ID,
-            Some(&mut reference_data),
-        )
+    let mut data = 0;
+    if !unsafe { GetWindowSubclass(hwnd, Some(dashboard_subclass), SUBCLASS_ID, Some(&mut data)) }
         .as_bool()
-    };
-    if !found || reference_data == 0 {
-        return Err("dashboard window interaction policy is not installed".to_owned());
+        || data == 0
+    {
+        return Err("dashboard window interaction policy is not installed".into());
     }
-    let policy = unsafe { &*(reference_data as *const PolicyState) };
-    policy.fullscreen.set(fullscreen);
-    super::touch_surface::cancel(hwnd);
-    clear_pointer_state(policy);
-    mark_fullscreen(hwnd, fullscreen)
+    // SAFETY: the policy is installed on this live window and freed only by its WM_NCDESTROY on this thread.
+    work(hwnd, unsafe { &*(data as *const PolicyState) })
+}
+
+pub fn set_interaction_mode(window: &WebviewWindow, fullscreen: bool) -> Result<(), String> {
+    with_policy(window, |hwnd, policy| {
+        policy.fullscreen.set(fullscreen);
+        super::touch_surface::cancel(hwnd);
+        clear_pointer_state(policy);
+        policy.backdrop.set_fullscreen(fullscreen);
+        mark_fullscreen(hwnd, fullscreen)
+    })
+}
+
+pub fn set_backdrop(window: &WebviewWindow, wallpaper: bool, radius: f64) -> Result<(), String> {
+    with_policy(window, |_, policy| {
+        policy.backdrop.configure(wallpaper, radius)
+    })
 }
 
 /// The window never activates, so Windows does not treat it as fullscreen and keeps its monitor's taskbar on top
@@ -141,20 +155,12 @@ pub fn touch_window_action(
     window: &WebviewWindow,
     action: super::touch_window::TouchWindowAction,
 ) -> Result<(), String> {
-    let hwnd = hwnd_of(window)?;
-    let mut data = 0;
-    if !unsafe { GetWindowSubclass(hwnd, Some(dashboard_subclass), SUBCLASS_ID, Some(&mut data)) }
-        .as_bool()
-        || data == 0
-    {
-        return Err("dashboard window interaction policy is not installed".into());
-    }
-    // SAFETY: the policy is installed on this live window; this command runs on its UI thread.
-    let policy = unsafe { &*(data as *const PolicyState) };
-    if policy.fullscreen.get() {
-        return Err("window touch gestures are disabled in fullscreen".into());
-    }
-    super::touch_surface::begin_window_action(hwnd, action)
+    with_policy(window, |hwnd, policy| {
+        if policy.fullscreen.get() {
+            return Err("window touch gestures are disabled in fullscreen".into());
+        }
+        super::touch_surface::begin_window_action(hwnd, action)
+    })
 }
 
 fn apply_style_policy(hwnd: HWND) -> Result<(), String> {
@@ -280,6 +286,7 @@ unsafe extern "system" fn dashboard_subclass(
             let minimized = unsafe { IsIconic(hwnd).as_bool() };
             policy.events.visibility(wparam.0 != 0 && !minimized);
         }
+        WM_WINDOWPOSCHANGED => policy.backdrop.sync(),
         WM_SIZE => {
             if let Err(error) = super::touch_surface::resize(hwnd) {
                 log::error!("could not resize dashboard input surface: {error}");
