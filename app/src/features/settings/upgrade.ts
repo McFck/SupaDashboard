@@ -1,4 +1,4 @@
-import type { Item } from '../layout/grid';
+import { firstFree, type Item } from '../layout/grid';
 import { DEFAULT_PAGE } from './defaults';
 import { isRecord } from '../automation/plain-data';
 
@@ -87,7 +87,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 9) {
+  if (typeof saved.version === 'number' && saved.version > 10) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -167,15 +167,18 @@ export function upgrade(input: Record<string, unknown>) {
     };
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
-  if (![3, 4, 5, 6, 7, 8, 9].includes(saved.version as number)) {
+  if (![3, 4, 5, 6, 7, 8, 9, 10].includes(saved.version as number)) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
-  if (saved.version !== 8 && saved.version !== 9) {
+  if (![8, 9, 10].includes(saved.version as number)) {
     saved = toV8(saved);
   }
   if (saved.version === 8) {
     // Keep the old GDI choice until the user selects a monitor with native metadata.
     saved = { ...saved, version: 9, display: { ...object(saved.display), monitorLabel: null } };
+  }
+  if (saved.version === 9) {
+    saved = { ...saved, version: 10, appletLayouts: mergeSubwaySide(object(saved.appletLayouts)) };
   }
   const display = object(saved.display);
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {
@@ -208,4 +211,38 @@ function toV8(saved: Record<string, unknown>) {
       .map(([id, values]) => [id, { shared: values, separate: false }]),
   );
   return { ...rest, version: 8, deck, appletSettings, appletLayouts: object(skinLayouts) };
+}
+
+/**
+ * v10: Subway's Run view lost its side slot; its controls move into the strip, which gained the two columns
+ * the side slot held, so every one of them finds a free cell.
+ */
+function mergeSubwaySide(layouts: Record<string, unknown>) {
+  const pages = object(layouts.subway);
+  const merged = Object.fromEntries(
+    Object.entries(pages).map(([pageId, value]) => {
+      if (!isRecord(value)) {
+        return [pageId, value];
+      }
+      const { side, ...slots } = value;
+      if (!Array.isArray(side)) {
+        return [pageId, slots];
+      }
+      const strip: Item[] = Array.isArray(slots.strip) ? [...slots.strip] : [];
+      for (const item of side) {
+        const cell = firstFree(strip, 1, 1, { rows: 1, cols: 10 });
+        // Malformed placements are dropped by normalizeItems either way.
+        if (
+          cell &&
+          isRecord(item) &&
+          typeof item.id === 'string' &&
+          typeof item.control === 'string'
+        ) {
+          strip.push({ id: item.id, control: item.control, ...cell, w: 1, h: 1 });
+        }
+      }
+      return [pageId, { ...slots, strip }];
+    }),
+  );
+  return isRecord(layouts.subway) ? { ...layouts, subway: merged } : layouts;
 }

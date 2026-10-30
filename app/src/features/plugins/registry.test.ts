@@ -33,7 +33,7 @@ describe('plugin bookkeeping', () => {
           title: 'Test applet',
           component: {} as import('svelte').Component,
           slots: [{ id: 'main', kind: 'grid', grid: 'page' }],
-          views: [{ id: 'default', title: 'Default', slots: ['main'] }],
+          views: [{ id: 'default', title: 'Default' }],
           defaultView: 'default',
           state: [{ key: 'ready', type: 'boolean', initialValue: false, persistent: true }],
           events: [
@@ -52,9 +52,9 @@ describe('plugin bookkeeping', () => {
     expect(() =>
       ownerApi.registerApplet({
         ...registeredApplet,
-        views: [{ id: 'broken', title: 'Broken', slots: ['missing'] }],
+        views: [{ id: 'broken', title: 'Broken' }],
       }),
-    ).toThrow('slot references');
+    ).toThrow('defaultView');
     expect(registry.applets.get('test.applet')).toBe(registeredApplet);
     registry.install({
       id: 'intruder',
@@ -73,7 +73,7 @@ describe('plugin bookkeeping', () => {
           title: 'Intruder applet',
           component: {} as import('svelte').Component,
           slots: [{ id: 'main', kind: 'grid', grid: 'page' }],
-          views: [{ id: 'default', title: 'Default', slots: ['main'] }],
+          views: [{ id: 'default', title: 'Default' }],
           defaultView: 'default',
           events: [{ id: 'test.other.changed', title: 'Other external event' }],
         });

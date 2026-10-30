@@ -13,21 +13,21 @@ export type MoveOption = {
 };
 
 /**
- * Page mode keeps the slot and lists other pages; slot mode lists every slot of the visible view on every page.
+ * Page mode keeps the slot and lists other pages; slot mode lists every slot of the applet on every page.
  * Destinations without room for the placement are listed but disabled.
  */
 export function moveOptions(
   source: Settings,
   applet: AppletDef | undefined,
-  visibleSlots: readonly string[],
   mode: MoveMode,
   from: LayoutTarget,
   itemId: string,
 ): MoveOption[] {
-  if (!applet || !visibleSlots.includes(from.slotId)) {
+  const slotIds = applet?.slots.map((slot) => slot.id) ?? [];
+  if (!slotIds.includes(from.slotId)) {
     return [];
   }
-  const slots = mode === 'page' ? [from.slotId] : visibleSlots;
+  const slots = mode === 'page' ? [from.slotId] : slotIds;
   return source.deck.pages.flatMap((page) =>
     slots.flatMap((slotId) => {
       const samePage = page.id === from.pageId;

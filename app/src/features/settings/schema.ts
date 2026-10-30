@@ -1,4 +1,4 @@
-// Persisted settings shape (v9).
+// Persisted settings shape (v10).
 import type { ControlConfig } from '../controls/model';
 import type { DeckSizing, Item } from '../layout/grid';
 
@@ -26,7 +26,7 @@ export type AppletSettingsEntry = {
 export type Deck = { pages: Page[]; activePage: string };
 
 export type Settings = {
-  version: 9;
+  version: 10;
   display: {
     monitor: string | null;
     monitorLabel: string | null;

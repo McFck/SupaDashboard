@@ -9,7 +9,7 @@ export const DECK: AppletDef = {
   title: 'Deck',
   component: DeckApplet,
   slots: [{ id: 'main', kind: 'grid', grid: 'page' }],
-  views: [{ id: 'default', title: 'Deck', slots: ['main'] }],
+  views: [{ id: 'default', title: 'Deck' }],
   defaultView: 'default',
 };
 

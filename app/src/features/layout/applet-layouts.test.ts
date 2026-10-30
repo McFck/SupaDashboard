@@ -32,7 +32,7 @@ const applet: AppletDef = {
       grid: { rows: 1, cols: 2, size: 40, gap: 4, sizing: 'auto' },
     },
   ],
-  views: [{ id: 'default', title: 'Default', slots: ['main'] }],
+  views: [{ id: 'default', title: 'Default' }],
   defaultView: 'default',
 };
 const item = (id: string, control: string, x: number) => ({ id, control, x, y: 0, w: 1, h: 1 });

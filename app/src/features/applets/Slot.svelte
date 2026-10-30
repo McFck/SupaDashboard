@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { fade } from 'svelte/transition';
-  import { prefersReducedMotion } from 'svelte/motion';
   import type { Component } from 'svelte';
   import type { ControlFaceProps } from '../controls/model';
   import {
@@ -35,9 +33,6 @@
   const host = getAppletHostContext();
   const target = $derived(host && { appletId: host.applet.id, pageId: host.page.id, slotId: id });
   const slot = $derived(host?.applet.slots.find((entry) => entry.id === id));
-  const activeInView = $derived(
-    host?.applet.views.find((view) => view.id === host.viewId)?.slots.includes(id) ?? false,
-  );
   const layout = $derived(
     host && target ? layoutFor(settings, target.appletId, target.pageId, target.slotId) : undefined,
   );
@@ -87,50 +82,31 @@
     bind:clientWidth={width}
     bind:clientHeight={height}
     data-applet-slot={id}
-    data-applet-input={host.mode === 'runtime' && host.applet.design && activeInView
-      ? 'slot'
-      : undefined}
-    aria-hidden={!activeInView}
-    inert={!activeInView}
-    class="relative grid h-full w-full place-items-center transition-opacity duration-150 motion-reduce:transition-none"
-    class:opacity-0={!activeInView}
-    class:pointer-events-none={!activeInView}
-    class:applet-editor-slot={host.mode === 'editor' && host.applet.id !== 'deck'}
+    data-applet-input={host.mode === 'runtime' && host.applet.design ? 'slot' : undefined}
+    class="relative grid h-full w-full place-items-center"
   >
-    {#if activeInView}
-      <div
-        class="absolute inset-0 grid place-items-center"
-        transition:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
-      >
-        <DeckGrid
-          page={host.page}
-          layout={geometry}
-          {target}
-          {faceMap}
-          compact={slot.kind === 'strip'}
-          availableWidth={width}
-          availableHeight={height}
-          pageRenderVisible={host.pageRenderVisible && activeInView}
-          resolvePresentation={host.resolvePresentation}
-          editorPreview={host.mode === 'editor'}
-          editing={isEditing}
-          selected={selectedValue}
-          onselect={selectSlot}
-          oncontext={contextSlot}
-          {resolveSize}
-          onitemschange={writeItems}
-        />
-      </div>
-      {#if host.mode === 'editor' && host.applet.id !== 'deck'}
-        <span
-          aria-hidden="true"
-          class="pointer-events-none absolute left-1 top-1 z-[70] rounded bg-background/90 px-1.5 py-0.5 text-[24px] font-medium text-foreground"
-          >{slot.id}</span
-        >
-      {/if}
-    {/if}
+    <div class="absolute inset-0 grid place-items-center">
+      <DeckGrid
+        page={host.page}
+        layout={geometry}
+        {target}
+        {faceMap}
+        compact={slot.kind === 'strip'}
+        availableWidth={width}
+        availableHeight={height}
+        pageRenderVisible={host.pageRenderVisible}
+        resolvePresentation={host.resolvePresentation}
+        editorPreview={host.mode === 'editor'}
+        editing={isEditing}
+        selected={selectedValue}
+        onselect={selectSlot}
+        oncontext={contextSlot}
+        {resolveSize}
+        onitemschange={writeItems}
+      />
+    </div>
   </div>
-{:else if host && slot && activeInView}
+{:else if host && slot}
   <div
     role="status"
     aria-label="Skin slot unavailable"
@@ -139,11 +115,3 @@
     Unavailable
   </div>
 {/if}
-
-<style>
-  .applet-editor-slot {
-    outline: 2px dashed #a6d7c3;
-    outline-offset: 2px;
-    overflow: visible;
-  }
-</style>

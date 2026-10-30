@@ -437,8 +437,8 @@ describe('automation runtime', () => {
           component: {} as import('svelte').Component,
           slots: [{ id: 'main', kind: 'grid', grid: 'page' }],
           views: [
-            { id: 'display', title: 'Display', slots: ['main'] },
-            { id: 'cab', title: 'Cab', slots: ['main'] },
+            { id: 'display', title: 'Display' },
+            { id: 'cab', title: 'Cab' },
           ],
           defaultView: 'display',
           settings: [{ key: 'enabled', label: 'Enabled', type: 'boolean', default: false }],

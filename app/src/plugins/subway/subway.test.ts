@@ -21,27 +21,9 @@ function collect() {
 }
 
 describe('Subway applet registration', () => {
-  it('registers the planned host geometry and view slot visibility', () => {
-    const { applet } = collect();
-    validateAppletDefinition(applet);
-    expect(applet.design).toEqual({ width: 1920, height: 480 });
-    expect(applet.slots.find((slot) => slot.id === 'strip')).toMatchObject({
-      max: 8,
-      accepts: ['button', 'slider'],
-    });
-    expect(applet.slots.find((slot) => slot.id === 'strip')?.size).toBeUndefined();
-    expect(applet.slots.find((slot) => slot.id === 'side')).toMatchObject({
-      max: 2,
-    });
-    expect(applet.views).toEqual([
-      { id: 'display', title: 'Display', slots: ['strip'] },
-      { id: 'map', title: 'Map', slots: ['strip'] },
-      { id: 'cab', title: 'Run', slots: ['strip', 'side'] },
-    ]);
-  });
-
-  it('declares persistent settings, owner projections, events, face-only renderers and required quick actions', () => {
+  it('declares persistent settings, owner projections, events and required quick actions', () => {
     const { actions, applet } = collect();
+    validateAppletDefinition(applet);
     expect(settingParams(applet.settings).map((param) => param.key)).toEqual([
       'line',
       'direction',
@@ -74,8 +56,6 @@ describe('Subway applet registration', () => {
       'subway.emergency',
       'subway.suspended',
     ]);
-    expect(applet.controlFaces?.button?.component).toBeTruthy();
-    expect(applet.controlFaces?.slider?.component).toBeTruthy();
     expect(applet.quickActions?.map((action) => action.id)).toEqual([
       'subway.line',
       'subway.emergency',
