@@ -1,5 +1,5 @@
 import { stepStation, type LineDefinition } from './lines';
-import { advance, dueDeadline, prepareDwell, shiftStateTimes } from './run-advance';
+import { advance, catchUp, dueDeadline, prepareDwell } from './run-advance';
 import { applyIncident, resumeService } from './run-incident';
 import { remainingJourneyMs } from './run-journey';
 import { activeNow, clamp, snapshotMotion } from './run-motion';
@@ -107,9 +107,7 @@ export function reduceRun(
   }
   if (command.type === 'resume') {
     if (current.pausedAt === null) return { state: current, effects };
-    const delta = Math.max(0, now - current.pausedAt);
-    const resumed = shiftStateTimes({ ...current, pausedAt: null }, delta);
-    return { state: { ...resumed, lastTickAt: now }, effects };
+    return { state: catchUp(current, now, lines, plans), effects };
   }
   if (command.type === 'emergency' || command.type === 'suspend') {
     current = advance(current, now, lines, plans, effects);

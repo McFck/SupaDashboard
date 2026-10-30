@@ -227,7 +227,7 @@ describe('Subway run timeline', () => {
     expect(snapshotRun(started, 0, lines).remainingMinutes).toBe(38);
   });
 
-  it('freezes a hidden run without wakes or station events, then shifts its deadlines on show', () => {
+  it('does not tick a hidden run, then resumes where a run that never paused would be', () => {
     let state = createRunState(lines, {
       lineId: 'sakaisuji',
       stationCode: 'K11',
@@ -237,7 +237,7 @@ describe('Subway run timeline', () => {
     state = reduce(state, 'start', 0).state;
     state = advanceTo(state, 15_000).state;
     const before = snapshotRun(state, state.lastTickAt, lines);
-    const deadline = state.phaseDeadline;
+    const neverPaused = advanceTo(state, state.lastTickAt + 600_000).state;
     state = reduce(state, 'pause', state.lastTickAt).state;
     const wake = nextRunWake(state, 75_000);
     expect(wake).toBeNull();
@@ -248,9 +248,14 @@ describe('Subway run timeline', () => {
       speed: before.speed,
       station: before.station,
     });
-    state = reduce(hidden.state, 'resume', state.pausedAt! + 60_000).state;
-    expect(state.phaseDeadline).toBe(deadline! + 60_000);
-    expect(snapshotRun(state, state.lastTickAt, lines).station).toBe('K11');
+    const resumeAt = state.pausedAt! + 600_000;
+    const resumed = reduce(hidden.state, 'resume', resumeAt);
+    expect(resumed.effects).toEqual([]);
+    const { paused, ...expected } = snapshotRun(neverPaused, resumeAt, lines);
+    expect(paused).toBe(false);
+    expect(expected.station).not.toBe('K11');
+    expect(snapshotRun(resumed.state, resumeAt, lines)).toMatchObject(expected);
+    expect(nextRunWake(resumed.state, resumeAt)).toBe(nextRunWake(neverPaused, resumeAt));
   });
 
   it('brakes on an idempotent emergency, then resumes the same segment without a second departure', () => {
