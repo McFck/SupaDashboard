@@ -10,7 +10,12 @@ import {
 } from '../../platform/window';
 import { ControlledWindow } from './controlled-window';
 import { Fullscreen } from './fullscreen';
-import { resolveLiveMonitor, type DisplayRequest } from './geometry';
+import {
+  chosenMonitorMissing,
+  resolveLiveMonitor,
+  type DisplayRequest,
+  type MonitorGeometry,
+} from './geometry';
 import { WindowedBounds } from './windowed-state';
 import { toast } from 'svelte-sonner';
 
@@ -26,11 +31,16 @@ const sameRequest = (a: DisplayRequest | null, b: DisplayRequest) =>
   a.fullscreen === b.fullscreen &&
   a.alwaysOnTop === b.alwaysOnTop;
 
+/** How often a chosen monitor's connection is checked; Tauri reports no monitor change event. */
+const MONITOR_POLL_MS = 1500;
+
 let activeController: DisplayController | undefined;
 
 async function resolveTarget(monitor: string | null) {
   const snapshot = await connectedMonitors();
-  const target = resolveLiveMonitor(snapshot.screens, monitor, snapshot.current, snapshot.primary);
+  const target = chosenMonitorMissing(snapshot.screens, monitor)
+    ? undefined
+    : resolveLiveMonitor(snapshot.screens, monitor, snapshot.current, snapshot.primary);
   return { ...snapshot, target };
 }
 
@@ -43,6 +53,10 @@ export class DisplayController {
   private reconcileQueued = false;
   private readonly listeners: (() => void)[] = [];
   private applied: DisplayRequest | null = null;
+  private latest: DisplayRequest | null = null;
+  private deck: Page | null = null;
+  /** Hidden because the chosen monitor is not connected; nothing is moved or saved until it returns. */
+  unavailable = false;
 
   constructor(
     private readonly win: Window,
@@ -58,6 +72,7 @@ export class DisplayController {
   /** Applies requests in order; only a successful placement suppresses a later retry. */
   request(display: DisplayRequest) {
     const request = requestOf(display);
+    this.latest = request;
     return this.serialize(async () => {
       if (sameRequest(this.applied, request)) {
         return;
@@ -79,6 +94,7 @@ export class DisplayController {
   }
 
   updateGrid(deck: Page, bottomInset: number) {
+    this.deck = deck;
     return this.serialize(async () => {
       this.windowed.configureMinimum(deck, bottomInset);
       if (!this.fullscreen.active) {
@@ -108,6 +124,8 @@ export class DisplayController {
   /** Places the window for the stored settings at start-up; false when the caller went away meanwhile. */
   async start(initial: DisplayRequest, deck: Page, bottomInset = 0) {
     this.windowed.configureMinimum(deck, bottomInset);
+    this.deck = deck;
+    this.latest = initial;
     this.window.topmost = await this.win.isAlwaysOnTop();
     this.window.step();
     const startup = await this.windowed.startupPlacement(initial.monitor, deck);
@@ -115,6 +133,11 @@ export class DisplayController {
       return false;
     }
     await this.listen();
+    if (startup.missing) {
+      this.unavailable = true;
+      this.onFullscreen(false);
+      return true;
+    }
     if (this.abandoned() || !(await this.windowed.restore(startup)) || this.abandoned()) {
       return false;
     }
@@ -164,11 +187,17 @@ export class DisplayController {
     const { screens, current, target } = await resolveTarget(request.monitor);
     this.window.step();
     if (!target) {
-      await this.window.setTopmost(this.fullscreen.active || request.alwaysOnTop);
+      if (request.monitor) {
+        await this.hide();
+      } else {
+        await this.window.setTopmost(this.fullscreen.active || request.alwaysOnTop);
+      }
       return false;
     }
 
-    if (request.fullscreen) {
+    if (this.unavailable && !this.fullscreen.active) {
+      await this.reopen(request, target, screens, current);
+    } else if (request.fullscreen) {
       if (!this.fullscreen.active) {
         await this.fullscreen.enter(target, screens, current);
       } else if (this.fullscreen.monitor !== target.name || request.monitor !== last?.monitor) {
@@ -184,7 +213,62 @@ export class DisplayController {
       const chosen = !!request.monitor && target.name === request.monitor;
       await this.windowed.moveTo(target, chosen, request.alwaysOnTop);
     }
+    await this.show();
     return !request.monitor || target.name === request.monitor;
+  }
+
+  /** The screen is back (or another one was chosen): open at its remembered rectangle, as at start-up. */
+  private async reopen(
+    request: DisplayRequest,
+    target: MonitorGeometry,
+    screens: MonitorGeometry[],
+    current: MonitorGeometry | null,
+  ) {
+    if (!this.deck) {
+      throw new Error('Dashboard grid is not configured');
+    }
+    await this.windowed.restore(await this.windowed.startupPlacement(request.monitor, this.deck));
+    this.window.step();
+    if (request.fullscreen) {
+      await this.fullscreen.enter(target, screens, current);
+    } else {
+      await this.window.setTopmost(request.alwaysOnTop);
+    }
+  }
+
+  private async hide() {
+    if (!this.unavailable) {
+      this.unavailable = true;
+      await this.win.hide();
+    }
+    this.applied = null;
+  }
+
+  private async show() {
+    if (this.unavailable) {
+      await this.win.show();
+      this.unavailable = false;
+    }
+  }
+
+  private watchMonitor() {
+    const timer = setInterval(() => void this.checkMonitor(), MONITOR_POLL_MS);
+    this.listeners.push(() => clearInterval(timer));
+  }
+
+  /** Hides the window once its chosen monitor is gone and brings it back when that monitor returns. */
+  private async checkMonitor() {
+    const request = this.latest;
+    if (!request?.monitor || !this.live()) {
+      return;
+    }
+    const { screens } = await connectedMonitors();
+    const missing = chosenMonitorMissing(screens, request.monitor);
+    if (missing && !this.unavailable) {
+      void this.serialize(() => this.hide()).catch((error) => console.warn('display hide', error));
+    } else if (!missing && this.unavailable) {
+      void this.request(request);
+    }
   }
 
   private async listen() {
@@ -194,6 +278,7 @@ export class DisplayController {
         this.queueReconcile();
       }
     };
+    this.watchMonitor();
     this.listeners.push(await this.win.onMoved(() => this.saveUserBoundsLater()));
     this.listeners.push(await this.win.onResized(onResize));
     this.listeners.push(
@@ -206,7 +291,7 @@ export class DisplayController {
 
   /** Only user moves and resizes of the windowed dashboard are saved. */
   private canSaveUserBounds() {
-    return this.live() && !this.fullscreen.active && !this.window.transition;
+    return this.live() && !this.unavailable && !this.fullscreen.active && !this.window.transition;
   }
 
   private saveUserBoundsLater() {

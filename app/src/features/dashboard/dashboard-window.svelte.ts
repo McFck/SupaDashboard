@@ -32,8 +32,11 @@ export class DashboardWindow {
    * The shell and the resize grips are separate elements, and the order of their enter and leave events is not
    * guaranteed, so only a leave towards something outside both clears the hover.
    */
-  readonly pointerEnter = () => {
-    this.domHovered = true;
+  readonly pointerEnter = (event: PointerEvent) => {
+    // A tap on a touchscreen also fires enter and leave; only a hovering mouse or pen shows the chrome.
+    if (event.pointerType !== 'touch') {
+      this.domHovered = true;
+    }
   };
   readonly pointerLeave = (event: PointerEvent) => {
     const next = event.relatedTarget;
@@ -142,7 +145,8 @@ export class DashboardWindow {
 
     this.ready = true;
     await tick();
-    if (!this.disposed && isTauri()) {
+    // A chosen monitor that is not connected keeps the window hidden until the display controller reopens it.
+    if (!this.disposed && isTauri() && !this.controller?.unavailable) {
       await getCurrentWindow().show();
     }
     this.requestChanged();

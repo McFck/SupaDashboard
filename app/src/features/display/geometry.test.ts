@@ -39,6 +39,7 @@ describe('startup placement', () => {
     expect(startupPlacement(screens, null, undefined, left, actual, deck)).toEqual({
       monitor: left,
       bounds: { x: 575, y: 324, width: 770, height: 392 },
+      missing: false,
     });
     expect(startupPlacement(screens, 'B', undefined, left, actual, deck).bounds).toEqual({
       x: 2623,
@@ -53,6 +54,7 @@ describe('startup placement', () => {
     expect(startupPlacement(screens, null, saved, left, actual, deck)).toEqual({
       monitor: right,
       bounds: { x: 3680, y: 0, width: 800, height: 400 },
+      missing: false,
     });
   });
 
@@ -61,7 +63,14 @@ describe('startup placement', () => {
     expect(startupPlacement(screens, 'A', saved, left, actual, deck)).toEqual({
       monitor: left,
       bounds: { x: 560, y: 320, width: 800, height: 400 },
+      missing: false,
     });
+  });
+
+  it('reports a chosen monitor that is not connected instead of moving to another one', () => {
+    const saved = { x: 100, y: 100, width: 800, height: 400 };
+    const result = startupPlacement(screens, 'C', saved, left, actual, deck);
+    expect(result).toEqual({ monitor: undefined, bounds: actual, missing: true });
   });
 
   it('never returns unusable bounds when no monitor is reported', () => {

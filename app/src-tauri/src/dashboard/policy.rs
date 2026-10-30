@@ -8,22 +8,25 @@ use tauri::{Manager, WebviewWindow};
 use windows::Win32::Foundation::{
     GetLastError, HWND, LPARAM, LRESULT, POINT, RECT, SetLastError, WIN32_ERROR, WPARAM,
 };
+use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, TrackMouseEvent,
 };
 use windows::Win32::UI::Shell::{
-    DefSubclassProc, GetWindowSubclass, RemoveWindowSubclass, SetWindowSubclass,
+    DefSubclassProc, GetWindowSubclass, ITaskbarList2, RemoveWindowSubclass, SetWindowSubclass,
+    TaskbarList,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowExW, GA_ROOT, GWL_EXSTYLE, GWL_STYLE, GetAncestor, GetCursorPos, GetWindowLongPtrW,
-    GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT,
-    HTTOPRIGHT, IsIconic, IsWindowVisible, MA_NOACTIVATE, PA_NOACTIVATE, SC_MAXIMIZE, SC_MOVE,
-    SC_SIZE, STYLESTRUCT, SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, WM_CANCELMODE, WM_ENTERSIZEMOVE,
-    WM_EXITSIZEMOVE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
-    WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND, WS_CAPTION,
-    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX, WindowFromPoint,
+    FindWindowExW, GA_ROOT, GWL_EXSTYLE, GWL_STYLE, GetAncestor, GetCursorPos, GetMessageExtraInfo,
+    GetWindowLongPtrW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTLEFT, HTRIGHT,
+    HTTOP, HTTOPLEFT, HTTOPRIGHT, IsIconic, IsWindowVisible, MA_NOACTIVATE, PA_NOACTIVATE,
+    SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT, SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    WM_CANCELMODE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST,
+    WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING,
+    WM_SYSCOMMAND, WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX,
+    WindowFromPoint,
 };
 
 /// Identifies our subclass on the window ("SUPA").
@@ -111,7 +114,27 @@ pub fn set_interaction_mode(window: &WebviewWindow, fullscreen: bool) -> Result<
     policy.fullscreen.set(fullscreen);
     super::touch_surface::cancel(hwnd);
     clear_pointer_state(policy);
-    Ok(())
+    mark_fullscreen(hwnd, fullscreen)
+}
+
+/// The window never activates, so Windows does not treat it as fullscreen and keeps its monitor's taskbar on top
+/// unless the shell is told explicitly.
+fn mark_fullscreen(hwnd: HWND, fullscreen: bool) -> Result<(), String> {
+    let taskbar: ITaskbarList2 =
+        unsafe { CoCreateInstance(&TaskbarList, None, CLSCTX_INPROC_SERVER) }
+            .map_err(|error| format!("could not reach the taskbar: {error}"))?;
+    unsafe {
+        taskbar
+            .HrInit()
+            .and_then(|()| taskbar.MarkFullscreenWindow(hwnd, fullscreen))
+    }
+    .map_err(|error| format!("could not update the taskbar for fullscreen: {error}"))
+}
+
+/// Touch and pen input also reach the window as mouse messages carrying this signature in the message extra info
+/// (MI_WP_SIGNATURE); they are not a hovering mouse.
+const fn is_pointer_synthesized(extra_info: isize) -> bool {
+    (extra_info as u32) & 0xFFFF_FF00 == 0xFF51_5700
 }
 
 pub fn touch_window_action(
@@ -215,7 +238,11 @@ unsafe extern "system" fn dashboard_subclass(
         WM_SYSCOMMAND => on_syscommand(policy, wparam),
         WM_NCHITTEST => on_hit_test(policy, hwnd, lparam),
         WM_NCMOUSEMOVE | WM_NCMOUSELEAVE => {
-            on_mouse_move(policy, hwnd);
+            let synthesized = message == WM_NCMOUSEMOVE
+                && is_pointer_synthesized(unsafe { GetMessageExtraInfo() }.0);
+            if !synthesized {
+                on_mouse_move(policy, hwnd);
+            }
             None
         }
         WM_SHOWWINDOW if wparam.0 == 0 => {
@@ -370,4 +397,17 @@ fn on_destroy(
     let result = unsafe { DefSubclassProc(hwnd, WM_NCDESTROY, wparam, lparam) };
     unsafe { drop(Box::from_raw(reference_data as *mut PolicyState)) };
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_pointer_synthesized;
+
+    #[test]
+    fn touch_and_pen_mouse_messages_are_not_taken_for_a_hovering_mouse() {
+        assert!(is_pointer_synthesized(0xFF51_5780));
+        assert!(is_pointer_synthesized(0xFF51_5700));
+        assert!(!is_pointer_synthesized(0));
+        assert!(!is_pointer_synthesized(0x1234_5678));
+    }
 }

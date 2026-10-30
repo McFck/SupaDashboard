@@ -44,6 +44,8 @@ it.each(['absent', 'invalid'] as const)(
       onMoved: async () => () => {},
       onResized: async () => () => {},
       onScaleChanged: async () => () => {},
+      hide: async () => {},
+      show: async () => {},
     } as unknown as Window;
     const store = {
       get: async () => undefined,
@@ -83,6 +85,8 @@ function windowFixture() {
     },
   ];
   const setMinSize = vi.fn(async () => {});
+  const hide = vi.fn(async () => {});
+  const show = vi.fn(async () => {});
   const win = {
     isAlwaysOnTop: async () => false,
     setAlwaysOnTop: async () => {},
@@ -94,10 +98,16 @@ function windowFixture() {
       scaleChanged = callback;
       return () => {};
     },
+    hide,
+    show,
   } as unknown as Window;
-  const set = vi.fn(async () => {});
+  const stored: Record<string, unknown> = {};
+  const set = vi.fn(async (key: string, value: unknown) => {
+    stored[key] = value;
+  });
   const store = {
-    get: async () => ({ x: 50, y: 50, width: 100, height: 100 }),
+    get: async (key: string) =>
+      key === 'dashboard' ? { x: 50, y: 50, width: 100, height: 100 } : stored[key],
     set,
   } as unknown as WindowStateStore;
   const deck = { cols: 6, rows: 3, size: 112, gap: 14 } as Page;
@@ -107,7 +117,7 @@ function windowFixture() {
     () => false,
     () => {},
   );
-  return { deck, set, setMinSize, scaleChanged: () => scaleChanged() };
+  return { deck, set, setMinSize, hide, show, stored, scaleChanged: () => scaleChanged() };
 }
 
 it('enlarges a saved tiny window to the scaled grid minimum before persisting the restore', async () => {
@@ -184,3 +194,59 @@ it.each([600, 1000])(
     });
   },
 );
+
+const secondScreen = (x = 1920) => ({
+  name: 'second',
+  position: { x, y: 0 },
+  size: { width: 1920, height: 1080 },
+  workArea: { position: { x, y: 0 }, size: { width: 1920, height: 1040 } },
+  scaleFactor: 1.5,
+});
+const onSecond = { monitor: 'second', fullscreen: false, alwaysOnTop: false };
+
+it('opens at the remembered rectangle of the chosen monitor when it is connected', async () => {
+  const { deck, stored } = windowFixture();
+  native.screens.push(secondScreen());
+  stored.dashboardByMonitor = { second: { x: 2100, y: 60, width: 800, height: 500 } };
+  await controller.start(onSecond, deck);
+  expect(controller.unavailable).toBe(false);
+  expect(native.bounds).toEqual({ x: 2100, y: 60, width: 800, height: 500 });
+});
+
+it('keeps the window hidden and unmoved while the chosen monitor is disconnected, then reopens it where it was', async () => {
+  const { deck, set, hide, show, stored } = windowFixture();
+  stored.dashboardByMonitor = { second: { x: 2100, y: 60, width: 800, height: 500 } };
+  const before = { ...native.bounds };
+  await controller.start(onSecond, deck);
+  await controller.request(onSecond);
+  expect(controller.unavailable).toBe(true);
+  expect(native.bounds).toEqual(before);
+  expect(set).not.toHaveBeenCalled();
+  expect(show).not.toHaveBeenCalled();
+
+  native.screens.push(secondScreen());
+  await controller.request(onSecond);
+  expect(controller.unavailable).toBe(false);
+  expect(show).toHaveBeenCalledOnce();
+  expect(hide).not.toHaveBeenCalled();
+  expect(native.bounds).toEqual({ x: 2100, y: 60, width: 800, height: 500 });
+});
+
+it('hides, and never saves over the remembered rectangle, when the chosen monitor disappears while open', async () => {
+  const { deck, hide, stored } = windowFixture();
+  native.screens.push(secondScreen());
+  stored.dashboardByMonitor = { second: { x: 2100, y: 60, width: 800, height: 500 } };
+  vi.useFakeTimers();
+  try {
+    await controller.start(onSecond, deck);
+    native.screens.splice(1);
+    await vi.advanceTimersByTimeAsync(2000);
+  } finally {
+    vi.useRealTimers();
+  }
+  expect(hide).toHaveBeenCalledOnce();
+  expect(controller.unavailable).toBe(true);
+  expect(stored.dashboardByMonitor).toEqual({
+    second: { x: 2100, y: 60, width: 800, height: 500 },
+  });
+});
