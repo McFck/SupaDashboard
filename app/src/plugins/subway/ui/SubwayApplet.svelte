@@ -6,7 +6,7 @@
   import AppletQuickActions from '../../../features/applets/AppletQuickActions.svelte';
   import type { PreparedFrame, SubwayScreen } from '../rendering/contracts';
   import { createSubwayScene, prepareFrame, sceneLanguages } from '../rendering/scene';
-  import { subwayComposition } from '../rendering/composition';
+  import { displayAspect, subwayComposition } from '../rendering/composition';
   import { subwaySceneState } from '../simulation/runtime';
   import { loadSubwayEditorPreview, type SubwayEditorPreview } from '../rendering/preview';
   import { sessionKey } from '../rendering/screens';
@@ -21,8 +21,12 @@
   const clock = new PhaseClock();
   const view = $derived(host?.viewId ?? 'display');
   const screen = $derived<SubwayScreen>(host?.config.screen === 'right' ? 'right' : 'left');
-  const sideActive = $derived(host?.viewId === 'cab');
-  const composition = $derived(subwayComposition(host?.viewport));
+  const composition = $derived(
+    subwayComposition(
+      host?.mode === 'runtime' ? host.viewport : undefined,
+      displayAspect(frame?.line.id ?? host?.config.line),
+    ),
+  );
   const previewConfig = $derived(
     JSON.stringify({
       line: host?.config.line,
@@ -105,17 +109,10 @@
     opaque
   />
   <div
-    class="flex shrink-0 gap-3 p-3"
+    class="shrink-0"
     style:height="{composition.strip}px"
   >
-    <div class="min-w-0 flex-1">
-      <Slot id="strip" />
-    </div>
-    {#if sideActive}
-      <div style:width="{composition.strip}px">
-        <Slot id="side" />
-      </div>
-    {/if}
+    <Slot id="strip" />
   </div>
   <AppletQuickActions />
 </div>
