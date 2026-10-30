@@ -14,10 +14,13 @@ import {
   sameGeometry,
   startupPlacement,
   minimumWindowSize,
+  validGeometry,
 } from './geometry';
 import type { Geometry, MonitorGeometry } from './geometry';
 
 const SAVE_DELAY_MS = 300;
+/** window-state.json key: the remembered windowed rectangle per monitor name. */
+const BY_MONITOR = 'dashboardByMonitor';
 
 type StartupPlacement = Awaited<ReturnType<WindowedBounds['startupPlacement']>>;
 
@@ -98,7 +101,7 @@ export class WindowedBounds {
 
   /** Where the window opens: the saved rectangle, or the deck's natural size, on the chosen monitor. */
   async startupPlacement(preferred: string | null, deck: Page) {
-    const saved = await this.store.get<Geometry>('dashboard');
+    const saved = await this.remembered(preferred);
     const [{ screens, current, primary }, actual] = await Promise.all([
       connectedMonitors(),
       this.win.readBounds(),
@@ -110,6 +113,25 @@ export class WindowedBounds {
       ...placement,
       bounds: this.fit(placement.bounds, placement.monitor),
     };
+  }
+
+  /** The rectangle remembered for `monitor`, else the last one saved before positions were kept per monitor. */
+  private async remembered(monitor: string | null) {
+    const byMonitor = monitor ? (await this.rememberedByMonitor())[monitor] : undefined;
+    return byMonitor ?? (await this.store.get<Geometry>('dashboard'));
+  }
+
+  private async rememberedByMonitor() {
+    const stored = await this.store.get<Record<string, Geometry>>(BY_MONITOR);
+    const valid: Record<string, Geometry> = {};
+    if (stored && typeof stored === 'object') {
+      for (const [name, bounds] of Object.entries(stored)) {
+        if (validGeometry(bounds)) {
+          valid[name] = bounds;
+        }
+      }
+    }
+    return valid;
   }
 
   /** Applies the start-up rectangle in windowed mode; false when the controller went away meanwhile. */
@@ -145,8 +167,15 @@ export class WindowedBounds {
     this.monitor = monitor;
   }
 
+  /** `dashboard` stays the last rectangle (the pre-per-monitor shape), so an older build still reads it. */
   async save(bounds: Geometry, monitor: string | null) {
     this.keep(bounds, monitor);
+    if (monitor) {
+      await this.store.set(BY_MONITOR, {
+        ...(await this.rememberedByMonitor()),
+        [monitor]: bounds,
+      });
+    }
     await this.store.set('dashboard', bounds);
   }
 
@@ -163,12 +192,13 @@ export class WindowedBounds {
   async recordUserBounds(bounds: Geometry) {
     // Late resize events from the start-up restore land here too; an unchanged rectangle is not rewritten, so a
     // restore the OS resized stays out of the store until the user moves or resizes the window.
-    if (!this.normal || !sameGeometry(bounds, this.normal)) {
-      await this.store.set('dashboard', bounds);
-    }
-    this.normal = bounds;
     const { screens, current } = await connectedMonitors();
-    this.monitor = monitorWithLargestIntersection(bounds, screens)?.name ?? current?.name ?? null;
+    const monitor = monitorWithLargestIntersection(bounds, screens)?.name ?? current?.name ?? null;
+    if (!this.normal || !sameGeometry(bounds, this.normal)) {
+      await this.save(bounds, monitor);
+    } else {
+      this.keep(bounds, monitor);
+    }
   }
 
   /** While fullscreen on another monitor, the retained windowed rectangle follows, centered on the new monitor. */

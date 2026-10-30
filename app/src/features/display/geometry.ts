@@ -75,6 +75,12 @@ export function monitorWithLargestIntersection<
   return best;
 }
 
+/** The chosen monitor is not connected: the dashboard stays hidden instead of moving to another display. */
+export const chosenMonitorMissing = (
+  screens: readonly { name: string }[],
+  preferred: string | null,
+) => !!preferred && !screens.some((screen) => screen.name === preferred);
+
 /** Monitor for a live display change: the explicit choice, else wherever the window is now, else the primary. */
 export function resolveLiveMonitor<T extends Pick<MonitorGeometry, 'name'>>(
   screens: T[],
@@ -150,6 +156,7 @@ const FALLBACK_BOUNDS: Geometry = { x: 0, y: 0, width: 770, height: 392 };
  * Where the dashboard window opens. The monitor is the explicit choice, else the one the saved bounds mostly
  * cover, else the primary. Saved bounds are clamped into that monitor's work area, and centered on it when the
  * explicit choice differs from where they were saved; without saved bounds the deck's natural size is used.
+ * A chosen monitor that is not connected yields no monitor and `missing`.
  */
 export function startupPlacement(
   screens: MonitorGeometry[],
@@ -158,7 +165,10 @@ export function startupPlacement(
   primary: MonitorGeometry | null,
   actual: Geometry,
   deck: Pick<Page, 'cols' | 'rows' | 'size' | 'gap'>,
-): { monitor: MonitorGeometry | undefined; bounds: Geometry } {
+): { monitor: MonitorGeometry | undefined; bounds: Geometry; missing: boolean } {
+  if (chosenMonitorMissing(screens, preferred)) {
+    return { monitor: undefined, bounds: actual, missing: true };
+  }
   const savedBounds = validGeometry(saved) ? saved : null;
   const monitor = resolveLiveMonitor(
     screens,
@@ -177,7 +187,7 @@ export function startupPlacement(
   } else {
     bounds = firstLaunchGeometry(deck, monitor) ?? actual;
   }
-  return { monitor, bounds: validGeometry(bounds) ? bounds : FALLBACK_BOUNDS };
+  return { monitor, bounds: validGeometry(bounds) ? bounds : FALLBACK_BOUNDS, missing: false };
 }
 
 export const sameGeometry = (a: Geometry, b: Geometry) =>
