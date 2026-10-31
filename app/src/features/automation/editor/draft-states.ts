@@ -100,7 +100,7 @@ export function withoutState(
       ...next,
       variants: working.variants,
       scenario: working.scenario,
-      stateBinding: working.stateBinding,
+      stateBindings: working.stateBindings,
       stateRoles: working.stateRoles,
     },
     removedId,
@@ -108,18 +108,20 @@ export function withoutState(
   };
 }
 
-/** A Boolean binding follows the Off/On roles: false shows Off, true shows On. */
+/** A lone Boolean binding follows the Off/On roles: false shows Off, true shows On. */
 function syncBooleanBinding(next: ScenarioDraft, records: Records) {
-  const binding = next.stateBinding;
+  const [binding, ...others] = next.stateBindings ?? [];
   const roles = next.stateRoles;
   const record = binding && records[binding.variableId];
-  if (binding && roles && record?.definition.type === 'boolean') {
-    next.stateBinding = {
-      ...binding,
-      cases: [
-        { value: false, stateId: roles.off },
-        { value: true, stateId: roles.on },
-      ],
-    };
+  if (binding && !others.length && roles && record?.definition.type === 'boolean') {
+    next.stateBindings = [
+      {
+        ...binding,
+        cases: [
+          { value: false, stateId: roles.off },
+          { value: true, stateId: roles.on },
+        ],
+      },
+    ];
   }
 }

@@ -1,10 +1,11 @@
 // Editor checks for a control's state roles and variable binding.
 import type { ControlConfig } from './model';
 import { stateIdAt } from './variants';
+import type { StateBinding } from '../automation/scenario';
 import type { VariableSnapshot } from '../automation/variables';
 
 export function validateStateConfiguration(
-  control: Pick<ControlConfig, 'variants' | 'stateBinding' | 'stateRoles'>,
+  control: Pick<ControlConfig, 'variants' | 'stateBindings' | 'stateRoles'>,
   variables?: VariableSnapshot,
 ) {
   const issues: { path: string; message: string }[] = [];
@@ -20,19 +21,30 @@ export function validateStateConfiguration(
         message: 'Off and On states must be different available states',
       });
   }
-  const binding = control.stateBinding;
-  if (!binding) return issues;
+  control.stateBindings?.forEach((binding, index) => {
+    issues.push(...validateBinding(binding, `stateBindings.${index}`, states, variables));
+  });
+  return issues;
+}
+
+function validateBinding(
+  binding: StateBinding,
+  path: string,
+  states: Set<string>,
+  variables?: VariableSnapshot,
+) {
+  const issues: { path: string; message: string }[] = [];
   const variable = variables?.records[binding.variableId];
   if (!binding.variableId || !variable || variable.definition.available === false)
-    issues.push({ path: 'stateBinding.variableId', message: 'Bound variable is unavailable' });
+    issues.push({ path: `${path}.variableId`, message: 'Bound variable is unavailable' });
   const seen = new Set<string>();
   for (const item of binding.cases) {
     const key = `${typeof item.value}:${String(item.value)}`;
     if (seen.has(key))
-      issues.push({ path: 'stateBinding.cases', message: 'State values must be unique' });
+      issues.push({ path: `${path}.cases`, message: 'State values must be unique' });
     seen.add(key);
     if (!states.has(item.stateId))
-      issues.push({ path: 'stateBinding.cases', message: 'Bound state is unavailable' });
+      issues.push({ path: `${path}.cases`, message: 'Bound state is unavailable' });
     if (!variable) continue;
     const validType =
       variable.definition.type === 'boolean'
@@ -44,7 +56,7 @@ export function validateStateConfiguration(
             : typeof item.value === 'string';
     if (!validType)
       issues.push({
-        path: 'stateBinding.cases',
+        path: `${path}.cases`,
         message: 'State value does not match the variable type',
       });
   }

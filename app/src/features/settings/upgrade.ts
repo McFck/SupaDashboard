@@ -43,18 +43,25 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
     if (control.options !== undefined) {
       object(control.options);
     }
-    if (control.stateBinding !== undefined && control.stateBinding !== null) {
-      const binding = object(control.stateBinding);
+    // v12: the single `stateBinding` became the `stateBindings` list.
+    const { stateBinding, ...current } = control;
+    const saved = current.stateBindings ?? stateBinding;
+    const bindings: unknown[] = saved == null ? [] : Array.isArray(saved) ? saved : [saved];
+    if (stateBinding == null && saved != null && !Array.isArray(saved)) {
+      throw new Error('Control state bindings must be an array');
+    }
+    for (const entry of bindings) {
+      const binding = object(entry);
       if (
         typeof binding.variableId !== 'string' ||
         !Array.isArray(binding.cases) ||
         !binding.cases.every(
-          (entry: unknown) =>
-            isRecord(entry) &&
-            typeof entry.stateId === 'string' &&
-            (typeof entry.value === 'string' ||
-              typeof entry.value === 'boolean' ||
-              (typeof entry.value === 'number' && Number.isFinite(entry.value))),
+          (item: unknown) =>
+            isRecord(item) &&
+            typeof item.stateId === 'string' &&
+            (typeof item.value === 'string' ||
+              typeof item.value === 'boolean' ||
+              (typeof item.value === 'number' && Number.isFinite(item.value))),
         )
       ) {
         throw new Error('Settings contain a malformed state binding');
@@ -75,7 +82,8 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
       return { ...variant, label: variant.label ?? '' };
     });
     return {
-      ...control,
+      ...current,
+      ...(bindings.length ? { stateBindings: bindings } : {}),
       id: control.id,
       name: control.name ?? control.id,
       type: control.type,
@@ -87,7 +95,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 11) {
+  if (typeof saved.version === 'number' && saved.version > 12) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -167,10 +175,10 @@ export function upgrade(input: Record<string, unknown>) {
     };
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
-  if (![3, 4, 5, 6, 7, 8, 9, 10, 11].includes(saved.version as number)) {
+  if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(saved.version as number)) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
-  if (![8, 9, 10, 11].includes(saved.version as number)) {
+  if (![8, 9, 10, 11, 12].includes(saved.version as number)) {
     saved = toV8(saved);
   }
   if (saved.version === 8) {
@@ -182,6 +190,9 @@ export function upgrade(input: Record<string, unknown>) {
   }
   if (saved.version === 10) {
     saved = { ...saved, version: 11, apps: [] };
+  }
+  if (saved.version === 11) {
+    saved = { ...saved, version: 12 };
   }
   const display = object(saved.display);
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {

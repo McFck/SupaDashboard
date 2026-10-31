@@ -142,10 +142,10 @@
     />
   {:else if tab === 'binding'}
     <StateBindingEditor
-      binding={draft.stateBinding}
+      bindings={draft.stateBindings ?? []}
       variants={draft.variants}
       roles={draft.stateRoles}
-      onchange={(binding) => editor.updateBinding(binding)}
+      onchange={(bindings) => editor.updateBindings(bindings)}
     />
   {:else}
     <VariablesEditor />

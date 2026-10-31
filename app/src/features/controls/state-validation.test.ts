@@ -11,13 +11,15 @@ const control: ControlConfig = {
     { id: 'off', label: 'Stopped', icon: null, background: null, color: '#aaa' },
     { id: 'on', label: 'Recording {count}', icon: 'Mic', background: '#123456', color: '#fff' },
   ],
-  stateBinding: {
-    variableId: 'recording',
-    cases: [
-      { value: false, stateId: 'off' },
-      { value: true, stateId: 'on' },
-    ],
-  },
+  stateBindings: [
+    {
+      variableId: 'recording',
+      cases: [
+        { value: false, stateId: 'off' },
+        { value: true, stateId: 'on' },
+      ],
+    },
+  ],
 };
 
 describe('state configuration', () => {
@@ -32,14 +34,16 @@ describe('state configuration', () => {
     expect(validateStateConfiguration(control, variables.snapshot())).toEqual([]);
     const invalid = {
       ...control,
-      stateBinding: {
-        variableId: 'recording',
-        cases: [
-          { value: false, stateId: 'missing' },
-          { value: false, stateId: 'on' },
-          { value: 'true', stateId: 'off' },
-        ],
-      },
+      stateBindings: [
+        {
+          variableId: 'recording',
+          cases: [
+            { value: false, stateId: 'missing' },
+            { value: false, stateId: 'on' },
+            { value: 'true', stateId: 'off' },
+          ],
+        },
+      ],
     };
     expect(
       validateStateConfiguration(invalid, variables.snapshot()).map((issue) => issue.message),

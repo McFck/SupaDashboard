@@ -68,13 +68,15 @@ describe('moveVariant', () => {
         },
         events: [],
       },
-      stateBinding: {
-        variableId: 'flag',
-        cases: [
-          { value: false, stateId: 'off' },
-          { value: true, stateId: 'on' },
-        ],
-      },
+      stateBindings: [
+        {
+          variableId: 'flag',
+          cases: [
+            { value: false, stateId: 'off' },
+            { value: true, stateId: 'on' },
+          ],
+        },
+      ],
       stateRoles: { off: 'off', on: 'on' },
     };
     expect(moveVariant(c, 0, 0, 2)).toBe(2);
@@ -91,7 +93,7 @@ describe('moveVariant', () => {
     expect(c.scenario?.triggers.release?.steps[0]).toMatchObject({
       action: { args: { target: 'other', variant: 'off' } },
     });
-    expect(c.stateBinding?.cases).toEqual([{ value: true, stateId: 'on' }]);
+    expect(c.stateBindings?.[0].cases).toEqual([{ value: true, stateId: 'on' }]);
     expect(c.stateRoles).toBeUndefined();
   });
 });

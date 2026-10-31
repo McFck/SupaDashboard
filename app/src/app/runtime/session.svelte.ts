@@ -77,7 +77,7 @@ function stateIndex(control: ControlConfig, current: number, stateId: string) {
 function fingerprint(control: ControlConfig) {
   return JSON.stringify({
     scenario: control.scenario,
-    stateBinding: control.stateBinding,
+    stateBindings: control.stateBindings,
     stateRoles: control.stateRoles,
     states: control.variants.map((variant) => variant.id),
   });

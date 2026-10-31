@@ -70,10 +70,9 @@ export function removeVariant(control: ControlConfig, current: number, index: nu
     visit(event.list.steps);
     for (const steps of Object.values(event.list.byState ?? {})) visit(steps);
   }
-  if (control.stateBinding)
-    control.stateBinding.cases = control.stateBinding.cases.filter(
-      (item) => item.stateId !== removedId,
-    );
+  for (const binding of control.stateBindings ?? []) {
+    binding.cases = binding.cases.filter((item) => item.stateId !== removedId);
+  }
   if (
     control.stateRoles &&
     (control.stateRoles.off === removedId || control.stateRoles.on === removedId)
