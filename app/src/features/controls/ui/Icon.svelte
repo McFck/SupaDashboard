@@ -4,8 +4,10 @@
 >
   import { icons } from '@lucide/svelte';
   import { customIcons } from '../../plugins/registry';
+  import { brandIcons } from '../brand-icons';
   /** Every Lucide icon name plus plugin icons, for the picker. */
   export const iconNames = () => [...Object.keys(icons), ...customIcons.keys()].sort();
+  export const appIconNames = () => Object.keys(brandIcons);
 </script>
 
 <script lang="ts">
@@ -15,7 +17,7 @@
     fallback = '',
   }: { name?: string; size?: number; fallback?: string } = $props();
   const Lucide = $derived(name ? (icons as Record<string, any>)[name] : undefined);
-  const custom = $derived(name ? customIcons.get(name) : undefined);
+  const custom = $derived(name ? (brandIcons[name] ?? customIcons.get(name)) : undefined);
 </script>
 
 {#if Lucide}
