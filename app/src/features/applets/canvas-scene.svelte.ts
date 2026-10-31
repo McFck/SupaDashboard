@@ -4,10 +4,14 @@ import type { SceneMode, AppletSceneFactory, AppletSceneRenderer } from './scene
 import { SceneScheduler } from './scene';
 import { ScenePointer } from './scene-pointer';
 
-// An opaque page that stays off screen is shrunk to a half-size snapshot and drops its renderer caches; the
-// live display returns shortly after the page is shown again, replacing the snapshot in a single frame.
+// An opaque page that is off screen is only a half-size picture: it is prepainted that way before its first
+// transition, and parked that way (dropping its renderer caches) after 3 s away. The full-size display replaces
+// the picture 300 ms after the page is shown (at once when there is none), in a single frame.
 const PARK_AFTER_MS = 3000;
 const RESTORE_AFTER_MS = 300;
+// Backing-store budget: the compositor scales the display up beyond it.
+const MAX_DENSITY = 1.5;
+const MAX_PIXELS = 3_000_000;
 
 export class CanvasSceneController<Data> {
   private renderer: AppletSceneRenderer<Data> | undefined;
@@ -16,7 +20,7 @@ export class CanvasSceneController<Data> {
   private rasterHeight = 0;
   private painted = $state(false);
   private destroyed = false;
-  private parked = $state(false);
+  private half = $state(false);
   private parkStep: 'park' | 'restore' | undefined;
   private parkTimer: ReturnType<typeof setTimeout> | undefined;
   private dprQuery: MediaQueryList | undefined;
@@ -37,6 +41,7 @@ export class CanvasSceneController<Data> {
     },
     private readonly host?: AppletHostContext,
   ) {
+    this.half = source.opaque && this.mode === 'live' && !host?.visible;
     this.pointer = new ScenePointer({
       canvas: () => this.source.canvas,
       size: () => this.source,
@@ -93,21 +98,19 @@ export class CanvasSceneController<Data> {
   }
 
   private canPaint() {
-    const { opaque, width, height } = this.source;
-    if (this.parked) {
-      return false;
+    const { width, height } = this.source;
+    if (!this.half) {
+      return this.eligible();
     }
-    // Prepaint opaque pages once before their first transition, then keep hidden pages idle.
+    // Prepaint the picture once before the first transition, then keep hidden pages idle.
     return (
-      this.eligible() ||
-      (opaque &&
-        !this.painted &&
-        untrack(() => this.source.data != null) &&
-        this.mode === 'live' &&
-        !!this.host?.windowLive &&
-        width > 0 &&
-        height > 0 &&
-        (this.host?.designScale ?? 1) > 0)
+      !this.painted &&
+      !this.host?.visible &&
+      untrack(() => this.source.data != null) &&
+      !!this.host?.windowLive &&
+      width > 0 &&
+      height > 0 &&
+      (this.host?.designScale ?? 1) > 0
     );
   }
 
@@ -116,8 +119,13 @@ export class CanvasSceneController<Data> {
     if (!canvas || !width || !height) {
       return;
     }
-    const ratio = Math.min(window.devicePixelRatio || 1, 2);
     const scale = this.host?.designScale ?? 1;
+    const density = Math.min(
+      window.devicePixelRatio || 1,
+      MAX_DENSITY,
+      Math.sqrt(MAX_PIXELS / (width * scale * height * scale)),
+    );
+    const ratio = this.half ? density / 2 : density;
     const nextWidth = Math.ceil(width * scale * ratio),
       nextHeight = Math.ceil(height * scale * ratio);
     if (
@@ -150,14 +158,14 @@ export class CanvasSceneController<Data> {
   }
 
   private wantedStep(): 'park' | 'restore' | undefined {
-    if (!this.source.opaque || !this.painted || this.mode !== 'live') {
+    if (!this.source.opaque || this.mode !== 'live') {
       return undefined;
     }
     const showing = this.eligible();
-    if (this.parked) {
+    if (this.half) {
       return showing ? 'restore' : undefined;
     }
-    return !showing && this.host?.windowLive ? 'park' : undefined;
+    return !showing && this.painted && this.host?.windowLive ? 'park' : undefined;
   }
 
   // The effect re-runs often; only a change of the wanted step restarts the timer.
@@ -170,7 +178,7 @@ export class CanvasSceneController<Data> {
     if (step === 'park') {
       this.parkTimer = setTimeout(() => void this.park(), PARK_AFTER_MS);
     } else if (step === 'restore') {
-      this.parkTimer = setTimeout(() => (this.parked = false), RESTORE_AFTER_MS);
+      this.parkTimer = setTimeout(() => (this.half = false), this.painted ? RESTORE_AFTER_MS : 0);
     }
   }
 
@@ -196,7 +204,7 @@ export class CanvasSceneController<Data> {
     canvas.getContext('2d')?.drawImage(bitmap, 0, 0);
     bitmap.close();
     this.renderer?.dispose?.();
-    this.parked = true;
+    this.half = true;
   }
 
   private draw(ctx: CanvasRenderingContext2D, time: number) {
@@ -215,7 +223,11 @@ export class CanvasSceneController<Data> {
     const animate =
       this.renderer?.draw({ ctx, width, height, time, mode: this.mode, view, data }) ?? false;
     this.painted = true;
-    this.scheduler?.setActive(this.eligible());
+    this.scheduler?.setActive(this.canPaint());
+    if (this.half) {
+      // The picture is final; the layers it was drawn from only cost memory.
+      this.renderer?.dispose?.();
+    }
     return animate;
   }
 
