@@ -5,13 +5,16 @@ import type { Geometry, MonitorGeometry } from './geometry';
 import { DisplayController } from './display';
 import type { Page } from '../settings/schema';
 
+type MonitorSnapshot = { screens: MonitorGeometry[]; current: null; primary: null };
+
 const native = vi.hoisted(() => ({
   screens: [] as MonitorGeometry[],
   bounds: { x: 10, y: 10, width: 400, height: 300 } as Geometry,
   adjustment: 0,
+  readMonitors: vi.fn<() => Promise<MonitorSnapshot>>(),
 }));
 vi.mock('../../platform/window', () => ({
-  connectedMonitors: async () => ({ screens: native.screens, current: null, primary: null }),
+  connectedMonitors: () => native.readMonitors(),
   readWindowBounds: async () => native.bounds,
   setDashboardBounds: async (bounds: Geometry) =>
     (native.bounds = { ...bounds, width: bounds.width + native.adjustment }),
@@ -21,6 +24,12 @@ vi.mock('../../platform/window', () => ({
 let controller: DisplayController;
 beforeEach(() => {
   native.adjustment = 0;
+  native.readMonitors.mockReset();
+  native.readMonitors.mockImplementation(async () => ({
+    screens: native.screens,
+    current: null,
+    primary: null,
+  }));
 });
 afterEach(() => controller?.dispose());
 
@@ -279,4 +288,61 @@ it('hides, and never saves over the remembered rectangle, when the chosen monito
   expect(stored.dashboardByMonitor).toEqual({
     second: { x: 2100, y: 60, width: 800, height: 500 },
   });
+});
+
+it('does not hide a newly selected connected display when an old monitor check finishes', async () => {
+  const { deck, hide, show } = windowFixture();
+  vi.useFakeTimers();
+  try {
+    await controller.start({ monitor: 'screen', fullscreen: true, alwaysOnTop: false }, deck);
+    let finish = (_snapshot: MonitorSnapshot): void => {
+      throw new Error('Monitor query did not start');
+    };
+    native.readMonitors.mockReturnValueOnce(
+      new Promise<MonitorSnapshot>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(1500);
+    native.screens = [secondScreen()];
+    const moved = controller.request({ ...onSecond, fullscreen: true });
+    finish({ screens: [], current: null, primary: null });
+    await moved;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(hide).not.toHaveBeenCalled();
+    expect(show).not.toHaveBeenCalled();
+    expect(controller.unavailable).toBe(false);
+    expect(native.bounds).toEqual({ x: 1920, y: 0, width: 1920, height: 1080 });
+  } finally {
+    controller.dispose();
+    vi.useRealTimers();
+  }
+});
+
+it('does not reopen an old display after the user selected a different connected display', async () => {
+  const { deck, hide, show } = windowFixture();
+  vi.useFakeTimers();
+  try {
+    await controller.start(onSecond, deck);
+    let finish = (_snapshot: MonitorSnapshot): void => {
+      throw new Error('Monitor query did not start');
+    };
+    native.readMonitors.mockReturnValueOnce(
+      new Promise<MonitorSnapshot>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(1500);
+    const moved = controller.request({ ...onSecond, monitor: 'screen' });
+    finish({ screens: [secondScreen()], current: null, primary: null });
+    await moved;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(hide).not.toHaveBeenCalled();
+    expect(show).toHaveBeenCalledOnce();
+    expect(controller.unavailable).toBe(false);
+    expect(native.bounds.x).toBeLessThan(1920);
+  } finally {
+    controller.dispose();
+    vi.useRealTimers();
+  }
 });

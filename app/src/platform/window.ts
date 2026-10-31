@@ -14,22 +14,35 @@ export type WindowStateStore = Awaited<ReturnType<typeof load>>;
 
 export const monitors = () => availableMonitors();
 
+const monitorPaths = new Map<string, string>();
+
 export async function connectedMonitors() {
   const [screens, current, primary, metadata] = await Promise.all([
     availableMonitors() as Promise<MonitorGeometry[]>,
     currentMonitor() as Promise<MonitorGeometry | null>,
     primaryMonitor() as Promise<MonitorGeometry | null>,
     invoke<unknown>('monitor_names').catch((error: unknown) => {
-      // GDI names remain usable when Windows cannot report DisplayConfig metadata.
+      // Keep known identities when Windows cannot report DisplayConfig metadata.
       console.warn('Monitor identity unavailable', error);
       return [];
     }),
   ]);
   const options = buildMonitorOptions(screens, Array.isArray(metadata) ? metadata : []);
+  const connectedNames = new Set(screens.map((screen) => screen.name));
+  for (const name of monitorPaths.keys()) {
+    if (!connectedNames.has(name)) {
+      monitorPaths.delete(name);
+    }
+  }
+  for (const { legacyName, value } of options) {
+    if (legacyName && value !== legacyName) {
+      monitorPaths.set(legacyName, value);
+    }
+  }
   const identify = (monitor: MonitorGeometry): MonitorGeometry => ({
     ...monitor,
     legacyName: monitor.name,
-    name: options.find((option) => option.legacyName === monitor.name)?.value ?? monitor.name,
+    name: monitorPaths.get(monitor.name) ?? monitor.name,
   });
   return {
     screens: screens.map(identify),

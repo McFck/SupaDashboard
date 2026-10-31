@@ -263,18 +263,23 @@ export class DisplayController {
   }
 
   /** Hides the window once its chosen monitor is gone and brings it back when that monitor returns. */
-  private async checkMonitor() {
-    const request = this.latest;
-    if (!request?.monitor || !this.live()) {
-      return;
-    }
-    const { screens } = await connectedMonitors();
-    const missing = chosenMonitorMissing(screens, request.monitor);
-    if (missing && !this.unavailable) {
-      void this.serialize(() => this.hide()).catch((error) => console.warn('display hide', error));
-    } else if (!missing && this.unavailable) {
-      void this.request(request);
-    }
+  private checkMonitor() {
+    return this.serialize(async () => {
+      const request = this.latest;
+      if (!request?.monitor) {
+        return;
+      }
+      const { screens } = await connectedMonitors();
+      if (!this.live() || this.latest !== request) {
+        return;
+      }
+      const missing = chosenMonitorMissing(screens, request.monitor);
+      if (missing && !this.unavailable) {
+        await this.hide();
+      } else if (!missing && this.unavailable) {
+        void this.request(request);
+      }
+    }).catch((error) => console.warn('display monitor', error));
   }
 
   private async listen() {
