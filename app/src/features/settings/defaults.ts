@@ -48,7 +48,7 @@ export const DEFAULTS: Settings = {
     monitorLabel: null,
     fullscreen: false,
     alwaysOnTop: false,
-    iconSize: 'default',
+    iconScale: 1,
     background: { mode: 'color', color: '#0a0a0a', opacity: 0.55, radius: 28 },
   },
   controls: [
@@ -97,3 +97,5 @@ export const DEFAULTS: Settings = {
   variants: {},
   apps: [],
 };
+
+export const ICON_SCALE = { min: 1, max: 2, step: 0.1 } as const;

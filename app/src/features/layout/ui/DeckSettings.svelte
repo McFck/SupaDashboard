@@ -11,6 +11,7 @@
   import { settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
   import { commit, labelEdit } from '../history.svelte';
+  import { ICON_SCALE } from '../../settings/defaults';
   import { setPageApplet } from '../page-commands';
   import { finishGridResize } from '../slot-edits';
   import Row from '../../../panel/ui/Row.svelte';
@@ -60,11 +61,9 @@
     settings.display.background = { ...settings.display.background, radius };
   }
 
-  function setIconSize(size: string) {
-    if ((size === 'default' || size === 'large') && size !== settings.display.iconSize) {
-      commit('Icon size');
-      settings.display.iconSize = size;
-    }
+  function setIconScale(scale: number) {
+    labelEdit('Icon size');
+    settings.display.iconScale = scale;
   }
 
   function setSizing(auto: boolean) {
@@ -169,23 +168,21 @@
   </Section>
   <Section title="Actions">
     <Row label="Icon size">
-      <ToggleGroup.Root
-        type="single"
-        variant="outline"
-        class="w-48"
-        aria-label="Icon size"
-        value={settings.display.iconSize}
-        onValueChange={setIconSize}
-      >
-        <ToggleGroup.Item
-          value="default"
-          class="flex-1">Default</ToggleGroup.Item
-        >
-        <ToggleGroup.Item
-          value="large"
-          class="flex-1">Large</ToggleGroup.Item
-        >
-      </ToggleGroup.Root>
+      <div class="flex w-40 items-center gap-3">
+        <Slider
+          type="single"
+          class="min-w-0 flex-1"
+          aria-label="Icon size"
+          value={settings.display.iconScale}
+          min={ICON_SCALE.min}
+          max={ICON_SCALE.max}
+          step={ICON_SCALE.step}
+          onValueChange={setIconScale}
+        />
+        <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">
+          {Math.round(settings.display.iconScale * 100)}%
+        </span>
+      </div>
     </Row>
   </Section>
   {#if hasGrid}

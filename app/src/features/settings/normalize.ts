@@ -1,7 +1,7 @@
 import type { ControlConfig } from '../controls/model';
 import { normalizeControl } from '../automation/normalize-control';
 import type { Settings } from './schema';
-import { DEFAULTS } from './defaults';
+import { DEFAULTS, ICON_SCALE } from './defaults';
 import { isRecord } from '../automation/plain-data';
 import { object, upgrade } from './upgrade';
 import { normalizeAppletSettings, normalizeLayout } from './normalize-layout';
@@ -86,7 +86,8 @@ export function migrate(input: unknown): Settings {
   if (!Array.isArray(apps) || !apps.every((app) => typeof app === 'string')) {
     throw new Error('Saved apps must be a list of text');
   }
-  const display = object(saved.display);
+  // `iconSize: 'large'` was the short-lived first form of `iconScale`; it maps to 1.5 and is dropped.
+  const { iconSize, ...display } = object(saved.display);
   const background = object(display.background);
   const pick = <T>(value: unknown, guard: (v: unknown) => boolean, fallback: T) =>
     guard(value) ? (value as T) : fallback;
@@ -104,7 +105,11 @@ export function migrate(input: unknown): Settings {
       monitorLabel: pick(display.monitorLabel, (v) => typeof v === 'string', null),
       fullscreen: pick(display.fullscreen, (v) => typeof v === 'boolean', false),
       alwaysOnTop: pick(display.alwaysOnTop, (v) => typeof v === 'boolean', false),
-      iconSize: display.iconSize === 'large' ? 'large' : 'default',
+      iconScale: pick(
+        display.iconScale,
+        (v) => typeof v === 'number' && v >= ICON_SCALE.min && v <= ICON_SCALE.max,
+        iconSize === 'large' ? 1.5 : 1,
+      ),
       background: {
         ...out.display.background,
         ...background,

@@ -10,7 +10,7 @@
       pixelWidth,
       pixelHeight,
       compact,
-      settings.display.iconSize === 'large',
+      settings.display.iconScale,
       !compact && !!appearance.label && buttonLabelVisible(pixelWidth, pixelHeight),
     ),
   );
