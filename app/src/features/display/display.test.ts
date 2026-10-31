@@ -359,13 +359,14 @@ it('restores after a native hide even when the monitor returns between availabil
   }
 });
 
-it('ignores a polluted global placement when the chosen monitor has no saved placement', async () => {
+it('ignores polluted global and GDI placements when the chosen device path has no saved placement', async () => {
   const { deck, stored } = windowFixture();
-  native.screens.push(secondScreen());
-  stored.dashboardByMonitor = { screen: { x: 10, y: 10, width: 900, height: 700 } };
+  native.screens.push({ ...secondScreen(), legacyName: 'DISPLAY1' });
+  stored.dashboardByMonitor = { DISPLAY1: { x: 10, y: 10, width: 900, height: 700 } };
   await controller.start(onSecond, deck);
   expect(native.bounds.x).toBeGreaterThanOrEqual(1920);
   expect(native.bounds.width).toBeGreaterThan(579);
+  expect(native.bounds.width).not.toBe(900);
 });
 
 it('moves to another monitor only after an explicit selection', async () => {

@@ -109,7 +109,11 @@ export class WindowedBounds {
     const target = screens.find(
       (screen) => screen.name === preferred || screen.legacyName === preferred,
     );
-    const saved = await this.remembered(target?.name ?? preferred, target?.legacyName);
+    // Windows reuses GDI numbers; migrate an alias only while the saved selection still uses that alias.
+    const saved = await this.remembered(
+      target?.name ?? preferred,
+      preferred === target?.legacyName ? target?.legacyName : undefined,
+    );
     const placement = startupPlacement(screens, preferred, saved, primary, actual, deck);
     return {
       screens,
@@ -119,7 +123,7 @@ export class WindowedBounds {
     };
   }
 
-  /** The rectangle remembered for `monitor`, else the last one saved before positions were kept per monitor. */
+  /** Explicit monitors use their own entry; the global rectangle is only for automatic placement. */
   private async remembered(monitor: string | null, legacyName?: string) {
     const entries = await this.rememberedByMonitor();
     const byMonitor = monitor
