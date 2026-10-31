@@ -237,7 +237,7 @@ export function advanceOne(
       stationCode: segment.to,
       phaseStartedAt: at,
       phaseDeadline: at + openEnd,
-      pendingCues: [],
+      pendingCues: scheduleCues(open.events, at, `${segment.planKey}:open`),
       loopArrivalsRemaining: line.loop ? Math.max(0, state.loopArrivalsRemaining - 1) : 0,
     };
   }

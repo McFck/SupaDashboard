@@ -393,6 +393,10 @@ describe('Subway run timeline', () => {
     const arrival = advanceWithPlans(state, openAt, plan);
     expect(arrival.state.phase).toBe('arriving');
     expect(arrival.state.phaseDeadline).toBe(openAt + 2_500);
+    const played = arrival.effects.filter((effect) => effect.type === 'play-cue');
+    expect(
+      [...played, ...arrival.state.pendingCues].some((item) => item.id.includes(':open:')),
+    ).toBe(true);
   });
 
   it('holds the brake at rest through door closing, then releases it at traction', () => {
