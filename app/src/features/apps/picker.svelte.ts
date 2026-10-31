@@ -76,22 +76,29 @@ export function rememberApp(key: string) {
   }
 }
 
+/** Known apps show their brand icon, every other app one neutral icon, so labels share a left edge. */
+export function appIcon(key: string) {
+  const brand = BRAND_ICONS[appSlug(key) ?? ''];
+  return brand ? `brand-${brand}` : 'AppWindow';
+}
+
+/** The readable name of an app key, never the internal id. */
+export const appName = (key: string) =>
+  known.rows.find((row) => row.key === key)?.label ?? appLabel(key);
+
 /** Running apps, then the Start menu, then apps used by actions or added by hand. */
 function appOptions(): Option[] {
-  const options: Option[] = known.rows.map((row) => {
-    const brand = BRAND_ICONS[row.slug];
-    return {
-      value: row.key,
-      label: row.label,
-      detail: row.key.startsWith('exe:') ? row.detail : undefined,
-      iconName: brand && `brand-${brand}`,
-    };
-  });
+  const options: Option[] = known.rows.map((row) => ({
+    value: row.key,
+    label: row.label,
+    detail: row.key.startsWith('exe:') ? row.detail.split(/[\\/]/).pop() : undefined,
+    iconName: appIcon(row.key),
+  }));
   const listed = new Set(known.rows.map((row) => row.key));
   for (const key of manualKeys()) {
     if (!listed.has(key)) {
       listed.add(key);
-      options.push({ value: key, label: appLabel(key) });
+      options.push({ value: key, label: appLabel(key), iconName: appIcon(key) });
     }
   }
   return options;
