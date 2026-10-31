@@ -7,7 +7,7 @@
   import type { PreparedFrame, SubwayScreen } from '../rendering/contracts';
   import { createSubwayScene, prepareFrame, sceneLanguages } from '../rendering/scene';
   import { displayAspect, subwayComposition } from '../rendering/composition';
-  import { subwaySceneState } from '../simulation/runtime';
+  import { subwaySceneState } from '../simulation/scene-state';
   import {
     loadSubwayEditorPreview,
     previewForView,
@@ -114,6 +114,7 @@
     data={frame}
     revision={frame?.revision}
     opaque
+    class={frame ? 'subway-scene subway-scene-ready' : 'subway-scene'}
   />
   <div
     class="shrink-0"
@@ -128,5 +129,21 @@
   /* The strip continues the display's own background, so the page reads as one screen. */
   .subway-panel {
     background: #10171b;
+  }
+
+  /* Before its first frame the display is blank; it fades in instead of popping in once the run is ready. */
+  .subway-panel :global(.subway-scene) {
+    opacity: 0;
+    transition: opacity 220ms ease-out;
+  }
+
+  .subway-panel :global(.subway-scene-ready) {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .subway-panel :global(.subway-scene) {
+      transition-duration: 0ms;
+    }
   }
 </style>

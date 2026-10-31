@@ -247,11 +247,11 @@ export class Pager {
       return;
     }
 
+    // Every frame ends one width per page from the target, so a parked page never crosses the view.
+    const order = pages.map((candidate) => candidate.id);
     await this.motion.spring(frames, (frame) => {
-      if (frame.id === targetId) {
-        return 0;
-      }
-      return frame.id === swipe.sourceId ? -side * swipe.width : side * swipe.width;
+      const index = order.indexOf(frame.id);
+      return index < 0 ? side * swipe.width : (index - targetIndex) * swipe.width;
     });
     if (this.generation !== swipe.generation) {
       return;

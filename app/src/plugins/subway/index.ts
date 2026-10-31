@@ -105,9 +105,10 @@ const settings: SettingsGroup[] = [
         key: 'carNumber',
         label: 'Car number',
         type: 'select',
-        default: '1',
-        suggestions: (args) =>
-          Array.from(
+        default: '',
+        suggestions: (args) => [
+          { value: '', label: 'Random' },
+          ...Array.from(
             {
               length:
                 lineFactsFor(args?.line)?.carCount ??
@@ -115,6 +116,7 @@ const settings: SettingsGroup[] = [
             },
             (_, index) => ({ value: String(index + 1), label: String(index + 1) }),
           ),
+        ],
       },
       {
         key: 'screen',

@@ -80,6 +80,7 @@ export function createRunState(
     segment: null,
     pendingCues: [],
     loopArrivalsRemaining: line.loop ? line.stations.length : 0,
+    laps: 0,
     generation: 0,
     immersion: options.immersion ?? true,
     pausedAt: null,

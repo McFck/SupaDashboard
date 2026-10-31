@@ -1,4 +1,4 @@
-import { get, writable, type Readable } from 'svelte/store';
+import { get } from 'svelte/store';
 import type { EventAncestry } from '../../../features/plugins/contracts';
 import type { AppletRuntimeContext } from '../../../features/applets/contracts';
 import { normalizeSubwayLines, stepStation, type LineDefinition } from './lines';
@@ -11,6 +11,7 @@ import { requestedRoute, resolveLineRequest } from './line-request';
 import { discreteKey, eventFor, project, projectionKeys } from './projection';
 import { createRunState, nextRunWake, reduceRun, snapshotRun, type RunSnapshot } from './run';
 import type { RunCommand, RunEffect, SubwayCuePlans, SubwayRunState } from './run-state';
+import { ScenePublisher } from './scene-state';
 
 export interface SubwayRuntimeClock {
   now(): number;
@@ -38,22 +39,12 @@ export interface SubwayRuntimeHandle {
   dispose(): void;
 }
 
-export interface SubwaySceneState {
-  line: LineDefinition;
-  snapshot: RunSnapshot;
-  config: Readonly<Record<string, unknown>>;
-}
-
 const browserClock: SubwayRuntimeClock = {
   now: () => performance.now(),
   setTimeout: (callback, delay) => globalThis.setTimeout(callback, delay),
   clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
 };
 
-const sceneState = writable<SubwaySceneState | undefined>(undefined);
-export const subwaySceneState: Readable<SubwaySceneState | undefined> = {
-  subscribe: (run, invalidate) => sceneState.subscribe(run, invalidate),
-};
 let activeRuntime: SubwayRuntimeHandle | undefined;
 let activeRuntimeContext: AppletRuntimeContext | undefined;
 
@@ -88,8 +79,7 @@ export function createSubwayRuntime(
   let autoStarted = false;
   let lastDiscreteProjection = '';
   let lastNumericProjectionAt = Number.NEGATIVE_INFINITY;
-  let lastSceneProjection = '';
-  let lastSceneProjectionAt = Number.NEGATIVE_INFINITY;
+  const scenes = new ScenePublisher();
   let projectionChain = Promise.resolve();
   let currentConfig = get(context.config);
   let appliedConfig: ReturnType<typeof normalizeSubwayConfig> | undefined;
@@ -156,27 +146,19 @@ export function createSubwayRuntime(
   }
 
   function publishScene(force = false): void {
-    if (!alive || !shown || !state || !lines.length) return;
-    const now = clock.now();
+    if (!alive || !state || !lines.length) return;
     const line = lines.find((item) => item.id === state!.lineId);
     if (!line) return;
-    const snapshot = snapshotRun(state, now, lines, plans);
-    const discrete = [
-      discreteKey(snapshot),
-      currentConfig.displayLanguages,
-      currentConfig.announcementLanguages,
-      currentConfig.manualView,
-    ].join('|');
-    if (!force && discrete === lastSceneProjection && now - lastSceneProjectionAt < 250) return;
-    lastSceneProjection = discrete;
-    lastSceneProjectionAt = now;
-    sceneState.set(
-      Object.freeze({
-        line,
-        snapshot: Object.freeze(snapshot),
-        config: Object.freeze({ ...currentConfig }),
-      }),
-    );
+    const now = clock.now();
+    scenes.publish({
+      line,
+      snapshot: snapshotRun(state, now, lines, plans),
+      ride: `${state.generation}|${state.laps}`,
+      config: currentConfig,
+      shown,
+      now,
+      force,
+    });
   }
 
   function queueEffects(
@@ -323,7 +305,7 @@ export function createSubwayRuntime(
     audio.dispose();
     if (activeRuntime === handle) {
       activeRuntime = undefined;
-      sceneState.set(undefined);
+      scenes.clear();
     }
   }
 
@@ -436,6 +418,7 @@ export function createSubwayRuntime(
         now: clock.now(),
       });
       ready = true;
+      publishScene(true);
       audio.setAnnouncementVolume(config.announcementVolume);
       audio.setEnabled(state.immersion);
       audio.transition(snapshotRun(state, clock.now(), lines, plans), []);

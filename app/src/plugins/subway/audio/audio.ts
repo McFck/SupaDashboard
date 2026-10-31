@@ -372,7 +372,10 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     const { role, offset, duration, gain } = effect.cue;
     const cue: ResolvedCue = {
       ...effect.cue,
-      gain: role === 'voice' ? gain : effectGain(buffer, offset, duration, gain),
+      gain:
+        role === 'voice'
+          ? gain
+          : effectGain(buffer, offset, duration, gain) * 10 ** ((effect.cue.trimDb ?? 0) / 20),
       offset: effect.cue.offset + elapsed,
       duration: effect.cue.duration - elapsed,
     };
