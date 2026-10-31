@@ -40,6 +40,7 @@ export function copyTimeline(state: SubwayRunState): RunTimeline {
     segment: state.segment ? { ...state.segment } : null,
     pendingCues: [...state.pendingCues],
     loopArrivalsRemaining: state.loopArrivalsRemaining,
+    laps: state.laps,
   };
 }
 
@@ -76,8 +77,7 @@ export function prepareDwell(
   plans: SubwayCuePlans,
 ): Pick<SubwayRunState, 'stopDeadline' | 'pendingCues'> {
   const target = stepStation(line, state.stationCode, state.direction);
-  if (!state.active || !target || (line.loop && state.loopArrivalsRemaining <= 0))
-    return { stopDeadline: null, pendingCues: [] };
+  if (!state.active || !target) return { stopDeadline: null, pendingCues: [] };
   const planKey = segmentPlanKey(line.id, state.stationCode, target.code, state.direction);
   const preClose = (plans[planKey] ?? EMPTY_CUE_PLAN).preClose ?? [];
   const queued = scheduleCues(preClose, at, `${planKey}:pre-close`);
@@ -97,8 +97,7 @@ function startClosing(
   effects: RunEffect[],
 ): SubwayRunState {
   const target = stepStation(line, state.stationCode, state.direction);
-  if (!target || (line.loop && state.loopArrivalsRemaining <= 0))
-    return { ...state, active: false, stopDeadline: null, phaseDeadline: null };
+  if (!target) return { ...state, active: false, stopDeadline: null, phaseDeadline: null };
   const planKey = segmentPlanKey(line.id, state.stationCode, target.code, state.direction);
   const cuePlan = plans[planKey] ?? EMPTY_CUE_PLAN;
   validateDoorPlan(doorPlan(cuePlan, 'close'), 'close');
@@ -143,6 +142,10 @@ function startClosing(
     phaseDeadline: at + Math.max(closeMs, close.end * 1000) + RELEASE_MS,
     segment,
     pendingCues: [...state.pendingCues, ...closeCues].sort((a, b) => a.at - b.at),
+    // A loop line starts its next lap when it leaves the station that completed the last one.
+    ...(line.loop && state.loopArrivalsRemaining <= 0
+      ? { loopArrivalsRemaining: line.stations.length, laps: state.laps + 1 }
+      : {}),
   };
 }
 
@@ -242,15 +245,19 @@ export function advanceOne(
     };
   }
   if (phase === 'arriving') {
-    const terminal =
-      !stepStation(line, state.stationCode, state.direction) ||
-      (line.loop && state.loopArrivalsRemaining <= 0);
+    // Service never ends: at a terminus the train turns back and runs the line the other way.
+    const terminus = !stepStation(line, state.stationCode, state.direction);
+    const direction = terminus
+      ? (line.directions.find((item) => item.id !== state.direction)?.id ?? state.direction)
+      : state.direction;
     pushPhase(effects, state, 'stopped');
     const stopped: SubwayRunState = {
       ...state,
+      direction,
+      laps: terminus ? state.laps + 1 : state.laps,
       phase: 'stopped',
       doors: 'open',
-      active: !terminal,
+      active: !!stepStation(line, state.stationCode, direction),
       phaseStartedAt: at,
       phaseDeadline: null,
       stopDeadline: null,

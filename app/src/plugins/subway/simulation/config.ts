@@ -9,7 +9,7 @@ export const SUBWAY_DEFAULT_CONFIG = Object.freeze({
   direction: firstLine.directions[0].id,
   startStation: firstLine.stations[0],
   speed: 1,
-  carNumber: 1,
+  carNumber: '',
   displayLanguages: 'ja-en',
   announcementLanguages: 'ja-en',
   immersion: false,
@@ -24,7 +24,8 @@ export type NormalizedSubwayConfig = Readonly<
     direction: string;
     startStation: string;
     speed: 0.5 | 1 | 2;
-    carNumber: number;
+    /** The car the passenger rides in; `null` picks one at random for each run. */
+    carNumber: number | null;
     displayLanguages: string;
     announcementLanguages: string;
     immersion: boolean;
@@ -36,11 +37,16 @@ export type NormalizedSubwayConfig = Readonly<
 
 const displayPresets = new Set<string>(DISPLAY_LANGUAGE_PRESETS);
 const announcementPresets = new Set<string>(ANNOUNCEMENT_LANGUAGE_PRESETS);
-export function normalizeCarNumber(value: unknown, carCount: number): number {
+/** A car chosen in the settings, or `null` when none is (the run then picks one). */
+export function explicitCarNumber(value: unknown, carCount: number): number | null {
   const number = typeof value === 'string' && value.trim() ? Number(value) : value;
   return typeof number === 'number' && Number.isInteger(number) && number >= 1 && number <= carCount
     ? number
-    : 1;
+    : null;
+}
+
+export function normalizeCarNumber(value: unknown, carCount: number): number {
+  return explicitCarNumber(value, carCount) ?? 1;
 }
 const supportedDisplay = (line: LineDefinition, preset: string) => {
   if (!lineFactsFor(line.id)?.displayLanguages.includes(preset)) return false;
@@ -126,7 +132,7 @@ export function normalizeSubwayConfig(
     direction,
     startStation,
     speed,
-    carNumber: normalizeCarNumber(stored.carNumber, line.carCount),
+    carNumber: explicitCarNumber(stored.carNumber, line.carCount),
     displayLanguages: display,
     announcementLanguages: announcementCandidate,
     immersion: typeof stored.immersion === 'boolean' ? stored.immersion : false,

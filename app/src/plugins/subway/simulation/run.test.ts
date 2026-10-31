@@ -123,7 +123,7 @@ describe('Subway run timeline', () => {
     expect(transition.state.stopDeadline).toBe(state.phaseDeadline! + 15_000);
   });
 
-  it('wraps Yamanote exactly once and holds both non-loop terminals', () => {
+  it('keeps Yamanote running lap after lap and turns non-loop lines back at their terminals', () => {
     let state = createRunState(lines, {
       lineId: 'yamanote',
       stationCode: 'JY30',
@@ -133,7 +133,7 @@ describe('Subway run timeline', () => {
     state = reduce(state, 'start', 0).state;
     const arrivals: string[] = [];
     let now = 0;
-    for (let guard = 0; guard < 30 * 65_000 && arrivals.length < 30; guard += 3_000) {
+    for (let guard = 0; guard < 31 * 65_000 && arrivals.length < 31; guard += 3_000) {
       now += 3_000;
       const transition = reduce(state, 'tick', now);
       state = transition.state;
@@ -146,12 +146,31 @@ describe('Subway run timeline', () => {
           .map((effect) => effect.to),
       );
     }
-    expect(arrivals).toHaveLength(30);
+    expect(arrivals).toHaveLength(31);
     expect(arrivals[0]).toBe('JY01');
     expect(arrivals[29]).toBe('JY30');
-    expect(state.active).toBe(false);
-    expect(state.phase).toBe('stopped');
-    expect(nextRunWake(state, now)).toBeNull();
+    expect(arrivals[30]).toBe('JY01');
+    expect(state.laps).toBe(1);
+    expect(state.active).toBe(true);
+    expect(nextRunWake(state, now)).not.toBeNull();
+
+    let hibiya = createRunState(lines, {
+      lineId: 'hibiya',
+      stationCode: 'H21',
+      direction: 'to-kita-senju',
+      dwellSeconds: 0,
+    });
+    hibiya = reduce(hibiya, 'start', 0).state;
+    const departures: string[] = [];
+    for (let at = 3_000; at < 4 * 65_000 && departures.length < 2; at += 3_000) {
+      const transition = reduce(hibiya, 'tick', at);
+      hibiya = transition.state;
+      for (const effect of transition.effects)
+        if (effect.type === 'departed') departures.push(`${effect.from}>${effect.to}`);
+    }
+    expect(departures).toEqual(['H21>H22', 'H22>H21']);
+    expect(hibiya.direction).toBe('to-naka-meguro');
+    expect(hibiya.laps).toBe(1);
 
     for (const [lineId, terminal, forward, reverse, expected] of [
       ['hibiya', 'H22', 'to-kita-senju', 'to-naka-meguro', 'H21'],
