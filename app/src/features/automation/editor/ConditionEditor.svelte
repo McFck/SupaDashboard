@@ -7,17 +7,21 @@
   import Choice from '../../plugins/ui/Choice.svelte';
   import AppStateField from '../../apps/ui/AppStateField.svelte';
   import { parseAppVariable } from '../../apps/keys';
+  import { alignRight, comparators, firstPlainVariable, operandKind } from '../operand-kinds';
 
   let { condition, onchange }: { condition: Predicate; onchange: (value: Predicate) => void } =
     $props();
   const variables = $derived(
-    Object.values($runtimeView.variables.records).map((record) => ({
-      value: record.definition.id,
-      label: record.definition.name,
-      detail: record.definition.type,
-      plugin: record.definition.owner,
-    })),
+    Object.values($runtimeView.variables.records)
+      .filter((record) => !parseAppVariable(record.definition.id))
+      .map((record) => ({
+        value: record.definition.id,
+        label: record.definition.name,
+        detail: record.definition.type,
+        plugin: record.definition.owner,
+      })),
   );
+  const typeOf = (id: string) => $runtimeView.variables.records[id]?.definition.type;
   const stateOptions = $derived([
     { value: 'self', label: 'This control' },
     ...settings.controls.map((control) => ({
@@ -41,33 +45,24 @@
   /** Sides whose App operand has no app yet; once chosen it is an ordinary variable operand. */
   let pendingApp = $state<string[]>([]);
   const kindOf = (side: string, operand: Operand) =>
-    operand.kind === 'variable' && (pendingApp.includes(side) || parseAppVariable(operand.id))
-      ? 'app'
-      : operand.kind;
+    operandKind(operand, pendingApp.includes(side));
 
   /** Whether the left operand is an app: the condition then reads "App is Running" with nothing to compare to. */
   const appCondition = $derived(
     condition.kind === 'compare' && kindOf('left', condition.left) === 'app',
   );
-  /** Booleans, text and control states only compare for equality; "greater than" needs numbers. */
-  function equalityOnly(operand: Operand) {
-    if (operand.kind === 'literal') return typeof operand.value !== 'number';
-    if (operand.kind === 'state') return true;
-    const type = $runtimeView.variables.records[operand.id]?.definition.type;
-    return parseAppVariable(operand.id) !== undefined || type === 'boolean' || type === 'string';
-  }
-  const operators = $derived([
-    { value: 'eq', label: 'Equals' },
-    { value: 'ne', label: 'Does not equal' },
-    ...(condition.kind === 'compare' &&
-    !equalityOnly(condition.left) &&
-    !equalityOnly(condition.right)
-      ? [
-          { value: 'gt', label: 'Greater than' },
-          { value: 'lt', label: 'Less than' },
-        ]
-      : []),
-  ]);
+  const OPERATOR_LABELS = {
+    eq: 'Equals',
+    ne: 'Does not equal',
+    gt: 'Greater than',
+    lt: 'Less than',
+  };
+  const operators = $derived(
+    (condition.kind === 'compare'
+      ? comparators(condition.left, condition.right, typeOf)
+      : ['eq', 'ne']
+    ).map((value) => ({ value, label: OPERATOR_LABELS[value as keyof typeof OPERATOR_LABELS] })),
+  );
 
   function setKind(kind: 'compare' | 'expression') {
     onchange(
@@ -82,7 +77,9 @@
     );
   }
   function setOperand(side: 'left' | 'right', value: Operand) {
-    if (condition.kind === 'compare') onchange({ ...condition, [side]: value });
+    if (condition.kind !== 'compare') return;
+    const next = { ...condition, [side]: value };
+    onchange({ ...next, right: alignRight(next.left, next.right, typeOf) });
   }
   function changeOperandKind(side: 'left' | 'right', kind: string) {
     pendingApp =
@@ -91,7 +88,7 @@
       kind === 'app'
         ? { kind: 'variable', id: '' }
         : kind === 'variable'
-          ? { kind, id: variables[0]?.value ?? '' }
+          ? { kind, id: firstPlainVariable(variables.map((option) => option.value)) }
           : kind === 'state'
             ? { kind, controlId: 'self' }
             : { kind: 'literal', value: '' };
@@ -101,7 +98,7 @@
         ...condition,
         left: value,
         op: 'eq',
-        right: { kind: 'literal', value: kind === 'app' ? true : '' },
+        right: alignRight(value, { kind: 'literal', value: kind === 'app' ? true : '' }, typeOf),
       });
       return;
     }

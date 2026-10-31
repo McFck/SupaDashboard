@@ -40,6 +40,14 @@ export function parseAppVariable(id: string): { slug: string; field: AppField } 
   return match && field ? { slug: match[1], field: field.value } : undefined;
 }
 
+/** The id of a binding that picked an app state but no app yet. */
+export const pendingAppVariable = (field: AppField) => `app..${field}`;
+
+/** The app state a variable id names, with or without an app chosen yet. */
+export const appFieldOf = (id: string): AppField | undefined =>
+  parseAppVariable(id)?.field ??
+  APP_STATES.find((state) => id === pendingAppVariable(state.value))?.value;
+
 /** The label for a key the picker has no row for: the file name, or the Start menu id. */
 export function appLabel(key: string) {
   const name = key.slice(key.indexOf(':') + 1);
