@@ -178,13 +178,13 @@ function stationTransfers(
   }
   for (const transferCode of (rawStation.transferCodes as unknown[] | undefined) ?? [])
     addCode(transferCode, 'line.json');
-  const rawText = rawTransfers?.[code];
-  if (rawText !== undefined) addText(rawText, 'line.json');
-
   const supplement = transferSupplements[lineId]?.[code];
   if (supplement?.codes)
     for (const transferCode of supplement.codes)
       addCode(transferCode, supplement.source, supplement.revision);
+  // Operator text (such as JR lines) follows the subway lines.
+  const rawText = rawTransfers?.[code];
+  if (rawText !== undefined) addText(rawText, 'line.json');
   if (supplement?.text) addText(supplement.text, supplement.source, supplement.revision);
   return Object.freeze(result);
 }
