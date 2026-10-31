@@ -11,7 +11,9 @@
       pixelHeight,
       compact,
       settings.display.iconScale,
-      !compact && !!appearance.label && buttonLabelVisible(pixelWidth, pixelHeight),
+      !compact && !!appearance.label && buttonLabelVisible(pixelWidth, pixelHeight)
+        ? settings.display.labelScale
+        : 0,
     ),
   );
 </script>
@@ -31,8 +33,10 @@
     />
   </span>
   {#if !compact && appearance.label}
-    <span class="max-w-[90%] truncate text-xs font-semibold tracking-wide text-zinc-100"
-      >{appearance.label}</span
+    <span
+      class="max-w-[90%] truncate text-xs font-semibold tracking-wide text-zinc-100"
+      style:font-size="{12 * settings.display.labelScale}px"
+      style:line-height="{16 * settings.display.labelScale}px">{appearance.label}</span
     >
   {/if}
 </span>

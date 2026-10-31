@@ -11,6 +11,7 @@
   import { runtimeView } from '../../../app/runtime/state';
   import { parseVariableText, type VariableType } from '../../automation/variables';
   import Choice from '../../plugins/ui/Choice.svelte';
+  import AppStateField from '../../apps/ui/AppStateField.svelte';
 
   let {
     binding,
@@ -126,6 +127,11 @@
       {options}
       placeholder="None"
       aria-label="State variable"
+      onchange={setVariable}
+    />
+    <Label>App</Label>
+    <AppStateField
+      value={binding?.variableId ?? ''}
       onchange={setVariable}
     />
     {#if binding && !variable}<span class="flex min-w-0 items-center gap-2 text-xs"

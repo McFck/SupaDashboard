@@ -49,6 +49,7 @@ export const DEFAULTS: Settings = {
     fullscreen: false,
     alwaysOnTop: false,
     iconScale: 1,
+    labelScale: 1,
     background: { mode: 'color', color: '#0a0a0a', opacity: 0.55, radius: 28 },
   },
   controls: [
@@ -99,3 +100,4 @@ export const DEFAULTS: Settings = {
 };
 
 export const ICON_SCALE = { min: 1, max: 2, step: 0.1 } as const;
+export const LABEL_SCALE = ICON_SCALE;

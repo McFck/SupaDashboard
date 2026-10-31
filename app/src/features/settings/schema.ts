@@ -35,6 +35,7 @@ export type Settings = {
     /** Glyph size on action tiles, for every page and applet. */
     /** Action icon size as a multiple of the default glyph. */
     iconScale: number;
+    labelScale: number;
     /** Backdrop behind the widgets on the transparent dashboard window: the colour, or the live desktop wallpaper. */
     background: { mode: 'color' | 'wallpaper'; color: string; opacity: number; radius: number };
   };
