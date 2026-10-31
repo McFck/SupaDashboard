@@ -137,7 +137,6 @@
   {/if}
   <div
     class="dashboard-applet"
-    data-has-pages={showDots}
     bind:this={pageHost}
   >
     <div class="dashboard-pages">
@@ -147,6 +146,7 @@
           <div
             class="dashboard-page-frame"
             class:dashboard-page-inactive={!frame.active}
+            class:dashboard-page-inset={showDots && !framePage.applet}
             data-visible-page={frame.active ? 'true' : undefined}
             aria-hidden={!frame.active}
             inert={!frame.active}
@@ -230,11 +230,6 @@
     overflow: hidden;
   }
 
-  .dashboard-applet[data-has-pages='true'] {
-    bottom: 34px;
-    height: auto;
-  }
-
   .dashboard-pages,
   .dashboard-page-frame {
     position: absolute;
@@ -250,6 +245,12 @@
 
   .dashboard-page-frame {
     will-change: transform;
+  }
+
+  /* Deck pages leave room for the page dots; applet pages run to the bottom edge and the dots float over them. */
+  .dashboard-page-inset {
+    box-sizing: border-box;
+    padding-bottom: 34px;
   }
 
   .dashboard-page-inactive {

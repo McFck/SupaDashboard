@@ -95,6 +95,7 @@
   data-applet-id={applet.id}
   class="relative h-full w-full"
   class:overflow-hidden={mode === 'runtime'}
+  style:background={mode === 'runtime' ? applet.background : undefined}
   onpointerdowncapture={(event) => controller.onOriginDown(event)}
 >
   {#if applet.design}
