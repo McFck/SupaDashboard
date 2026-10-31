@@ -6,7 +6,7 @@ import {
   DISPLAY_LANGUAGE_PRESETS,
   SUBWAY_DEFAULT_CONFIG,
 } from './simulation/config';
-import { LINE_CATALOGUE, lineFactsFor } from './data/load';
+import { LINE_CATALOGUE, lineFactsFor, PAUSED_LINES } from './data/load';
 import {
   registerSubwayMixerChannel,
   SUBWAY_MIX_MUTED_ID,
@@ -20,19 +20,20 @@ import {
   runtime,
 } from './simulation/runtime';
 
+const pickableLines = LINE_CATALOGUE.filter((line) => !PAUSED_LINES.has(line.id));
 const lineOptions: Option[] = [
   { value: '', label: 'Next line' },
-  ...LINE_CATALOGUE.map((line) => ({ value: line.id, label: line.title })),
+  ...pickableLines.map((line) => ({ value: line.id, label: line.title })),
 ];
 const directionOptions = (line?: string): Option[] => [
   { value: '', label: 'Automatic' },
-  ...(lineFactsFor(line)?.directions ?? LINE_CATALOGUE.flatMap((item) => item.directions)).map(
+  ...(lineFactsFor(line)?.directions ?? pickableLines.flatMap((item) => item.directions)).map(
     (direction) => ({ value: direction.id, label: direction.title }),
   ),
 ];
 const stationOptions = (line?: string): Option[] => [
   { value: '', label: 'Default start' },
-  ...(lineFactsFor(line)?.stations ?? LINE_CATALOGUE.flatMap((item) => item.stations)).map(
+  ...(lineFactsFor(line)?.stations ?? pickableLines.flatMap((item) => item.stations)).map(
     (value) => ({ value, label: value }),
   ),
 ];

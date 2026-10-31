@@ -96,6 +96,12 @@ export const LINE_CATALOGUE: readonly LineFacts[] = Object.freeze(
   }),
 );
 
+/**
+ * Lines kept loadable but hidden from every picker and from "next line" until their displays are redrawn
+ * (owner decision; research in app/docs/subway-lcd-plan.md).
+ */
+export const PAUSED_LINES: ReadonlySet<string> = new Set(['hibiya', 'sakaisuji']);
+
 export function lineFactsFor(id: unknown): LineFacts | undefined {
   return LINE_CATALOGUE.find((line) => line.id === id);
 }

@@ -1,3 +1,4 @@
+import { PAUSED_LINES } from '../data/load';
 import { firstStationForDirection } from './config';
 import type { LineDefinition } from './lines';
 import type { SubwayRunState } from './run-state';
@@ -25,9 +26,10 @@ export function resolveLineRequest(
 ): LineRequest | undefined {
   const currentLine = lines.find((item) => item.id === state.lineId)!;
   const requestedLine = text(args.line);
+  const cycle = lines.filter((item) => !PAUSED_LINES.has(item.id) || item.id === currentLine.id);
   const line =
     requestedLine === undefined
-      ? lines[(lines.findIndex((item) => item.id === currentLine.id) + 1) % lines.length]
+      ? cycle[(cycle.findIndex((item) => item.id === currentLine.id) + 1) % cycle.length]
       : lines.find((item) => item.id === requestedLine);
   if (!line) return undefined;
   const requestedDirection = text(args.direction);
