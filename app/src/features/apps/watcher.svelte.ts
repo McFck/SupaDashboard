@@ -26,6 +26,8 @@ export class AppWatcher {
   private readonly link: AppsLink;
   private readonly stopEffect: () => void;
   private watched = '';
+  /** The variables this watcher defined, so apps that leave the set can be retired. */
+  private readonly defined = new Set<string>();
 
   constructor(private readonly host: Host) {
     this.link = host.link(
@@ -45,11 +47,15 @@ export class AppWatcher {
     if (next !== this.watched) {
       this.watched = next;
       this.link.watch(keys);
+      if (!keys.length) {
+        this.apply([]);
+      }
     }
   }
 
   private apply(apps: WatchedApp[]) {
     const { variables } = this.host;
+    const present = new Set<string>();
     try {
       for (const app of apps) {
         for (const [field, type, initialValue] of FIELDS) {
@@ -61,6 +67,15 @@ export class AppWatcher {
             );
           }
           variables.set(id, app[field], OWNER);
+          present.add(id);
+          this.defined.add(id);
+        }
+      }
+      // An app that left the watched set must not keep its last values; its variables become unavailable.
+      for (const id of this.defined) {
+        if (!present.has(id)) {
+          variables.remove(id, OWNER);
+          this.defined.delete(id);
         }
       }
     } catch {
@@ -72,6 +87,7 @@ export class AppWatcher {
   destroy() {
     this.stopEffect();
     this.link.stop();
+    this.apply([]);
   }
 }
 

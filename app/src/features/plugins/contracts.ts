@@ -13,6 +13,8 @@ export type Option = {
   label: string;
   plugin?: string;
   detail?: string;
+  /** A Lucide or app-pack icon name shown before the label. */
+  iconName?: string;
   unavailable?: boolean;
 };
 export type EventAncestry = { depth: number; listeners: string[] };

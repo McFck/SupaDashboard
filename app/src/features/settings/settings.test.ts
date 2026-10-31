@@ -206,11 +206,7 @@ describe('settings migration', () => {
     const background = { color: '#123456', opacity: 0.3, radius: 42 };
     const valid = old(
       { monitor: 'DISPLAY-1', fullscreen: true, alwaysOnTop: true, background },
-      {
-        cols: 4,
-        sizing: 'manual',
-        size: 88,
-      },
+      { cols: 4, sizing: 'manual', size: 88 },
     );
     const source = structuredClone(valid);
     const migrated = migrate(valid);
@@ -220,6 +216,7 @@ describe('settings migration', () => {
       fullscreen: true,
       alwaysOnTop: true,
       iconScale: 1,
+      labelScale: 1,
       background: { ...background, mode: 'color' },
     });
     expect(migrated.deck.pages[0]).toMatchObject({ cols: 4, sizing: 'manual', size: 88 });

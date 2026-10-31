@@ -10,17 +10,17 @@ export function buttonIconSize(
   height: number,
   compact = false,
   scale = 1,
-  labelled = false,
+  labelScale = 0,
 ) {
   if (compact) {
     return 20;
   }
   const edge = Math.max(0, Math.min(width, height));
   const base = Math.min(38, edge * 0.34);
-  // The face pads 12px per side and puts an 8px gap and a 16px label line under the glyph; a larger glyph only
-  // grows into that room and never below the default size.
-  const room = labelled ? height - 24 - 8 - 16 : edge * 0.6;
-  return Math.max(base, Math.min(base * scale, room));
+  // The face pads 12px per side and puts an 8px gap and a 16px label line (scaled by labelScale) under the glyph; a
+  // glyph grows into that room and shrinks when a large label line takes it. labelScale 0 means no label.
+  const room = labelScale ? height - 24 - 8 - 16 * labelScale : edge * 0.6;
+  return Math.max(0, Math.min(base * scale, room));
 }
 
 /** Compare the actual pill footprints after card padding and channel gaps. */

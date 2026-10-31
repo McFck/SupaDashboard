@@ -21,21 +21,8 @@ export function registerUiControls(api: PluginApi) {
     maxSize: { w: 3, h: 3 },
     create: () => ({
       name: 'Button',
-      scenario: {
-        triggers: {
-          press: {
-            steps: [
-              {
-                id: 'press-default',
-                kind: 'action',
-                action: { id: 'media.toggle', args: { source: 'system' } },
-              },
-            ],
-          },
-        },
-        events: [],
-      },
-      variants: [{ id: 'state-1', label: 'Button', icon: 'Zap', color: '#67c9eb' }],
+      scenario: emptyScenario(),
+      variants: [{ id: 'state-1', label: '', icon: null, color: '#67c9eb' }],
     }),
   });
   api.registerControl({

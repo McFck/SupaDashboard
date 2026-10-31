@@ -1,0 +1,124 @@
+// The app selector shared by app actions and every place that refers to an app.
+import { isTauri } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
+import { commit } from '../layout/history.svelte';
+import type { Option, Param } from '../plugins/contracts';
+import { settings } from '../settings/state.svelte';
+import { listApps, type AppRow } from '../../platform/apps';
+import { appLabel, isAppKey, usedApps } from './keys';
+
+/** Process names of apps that have an icon in the `brand-*` pack. */
+const BRAND_ICONS: Record<string, string> = {
+  battlenet: 'battle-net',
+  brave: 'brave',
+  chrome: 'chrome',
+  code: 'vscode',
+  discord: 'discord',
+  epicgameslauncher: 'epic-games',
+  explorer: 'file-explorer',
+  figma: 'figma',
+  firefox: 'firefox',
+  githubdesktop: 'github',
+  msedge: 'edge',
+  notion: 'notion',
+  obs64: 'obs',
+  slack: 'slack',
+  steam: 'steam',
+  teams: 'teams',
+  telegram: 'telegram',
+  twitch: 'twitch',
+  vlc: 'vlc',
+  whatsapp: 'whatsapp',
+  windowsterminal: 'terminal',
+  zoom: 'zoom',
+};
+
+const known = $state<{ rows: AppRow[] }>({ rows: [] });
+
+export async function refreshApps() {
+  if (isTauri()) {
+    known.rows = await listApps();
+  }
+}
+
+/** The variable name part of an app: the picker's own answer, else the file name of an `exe:` key. */
+export function appSlug(key: string): string | undefined {
+  const row = known.rows.find((item) => item.key === key);
+  if (row) {
+    return row.slug;
+  }
+  return key.startsWith('exe:')
+    ? appLabel(key)
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, '')
+    : undefined;
+}
+
+function manualKeys() {
+  return [...new Set([...settings.apps, ...usedApps(settings.controls)])];
+}
+
+/** Whether the picker offers this exact key, as opposed to text still being typed. */
+export const isOfferedApp = (key: string) =>
+  known.rows.some((row) => row.key === key) || manualKeys().includes(key);
+
+/** The app a `app.<slug>.<state>` variable belongs to, among the apps the picker knows. */
+export function appKeyForSlug(slug: string): string | undefined {
+  const keys = [...manualKeys(), ...known.rows.map((row) => row.key)];
+  return keys.find((key) => appSlug(key) === slug);
+}
+
+/** Adds an app to the watched list, so its state variables exist while something refers to it. */
+export function rememberApp(key: string) {
+  if (isAppKey(key) && !settings.apps.includes(key)) {
+    settings.apps.push(key);
+    commit('Add app');
+  }
+}
+
+/** Running apps, then the Start menu, then apps used by actions or added by hand. */
+function appOptions(): Option[] {
+  const options: Option[] = known.rows.map((row) => {
+    const brand = BRAND_ICONS[row.slug];
+    return {
+      value: row.key,
+      label: row.label,
+      detail: row.key.startsWith('exe:') ? row.detail : undefined,
+      iconName: brand && `brand-${brand}`,
+    };
+  });
+  const listed = new Set(known.rows.map((row) => row.key));
+  for (const key of manualKeys()) {
+    if (!listed.has(key)) {
+      listed.add(key);
+      options.push({ value: key, label: appLabel(key) });
+    }
+  }
+  return options;
+}
+
+export const appManual: NonNullable<Param['manual']> = {
+  browse: async () => {
+    const path = await open({ filters: [{ name: 'App', extensions: ['exe'] }] });
+    if (typeof path !== 'string') {
+      return null;
+    }
+    rememberApp(`exe:${path}`);
+    return `exe:${path}`;
+  },
+  keep: (value) => {
+    if (isAppKey(value) && !known.rows.some((row) => row.key === value)) {
+      rememberApp(value);
+    }
+  },
+};
+
+export const appParam: Param = {
+  key: 'app',
+  label: 'App',
+  type: 'text',
+  default: '',
+  suggestions: appOptions,
+  refresh: refreshApps,
+  manual: appManual,
+};

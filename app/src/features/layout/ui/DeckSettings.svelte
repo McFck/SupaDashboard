@@ -11,7 +11,7 @@
   import { settings } from '../../settings/state.svelte';
   import type { Page } from '../../settings/schema';
   import { commit, labelEdit } from '../history.svelte';
-  import { ICON_SCALE } from '../../settings/defaults';
+  import { ICON_SCALE, LABEL_SCALE } from '../../settings/defaults';
   import { setPageApplet } from '../page-commands';
   import { finishGridResize } from '../slot-edits';
   import Row from '../../../panel/ui/Row.svelte';
@@ -64,6 +64,11 @@
   function setIconScale(scale: number) {
     labelEdit('Icon size');
     settings.display.iconScale = scale;
+  }
+
+  function setLabelScale(scale: number) {
+    labelEdit('Text size');
+    settings.display.labelScale = scale;
   }
 
   function setSizing(auto: boolean) {
@@ -181,6 +186,23 @@
         />
         <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">
           {Math.round(settings.display.iconScale * 100)}%
+        </span>
+      </div>
+    </Row>
+    <Row label="Text size">
+      <div class="flex w-40 items-center gap-3">
+        <Slider
+          type="single"
+          class="min-w-0 flex-1"
+          aria-label="Text size"
+          value={settings.display.labelScale}
+          min={LABEL_SCALE.min}
+          max={LABEL_SCALE.max}
+          step={LABEL_SCALE.step}
+          onValueChange={setLabelScale}
+        />
+        <span class="w-10 text-right text-sm tabular-nums text-muted-foreground">
+          {Math.round(settings.display.labelScale * 100)}%
         </span>
       </div>
     </Row>

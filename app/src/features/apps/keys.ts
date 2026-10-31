@@ -6,6 +6,15 @@ const MAX_KEY = 1024;
 export const APP_ACTIONS = ['open', 'focus', 'toggle', 'minimize', 'close'] as const;
 export type AppOp = (typeof APP_ACTIONS)[number];
 
+export const APP_STATES = [
+  { value: 'running', label: 'Running' },
+  { value: 'focused', label: 'In front' },
+  { value: 'minimized', label: 'Minimized' },
+  { value: 'visible', label: 'Visible' },
+  { value: 'display', label: 'Display' },
+] as const;
+export type AppField = (typeof APP_STATES)[number]['value'];
+
 export type AppRequest = {
   op: AppOp;
   app: string;
@@ -22,6 +31,13 @@ export function isAppKey(value: unknown): value is string {
     /^(aumid|exe):\S/.test(value) &&
     !/[\u0000-\u001f\u007f]/.test(value)
   );
+}
+
+/** `app.<slug>.<state>`, the variable the watcher publishes for an app, taken apart. */
+export function parseAppVariable(id: string): { slug: string; field: AppField } | undefined {
+  const match = /^app\.([a-z0-9_-]+)\.([a-z]+)$/.exec(id);
+  const field = APP_STATES.find((state) => state.value === match?.[2]);
+  return match && field ? { slug: match[1], field: field.value } : undefined;
 }
 
 /** The label for a key the picker has no row for: the file name, or the Start menu id. */

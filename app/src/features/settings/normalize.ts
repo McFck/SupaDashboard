@@ -1,7 +1,7 @@
 import type { ControlConfig } from '../controls/model';
 import { normalizeControl } from '../automation/normalize-control';
 import type { Settings } from './schema';
-import { DEFAULTS, ICON_SCALE } from './defaults';
+import { DEFAULTS, ICON_SCALE, LABEL_SCALE } from './defaults';
 import { isRecord } from '../automation/plain-data';
 import { object, upgrade } from './upgrade';
 import { normalizeAppletSettings, normalizeLayout } from './normalize-layout';
@@ -109,6 +109,11 @@ export function migrate(input: unknown): Settings {
         display.iconScale,
         (v) => typeof v === 'number' && v >= ICON_SCALE.min && v <= ICON_SCALE.max,
         iconSize === 'large' ? 1.5 : 1,
+      ),
+      labelScale: pick(
+        display.labelScale,
+        (v) => typeof v === 'number' && v >= LABEL_SCALE.min && v <= LABEL_SCALE.max,
+        1,
       ),
       background: {
         ...out.display.background,

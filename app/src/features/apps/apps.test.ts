@@ -66,7 +66,7 @@ describe('native app state', () => {
     expect(parseWatched({ apps: [] })).toEqual([]);
   });
 
-  it('publishes app state as read-only variables and keeps them current', () => {
+  it('publishes app state as read-only variables, keeps them current and retires them with the app', () => {
     const variables = new VariableStore();
     let push: (apps: WatchedApp[]) => void = () => {};
     const watcher = new AppWatcher({
@@ -83,6 +83,8 @@ describe('native app state', () => {
     expect(variables.getValue('app.chat.focused')).toBe(true);
     expect(variables.getValue('app.chat.display')).toBe('Side');
     expect(() => variables.set('app.chat.running', false)).toThrow('read-only');
+    push([]);
+    expect(variables.get('app.chat.running')).toBeUndefined();
     watcher.destroy();
   });
 });

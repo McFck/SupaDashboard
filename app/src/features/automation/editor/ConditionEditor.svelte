@@ -5,6 +5,8 @@
   import { settings } from '../../settings/state.svelte';
   import type { Operand, Predicate, Scalar } from '../scenario';
   import Choice from '../../plugins/ui/Choice.svelte';
+  import AppStateField from '../../apps/ui/AppStateField.svelte';
+  import { parseAppVariable } from '../../apps/keys';
 
   let { condition, onchange }: { condition: Predicate; onchange: (value: Predicate) => void } =
     $props();
@@ -36,6 +38,13 @@
       : []),
   ];
 
+  /** Sides whose App operand has no app yet; once chosen it is an ordinary variable operand. */
+  let pendingApp = $state<string[]>([]);
+  const kindOf = (side: string, operand: Operand) =>
+    operand.kind === 'variable' && (pendingApp.includes(side) || parseAppVariable(operand.id))
+      ? 'app'
+      : operand.kind;
+
   function setKind(kind: 'compare' | 'expression') {
     onchange(
       kind === 'expression'
@@ -52,12 +61,16 @@
     if (condition.kind === 'compare') onchange({ ...condition, [side]: value });
   }
   function changeOperandKind(side: 'left' | 'right', kind: string) {
+    pendingApp =
+      kind === 'app' ? [...pendingApp, side] : pendingApp.filter((item) => item !== side);
     const value: Operand =
-      kind === 'variable'
-        ? { kind, id: variables[0]?.value ?? '' }
-        : kind === 'state'
-          ? { kind, controlId: 'self' }
-          : { kind: 'literal', value: '' };
+      kind === 'app'
+        ? { kind: 'variable', id: '' }
+        : kind === 'variable'
+          ? { kind, id: variables[0]?.value ?? '' }
+          : kind === 'state'
+            ? { kind, controlId: 'self' }
+            : { kind: 'literal', value: '' };
     setOperand(side, value);
   }
   function setLiteral(side: 'left' | 'right', value: Scalar) {
@@ -97,15 +110,21 @@
             >{side === 'left' ? 'Value' : 'Compare to'}</Label
           >
           <Choice
-            value={operand.kind}
+            value={kindOf(side, operand)}
             options={[
               { value: 'literal', label: 'Value' },
               { value: 'variable', label: 'Variable' },
+              { value: 'app', label: 'App' },
               { value: 'state', label: 'Control state' },
             ]}
             onchange={(value) => changeOperandKind(side as 'left' | 'right', value)}
           />
-          {#if operand.kind === 'variable'}
+          {#if operand.kind === 'variable' && kindOf(side, operand) === 'app'}
+            <AppStateField
+              value={operand.id}
+              onchange={(id) => setOperand(side as 'left' | 'right', { ...operand, id })}
+            />
+          {:else if operand.kind === 'variable'}
             <Choice
               value={operand.id}
               options={variableOptions(operand.id)}

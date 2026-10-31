@@ -2,6 +2,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Label } from '$lib/components/ui/label';
   import Choice from '../../plugins/ui/Choice.svelte';
+  import AppStateField from '../../apps/ui/AppStateField.svelte';
   import StepList from './StepList.svelte';
   import type { StepListPath } from './scenario-edit';
   import type { ScenarioDraftEditor } from './scenario-draft.svelte';
@@ -57,6 +58,13 @@
       options={parameterOptions}
       onchange={(value) => editor.changeEventParameter(value)}
     />
+    {#if editor.selectedEvent.eventId === 'variables.changed'}
+      <Label class="text-xs text-muted-foreground">App</Label>
+      <AppStateField
+        value={editor.selectedEvent.parameter ?? ''}
+        onchange={(value) => editor.changeEventParameter(value)}
+      />
+    {/if}
   </div>
 {/if}
 <div

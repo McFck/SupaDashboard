@@ -13,7 +13,13 @@ export type WatchedApp = {
   visible: boolean;
   display: string;
 };
-export type AppRow = { key: string; label: string; detail: string; running: boolean };
+export type AppRow = {
+  key: string;
+  label: string;
+  slug: string;
+  detail: string;
+  running: boolean;
+};
 
 const FLAGS = ['running', 'focused', 'minimized', 'visible'] as const;
 
@@ -41,6 +47,7 @@ export async function listApps(): Promise<AppRow[]> {
           isRecord(row) &&
           typeof row.key === 'string' &&
           typeof row.label === 'string' &&
+          typeof row.slug === 'string' &&
           typeof row.detail === 'string' &&
           typeof row.running === 'boolean',
       )
