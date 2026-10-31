@@ -14,6 +14,8 @@ import { uiPlugin } from '../plugins/ui';
 
 import { startRuntimeServices, stopRuntimeServices, type WindowView } from './runtime/services';
 import Root from './Root.svelte';
+import ControlPanel from '../panel/ControlPanel.svelte';
+import Dashboard from '../features/dashboard/Dashboard.svelte';
 
 const BUNDLED_PLUGINS = [corePlugin, uiPlugin, spotifyPlugin, subwayPlugin];
 
@@ -84,11 +86,8 @@ function handleUndoShortcut(event: KeyboardEvent) {
 export async function startApp() {
   const view = currentView();
   const native = isTauri();
-  // The dashboard never loads panel editors. Await the selected view before reporting native readiness.
-  const content =
-    view === 'panel'
-      ? import('../panel/ControlPanel.svelte')
-      : import('../features/dashboard/Dashboard.svelte');
+  // Both views are bundled statically: lazy view chunks left the panel without its own stylesheet in release builds.
+  const content = view === 'panel' ? ControlPanel : Dashboard;
   document.documentElement.classList.toggle('transparent', view === 'dashboard');
   document.addEventListener('contextmenu', (event) => event.preventDefault());
   window.addEventListener('pagehide', dispose, { once: true });
@@ -121,13 +120,9 @@ export async function startApp() {
     document.addEventListener('keydown', handleUndoShortcut);
   }
   followRemovals();
-  const { default: component } = await content;
-  if (disposed) {
-    return;
-  }
   mount(Root, {
     target: document.getElementById('app')!,
-    props: { content: component },
+    props: { content },
   });
 
   await tick();
