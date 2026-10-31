@@ -108,6 +108,8 @@ export class TrainSound {
     const entries = await Promise.all(
       trainClips(profile).map(async (clip) => [clip, await decode(clip)] as const),
     );
+    // A line change or immersion off can close the context while the clips load; build nothing on it.
+    if (context.state === 'closed') throw new Error('Subway audio context closed while loading');
     return new TrainSound(context, output, profile, new Map(entries), (section) =>
       decode(profile.beds.platform[section]),
     );
