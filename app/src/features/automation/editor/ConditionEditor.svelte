@@ -45,6 +45,30 @@
       ? 'app'
       : operand.kind;
 
+  /** Whether the left operand is an app: the condition then reads "App is Running" with nothing to compare to. */
+  const appCondition = $derived(
+    condition.kind === 'compare' && kindOf('left', condition.left) === 'app',
+  );
+  /** Booleans, text and control states only compare for equality; "greater than" needs numbers. */
+  function equalityOnly(operand: Operand) {
+    if (operand.kind === 'literal') return typeof operand.value !== 'number';
+    if (operand.kind === 'state') return true;
+    const type = $runtimeView.variables.records[operand.id]?.definition.type;
+    return parseAppVariable(operand.id) !== undefined || type === 'boolean' || type === 'string';
+  }
+  const operators = $derived([
+    { value: 'eq', label: 'Equals' },
+    { value: 'ne', label: 'Does not equal' },
+    ...(condition.kind === 'compare' &&
+    !equalityOnly(condition.left) &&
+    !equalityOnly(condition.right)
+      ? [
+          { value: 'gt', label: 'Greater than' },
+          { value: 'lt', label: 'Less than' },
+        ]
+      : []),
+  ]);
+
   function setKind(kind: 'compare' | 'expression') {
     onchange(
       kind === 'expression'
@@ -71,6 +95,16 @@
           : kind === 'state'
             ? { kind, controlId: 'self' }
             : { kind: 'literal', value: '' };
+    if (side === 'left' && condition.kind === 'compare') {
+      // An app condition is `app.<name>.<state>` equals true; "is not" flips the operator.
+      onchange({
+        ...condition,
+        left: value,
+        op: 'eq',
+        right: { kind: 'literal', value: kind === 'app' ? true : '' },
+      });
+      return;
+    }
     setOperand(side, value);
   }
   function setLiteral(side: 'left' | 'right', value: Scalar) {
@@ -102,8 +136,8 @@
       />
     </div>
   {:else}
-    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)]">
-      {#each ['left', 'right'] as side (side)}
+    <div class={['grid gap-3', !appCondition && 'sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]']}>
+      {#each appCondition ? ['left'] : ['left', 'right'] as side (side)}
         {@const operand = condition[side as 'left' | 'right']}
         <div class="grid min-w-0 gap-1.5">
           <Label class="text-xs text-muted-foreground"
@@ -122,6 +156,12 @@
           {#if operand.kind === 'variable' && kindOf(side, operand) === 'app'}
             <AppStateField
               value={operand.id}
+              negation={side === 'left' && appCondition
+                ? {
+                    negated: condition.op === 'ne',
+                    onchange: (negated) => onchange({ ...condition, op: negated ? 'ne' : 'eq' }),
+                  }
+                : undefined}
               onchange={(id) => setOperand(side as 'left' | 'right', { ...operand, id })}
             />
           {:else if operand.kind === 'variable'}
@@ -174,17 +214,13 @@
             {/if}
           {/if}
         </div>
-        {#if side === 'left'}
-          <div class="grid gap-1.5">
+        {#if side === 'left' && !appCondition}
+          <div class="grid min-w-0 gap-1.5">
             <Label class="text-xs text-muted-foreground">Operator</Label>
             <Choice
               value={condition.op}
-              options={[
-                { value: 'eq', label: 'Equals' },
-                { value: 'ne', label: 'Does not equal' },
-                { value: 'gt', label: 'Greater than' },
-                { value: 'lt', label: 'Less than' },
-              ]}
+              class="w-full min-w-0"
+              options={operators}
               onchange={(value) =>
                 onchange({ ...condition, op: value as 'eq' | 'ne' | 'gt' | 'lt' })}
             />

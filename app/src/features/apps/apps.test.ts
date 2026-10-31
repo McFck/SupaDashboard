@@ -3,6 +3,10 @@ import { VariableStore } from '../automation/variables';
 import { normalizeControl } from '../automation/normalize-control';
 import { parseWatched, type WatchedApp } from '../../platform/apps';
 import { appRequest, watchedKeys } from './keys';
+import { evaluatePredicate } from '../automation/expression';
+import type { Predicate } from '../automation/scenario';
+import { settings } from '../settings/state.svelte';
+import { appSlug, rememberApp } from './picker.svelte';
 import { AppWatcher } from './watcher.svelte';
 
 const state = (over: Partial<WatchedApp> = {}): WatchedApp => ({
@@ -86,5 +90,57 @@ describe('native app state', () => {
     push([]);
     expect(variables.get('app.chat.running')).toBeUndefined();
     watcher.destroy();
+  });
+});
+
+describe('app conditions', () => {
+  const condition = (op: 'eq' | 'ne', value: boolean | string = true): Predicate => ({
+    kind: 'compare',
+    left: { kind: 'variable', id: 'app.chat.running' },
+    op,
+    right: { kind: 'literal', value },
+  });
+
+  it('follows the published app variable, both for "is" and "is not"', () => {
+    const variables = new VariableStore();
+    let push: (apps: WatchedApp[]) => void = () => {};
+    const watcher = new AppWatcher({
+      variables,
+      keys: () => ['exe:C:/a/Chat.exe'],
+      link: (onState) => {
+        push = onState;
+        return { watch: () => {}, stop: () => {} };
+      },
+      onError: () => {},
+    });
+    const env = {
+      getVariable: (id: string) => variables.getValue(id),
+      findVariable: () => undefined,
+      getState: () => undefined,
+    };
+    push([state({ running: true })]);
+    expect(evaluatePredicate(condition('eq'), env)).toBe(true);
+    expect(evaluatePredicate(condition('ne'), env)).toBe(false);
+    push([state({ running: false })]);
+    expect(evaluatePredicate(condition('eq'), env)).toBe(false);
+    expect(evaluatePredicate(condition('ne'), env)).toBe(true);
+    watcher.destroy();
+  });
+
+  it('refuses to compare an app state with text, which is what an unfilled right side was', () => {
+    const env = {
+      getVariable: () => true,
+      findVariable: () => undefined,
+      getState: () => undefined,
+    };
+    const broken = condition('eq', '');
+    expect(() => evaluatePredicate(broken, env)).toThrow('same type');
+  });
+
+  it('names the variable like the native watcher and watches an app once it is picked', () => {
+    expect(appSlug('exe:C:/Apps/My App_2.EXE')).toBe('myapp_2');
+    settings.apps = [];
+    rememberApp('exe:C:/a/Chat.exe');
+    expect(watchedKeys(settings.controls, settings.apps)).toContain('exe:C:/a/Chat.exe');
   });
 });
