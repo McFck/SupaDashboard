@@ -1,5 +1,6 @@
 //! The app picker's rows: what is running, then what the Start menu offers.
 use super::identity::{Names, image_path, installed, package_aumid};
+use super::model::slug;
 use super::windows::Scan;
 use serde::Serialize;
 use std::collections::HashSet;
@@ -8,6 +9,7 @@ use std::collections::HashSet;
 pub struct AppRow {
     pub key: String,
     pub label: String,
+    pub slug: String,
     pub detail: String,
     pub running: bool,
 }
@@ -48,6 +50,7 @@ pub fn list() -> Result<Vec<AppRow>, String> {
             detail: String::new(),
             key: app.key,
             label: app.label,
+            slug: app.slug,
         })
         .collect();
     // A running desktop app the Start menu does not know is offered by its file.
@@ -55,6 +58,7 @@ pub fn list() -> Result<Vec<AppRow>, String> {
         if !known.contains(&name) {
             rows.push(AppRow {
                 key: format!("exe:{path}"),
+                slug: slug(&name),
                 label: name,
                 detail: path,
                 running: true,

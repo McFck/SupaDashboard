@@ -1,5 +1,6 @@
 //! Live app state without polling. A thread with a message loop holds WinEvent hooks that only wake it;
 //! it recomputes the watched apps from the desktop (coalesced) and emits `apps-state` when something changed.
+use super::exit::ExitWaits;
 use super::identity::{Matcher, Names};
 use super::model::AppState;
 use super::windows::Scan;
@@ -33,13 +34,21 @@ pub struct Watched {
     pub state: AppState,
 }
 
-fn snapshot(matchers: &[Matcher], names: &mut Names) -> (Vec<Watched>, HashSet<isize>) {
+/// The watched apps' states, their window handles, and the processes whose exit changes a state.
+fn snapshot(
+    matchers: &[Matcher],
+    names: &mut Names,
+) -> (Vec<Watched>, HashSet<isize>, HashSet<u32>) {
     let mut scan = Scan::new(names);
     let mut windows = HashSet::new();
+    let mut pids = HashSet::new();
     let states = matchers
         .iter()
         .map(|matcher| {
-            windows.extend(scan.windows(matcher).iter().map(|win| win.hwnd));
+            let wins = scan.windows(matcher);
+            windows.extend(wins.iter().map(|win| win.hwnd));
+            pids.extend(wins.iter().map(|win| win.pid));
+            pids.extend(scan.pids(matcher));
             Watched {
                 key: matcher.key.clone(),
                 slug: matcher.slug.clone(),
@@ -47,7 +56,7 @@ fn snapshot(matchers: &[Matcher], names: &mut Names) -> (Vec<Watched>, HashSet<i
             }
         })
         .collect();
-    (states, windows)
+    (states, windows, pids)
 }
 
 pub fn current(matchers: &[Matcher]) -> Vec<Watched> {
@@ -129,10 +138,12 @@ fn run(app: AppHandle, shared: Arc<Mutex<Vec<Matcher>>>, ready: mpsc::Sender<Res
     let _ = ready.send(Ok(unsafe { GetCurrentThreadId() }));
 
     let mut last: Vec<Watched> = Vec::new();
-    let refresh = |last: &mut Vec<Watched>| {
+    let mut exits = ExitWaits::new();
+    let mut refresh = |last: &mut Vec<Watched>| {
         let matchers = shared.lock().map(|list| list.clone()).unwrap_or_default();
-        let (states, windows) = snapshot(&matchers, &mut Names::default());
+        let (states, windows, pids) = snapshot(&matchers, &mut Names::default());
         TRACKED.with(|set| *set.borrow_mut() = windows);
+        exits.sync(&pids);
         if *last != states {
             let _ = app.emit("apps-state", &states);
             *last = states;

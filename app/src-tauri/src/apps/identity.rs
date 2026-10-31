@@ -128,6 +128,18 @@ fn link_target(item: &IShellItem2) -> Option<String> {
     Some(take_string(PWSTR(text.0)))
 }
 
+/// The variable name of a Start-menu app: its program's name, else the last part of its package id.
+pub fn aumid_slug(id: &str, exe: Option<&str>) -> String {
+    slug(exe.unwrap_or_else(|| {
+        id.split('!')
+            .next()
+            .unwrap_or(id)
+            .rsplit(['.', '_'])
+            .next()
+            .unwrap_or(id)
+    }))
+}
+
 /// Turns a key into a matcher. This is where an unknown Start-menu id or a missing file is refused.
 pub fn matcher(key: &Key) -> Result<Matcher, String> {
     match key {
@@ -154,14 +166,7 @@ pub fn matcher(key: &Key) -> Result<Matcher, String> {
                 .unwrap_or_else(|_| id.clone());
             Ok(Matcher {
                 key: format!("aumid:{id}"),
-                slug: slug(exe.as_deref().unwrap_or_else(|| {
-                    id.split('!')
-                        .next()
-                        .unwrap_or(id)
-                        .rsplit(['.', '_'])
-                        .next()
-                        .unwrap_or(id)
-                })),
+                slug: aumid_slug(id, exe.as_deref()),
                 exe,
                 aumid: Some(id.clone()),
                 label,
@@ -174,6 +179,7 @@ pub fn matcher(key: &Key) -> Result<Matcher, String> {
 pub struct Installed {
     pub key: String,
     pub label: String,
+    pub slug: String,
     /// Normalized image name of its target; absent for packaged apps.
     pub exe: Option<String>,
     pub aumid: String,
@@ -202,10 +208,12 @@ pub fn installed() -> Result<Vec<Installed>, String> {
         ) else {
             continue;
         };
+        let exe = link_target(&item).and_then(|target| exe_name(&target));
         out.push(Installed {
             key: format!("aumid:{aumid}"),
             label,
-            exe: link_target(&item).and_then(|target| exe_name(&target)),
+            slug: aumid_slug(&aumid, exe.as_deref()),
+            exe,
             aumid,
         });
     }

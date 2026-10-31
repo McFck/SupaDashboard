@@ -14,7 +14,10 @@ use windows::Win32::System::Threading::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VK_MENU,
 };
-use windows::Win32::UI::Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW};
+use windows::Win32::UI::Shell::{
+    QUNS_RUNNING_D3D_FULL_SCREEN, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW,
+    SHQueryUserNotificationState, ShellExecuteExW,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     AllowSetForegroundWindow, GetForegroundWindow, GetWindowPlacement, GetWindowRect, IsIconic,
     IsZoomed, PostMessageW, SW_MINIMIZE, SW_RESTORE, SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_NOZORDER,
@@ -24,11 +27,26 @@ use windows::core::{Error, HSTRING};
 
 const WINDOW_WAIT: Duration = Duration::from_secs(5);
 
-fn denied(error: &Error, label: &str) -> String {
+/// A short toast title for a failed window call; an elevated app gets its own reason.
+fn failed(error: &Error, verb: &str, label: &str) -> String {
     if error.code() == E_ACCESSDENIED {
         format!("{label} is running as administrator")
     } else {
-        error.message()
+        format!("Couldn't {verb} {label}")
+    }
+}
+
+fn not_running(label: &str) -> String {
+    format!("{label} isn't running")
+}
+
+/// A Direct3D exclusive full-screen game (borderless ones are fine) breaks when another app takes the foreground, so focus changes are refused.
+fn guard_focus() -> Result<(), String> {
+    match unsafe { SHQueryUserNotificationState() } {
+        Ok(state) if state == QUNS_RUNNING_D3D_FULL_SCREEN => {
+            Err("Can't switch apps over a full-screen game".into())
+        }
+        _ => Ok(()),
     }
 }
 
@@ -165,7 +183,7 @@ fn reveal(win: &Win, display: Option<&Monitor>, label: &str) -> Result<(), Strin
         let _ = unsafe { ShowWindow(handle, SW_RESTORE) };
     }
     if let Some(target) = display {
-        move_to(handle, target)?;
+        move_to(handle, target).map_err(|_| format!("Couldn't move {label}"))?;
     }
     if bring_to_front(handle) {
         Ok(())
@@ -193,18 +211,25 @@ fn close(scan: &mut Scan, matcher: &Matcher, wins: &[Win], force: bool) -> Resul
         pids.dedup();
         for pid in pids {
             let process = unsafe { OpenProcess(PROCESS_TERMINATE, false, pid) }
-                .map_err(|error| denied(&error, &matcher.label))?;
+                .map_err(|error| failed(&error, "close", &matcher.label))?;
             let result = unsafe { TerminateProcess(process, 1) };
             let _ = unsafe { CloseHandle(process) };
-            result.map_err(|error| denied(&error, &matcher.label))?;
+            result.map_err(|error| failed(&error, "close", &matcher.label))?;
         }
         return Ok(());
     }
+    let mut posted = false;
     for win in wins.iter().filter(|win| !win.owned) {
         unsafe { PostMessageW(Some(hwnd(win)), WM_CLOSE, WPARAM(0), LPARAM(0)) }
-            .map_err(|error| denied(&error, &matcher.label))?;
+            .map_err(|error| failed(&error, "close", &matcher.label))?;
+        posted = true;
     }
-    Ok(())
+    // A tray app with no window has nothing to ask politely.
+    if posted {
+        Ok(())
+    } else {
+        Err(format!("Couldn't close {}", matcher.label))
+    }
 }
 
 fn top(wins: &[Win]) -> Option<&Win> {
@@ -250,11 +275,17 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
         }
     };
     match command.op {
-        Op::Open => match shown {
-            Some(win) => reveal(win, None, label),
-            None => launch(matcher),
-        },
-        Op::Focus => reveal_top(&mut scan, shown),
+        Op::Open => {
+            guard_focus()?;
+            match shown {
+                Some(win) => reveal(win, None, label),
+                None => launch(matcher),
+            }
+        }
+        Op::Focus => {
+            guard_focus()?;
+            reveal_top(&mut scan, shown)
+        }
         Op::Toggle => {
             let foreground = scan.foreground_pid();
             let facts = ToggleFacts {
@@ -263,7 +294,11 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
                 top_foreground: shown.is_some_and(|win| foreground == Some(win.pid)),
                 top_minimized: shown.is_some_and(|win| win.minimized),
             };
-            match plan_toggle(facts) {
+            let plan = plan_toggle(facts);
+            if plan != Plan::Hide {
+                guard_focus()?;
+            }
+            match plan {
                 Plan::Launch => launch(matcher),
                 Plan::Restore | Plan::Raise => reveal_top(&mut scan, shown),
                 Plan::Hide => match command.hide {
@@ -272,6 +307,8 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
                 },
             }
         }
+        Op::Minimize if !running => Err(not_running(label)),
+        Op::Close if !running => Err(not_running(label)),
         Op::Minimize => minimize(&wins, label),
         Op::Close => close(&mut scan, matcher, &wins, command.force),
     }

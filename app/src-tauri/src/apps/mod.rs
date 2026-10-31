@@ -1,5 +1,6 @@
 //! App control: open, focus, toggle, minimize and close any app, and watch its live state.
 mod actions;
+mod exit;
 pub mod identity;
 mod list;
 mod model;
