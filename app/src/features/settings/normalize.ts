@@ -100,6 +100,7 @@ export function migrate(input: unknown): Settings {
       monitorLabel: pick(display.monitorLabel, (v) => typeof v === 'string', null),
       fullscreen: pick(display.fullscreen, (v) => typeof v === 'boolean', false),
       alwaysOnTop: pick(display.alwaysOnTop, (v) => typeof v === 'boolean', false),
+      iconSize: display.iconSize === 'large' ? 'large' : 'default',
       background: {
         ...out.display.background,
         ...background,

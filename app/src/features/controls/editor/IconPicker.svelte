@@ -3,7 +3,7 @@
   import * as Dialog from '$lib/components/ui/dialog';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
-  import Icon, { iconNames } from '../ui/Icon.svelte';
+  import Icon, { appIconNames, iconNames } from '../ui/Icon.svelte';
 
   let {
     value,
@@ -12,10 +12,16 @@
   }: { value?: string; onchange: (name: string) => void; size?: 'default' | 'sm' } = $props();
   let open = $state(false),
     query = $state('');
+  // Compared without spaces and punctuation, so "vs code" finds brand-vscode.
+  const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const apps = $derived.by(() => {
+    const q = squash(query);
+    return appIconNames().filter((n) => squash(n).includes(q));
+  });
   const matches = $derived.by(() => {
-    const q = query.trim().toLowerCase();
+    const q = squash(query);
     const all = iconNames();
-    return (q ? all.filter((n) => n.toLowerCase().includes(q)) : all).slice(0, 160);
+    return (q ? all.filter((n) => squash(n).includes(q)) : all).slice(0, 160);
   });
 </script>
 
@@ -47,7 +53,7 @@
     <div
       class="grid h-[min(50vh,420px)] auto-rows-[3rem] grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] content-start gap-1 overflow-y-auto p-1 [scrollbar-gutter:stable]"
     >
-      {#each matches as name (name)}
+      {#snippet tile(name: string)}
         <button
           type="button"
           aria-label={name}
@@ -65,8 +71,20 @@
             size={20}
           />
         </button>
+      {/snippet}
+      {#if apps.length}
+        <p class="col-span-full px-1 pt-1 text-xs font-semibold text-muted-foreground">Apps</p>
+        {#each apps as name (name)}{@render tile(name)}{/each}
+        {#if matches.length}
+          <p class="col-span-full px-1 pt-2 text-xs font-semibold text-muted-foreground">Icons</p>
+        {/if}
+      {/if}
+      {#each matches as name (name)}
+        {@render tile(name)}
       {:else}
-        <p class="col-span-full py-6 text-center text-sm text-muted-foreground">No icons</p>
+        {#if !apps.length}
+          <p class="col-span-full py-6 text-center text-sm text-muted-foreground">No icons</p>
+        {/if}
       {/each}
     </div>
   </Dialog.Content>

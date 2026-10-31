@@ -1,10 +1,19 @@
 <script lang="ts">
-  import { buttonIconSize } from '../face-layout';
+  import { settings } from '../../settings/state.svelte';
+  import { buttonIconSize, buttonLabelVisible } from '../face-layout';
   import type { ControlFaceProps } from '../model';
   import Icon from './Icon.svelte';
 
   let { appearance, compact, busy, pixelWidth, pixelHeight }: ControlFaceProps = $props();
-  const iconSize = $derived(buttonIconSize(pixelWidth, pixelHeight, compact));
+  const iconSize = $derived(
+    buttonIconSize(
+      pixelWidth,
+      pixelHeight,
+      compact,
+      settings.display.iconSize === 'large',
+      !compact && !!appearance.label && buttonLabelVisible(pixelWidth, pixelHeight),
+    ),
+  );
 </script>
 
 <span

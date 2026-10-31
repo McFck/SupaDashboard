@@ -60,6 +60,13 @@
     settings.display.background = { ...settings.display.background, radius };
   }
 
+  function setIconSize(size: string) {
+    if ((size === 'default' || size === 'large') && size !== settings.display.iconSize) {
+      commit('Icon size');
+      settings.display.iconSize = size;
+    }
+  }
+
   function setSizing(auto: boolean) {
     const sizing = auto ? 'auto' : 'manual';
     if (page.sizing !== sizing) {
@@ -158,6 +165,27 @@
           {settings.display.background.radius}px
         </span>
       </div>
+    </Row>
+  </Section>
+  <Section title="Actions">
+    <Row label="Icon size">
+      <ToggleGroup.Root
+        type="single"
+        variant="outline"
+        class="w-48"
+        aria-label="Icon size"
+        value={settings.display.iconSize}
+        onValueChange={setIconSize}
+      >
+        <ToggleGroup.Item
+          value="default"
+          class="flex-1">Default</ToggleGroup.Item
+        >
+        <ToggleGroup.Item
+          value="large"
+          class="flex-1">Large</ToggleGroup.Item
+        >
+      </ToggleGroup.Root>
     </Row>
   </Section>
   {#if hasGrid}

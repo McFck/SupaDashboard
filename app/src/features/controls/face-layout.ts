@@ -5,8 +5,23 @@ export function sliderOrientation(width: number, height: number): 'vertical' | '
 }
 
 /** Keep the button glyph proportional to the resolved footprint, including a live resize draft. */
-export function buttonIconSize(width: number, height: number, compact = false) {
-  return compact ? 20 : Math.min(38, Math.max(0, Math.min(width, height)) * 0.34);
+export function buttonIconSize(
+  width: number,
+  height: number,
+  compact = false,
+  large = false,
+  labelled = false,
+) {
+  if (compact) {
+    return 20;
+  }
+  const edge = Math.max(0, Math.min(width, height));
+  if (!large) {
+    return Math.min(38, edge * 0.34);
+  }
+  // The face pads 12px per side and puts an 8px gap and a 16px label line under the glyph.
+  const room = labelled ? height - 24 - 8 - 16 : edge;
+  return Math.max(0, Math.min(64, edge * 0.5, room));
 }
 
 /** Compare the actual pill footprints after card padding and channel gaps. */
