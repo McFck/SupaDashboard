@@ -3,6 +3,7 @@ mod backdrop;
 pub mod commands;
 mod events;
 mod geometry;
+mod monitor_guard;
 pub mod policy;
 mod touch_input;
 mod touch_stream;

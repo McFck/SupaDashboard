@@ -63,6 +63,11 @@ export const setDashboardBounds = (bounds: Geometry) =>
 export const setDashboardInteractionMode = (fullscreen: boolean) =>
   invoke<void>('dashboard_interaction_mode', { fullscreen });
 
+export const setDashboardMonitor = (monitor: string | null) =>
+  invoke<boolean>('dashboard_interaction_mode', { selection: { monitor } });
+
+export const dashboardMonitorBlocked = () => invoke<boolean>('dashboard_interaction_mode');
+
 export const setDashboardBackdrop = (wallpaper: boolean, radius: number) =>
   invoke<void>('dashboard_backdrop', { wallpaper, radius });
 

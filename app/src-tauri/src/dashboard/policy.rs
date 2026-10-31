@@ -3,8 +3,10 @@
 use super::backdrop::Backdrop;
 use super::events::Events;
 use super::geometry::{Geometry, ResizeHit, resize_hit};
+use super::monitor_guard::MonitorGuard;
 use std::cell::Cell;
 use std::mem::size_of;
+use std::rc::Rc;
 use tauri::{Manager, WebviewWindow};
 use windows::Win32::Foundation::{
     GetLastError, HWND, LPARAM, LRESULT, POINT, RECT, SetLastError, WIN32_ERROR, WPARAM,
@@ -23,11 +25,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowLongPtrW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTLEFT, HTRIGHT,
     HTTOP, HTTOPLEFT, HTTOPRIGHT, IsIconic, IsWindowVisible, MA_NOACTIVATE, PA_NOACTIVATE,
     SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT, SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow,
-    WM_CANCELMODE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST,
-    WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING,
-    WM_SYSCOMMAND, WM_WINDOWPOSCHANGED, WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP,
-    WS_MAXIMIZEBOX, WindowFromPoint,
+    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOWPOS,
+    WM_CANCELMODE, WM_DISPLAYCHANGE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_MOUSEACTIVATE,
+    WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_POINTERACTIVATE, WM_SHOWWINDOW,
+    WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
+    WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX, WindowFromPoint,
 };
 
 /// Identifies our subclass on the window ("SUPA").
@@ -38,6 +40,7 @@ const SYSCOMMAND_MASK: u32 = 0xfff0;
 /// Only ever borrowed shared: `DefSubclassProc` runs the modal size loop, which re-enters the subclass proc and
 /// runs Tao's queued closures (`set_interaction_mode`), so a `&mut` held across it would alias.
 struct PolicyState {
+    monitor: Rc<MonitorGuard>,
     events: Events,
     backdrop: Backdrop,
     fullscreen: Cell<bool>,
@@ -55,9 +58,11 @@ pub fn install(window: &WebviewWindow) -> Result<(), String> {
         .set_focusable(false)
         .map_err(|error| format!("could not disable dashboard focusability: {error}"))?;
     let hwnd = hwnd_of(window)?;
+    let monitor = Rc::new(MonitorGuard::default());
     let state = Box::into_raw(Box::new(PolicyState {
+        monitor: monitor.clone(),
         events: Events::new(window.app_handle().clone()),
-        backdrop: Backdrop::new(hwnd),
+        backdrop: Backdrop::new(hwnd, monitor),
         fullscreen: Cell::new(false),
         minimized: Cell::new(unsafe { IsIconic(hwnd).as_bool() }),
         resize_hit_test: Cell::new(false),
@@ -129,6 +134,18 @@ pub fn set_backdrop(window: &WebviewWindow, wallpaper: bool, radius: f64) -> Res
     with_policy(window, |_, policy| {
         policy.backdrop.configure(wallpaper, radius)
     })
+}
+
+pub fn select_monitor(window: &WebviewWindow, monitor: Option<String>) -> Result<(), String> {
+    with_policy(window, |_, policy| policy.monitor.select(monitor))
+}
+
+pub fn monitor_blocked(window: &WebviewWindow) -> Result<bool, String> {
+    with_policy(window, |_, policy| Ok(policy.monitor.blocked()))
+}
+
+pub fn restore_monitor(window: &WebviewWindow, bounds: Geometry) -> Result<(), String> {
+    with_policy(window, |_, policy| policy.monitor.restore(bounds))
 }
 
 /// The window never activates, so Windows does not treat it as fullscreen and keeps its monitor's taskbar on top
@@ -239,6 +256,18 @@ unsafe extern "system" fn dashboard_subclass(
     let policy = unsafe { &*(reference_data as *const PolicyState) };
 
     let answer = match message {
+        WM_WINDOWPOSCHANGING if lparam.0 != 0 => {
+            policy
+                .monitor
+                .changing(hwnd, unsafe { &mut *(lparam.0 as *mut WINDOWPOS) });
+            policy.backdrop.sync();
+            None
+        }
+        WM_DISPLAYCHANGE => {
+            policy.monitor.check(hwnd);
+            policy.backdrop.sync();
+            None
+        }
         WM_MOUSEACTIVATE => Some(LRESULT(MA_NOACTIVATE as isize)),
         WM_POINTERACTIVATE => Some(LRESULT(PA_NOACTIVATE as isize)),
         WM_SYSCOMMAND => on_syscommand(policy, wparam),

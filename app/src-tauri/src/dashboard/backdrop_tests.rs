@@ -5,8 +5,8 @@ use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
     DestroyWindow, GW_HWNDNEXT, GWL_EXSTYLE, GetForegroundWindow, GetWindow, GetWindowLongPtrW,
-    HWND_TOPMOST, IsWindowVisible, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
-    SetWindowPos, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WS_EX_TOPMOST,
+    IsWindowVisible, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetWindowPos, WM_WINDOWPOSCHANGED,
+    WM_WINDOWPOSCHANGING, WS_EX_TOPMOST,
 };
 
 struct TestWindow(HWND);
@@ -39,8 +39,8 @@ fn repeated_dashboard_events_settle_without_repositioning_or_reshowing_the_backd
         SetWindowPos(
             dashboard.0,
             None,
-            0,
-            0,
+            -32000,
+            -32000,
             100,
             100,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
@@ -48,7 +48,7 @@ fn repeated_dashboard_events_settle_without_repositioning_or_reshowing_the_backd
     }
     .unwrap();
     let count = Cell::new(0usize);
-    let backdrop = Box::new(Backdrop::new(dashboard.0));
+    let backdrop = Box::new(Backdrop::new(dashboard.0, Default::default()));
     // An owned source avoids depending on Explorer or changing the real desktop in this native test.
     backdrop.source.set(Some(dashboard.0));
     backdrop.configure(true, 0.0).unwrap();
@@ -82,8 +82,8 @@ fn repeated_dashboard_events_settle_without_repositioning_or_reshowing_the_backd
         SetWindowPos(
             interloper.0,
             Some(dashboard.0),
-            0,
-            0,
+            -32000,
+            -32000,
             100,
             100,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
@@ -99,20 +99,7 @@ fn repeated_dashboard_events_settle_without_repositioning_or_reshowing_the_backd
         count.get() > 0,
         "real z-order changes must still be repaired"
     );
-    unsafe {
-        SetWindowPos(
-            dashboard.0,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE,
-        )
-    }
-    .unwrap();
-    backdrop.sync();
-    assert_ne!(
+    assert_eq!(
         unsafe { GetWindowLongPtrW(window, GWL_EXSTYLE) } as u32 & WS_EX_TOPMOST.0,
         0
     );

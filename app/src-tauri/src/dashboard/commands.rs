@@ -12,6 +12,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 pub async fn dashboard_set_bounds(app: AppHandle, bounds: Geometry) -> Result<Geometry, String> {
     on_main_window(&app, "bounds", move |window| {
         let hwnd = hwnd_of(&window)?;
+        super::policy::restore_monitor(&window, bounds)?;
         unsafe { SendMessageW(hwnd, WM_CANCELMODE, Some(WPARAM(0)), Some(LPARAM(0))) };
         place_bounds(hwnd, bounds)
     })
@@ -29,14 +30,29 @@ pub async fn dashboard_touch_window_action(
     .await
 }
 
+#[derive(serde::Deserialize)]
+pub struct MonitorSelection {
+    monitor: Option<String>,
+}
+
 #[tauri::command]
-pub async fn dashboard_interaction_mode(app: AppHandle, fullscreen: bool) -> Result<(), String> {
+pub async fn dashboard_interaction_mode(
+    app: AppHandle,
+    fullscreen: Option<bool>,
+    selection: Option<MonitorSelection>,
+) -> Result<bool, String> {
     let window = app
         .get_webview_window("main")
         .ok_or("dashboard main window is unavailable")?;
     super::touch_surface::install(window).await?;
     on_main_window(&app, "interaction mode", move |window| {
-        set_interaction_mode(&window, fullscreen)
+        if let Some(selection) = selection {
+            super::policy::select_monitor(&window, selection.monitor)?;
+        }
+        if let Some(fullscreen) = fullscreen {
+            set_interaction_mode(&window, fullscreen)?;
+        }
+        super::policy::monitor_blocked(&window)
     })
     .await
 }

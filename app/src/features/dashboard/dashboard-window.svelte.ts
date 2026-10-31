@@ -158,7 +158,7 @@ export class DashboardWindow {
     this.ready = true;
     await tick();
     // A chosen monitor that is not connected keeps the window hidden until the display controller reopens it.
-    if (!this.disposed && isTauri() && !this.controller?.unavailable) {
+    if (!this.disposed && isTauri() && this.controller && !this.controller.unavailable) {
       await getCurrentWindow().show();
     }
     this.requestChanged();

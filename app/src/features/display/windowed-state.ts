@@ -25,6 +25,7 @@ const BY_MONITOR = 'dashboardByMonitor';
 type StartupPlacement = Awaited<ReturnType<WindowedBounds['startupPlacement']>>;
 
 export class WindowedBounds {
+  selected: string | null = null;
   /** The windowed rectangle to restore on fullscreen exit, and the monitor it belongs to. */
   normal: Geometry | null = null;
   monitor: string | null = null;
@@ -124,7 +125,8 @@ export class WindowedBounds {
     const byMonitor = monitor
       ? (entries[monitor] ?? (legacyName ? entries[legacyName] : undefined))
       : undefined;
-    return byMonitor ?? (await this.store.get<Geometry>('dashboard'));
+    // A global rectangle may have been saved after Windows moved a disconnected window to DISPLAY1.
+    return monitor ? byMonitor : await this.store.get<Geometry>('dashboard');
   }
 
   private async rememberedByMonitor() {
@@ -175,7 +177,16 @@ export class WindowedBounds {
 
   /** `dashboard` stays the last rectangle (the pre-per-monitor shape), so an older build still reads it. */
   async save(bounds: Geometry, monitor: string | null) {
-    this.keep(bounds, monitor);
+    if (this.selected) {
+      const { screens } = await connectedMonitors();
+      const target = screens.find(
+        (screen) => screen.name === this.selected || screen.legacyName === this.selected,
+      );
+      if (!target || monitorWithLargestIntersection(bounds, screens)?.name !== target.name) {
+        return;
+      }
+      monitor = target.name;
+    }
     if (monitor) {
       await this.store.set(BY_MONITOR, {
         ...(await this.rememberedByMonitor()),
@@ -183,6 +194,7 @@ export class WindowedBounds {
       });
     }
     await this.store.set('dashboard', bounds);
+    this.keep(bounds, monitor);
   }
 
   /** Runs `save` once user moves and resizes have been quiet for a moment. */
