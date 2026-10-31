@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunSnapshot } from '../simulation/run';
-import type { ResolvedCue, TrainMotionApi } from './sound-types';
+import type { ResolvedCue } from './sound-types';
 import { createSubwayAudio } from './audio';
+import { playCueSource } from './cue-source';
+import { TrainSound } from './motion/train-sound';
+
+vi.mock('./motion/train-sound', () => ({ TrainSound: { load: vi.fn() } }));
+vi.mock('./cue-source', () => ({ playCueSource: vi.fn() }));
 
 function audioParam() {
   return {
@@ -70,42 +75,45 @@ function makeAudioHarness() {
       state = 'closed';
     }),
   } as unknown as AudioContext & { currentTime: number; gains: typeof gains };
-  const motion = { update: vi.fn(), volume: vi.fn(), reset: vi.fn(), dispose: vi.fn() };
+  const motion = {
+    update: vi.fn(),
+    duck: vi.fn(),
+    resync: vi.fn(),
+    stats: vi.fn(),
+    dispose: vi.fn(),
+  };
+  vi.mocked(TrainSound.load).mockImplementation(async () => motion as unknown as TrainSound);
   const played: {
     destination: AudioNode;
     cue: ResolvedCue;
     when: number;
     source: ReturnType<typeof source>;
   }[] = [];
-  const api = {
-    MotionAudio: { load: vi.fn(async () => motion) },
-    playCue: vi.fn(
-      (
-        _context: AudioContext,
-        destination: AudioNode,
-        _buffer: AudioBuffer,
-        cue: ResolvedCue,
-        when: number,
-      ) => {
-        const node = source();
-        sources.push(node);
-        played.push({ destination, cue, when, source: node });
-        return node as unknown as AudioBufferSourceNode;
-      },
-    ),
-  } as unknown as TrainMotionApi;
-  const loadEngine = vi.fn(async () => ({ api, profiles: [{ id: 'tokyo' }, { id: 'osaka' }] }));
+  vi.mocked(playCueSource).mockImplementation((_context, destination, _buffer, cue, when) => {
+    const node = source();
+    sources.push(node);
+    played.push({ destination, cue, when, source: node });
+    return node as unknown as AudioBufferSourceNode;
+  });
+  const trains = [
+    { id: 'e235', lines: ['yamanote'] },
+    { id: 'hankyu-1300', lines: ['sakaisuji'] },
+  ];
+  const loadMotion = vi.fn(async () => ({
+    manifest: { version: 1, clips: {}, trains },
+    urlFor: (clip: string) => clip,
+  })) as unknown as NonNullable<Parameters<typeof createSubwayAudio>[0]>['loadMotion'];
   const fetch = vi.fn(
     async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }) as Response,
   );
   const contextFactory = vi.fn(() => context);
-  const audio = createSubwayAudio({ contextFactory, loadEngine, fetch });
+  const audio = createSubwayAudio({ contextFactory, loadMotion, fetch });
   return {
     audio,
     context,
     contextFactory,
     motion,
-    loadEngine,
+    loadMotion,
     fetch,
     played,
     gains,
@@ -160,7 +168,7 @@ async function ready() {
 describe('Subway immersion audio', () => {
   beforeEach(() => vi.restoreAllMocks());
 
-  it('creates its context only after immersion and updates the Tokyo motion profile', async () => {
+  it('creates its context only after immersion and drives the line train through the cue bus', async () => {
     const harness = makeAudioHarness();
     harness.audio.setVisible(true);
     expect(harness.context.createGain).not.toHaveBeenCalled();
@@ -168,9 +176,13 @@ describe('Subway immersion audio', () => {
     for (let i = 0; i < 8; i++) await Promise.resolve();
     harness.audio.transition(snapshot(), []);
     expect(harness.context.resume).toHaveBeenCalledOnce();
-    expect(harness.loadEngine).toHaveBeenCalledOnce();
-    expect(harness.motion.update).toHaveBeenCalledWith({ speed: 24, power: 0.5, brake: 0 });
-    expect(harness.motion.volume).toHaveBeenCalledWith(0.65);
+    expect(harness.loadMotion).toHaveBeenCalledOnce();
+    expect(vi.mocked(TrainSound.load).mock.calls[0].slice(0, 3)).toEqual([
+      harness.context,
+      harness.gains[0],
+      { id: 'e235', lines: ['yamanote'] },
+    ]);
+    expect(harness.motion.update).toHaveBeenCalledWith(snapshot());
   });
 
   it('uses a dedicated voice bus and late decode skips elapsed cue audio at natural rate', async () => {
@@ -185,6 +197,7 @@ describe('Subway immersion audio', () => {
     expect(harness.played[0].cue.duration).toBeCloseTo(0.15);
     expect(harness.played[0].cue.role).toBe('voice');
     expect(harness.played[0].when).toBe(5.05);
+    expect(harness.motion.duck).toHaveBeenCalledWith(5.05, harness.played[0].cue.duration);
     await harness.audio.playCue(effect);
     expect(harness.fetch).toHaveBeenCalledOnce();
     expect(harness.audio.getStats().cacheHits).toBeGreaterThan(0);
@@ -194,9 +207,9 @@ describe('Subway immersion audio', () => {
     const harness = await ready();
     harness.audio.transition(snapshot(), []);
     harness.audio.setMix(0.4, true);
-    expect(harness.motion.volume).toHaveBeenLastCalledWith(0);
+    expect(harness.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 5, 0.015);
     harness.audio.transition(snapshot({ speed: 30, power: 0.25 }), []);
-    expect(harness.motion.update).toHaveBeenLastCalledWith({ speed: 30, power: 0.25, brake: 0 });
+    expect(harness.motion.update).toHaveBeenLastCalledWith(snapshot({ speed: 30, power: 0.25 }));
     const effect = { type: 'play-cue', id: 'arrival:ja', cue, generation: 0 } as const;
     await harness.audio.playCue(effect);
     harness.audio.setMix(1, false);

@@ -5,13 +5,11 @@ import type {
   LoadedSubwayLine,
   RuntimeCue,
   RuntimeCueManifest,
-  TrainMotionApi,
 } from './sound-types';
+import { parseMotionManifest, type MotionManifest } from './motion/manifest';
 
 type SubwayGlobals = typeof globalThis & {
   DoorSequence?: DoorSequenceApi;
-  MOTION_PACK?: { profiles: readonly unknown[] };
-  TrainMotion?: TrainMotionApi;
 };
 
 const bundlePromises = new Map<string, Promise<LoadedSubwayAssets>>();
@@ -156,16 +154,22 @@ export async function loadSubwayAssets(base?: string): Promise<LoadedSubwayAsset
   return pending;
 }
 
-export async function loadSubwayMotionEngine(
-  base?: string,
-): Promise<{ api: TrainMotionApi; profiles: readonly unknown[] }> {
-  const root = normalizedBase(base);
-  const dataUrl = resolveAssetUrl('motion/data.js', root.href);
-  const engineUrl = resolveAssetUrl('motion/engine.js', root.href);
-  await loadScript(dataUrl, () => !!globals().MOTION_PACK);
-  await loadScript(engineUrl, () => !!globals().TrainMotion);
-  const motionPack = globals().MOTION_PACK;
-  const api = globals().TrainMotion;
-  if (!motionPack?.profiles || !api) throw new Error('Subway motion engine is unavailable');
-  return { api, profiles: motionPack.profiles };
+export interface LoadedSubwayMotion {
+  manifest: MotionManifest;
+  urlFor(clip: string): string;
+}
+
+export async function loadSubwayMotion(base?: string): Promise<LoadedSubwayMotion> {
+  const root = normalizedBase(base).href;
+  const manifest = parseMotionManifest(
+    await fetchJson<unknown>(resolveAssetUrl('motion/motion.json', root)),
+  );
+  return {
+    manifest,
+    urlFor: (clip) => {
+      const entry = manifest.clips[clip];
+      if (!entry) throw new Error(`Unknown Subway motion clip: ${clip}`);
+      return resolveAssetUrl(entry.file, root);
+    },
+  };
 }
