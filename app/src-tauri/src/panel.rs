@@ -191,6 +191,23 @@ fn open_panel(app: AppHandle) -> Result<(), String> {
     create_panel(app)
 }
 
+/// How long a closed panel stays loaded (hidden) before its renderer is released.
+const IDLE_DESTROY: std::time::Duration = std::time::Duration::from_secs(180);
+
+fn destroy_when_idle(app: AppHandle, epoch: u64) {
+    std::thread::spawn(move || {
+        std::thread::sleep(IDLE_DESTROY);
+        if !app.state::<PanelState>().lock().expire_idle(epoch) {
+            return;
+        }
+        if let Some(window) = app.get_webview_window("panel") {
+            if let Err(error) = window.destroy() {
+                log::warn!("could not destroy idle panel: {error}");
+            }
+        }
+    });
+}
+
 /// Opens in the background; the tray cannot await.
 pub fn spawn_open(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
@@ -214,15 +231,21 @@ pub fn toggle(app: &AppHandle) {
     spawn_open(app.clone());
 }
 
-/// Closing releases the webview; a later open creates a fresh, hidden-until-ready panel.
+/// Closing hides the loaded panel so the next open is instant; it is destroyed after `IDLE_DESTROY` hidden.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
     match event {
-        WindowEvent::CloseRequested { .. } => {
-            window
-                .app_handle()
-                .state::<PanelState>()
-                .lock()
-                .close_requested();
+        WindowEvent::CloseRequested { api, .. } => {
+            let app = window.app_handle();
+            let hidden = app.state::<PanelState>().lock().hide_requested();
+            let Some(epoch) = hidden else {
+                app.state::<PanelState>().lock().close_requested();
+                return;
+            };
+            api.prevent_close();
+            if let Err(error) = window.hide() {
+                log::warn!("could not hide panel: {error}");
+            }
+            destroy_when_idle(app.clone(), epoch);
         }
         WindowEvent::Destroyed => {
             let app = window.app_handle();

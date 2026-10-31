@@ -4,12 +4,21 @@ import type { SceneMode, AppletSceneFactory, AppletSceneRenderer } from './scene
 import { SceneScheduler } from './scene';
 import { ScenePointer } from './scene-pointer';
 
+// An opaque page that stays off screen is shrunk to a half-size snapshot and drops its renderer caches; the
+// live display returns shortly after the page is shown again, replacing the snapshot in a single frame.
+const PARK_AFTER_MS = 3000;
+const RESTORE_AFTER_MS = 300;
+
 export class CanvasSceneController<Data> {
   private renderer: AppletSceneRenderer<Data> | undefined;
   private scheduler: SceneScheduler | undefined;
   private rasterWidth = 0;
   private rasterHeight = 0;
-  private painted = false;
+  private painted = $state(false);
+  private destroyed = false;
+  private parked = $state(false);
+  private parkStep: 'park' | 'restore' | undefined;
+  private parkTimer: ReturnType<typeof setTimeout> | undefined;
   private dprQuery: MediaQueryList | undefined;
   private resizeFrame: number | null = null;
   private cleanup = () => {};
@@ -57,6 +66,7 @@ export class CanvasSceneController<Data> {
       lastAppletId = appletId;
       lastPageId = pageId;
     });
+    $effect(() => this.schedulePark(this.wantedStep()));
     $effect(() => {
       const { revision, view } = this.source;
       void revision;
@@ -84,6 +94,9 @@ export class CanvasSceneController<Data> {
 
   private canPaint() {
     const { opaque, width, height } = this.source;
+    if (this.parked) {
+      return false;
+    }
     // Prepaint opaque pages once before their first transition, then keep hidden pages idle.
     return (
       this.eligible() ||
@@ -134,6 +147,56 @@ export class CanvasSceneController<Data> {
     this.dprQuery?.removeEventListener('change', this.resize);
     this.dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
     this.dprQuery.addEventListener('change', this.resize, { once: true });
+  }
+
+  private wantedStep(): 'park' | 'restore' | undefined {
+    if (!this.source.opaque || !this.painted || this.mode !== 'live') {
+      return undefined;
+    }
+    const showing = this.eligible();
+    if (this.parked) {
+      return showing ? 'restore' : undefined;
+    }
+    return !showing && this.host?.windowLive ? 'park' : undefined;
+  }
+
+  // The effect re-runs often; only a change of the wanted step restarts the timer.
+  private schedulePark(step: 'park' | 'restore' | undefined) {
+    if (step === this.parkStep) {
+      return;
+    }
+    clearTimeout(this.parkTimer);
+    this.parkStep = step;
+    if (step === 'park') {
+      this.parkTimer = setTimeout(() => void this.park(), PARK_AFTER_MS);
+    } else if (step === 'restore') {
+      this.parkTimer = setTimeout(() => (this.parked = false), RESTORE_AFTER_MS);
+    }
+  }
+
+  private async park() {
+    const { canvas } = this.source;
+    const width = Math.ceil(canvas.width / 2),
+      height = Math.ceil(canvas.height / 2);
+    if (width < 1 || height < 1) {
+      return;
+    }
+    const bitmap = await createImageBitmap(canvas, {
+      resizeWidth: width,
+      resizeHeight: height,
+      resizeQuality: 'high',
+    });
+    // The page may have come back, or been removed, while the bitmap was made.
+    if (this.destroyed || this.eligible()) {
+      bitmap.close();
+      return;
+    }
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    this.renderer?.dispose?.();
+    this.parked = true;
   }
 
   private draw(ctx: CanvasRenderingContext2D, time: number) {
@@ -190,6 +253,8 @@ export class CanvasSceneController<Data> {
   }
 
   destroy() {
+    this.destroyed = true;
+    clearTimeout(this.parkTimer);
     this.pointer.cancel();
     this.cleanup();
     this.cleanup = () => {};

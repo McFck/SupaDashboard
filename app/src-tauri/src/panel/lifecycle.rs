@@ -14,6 +14,7 @@ pub(super) struct PanelLifecycle {
     phase: Phase,
     pub(super) generation: u64,
     pending_reveal: Option<bool>,
+    idle_epoch: u64,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -45,6 +46,7 @@ impl PanelLifecycle {
 
     pub(super) fn request_open(&mut self) -> (u64, bool) {
         self.pending_reveal = Some(true);
+        self.idle_epoch += 1;
         (self.generation, self.phase == Phase::Ready)
     }
 
@@ -88,6 +90,25 @@ impl PanelLifecycle {
         true
     }
 
+    /// A close of a loaded panel only hides it. Returns the epoch that lets a later idle timeout destroy it.
+    pub(super) fn hide_requested(&mut self) -> Option<u64> {
+        if !matches!(self.phase, Phase::Ready | Phase::Loading) {
+            return None;
+        }
+        self.pending_reveal = None;
+        self.idle_epoch += 1;
+        Some(self.idle_epoch)
+    }
+
+    /// True when the panel stayed hidden since `epoch` and must be destroyed now.
+    pub(super) fn expire_idle(&mut self, epoch: u64) -> bool {
+        if epoch != self.idle_epoch || !matches!(self.phase, Phase::Ready | Phase::Loading) {
+            return false;
+        }
+        self.close_requested();
+        true
+    }
+
     pub(super) fn close_requested(&mut self) {
         self.phase = Phase::Closing;
         self.generation = self.generation.saturating_add(1);
@@ -104,6 +125,25 @@ impl PanelLifecycle {
 #[cfg(test)]
 mod tests {
     use super::{PanelLifecycle, ReadyAction};
+
+    #[test]
+    fn a_hidden_panel_is_destroyed_only_if_nobody_reopened_it() {
+        let mut state = PanelLifecycle::default();
+        let generation = state.navigation_started(false);
+        assert_eq!(state.mark_ready(generation), ReadyAction::Hidden);
+        let stale = state.hide_requested().unwrap();
+        state.request_open();
+        assert!(!state.expire_idle(stale));
+        let current = state.hide_requested().unwrap();
+        assert!(state.expire_idle(current));
+        assert_eq!(state.mark_ready(generation), ReadyAction::Stale);
+    }
+
+    #[test]
+    fn closing_a_panel_that_is_not_loaded_is_not_deferred() {
+        let mut state = PanelLifecycle::default();
+        assert!(state.hide_requested().is_none());
+    }
 
     #[test]
     fn readiness_without_an_open_request_stays_hidden() {
