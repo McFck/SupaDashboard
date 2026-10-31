@@ -30,22 +30,38 @@ function extendEdges(ctx: CanvasRenderingContext2D, width: number, height: numbe
   if (x < 0.5 && y < 0.5) {
     return;
   }
-  // Sources are backing pixels; one pixel inside the edge skips the antialiased boundary.
+  // Work in whole backing pixels: the LCD's edge pixels are antialiased where it sits on a fraction, and a
+  // stretch that starts mid-pixel would blend over them into a visible seam. Sources sit one pixel inside the
+  // fully covered LCD, and smoothing is off so the copy is exact.
   const { a: sx, d: sy } = ctx.getTransform();
   const canvas = ctx.canvas;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = false;
   if (x >= 0.5) {
-    const left = Math.ceil(x * sx) + 1,
-      right = Math.floor((x + w) * sx) - 2;
-    ctx.drawImage(canvas, left, 0, 1, canvas.height, 0, 0, x, height);
-    ctx.drawImage(canvas, right, 0, 1, canvas.height, x + w, 0, x, height);
+    const left = Math.ceil(x * sx),
+      right = Math.floor((x + w) * sx);
+    ctx.drawImage(canvas, left + 1, 0, 1, canvas.height, 0, 0, left, canvas.height);
+    ctx.drawImage(
+      canvas,
+      right - 2,
+      0,
+      1,
+      canvas.height,
+      right,
+      0,
+      canvas.width - right,
+      canvas.height,
+    );
   } else {
     // Text runs close to the LCD's top and bottom edges, so a row would smear it; its corner pixel is the
     // background there.
-    const top = Math.ceil(y * sy) + 1,
-      bottom = Math.floor((y + h) * sy) - 2;
-    ctx.drawImage(canvas, 1, top, 1, 1, 0, 0, width, y);
-    ctx.drawImage(canvas, 1, bottom, 1, 1, 0, y + h, width, y);
+    const top = Math.ceil(y * sy),
+      bottom = Math.floor((y + h) * sy);
+    ctx.drawImage(canvas, 1, top + 1, 1, 1, 0, 0, canvas.width, top);
+    ctx.drawImage(canvas, 1, bottom - 2, 1, 1, 0, bottom, canvas.width, canvas.height - bottom);
   }
+  ctx.restore();
 }
 
 export function sceneLanguages(source: SubwaySceneState): string[] {
@@ -64,6 +80,7 @@ export function prepareFrame(
   screen: SubwayScreen,
 ): PreparedFrame {
   const { line, snapshot, visibleElapsed } = data;
+  const fill = data.config.fillScreen !== false;
   const wall =
     line.id === 'yamanote' && data.wallMs !== undefined ? e235WallClock(data.wallMs) : undefined;
   const config: ScreenConfig = {
@@ -90,7 +107,8 @@ export function prepareFrame(
       line,
       pair,
       panel,
-      revision: `${panel}|${shown.invalidationKey}`,
+      fill,
+      revision: `${panel}|${shown.invalidationKey}|${fill}`,
       wakeInMs: wake(shown.nextDeadline),
     };
   }
@@ -99,11 +117,13 @@ export function prepareFrame(
     kind: 'screen',
     line,
     schedule,
+    fill,
     // Late images repaint through the revision; nothing polls for them.
-    revision:
+    revision: `${
       line.id === 'yamanote'
         ? `${schedule.invalidationKey}|${e235Images.revision}`
-        : schedule.invalidationKey,
+        : schedule.invalidationKey
+    }|${fill}`,
     wakeInMs: wake(schedule.nextDeadline),
   };
 }
@@ -141,7 +161,9 @@ export const createSubwayScene: AppletSceneFactory<
       } else {
         sakaisuji().draw(ctx, width, height, data.schedule);
       }
-      extendEdges(ctx, width, height, displayAspect(data.line.id));
+      if (data.fill) {
+        extendEdges(ctx, width, height, displayAspect(data.line.id));
+      }
       return animating;
     },
     dispose() {

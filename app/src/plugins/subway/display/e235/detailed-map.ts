@@ -37,6 +37,10 @@ export function drawE235Detailed(ctx: CanvasRenderingContext2D, model: ScreenSch
   const mx = (x: number) => (mirror ? E235_WIDTH - x : x);
   ctx.save();
   ctx.translate(0, HEADER);
+  // The edge stroke's square end would otherwise poke above the map into the header.
+  ctx.beginPath();
+  ctx.rect(0, 0, E235_WIDTH, E235_HEIGHT - HEADER);
+  ctx.clip();
   if (mirror) {
     ctx.translate(E235_WIDTH, 0);
     ctx.scale(-1, 1);
