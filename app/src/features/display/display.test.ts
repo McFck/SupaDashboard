@@ -22,7 +22,7 @@ vi.mock('../../platform/window', () => ({
     return (native.bounds = { ...bounds, width: bounds.width + native.adjustment });
   },
   setDashboardInteractionMode: async () => {},
-  setDashboardMonitor: async () => false,
+  setDashboardMonitor: async () => native.blocked,
   dashboardMonitorBlocked: async () => native.blocked,
 }));
 
@@ -369,11 +369,13 @@ it('ignores a polluted global placement when the chosen monitor has no saved pla
 });
 
 it('moves to another monitor only after an explicit selection', async () => {
-  const { deck } = windowFixture();
+  const { deck, show } = windowFixture();
   native.screens.push(secondScreen());
   await controller.start(onSecond, deck);
+  native.blocked = true;
   await controller.request({ ...onSecond, monitor: 'screen' });
   expect(native.bounds.x).toBeLessThan(1920);
+  expect(show).toHaveBeenCalledOnce();
 });
 
 it('does not hide a newly selected connected display when an old monitor check finishes', async () => {

@@ -187,8 +187,15 @@ export class DisplayController {
   private async apply(request: DisplayRequest) {
     const last = this.applied;
     this.windowed.selected = request.monitor;
-    await setDashboardMonitor(request.monitor);
-    if (last && request.monitor === last.monitor && request.fullscreen === last.fullscreen) {
+    if (await setDashboardMonitor(request.monitor)) {
+      await this.hide();
+    }
+    if (
+      last &&
+      !this.unavailable &&
+      request.monitor === last.monitor &&
+      request.fullscreen === last.fullscreen
+    ) {
       await this.window.setTopmost(this.fullscreen.active || request.alwaysOnTop);
       return true;
     }

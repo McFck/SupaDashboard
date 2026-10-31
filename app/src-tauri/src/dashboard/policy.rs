@@ -137,7 +137,12 @@ pub fn set_backdrop(window: &WebviewWindow, wallpaper: bool, radius: f64) -> Res
 }
 
 pub fn select_monitor(window: &WebviewWindow, monitor: Option<String>) -> Result<(), String> {
-    with_policy(window, |_, policy| policy.monitor.select(monitor))
+    with_policy(window, |hwnd, policy| {
+        policy.monitor.select(monitor)?;
+        policy.monitor.check(hwnd);
+        policy.backdrop.sync();
+        Ok(())
+    })
 }
 
 pub fn monitor_blocked(window: &WebviewWindow) -> Result<bool, String> {
