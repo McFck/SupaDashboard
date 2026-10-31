@@ -52,6 +52,7 @@ export class PlatformAir {
   }
 
   dispose() {
+    this.open = false;
     this.bed?.stop(0);
     this.bed = undefined;
   }

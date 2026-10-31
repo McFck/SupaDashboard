@@ -23,6 +23,8 @@ const doorRoles: Readonly<Record<string, CueRole>> = {
   bell: 'bell',
   departure_melody: 'melody',
 };
+/** The closing door mechanics sit under the opening ones, which share their file. */
+const doorTrimDb: Readonly<Record<string, number>> = { close: -4 };
 
 export function resolveCue(
   record: PackCueRecord,
@@ -231,7 +233,8 @@ function resolveDoorPlanLine(
       continue;
     const role = doorRoles[part];
     if (!role) throw new Error(`Unknown Subway door cue role: ${part}`);
-    cues[part] = resolveCue(value as PackCueRecord, role, catalogue, base, stationCode);
+    const cue = resolveCue(value as PackCueRecord, role, catalogue, base, stationCode);
+    cues[part] = doorTrimDb[part] === undefined ? cue : { ...cue, trimDb: doorTrimDb[part] };
   }
   return { sequence: filteredSequence, cues };
 }

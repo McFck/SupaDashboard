@@ -32,8 +32,9 @@ describe('Subway settings boundary', () => {
     expect(normalizeSubwayConfig({ carNumber: '3' }, lines).carNumber).toBe(3);
     expect(normalizeSubwayConfig({ carNumber: '11' }, lines).carNumber).toBe(11);
     for (const carNumber of [0, -1, 12, 2.5, 'invalid', NaN, Infinity])
-      expect(normalizeSubwayConfig({ carNumber }, lines).carNumber).toBe(1);
-    expect(normalizeSubwayConfig({ line: 'hibiya', carNumber: 8 }, lines).carNumber).toBe(1);
+      expect(normalizeSubwayConfig({ carNumber }, lines).carNumber).toBeNull();
+    expect(normalizeSubwayConfig({ line: 'hibiya', carNumber: 8 }, lines).carNumber).toBeNull();
+    expect(normalizeSubwayConfig({}, lines).carNumber).toBeNull();
   });
   it('loads the saved Yamanote inner-loop route unchanged from the catalogue', () => {
     expect(normalizeSubwayConfig({ line: 'yamanote', direction: 'inner' }, lines)).toMatchObject({

@@ -10,7 +10,7 @@ import { e235Images } from '../display/e235/images';
 import { e235WallClock } from '../display/e235/schedule';
 import { displayLanguages, normalizeCarNumber } from '../simulation/config';
 import { scheduleScreen, type ScreenConfig } from './screens';
-import type { SubwaySceneState } from '../simulation/runtime';
+import type { SubwaySceneState } from '../simulation/scene-state';
 import type { PreparedFrame, SubwayScreen } from './contracts';
 import { displayAspect } from './composition';
 

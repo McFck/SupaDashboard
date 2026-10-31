@@ -51,17 +51,16 @@ export function restingFrames(order: readonly string[], pageId: string, width: n
   return frames;
 }
 
-/** The source page following the pointer, with the neighbour on the side it moves towards. */
+/**
+ * The source page following the pointer, with the neighbour on the side it moves towards. The other neighbour
+ * stays parked: dropping it would unmount the page, and it would mount again blank when swiped in.
+ */
 export function swipeFrames(order: readonly string[], index: number, width: number, dx: number) {
   const { offset, side, neighborIndex } = pageSwipe(dx, width, index, order.length);
-  const frames: PagerFrame[] = [{ id: order[index], offset, active: true, mediaVisible: true }];
-  if (side) {
-    frames.push({
-      id: order[neighborIndex],
-      offset: side * width + offset,
-      active: false,
-      mediaVisible: true,
-    });
-  }
+  const frames = restingFrames(order, order[index], width).map((frame) => ({
+    ...frame,
+    offset: frame.offset + offset,
+    mediaVisible: frame.mediaVisible || (side !== 0 && frame.id === order[neighborIndex]),
+  }));
   return { frames, side };
 }

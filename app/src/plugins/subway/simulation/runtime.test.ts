@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { get, writable } from 'svelte/store';
 import type { AppletRuntimeContext } from '../../../features/applets/contracts';
 import type { RawLineBundle } from './lines';
-import { createSubwayRuntime, subwaySceneState, type SubwayRuntimeClock } from './runtime';
+import { createSubwayRuntime, type SubwayRuntimeClock } from './runtime';
+import { subwaySceneState } from './scene-state';
 import type { DoorSequenceApi, LoadedSubwayAssets, RuntimeCueManifest } from '../audio/sound-types';
 import type { SubwayAudioController } from '../audio/audio';
 
@@ -346,7 +347,7 @@ describe('Subway owner runtime', () => {
     });
   });
 
-  it('keeps a completed non-loop terminal stopped across hide/show and starts after an explicit new route', async () => {
+  it('turns back at a non-loop terminal and keeps running across hide/show and a new route', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
     fixture.config.update((config) => ({
@@ -365,16 +366,16 @@ describe('Subway owner runtime', () => {
     });
     disposers.push(() => handle.dispose());
     await flush();
-    clock.advanceUntil(() => handle.getSnapshot()?.station === 'H01' && clock.pending === 0);
+    clock.advanceUntil(() => handle.getSnapshot()?.direction === 'to-kita-senju');
     await flush();
     expect(handle.getSnapshot()).toMatchObject({
       line: 'hibiya',
       station: 'H01',
-      next: '',
-      state: 'stopped',
+      next: 'H02',
+      direction: 'to-kita-senju',
       paused: false,
     });
-    expect(clock.pending).toBe(0);
+    expect(clock.pending).toBe(1);
 
     surface.setEligible(false);
     surface.setEligible(true);
@@ -382,11 +383,10 @@ describe('Subway owner runtime', () => {
     expect(handle.getSnapshot()).toMatchObject({
       line: 'hibiya',
       station: 'H01',
-      next: '',
-      state: 'stopped',
+      next: 'H02',
       paused: false,
     });
-    expect(clock.pending).toBe(0);
+    expect(clock.pending).toBe(1);
 
     expect(
       handle.requestLine({ line: 'sakaisuji', direction: 'southbound', startStation: 'K11' }),

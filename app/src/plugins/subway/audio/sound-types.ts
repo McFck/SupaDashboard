@@ -35,6 +35,8 @@ export interface ResolvedCue extends RuntimeCue {
   gain: number;
   role?: CueRole;
   url: string;
+  /** Effects play at one shared level; this offsets one door part from it, in dB. */
+  trimDb?: number;
 }
 
 export interface TimedCue {
