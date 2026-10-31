@@ -185,10 +185,6 @@ fn open_panel(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("panel") {
         if ready {
             reveal_panel(window, &state, generation)?;
-        } else {
-            // A page that never sent panel_ready (for example after a dev reload) would leave the open request
-            // pending forever; reloading makes it handshake again and reveal.
-            let _ = window.eval("location.reload()");
         }
         return Ok(());
     }
@@ -204,50 +200,37 @@ pub fn spawn_open(app: AppHandle) {
     });
 }
 
-/// Builds the hidden panel at startup so the first tray click reveals a warm page.
-pub fn spawn_preload(app: AppHandle) {
-    tauri::async_runtime::spawn(async move {
-        if let Err(error) = create_panel(app) {
-            log::error!("control panel preload failed: {error}");
-        }
-    });
-}
-
-/// Hides like the close button: a pending reveal is cancelled.
-fn hide(window: &WebviewWindow) {
-    window
-        .app_handle()
-        .state::<PanelState>()
-        .lock()
-        .close_requested();
-    let _ = window.hide();
-}
-
-/// The tray's left click: hides a visible panel, otherwise opens it.
+/// The tray's left click: closes a visible panel, otherwise opens it.
 pub fn toggle(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("panel")
         && window.is_visible().unwrap_or(false)
         && !window.is_minimized().unwrap_or(false)
     {
-        hide(&window);
+        if let Err(error) = window.close() {
+            log::error!("control panel close failed: {error}");
+        }
         return;
     }
     spawn_open(app.clone());
 }
 
-/// Closing hides the panel; destroying it resets its lifecycle.
+/// Closing releases the webview; a later open creates a fresh, hidden-until-ready panel.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
     match event {
-        WindowEvent::CloseRequested { api, .. } => {
-            api.prevent_close();
+        WindowEvent::CloseRequested { .. } => {
             window
                 .app_handle()
                 .state::<PanelState>()
                 .lock()
                 .close_requested();
-            let _ = window.hide();
         }
-        WindowEvent::Destroyed => window.app_handle().state::<PanelState>().lock().destroyed(),
+        WindowEvent::Destroyed => {
+            let app = window.app_handle();
+            let reopen = app.state::<PanelState>().lock().destroyed();
+            if reopen {
+                spawn_open(app.clone());
+            }
+        }
         _ => {}
     }
 }

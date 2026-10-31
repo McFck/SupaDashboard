@@ -37,7 +37,6 @@ pub fn run() {
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
-            panel::spawn_preload(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {

@@ -84,6 +84,11 @@ function handleUndoShortcut(event: KeyboardEvent) {
 export async function startApp() {
   const view = currentView();
   const native = isTauri();
+  // The dashboard never loads panel editors. Await the selected view before reporting native readiness.
+  const content =
+    view === 'panel'
+      ? import('../panel/ControlPanel.svelte')
+      : import('../features/dashboard/Dashboard.svelte');
   document.documentElement.classList.toggle('transparent', view === 'dashboard');
   document.addEventListener('contextmenu', (event) => event.preventDefault());
   window.addEventListener('pagehide', dispose, { once: true });
@@ -116,9 +121,13 @@ export async function startApp() {
     document.addEventListener('keydown', handleUndoShortcut);
   }
   followRemovals();
+  const { default: component } = await content;
+  if (disposed) {
+    return;
+  }
   mount(Root, {
     target: document.getElementById('app')!,
-    props: { view },
+    props: { content: component },
   });
 
   await tick();

@@ -20,6 +20,26 @@ function pair() {
 }
 
 describe('runtime sync protocol', () => {
+  it('reconnects a recreated panel to the live owner after missing snapshots', async () => {
+    const bus = pair();
+    let page = 'page-one';
+    const owner = bus.endpoint('owner', {
+      owner: true,
+      onRequest: async () => ({ activePage: page }),
+    });
+    const panel = bus.endpoint('panel');
+    await expect(panel.request({ type: 'snapshot' })).resolves.toEqual({ activePage: page });
+    const revision = panel.currentRevision;
+    panel.close();
+    page = 'page-two';
+    owner.publish({ activePage: page });
+    const reopened = bus.endpoint('panel');
+    await expect(reopened.request({ type: 'snapshot' })).resolves.toEqual({ activePage: page });
+    expect(reopened.currentRevision).toBeGreaterThan(revision);
+    reopened.close();
+    owner.close();
+  });
+
   it('sends one request to the owner and returns a reconnect snapshot', async () => {
     const bus = pair(),
       handler = vi.fn(async (request) => ({
