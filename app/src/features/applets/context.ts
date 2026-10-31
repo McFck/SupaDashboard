@@ -38,6 +38,7 @@ export type AppletHostContext = {
     target?: LayoutTarget,
   ): void;
   setView(viewId: string): Promise<boolean>;
+  setConfig(values: Record<string, unknown>): boolean;
   routeSceneInput(
     input: SceneInput,
     rect: SceneRect,

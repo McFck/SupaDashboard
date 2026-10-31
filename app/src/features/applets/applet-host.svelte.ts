@@ -76,7 +76,7 @@ export class AppletHostController implements AppletHostContext {
 
   constructor(
     private readonly source: HostOptions,
-    private readonly commands: Pick<RuntimeCommands, 'setAppletView'>,
+    private readonly commands: Pick<RuntimeCommands, 'setAppletView' | 'setAppletConfig'>,
     private readonly preview: (view: string) => void,
   ) {
     $effect(() => {
@@ -161,6 +161,11 @@ export class AppletHostController implements AppletHostContext {
       return false;
     }
     return this.commands.setAppletView(this.applet.id, next);
+  }
+
+  /** Quick settings save through the runtime owner; false when this window does not own it. */
+  setConfig(values: Record<string, unknown>) {
+    return this.runtimeOwner && this.commands.setAppletConfig(this.applet.id, values);
   }
 
   setQuickActionsOpen(open: boolean) {

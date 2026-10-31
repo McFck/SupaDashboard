@@ -8,7 +8,11 @@
   import { createSubwayScene, prepareFrame, sceneLanguages } from '../rendering/scene';
   import { displayAspect, subwayComposition } from '../rendering/composition';
   import { subwaySceneState } from '../simulation/runtime';
-  import { loadSubwayEditorPreview, type SubwayEditorPreview } from '../rendering/preview';
+  import {
+    loadSubwayEditorPreview,
+    previewForView,
+    type SubwayEditorPreview,
+  } from '../rendering/preview';
   import { sessionKey } from '../rendering/screens';
   import { PhaseClock } from '../rendering/engine/phase-clock';
   import { e235Images } from '../display/e235/images';
@@ -34,6 +38,7 @@
       startStation: host?.config.startStation,
       displayLanguages: host?.config.displayLanguages,
       carNumber: host?.config.carNumber,
+      fillScreen: host?.config.fillScreen,
     }),
   );
   $effect(() =>
@@ -70,7 +75,9 @@
   $effect(() => {
     if (host?.mode === 'editor') {
       const preview = editorPreview;
-      frame = preview ? prepareFrame({ ...preview, visibleElapsed: 0 }, view, screen) : undefined;
+      frame = preview
+        ? prepareFrame({ ...previewForView(preview, view), visibleElapsed: 0 }, view, screen)
+        : undefined;
       return;
     }
     const source = $subwaySceneState;

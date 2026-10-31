@@ -157,6 +157,24 @@ const settings: SettingsGroup[] = [
     ],
   },
   {
+    id: 'display',
+    title: 'Display',
+    params: [
+      {
+        key: 'view',
+        label: 'View',
+        type: 'select',
+        default: 'display',
+        suggestions: [
+          { value: 'display', label: 'Display' },
+          { value: 'map', label: 'Map' },
+          { value: 'cab', label: 'Run' },
+        ],
+      },
+      { key: 'fillScreen', label: 'Fill screen', type: 'boolean', default: true },
+    ],
+  },
+  {
     id: 'sound',
     title: 'Sound',
     params: [
@@ -300,6 +318,7 @@ export const subwayPlugin: Plugin = {
       component: SubwayApplet,
       start: runtime,
       design: { width: 1920, height: 480 },
+      background: '#10171b',
       slots: [
         {
           id: 'strip',
@@ -316,6 +335,7 @@ export const subwayPlugin: Plugin = {
       ],
       defaultView: 'display',
       settings,
+      quickSettings: ['view', 'announcementVolume', 'fillScreen'],
       quickActions: [
         { id: 'subway.line', args: { line: '', direction: '', startStation: '' } },
         { id: 'subway.emergency' },

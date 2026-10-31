@@ -2,7 +2,12 @@ import { writable, type Writable } from 'svelte/store';
 import type { VariableStore, VariableValue } from '../automation/variables';
 import type { EventAncestry } from '../plugins/contracts';
 import { appletActive } from './applet-activity';
-import { resolveAppletConfig, validAppletStateValue } from './definition';
+import {
+  nextAppletSettings,
+  resolveAppletConfig,
+  settingParams,
+  validAppletStateValue,
+} from './definition';
 import { type AppletConfig, type AppletDef, type AppletRuntimeContext } from './contracts';
 
 export class AppletController {
@@ -24,6 +29,12 @@ export class AppletController {
         ancestry?: EventAncestry,
       ): Promise<boolean>;
       emitEvent: AppletRuntimeContext['emitEvent'];
+      /** Replaces the applet's stored values for the shown page and records an undo step labelled `label`. */
+      writeSettings(
+        appletId: string,
+        update: (stored: Record<string, unknown>) => Record<string, unknown> | null,
+        label: string,
+      ): boolean;
       onStartFailed(appletId: string): void;
     },
   ) {}
@@ -75,12 +86,14 @@ export class AppletController {
       getState: (key) => this.host.variables.getValue(`${applet.id}.${key}`),
       setState: (key, value, ancestry) => this.setState(applet.id, key, value, ancestry),
       setView: (viewId, ancestry) => this.setView(applet.id, viewId, ancestry),
+      setConfig: (values) => this.setConfig(applet.id, values),
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(applet.id, id, parameter, payload, ancestry),
     };
     this.configs.set(applet.id, config);
     this.signatures.set(applet.id, JSON.stringify(stored));
     try {
+      this.followConfigView(applet, resolveAppletConfig(applet, stored));
       const cleanup = start(context);
       this.running.set(applet.id, typeof cleanup === 'function' ? cleanup : undefined);
     } catch {
@@ -117,8 +130,22 @@ export class AppletController {
       return false;
     }
     this.signatures.set(appletId, signature);
-    store.set(resolveAppletConfig(applet, stored));
+    const config = resolveAppletConfig(applet, stored);
+    store.set(config);
+    this.followConfigView(applet, config);
     return true;
+  }
+
+  /** An applet with a `view` setting shows the saved view, so it follows that setting per page. */
+  private followConfigView(applet: AppletDef, config: AppletConfig) {
+    const view = config.view;
+    if (
+      typeof view === 'string' &&
+      applet.views.some((entry) => entry.id === view) &&
+      this.host.variables.getValue(`${applet.id}.view`) !== view
+    ) {
+      void this.setVariable(applet, `${applet.id}.view`, view);
+    }
   }
 
   reconcile(stored: Record<string, Record<string, unknown>>) {
@@ -133,7 +160,32 @@ export class AppletController {
     if (!applet || !applet.views.some((view) => view.id === viewId)) {
       throw new Error('Skin view is unavailable');
     }
+    if (settingParams(applet.settings).some((param) => param.key === 'view')) {
+      this.setConfig(appletId, { view: viewId });
+    }
     return this.setVariable(applet, `${appletId}.view`, viewId, ancestry);
+  }
+
+  setConfig(appletId: string, values: Record<string, unknown>) {
+    this.assertOwner();
+    const applet = this.host.definitions.get(appletId);
+    if (!applet) {
+      throw new Error('Skin is unavailable');
+    }
+    const labels = settingParams(applet.settings)
+      .filter((param) => Object.hasOwn(values, param.key))
+      .map((param) => param.label.toLowerCase());
+    return this.host.writeSettings(
+      appletId,
+      (stored) => {
+        let next = stored;
+        for (const [key, value] of Object.entries(values)) {
+          next = nextAppletSettings(applet, next, key, value) ?? next;
+        }
+        return next === stored ? null : next;
+      },
+      `Change ${applet.title} ${labels.join(', ')}`,
+    );
   }
 
   setState(appletId: string, key: string, value: VariableValue, ancestry?: EventAncestry) {

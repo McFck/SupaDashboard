@@ -9,6 +9,8 @@ export type SubwayScreen = 'left' | 'right';
 export type PreparedFrame = {
   readonly line: LineDefinition;
   readonly revision: string;
+  /** Whether the spare room around the LCD is filled by stretching its edge pixels. */
+  readonly fill: boolean;
   // Milliseconds from preparation until the content changes by itself; null when it never does.
   readonly wakeInMs: number | null;
 } & (

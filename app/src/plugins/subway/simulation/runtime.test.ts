@@ -96,6 +96,7 @@ function makeContext(onEvent?: (id: string) => void, immersion = true) {
       return true;
     },
     setView: async () => true,
+    setConfig: () => true,
     emitEvent: async (id, _parameter, _payload, ancestry) => {
       events.push(id);
       ancestries.push(ancestry);

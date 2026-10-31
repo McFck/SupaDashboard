@@ -3,7 +3,9 @@ import { VariableStore } from '../automation/variables';
 import type { AppletDef } from './contracts';
 import { AppletController } from './applet-controller';
 
-function setup(owner = true) {
+type WriteSettings = ConstructorParameters<typeof AppletController>[0]['writeSettings'];
+
+function setup(owner = true, writes: WriteSettings = () => true) {
   const variables = new VariableStore();
   const definitions = new Map<string, AppletDef>();
   const log: string[] = [];
@@ -45,6 +47,7 @@ function setup(owner = true) {
     variables,
     getSettings: () => ({}),
     isOwner: () => owner,
+    writeSettings: writes,
     setVariable: async (id, value, appletOwner) => variables.set(id, value, appletOwner),
     emitEvent: vi.fn(async () => {}),
     onStartFailed: (id) => failed.push(id),
@@ -100,4 +103,36 @@ it('keeps other applets running when one fails to start and does not retry it on
   expect(controller.updateConfig('first', { changed: true })).toBe(false);
   controller.dispose();
   expect(log).toEqual(['start second', 'stop second']);
+});
+
+it('saves quick settings and the view as one labelled edit of the applet settings', () => {
+  const writes = vi.fn<WriteSettings>((_id, update) =>
+    Boolean(update({ view: 'default', immersion: false })),
+  );
+  const { controller, definitions } = setup(true, writes);
+  definitions.set('first', {
+    ...definitions.get('first')!,
+    views: [
+      { id: 'default', title: 'Default' },
+      { id: 'map', title: 'Map' },
+    ],
+    settings: [
+      {
+        key: 'view',
+        label: 'View',
+        type: 'select',
+        default: 'default',
+        suggestions: [
+          { value: 'default', label: 'Default' },
+          { value: 'map', label: 'Map' },
+        ],
+      },
+      { key: 'immersion', label: 'Immersion', type: 'boolean', default: false },
+    ],
+  });
+  expect(controller.setConfig('first', { immersion: true })).toBe(true);
+  expect(writes).toHaveBeenLastCalledWith('first', expect.any(Function), 'Change first immersion');
+  controller.setView('first', 'map');
+  expect(writes).toHaveBeenLastCalledWith('first', expect.any(Function), 'Change first view');
+  expect(writes.mock.results.every((result) => result.value === true)).toBe(true);
 });

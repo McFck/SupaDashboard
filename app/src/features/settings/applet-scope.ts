@@ -23,6 +23,25 @@ export function withAppletValues(
   return { ...current, perPage: { ...current.perPage, [pageId]: values } };
 }
 
+/** Applies `update` to the values `pageId` renders with; false when it returns null and nothing changes. */
+export function updateAppletValues(
+  source: { appletSettings: Record<string, AppletSettingsEntry> },
+  appletId: string,
+  pageId: string,
+  update: (stored: Values) => Values | null,
+): boolean {
+  const entry = source.appletSettings[appletId];
+  const next = update(appletValues(entry, pageId));
+  if (!next) {
+    return false;
+  }
+  source.appletSettings = {
+    ...source.appletSettings,
+    [appletId]: withAppletValues(entry, pageId, next),
+  };
+  return true;
+}
+
 /**
  * Turning separation on gives every page without values of its own a copy of the shared ones. Turning it off keeps
  * `perPage` so switching back restores it.

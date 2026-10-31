@@ -6,8 +6,11 @@ export interface LineRequest {
   line: LineDefinition;
   direction: string;
   stationCode: string;
-  /** Which parts the caller named explicitly, so later settings changes do not override them. */
-  named: { direction: boolean; station: boolean };
+}
+
+/** The route settings a request saves, so the choice survives a restart and a page change. */
+export function requestedRoute({ line, direction, stationCode }: LineRequest) {
+  return { line: line.id, direction, startStation: stationCode };
 }
 
 function text(value: unknown): string | undefined {
@@ -41,13 +44,5 @@ export function resolveLineRequest(
       ? state.stationCode
       : firstStationForDirection(line, direction));
   if (!line.stations.some((item) => item.code === stationCode)) return undefined;
-  return {
-    line,
-    direction,
-    stationCode,
-    named: {
-      direction: requestedDirection !== undefined,
-      station: requestedStation !== undefined || line.id !== currentLine.id,
-    },
-  };
+  return { line, direction, stationCode };
 }

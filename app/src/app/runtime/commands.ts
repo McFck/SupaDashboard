@@ -98,6 +98,11 @@ async function setAppletView(appletId: string, viewId: string) {
   return runtime?.isOwner ? runtime.applets.setView(appletId, viewId) : false;
 }
 
+function setAppletConfig(appletId: string, values: Record<string, unknown>) {
+  const runtime = currentRuntime();
+  return runtime?.isOwner ? runtime.applets.setConfig(appletId, values) : false;
+}
+
 export const runtimeCommands = {
   captureRuntimeTrigger,
   dispatchRuntimePacket,
@@ -110,5 +115,6 @@ export const runtimeCommands = {
   rememberVideoPosition,
   videoPosition,
   setAppletView,
+  setAppletConfig,
 };
 export type RuntimeCommands = typeof runtimeCommands;

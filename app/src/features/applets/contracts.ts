@@ -34,6 +34,8 @@ export type AppletRuntimeContext = {
     ancestry?: { depth: number; listeners: string[] },
   ): Promise<boolean>;
   setView(viewId: string, ancestry?: { depth: number; listeners: string[] }): Promise<boolean>;
+  /** Saves settings values in the applet's settings for the shown page (or the shared ones); false when nothing changes. */
+  setConfig(values: Record<string, unknown>): boolean;
   emitEvent(
     id: string,
     parameter?: string,
@@ -59,6 +61,8 @@ export type AppletDef = {
   title: string;
   component: Component<{ page: Page }>;
   design?: { width: number; height: number };
+  /** Opaque colour painted under the applet's whole page area at runtime. */
+  background?: string;
   slots: AppletSlot[];
   views: AppletView[];
   defaultView: string;
@@ -66,6 +70,8 @@ export type AppletDef = {
   /** Loose params and groups may be mixed; loose ones form a "General" group. */
   settings?: (Param | SettingsGroup)[];
   quickActions?: ActionRef[];
+  /** Keys of `settings` params shown as direct controls in the quick-actions menu. */
+  quickSettings?: string[];
   state?: AppletStateField[];
   events?: Omit<EventDef, 'plugin'>[];
   start?: (context: AppletRuntimeContext) => void | (() => void);

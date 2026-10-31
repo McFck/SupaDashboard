@@ -30,7 +30,8 @@ import { ContentController } from '../../features/media/content-controller';
 import { StatusController } from '../../features/media/status-controller';
 import { resolveArtwork } from '../../platform/media';
 import { AppletController } from '../../features/applets/applet-controller';
-import { runtimeAppletValues } from '../../features/settings/applet-scope';
+import { runtimeAppletValues, updateAppletValues } from '../../features/settings/applet-scope';
+import { commit } from '../../features/layout/history.svelte';
 import { startClock } from '../../features/automation/clock';
 import { EMPTY, type RuntimeSnapshot } from './state';
 import { VariableSaver, type VariablePersistence } from './variable-persistence';
@@ -146,6 +147,13 @@ export class RuntimeSession {
       variables: this.variables,
       getSettings: () => runtimeAppletValues(settings, this.pages.activePage),
       isOwner: () => this.isOwner,
+      writeSettings: (id, update, label) => {
+        const changed = updateAppletValues(settings, id, this.pages.activePage, update);
+        if (changed) {
+          commit(label);
+        }
+        return changed;
+      },
       setVariable: (id, value, owner, ancestry) => this.writeVariable(id, value, owner, ancestry),
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(id, parameter, payload, ancestry),

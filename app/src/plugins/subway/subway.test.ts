@@ -33,6 +33,8 @@ describe('Subway applet registration', () => {
       'speed',
       'displayLanguages',
       'announcementLanguages',
+      'view',
+      'fillScreen',
       'immersion',
       'announcementVolume',
     ]);
@@ -62,6 +64,8 @@ describe('Subway applet registration', () => {
       'subway.immersion',
       'subway.resume',
     ]);
+    const keys = settingParams(applet.settings).map((param) => param.key);
+    expect(applet.quickSettings?.every((key) => keys.includes(key))).toBe(true);
     expect([...actions.keys()]).toEqual([
       'subway.line',
       'subway.emergency',

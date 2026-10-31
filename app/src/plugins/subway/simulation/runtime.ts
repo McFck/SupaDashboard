@@ -7,7 +7,7 @@ import { createSubwayAudio, type SubwayAudioController } from '../audio/audio';
 import { loadSubwayAssets, loadSubwayMotionEngine } from '../audio/asset-loader';
 import type { LoadedSubwayAssets } from '../audio/sound-types';
 import { buildCuePlans } from './cue-plans';
-import { resolveLineRequest } from './line-request';
+import { requestedRoute, resolveLineRequest } from './line-request';
 import { discreteKey, eventFor, project, projectionKeys } from './projection';
 import { createRunState, nextRunWake, reduceRun, snapshotRun, type RunSnapshot } from './run';
 import type { RunCommand, RunEffect, SubwayCuePlans, SubwayRunState } from './run-state';
@@ -287,24 +287,14 @@ export function createSubwayRuntime(
     if (!alive || !ready || !eligible || !state || !lines.length) return false;
     const request = resolveLineRequest(lines, state, args);
     if (!request) return false;
-    overrides.line = true;
-    if (request.named.direction) overrides.direction = true;
-    if (request.named.station) overrides.startStation = true;
-    if (
-      !dispatch(
-        {
-          type: 'configure',
-          lineId: request.line.id,
-          direction: request.direction,
-          stationCode: request.stationCode,
-        },
-        ancestry,
-        true,
-      )
-    )
+    // The route is saved below; until the saved settings arrive they must not undo it.
+    Object.assign(overrides, { line: true, direction: true, startStation: true });
+    const { line, direction, stationCode } = request;
+    if (!dispatch({ type: 'configure', lineId: line.id, direction, stationCode }, ancestry, true))
       return false;
     autoStarted = false;
     autoStartIfNeeded();
+    context.setConfig(requestedRoute(request));
     return true;
   }
 
@@ -314,7 +304,9 @@ export function createSubwayRuntime(
     if (requested) audio.setEnabled(true, true);
     else audio.setEnabled(false);
     overrides.immersion = true;
-    return dispatch({ type: 'set-immersion', enabled: requested }, ancestry);
+    const done = dispatch({ type: 'set-immersion', enabled: requested }, ancestry);
+    if (done) context.setConfig({ immersion: requested });
+    return done;
   }
 
   function getSnapshot(): RunSnapshot | undefined {
@@ -363,10 +355,9 @@ export function createSubwayRuntime(
       config.direction !== previous.direction ||
       config.startStation !== previous.startStation;
     if (previous) {
-      if (config.line !== previous.line) overrides.line = false;
-      if (config.direction !== previous.direction) overrides.direction = false;
-      if (config.startStation !== previous.startStation) overrides.startStation = false;
-      if (config.immersion !== previous.immersion) overrides.immersion = false;
+      for (const key of ['line', 'direction', 'startStation', 'immersion'] as const) {
+        if (config[key] !== previous[key]) overrides[key] = false;
+      }
     }
     appliedConfig = config;
     currentConfig = config;
