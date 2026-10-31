@@ -9,11 +9,13 @@ const LOAD_TIMEOUT_MS = 15_000;
 const INK_SCALE = 4;
 
 // Raster ink bounds of an SVG, excluding viewport whitespace (WPF SvgPresenter measures the drawing).
+// willReadFrequently keeps this large scratch canvas off the GPU: as the renderer's first accelerated canvas it
+// cost the GPU process about 130 MiB at start-up.
 function inkBounds(image: HTMLImageElement): Bounds | undefined {
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(image.naturalWidth * INK_SCALE);
   canvas.height = Math.ceil(image.naturalHeight * INK_SCALE);
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   let left = canvas.width;
