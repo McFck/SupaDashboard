@@ -77,28 +77,3 @@ export interface LoadedSubwayAssets {
   lines: Readonly<Record<string, LoadedSubwayLine>>;
   doorSequence: DoorSequenceApi;
 }
-
-export interface TrainMotionApi {
-  MotionAudio: {
-    new (
-      context: AudioContext,
-      profile: unknown,
-      decoded: Map<string, AudioBuffer>,
-    ): MotionAudioInstance;
-    load(context: AudioContext, profile: unknown): Promise<MotionAudioInstance>;
-  };
-  playCue(
-    context: AudioContext,
-    destination: AudioNode,
-    buffer: AudioBuffer,
-    cue: ResolvedCue,
-    when: number,
-  ): AudioBufferSourceNode;
-}
-
-export interface MotionAudioInstance {
-  update(state: { speed: number; power: number; brake: number }): void;
-  volume(value: number): void;
-  reset(): void;
-  dispose(): void;
-}

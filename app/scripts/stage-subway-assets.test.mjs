@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   cueAssetFiles,
+  motionAssetFiles,
   resolveWithin,
   stageSubwayAssets,
   validateCatalogue,
@@ -31,6 +32,12 @@ describe('Subway asset staging', () => {
     expect(() => resolveWithin(root, '../outside.opus')).toThrow(/Unsafe path/);
     expect(() =>
       cueAssetFiles({ version: 1, inputs: {}, cues: [{ file: '../outside.opus' }] }),
+    ).toThrow(/Unsafe path/);
+    expect(() =>
+      motionAssetFiles({
+        version: 1,
+        clips: { joint: { file: '../outside.opus', sha256: '0'.repeat(64) } },
+      }),
     ).toThrow(/Unsafe path/);
   });
 
@@ -65,12 +72,15 @@ describe('Subway asset staging', () => {
     inputFiles.push('assets/sources.json');
     const inputs = {};
     for (const relative of inputFiles) inputs[relative] = sha(await put(relative));
-    const staticFiles = [
-      'assets/motion/data.js',
-      'assets/motion/engine.js',
-      'assets/motion/door-sequence.js',
-    ];
-    for (const relative of staticFiles) await put(relative);
+    await put('assets/motion/door-sequence.js');
+    const motionClip = await put('assets/motion/clips/shared/joint-01.opus');
+    const motion = {
+      version: 1,
+      clips: {
+        'shared/joint-01': { file: 'motion/clips/shared/joint-01.opus', sha256: sha(motionClip) },
+      },
+    };
+    await put('assets/motion/motion.json', Buffer.from(JSON.stringify(motion)));
     const clipBytes = await put('assets/lines/yamanote/clips/door.opus');
     const catalogue = {
       version: 1,
@@ -90,10 +100,22 @@ describe('Subway asset staging', () => {
     const result = await stageSubwayAssets({ repoRoot, assetRoot, appRoot });
     expect(result.files).toBe(11);
     expect(result.urls).toContain('/subway/lines/yamanote/clips/door.opus');
+    expect(result.urls).toContain('/subway/motion/clips/shared/joint-01.opus');
     expect(result.urls).not.toContain('/subway/sources.json');
     for (const url of result.urls) {
       const staged = path.join(result.outputRoot, decodeURIComponent(url.slice('/subway/'.length)));
       await expect(readFile(staged)).resolves.toBeDefined();
     }
+  });
+
+  it('refuses to stage a motion clip whose bytes no longer match its hash', async () => {
+    await put('assets/motion/clips/shared/joint-01.opus', Buffer.from('changed'));
+    await expect(
+      stageSubwayAssets({
+        repoRoot: root,
+        assetRoot: path.join(root, 'assets'),
+        appRoot: path.join(root, 'app'),
+      }),
+    ).rejects.toThrow(/Motion clip hash mismatch/);
   });
 });

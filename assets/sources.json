@@ -929,22 +929,305 @@
       "title": "TM13000Sound.zip v0.4",
       "url": "https://uu.getuploader.com/Tob21854F_BVEdate/download/15",
       "license_note": "Original author readme retained in motion/tokyo-source-readme.txt.",
+      "note": "Motor layers, brake rub (first 8 s) and air release (peak-normalised) converted losslessly to FLAC.",
       "used_by": [
-        "yamanote",
         "hibiya"
       ],
-      "file": "motion/data.js"
+      "clips": [
+        "motion/clips/tm13000/air-release.flac",
+        "motion/clips/tm13000/brake-rub.flac",
+        "motion/clips/tm13000/motor-1.flac",
+        "motion/clips/tm13000/motor-2.flac",
+        "motion/clips/tm13000/motor-3.flac",
+        "motion/clips/tm13000/motor-4.flac",
+        "motion/clips/tm13000/motor-6.flac",
+        "motion/clips/tm13000/motor-7.flac"
+      ]
     },
     {
-      "id": "osaka",
-      "creator": "Bluegill77",
-      "title": "Osaka Metro 30000 / 30000A BVE sound materials",
-      "url": "https://bve.bluegill77.jp/assets",
-      "license_note": "Credit the author when incorporating the data.",
+      "id": "commons:Rail_Joint_sound_OER_MSE.ogg",
+      "creator": "Cassiopeia sweet",
+      "title": "Rail Joint sound OER MSE",
+      "url": "https://commons.wikimedia.org/wiki/File:Rail_Joint_sound_OER_MSE.ogg",
+      "license": "Public domain",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/joint-01.opus",
+        "motion/clips/shared/joint-04.opus",
+        "motion/clips/shared/joint-07.opus",
+        "motion/clips/shared/joint-10.opus"
+      ]
+    },
+    {
+      "id": "commons:Rail_Joint_sound_OER_HiSE.ogg",
+      "creator": "Cassiopeia sweet",
+      "title": "Rail Joint sound OER HiSE",
+      "url": "https://commons.wikimedia.org/wiki/File:Rail_Joint_sound_OER_HiSE.ogg",
+      "license": "Public domain",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/joint-02.opus",
+        "motion/clips/shared/joint-05.opus",
+        "motion/clips/shared/joint-08.opus",
+        "motion/clips/shared/joint-11.opus"
+      ]
+    },
+    {
+      "id": "commons:Rail_Joint_sound_OER_VSE.ogg",
+      "creator": "Cassiopeia sweet",
+      "title": "Rail Joint sound OER VSE",
+      "url": "https://commons.wikimedia.org/wiki/File:Rail_Joint_sound_OER_VSE.ogg",
+      "license": "Public domain",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/joint-03.opus",
+        "motion/clips/shared/joint-06.opus",
+        "motion/clips/shared/joint-09.opus",
+        "motion/clips/shared/joint-12.opus"
+      ]
+    },
+    {
+      "id": "freesound:388568",
+      "creator": "totalcult",
+      "title": "Train Air Brake 01.wav",
+      "url": "https://freesound.org/people/totalcult/sounds/388568/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/release-01.opus"
+      ]
+    },
+    {
+      "id": "freesound:148922",
+      "creator": "MacFerret_20",
+      "title": "DH12_136RsRailD1.wav",
+      "url": "https://freesound.org/people/MacFerret_20/sounds/148922/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/release-02.opus"
+      ]
+    },
+    {
+      "id": "freesound:124011",
+      "creator": "alienistcog",
+      "title": "md9trk4.AIF",
+      "url": "https://freesound.org/people/alienistcog/sounds/124011/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/release-03.opus"
+      ]
+    },
+    {
+      "id": "freesound:849797",
+      "creator": "IENBA",
+      "title": "Metal Rattles",
+      "url": "https://freesound.org/people/IENBA/sounds/849797/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/rattle-01.opus",
+        "motion/clips/shared/rattle-02.opus"
+      ]
+    },
+    {
+      "id": "freesound:849796",
+      "creator": "IENBA",
+      "title": "Low Old Wagon Metal Rattles",
+      "url": "https://freesound.org/people/IENBA/sounds/849796/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/rattle-03.opus"
+      ]
+    },
+    {
+      "id": "freesound:713915",
+      "creator": "joliusnyren",
+      "title": "NYC Subway 2 (extra creaky)",
+      "url": "https://freesound.org/people/joliusnyren/sounds/713915/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/rattle-04.opus",
+        "motion/clips/shared/rattle-05.opus"
+      ]
+    },
+    {
+      "id": "freesound:177723",
+      "creator": "kyles",
+      "title": "Thailand passenger train between cars train moving, start, stop",
+      "url": "https://freesound.org/people/kyles/sounds/177723/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/rattle-06.opus"
+      ]
+    },
+    {
+      "id": "freesound:742847",
+      "creator": "itinerantmonk108",
+      "title": "Large fan in train station",
+      "url": "https://freesound.org/people/itinerantmonk108/sounds/742847/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/hvac.opus"
+      ]
+    },
+    {
+      "id": "freesound:872230",
+      "creator": "KoimeMatsuchiya",
+      "title": "Shinkansen Hikari Green Car Interior Ambience Stopped",
+      "url": "https://freesound.org/people/KoimeMatsuchiya/sounds/872230/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/shared/standing.opus"
+      ]
+    },
+    {
+      "id": "freesound:42210",
+      "creator": "markystar",
+      "title": "KeihinTohokuSen120.wav",
+      "url": "https://freesound.org/people/markystar/sounds/42210/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/e235/rolling.opus"
+      ]
+    },
+    {
+      "id": "commons:JRE_Joban_line_Local_moha207-901.ogg",
+      "creator": "緑15号 (Japanese Wikipedia)",
+      "title": "JRE Joban line Local moha207-901",
+      "url": "https://commons.wikimedia.org/wiki/File:JRE_Joban_line_Local_moha207-901.ogg",
+      "license": "Public domain",
+      "used_by": [
+        "hibiya"
+      ],
+      "clips": [
+        "motion/clips/open/rolling.opus"
+      ]
+    },
+    {
+      "id": "freesound:315900",
+      "creator": "manuke",
+      "title": "Tokyo - Train Interior 2",
+      "url": "https://freesound.org/people/manuke/sounds/315900/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya"
+      ],
+      "clips": [
+        "motion/clips/hibiya/rolling-tunnel.opus"
+      ]
+    },
+    {
+      "id": "commons:Seoul_subway_line_3_Jongro-samga_~_Express_bus_terminal.ogg",
+      "creator": "콩가루",
+      "title": "Seoul subway line 3 Jongro-samga ~ Express bus terminal",
+      "url": "https://commons.wikimedia.org/wiki/File:Seoul_subway_line_3_Jongro-samga_~_Express_bus_terminal.ogg",
+      "license": "CC0-1.0",
       "used_by": [
         "sakaisuji"
       ],
-      "file": "motion/data.js"
+      "clips": [
+        "motion/clips/sakaisuji/rolling-tunnel.opus"
+      ]
+    },
+    {
+      "id": "freesound:647259",
+      "creator": "kousuke",
+      "title": "at_Kichijoji_station_platform_220815.wav",
+      "url": "https://freesound.org/people/kousuke/sounds/647259/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "sakaisuji",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/platform/surface.opus"
+      ]
+    },
+    {
+      "id": "freesound:504666",
+      "creator": "selcukartut",
+      "title": "Tokyo Metro",
+      "url": "https://freesound.org/people/selcukartut/sounds/504666/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "hibiya",
+        "yamanote"
+      ],
+      "clips": [
+        "motion/clips/platform/underground.opus"
+      ]
+    },
+    {
+      "id": "freesound:320071",
+      "creator": "macdaddyno1",
+      "title": "Train apraoching ikebukuro station. Fukutoshin line, Tokyo Metro.",
+      "url": "https://freesound.org/people/macdaddyno1/sounds/320071/",
+      "license": "CC0-1.0",
+      "used_by": [
+        "sakaisuji"
+      ],
+      "clips": [
+        "motion/clips/platform/underground-osaka.opus"
+      ]
     }
   ]
 }

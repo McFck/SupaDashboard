@@ -1,15 +1,13 @@
 import type { RunSnapshot } from '../simulation/run';
 import type { RunEffect } from '../simulation/run-state';
-import type { MotionAudioInstance, ResolvedCue, TrainMotionApi } from './sound-types';
-import { loadSubwayMotionEngine } from './asset-loader';
+import type { ResolvedCue } from './sound-types';
+import { loadSubwayMotion, type LoadedSubwayMotion } from './asset-loader';
 import { playEmergencyAlert } from './audio-alert';
 import { createCueBufferCache } from './audio-cache';
 import { effectGain } from './audio-level';
 import { subscribeSubwayMixerSettings } from './audio-volume';
-
-const MOTION_CALIBRATION = 0.65;
-
-type AudioProfile = { id?: string };
+import { playCueSource } from './cue-source';
+import { TrainSound } from './motion/train-sound';
 
 export type SubwayAudioStats = {
   activeSources: number;
@@ -17,11 +15,12 @@ export type SubwayAudioStats = {
   decodedCachePeakBytes: number;
   cacheHits: number;
   syntheticEmergencyAlert: true;
+  motion?: ReturnType<TrainSound['stats']>;
 };
 
 export type SubwayAudioOptions = {
   contextFactory?: () => AudioContext;
-  loadEngine?: typeof loadSubwayMotionEngine;
+  loadMotion?: typeof loadSubwayMotion;
   fetch?: typeof fetch;
   onAvailability?: (available: boolean) => void;
 };
@@ -45,15 +44,15 @@ function clamp(value: number, minimum = 0, maximum = 1): number {
 
 export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudioController {
   const makeContext = options.contextFactory ?? (() => new AudioContext());
-  const loadEngine = options.loadEngine ?? loadSubwayMotionEngine;
+  const loadMotion = options.loadMotion ?? loadSubwayMotion;
   const fetchAsset = options.fetch ?? globalThis.fetch.bind(globalThis);
   let context: AudioContext | undefined;
   let cueBus: GainNode | undefined;
   let voiceBus: GainNode | undefined;
-  let motion: MotionAudioInstance | undefined;
-  let motionApi: TrainMotionApi | undefined;
-  let enginePromise: ReturnType<typeof loadEngine> | undefined;
+  let motion: TrainSound | undefined;
+  let packPromise: Promise<LoadedSubwayMotion> | undefined;
   let profilePromise: Promise<void> | undefined;
+  /** The line whose train sound is loaded or loading; every line has its own train. */
   let profileId: string | undefined;
   let currentLine = 'yamanote';
   let currentSnapshot: RunSnapshot | undefined;
@@ -105,7 +104,6 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       smooth(cueBus.gain, cue);
       smooth(voiceBus.gain, voice);
     }
-    motion?.volume(visible && enabled && !mixMuted ? mixVolume * MOTION_CALIBRATION : 0);
   }
 
   function ensureContext(): AudioContext | undefined {
@@ -148,26 +146,21 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     }
   }
 
-  function ensureEngine(): Promise<{ api: TrainMotionApi; profiles: readonly unknown[] }> {
-    if (!enginePromise)
-      enginePromise = loadEngine()
-        .then((loaded) => {
-          motionApi = loaded.api;
-          return loaded;
-        })
-        .catch((error) => {
-          enginePromise = undefined;
-          warnOnce('engine', error);
-          throw error;
-        });
-    return enginePromise;
+  function ensurePack(): Promise<LoadedSubwayMotion> {
+    if (!packPromise)
+      packPromise = loadMotion().catch((error) => {
+        packPromise = undefined;
+        warnOnce('motion', error);
+        throw error;
+      });
+    return packPromise;
   }
 
   async function ensureMotion(line: string) {
     const audioContext = ensureContext();
     if (!audioContext || disposed) return;
     currentLine = line;
-    const wanted = line === 'sakaisuji' ? 'osaka' : 'tokyo';
+    const wanted = line;
     if (motion && profileId === wanted) return;
     if (profilePromise && profileId === wanted) return profilePromise;
     const thisProfileEpoch = ++profileEpoch;
@@ -177,7 +170,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     profileId = wanted;
     profilePromise = (async () => {
       try {
-        const loaded = await ensureEngine();
+        const pack = await ensurePack();
         if (
           disposed ||
           thisEpoch !== epoch ||
@@ -185,11 +178,15 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
           audioContext !== context
         )
           return;
-        const profile = loaded.profiles.find(
-          (candidate) => (candidate as AudioProfile)?.id === wanted,
+        const profile = pack.manifest.trains.find((train) => train.lines.includes(wanted));
+        if (!profile || !cueBus) throw new Error(`Missing ${wanted} train sound`);
+        const instance = await TrainSound.load(
+          audioContext,
+          cueBus,
+          profile,
+          pack.urlFor,
+          fetchAsset,
         );
-        if (!profile) throw new Error(`Missing ${wanted} motion profile`);
-        const instance = await loaded.api.MotionAudio.load(audioContext, profile);
         if (
           disposed ||
           thisEpoch !== epoch ||
@@ -200,13 +197,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
           return;
         }
         motion = instance;
-        applyGains(true);
-        if (currentSnapshot && !currentSnapshot.paused)
-          motion.update({
-            speed: currentSnapshot.speed,
-            power: currentSnapshot.power,
-            brake: currentSnapshot.brake,
-          });
+        if (currentSnapshot) motion.update(currentSnapshot);
         setAvailability(audioContext.state === 'running');
       } catch (error) {
         if (thisEpoch === epoch && thisProfileEpoch === profileEpoch) {
@@ -261,8 +252,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       motion = undefined;
       profileId = undefined;
       profilePromise = undefined;
-      enginePromise = undefined;
-      motionApi = undefined;
+      packPromise = undefined;
       const audioContext = context;
       context = undefined;
       cueBus?.disconnect();
@@ -307,6 +297,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       ensureContext();
       resumeContext(false);
       applyGains(true);
+      motion?.resync();
       if (currentSnapshot) transition(currentSnapshot, []);
       void ensureMotion(currentLine);
     }
@@ -342,9 +333,9 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     }
     currentLine = snapshot.line;
     if (snapshot.immersion !== enabled) setEnabled(snapshot.immersion);
-    if (enabled && visible && !snapshot.paused) {
-      void ensureMotion(snapshot.line);
-      motion?.update({ speed: snapshot.speed, power: snapshot.power, brake: snapshot.brake });
+    if (enabled && visible) {
+      if (!snapshot.paused) void ensureMotion(snapshot.line);
+      motion?.update(snapshot);
     }
     if (effects.some((effect) => effect.type === 'emergency') && !alerts.has(snapshot.generation)) {
       stopSources();
@@ -354,7 +345,6 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
 
   async function playCue(effect: Extract<RunEffect, { type: 'play-cue' }>) {
     const audioContext = context;
-    let api = motionApi;
     const cueBusNode = cueBus;
     if (
       !enabled ||
@@ -366,22 +356,6 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       return;
     const requestEpoch = epoch;
     const scheduledAt = audioContext.currentTime;
-    if (!api) {
-      try {
-        api = (await ensureEngine()).api;
-      } catch {
-        return;
-      }
-    }
-    if (
-      disposed ||
-      requestEpoch !== epoch ||
-      !enabled ||
-      !visible ||
-      audioContext !== context ||
-      effect.generation !== audioGeneration
-    )
-      return;
     const buffer = await buffers.decode(effect.cue);
     if (
       !buffer ||
@@ -405,7 +379,9 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
     const destination = cue.role === 'voice' ? voiceBus : cueBusNode;
     if (!destination) return;
     try {
-      const source = api.playCue(audioContext, destination, buffer, cue, audioContext.currentTime);
+      const now = audioContext.currentTime;
+      const source = playCueSource(audioContext, destination, buffer, cue, now);
+      if (cue.role === 'voice') motion?.duck(now, cue.duration);
       activeSources.set(source, cue.url);
       buffers.pin(cue.url, 1);
       source.addEventListener(
@@ -431,6 +407,7 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
       decodedCachePeakBytes: peakBytes,
       cacheHits: hits,
       syntheticEmergencyAlert: true,
+      motion: motion?.stats(),
     };
   }
 

@@ -4,7 +4,7 @@ import type { AppletRuntimeContext } from '../../../features/applets/contracts';
 import { normalizeSubwayLines, stepStation, type LineDefinition } from './lines';
 import { announcementLanguages, firstStationForDirection, normalizeSubwayConfig } from './config';
 import { createSubwayAudio, type SubwayAudioController } from '../audio/audio';
-import { loadSubwayAssets, loadSubwayMotionEngine } from '../audio/asset-loader';
+import { loadSubwayAssets, loadSubwayMotion } from '../audio/asset-loader';
 import type { LoadedSubwayAssets } from '../audio/sound-types';
 import { buildCuePlans } from './cue-plans';
 import { requestedRoute, resolveLineRequest } from './line-request';
@@ -73,7 +73,7 @@ export function createSubwayRuntime(
   const audio =
     options.audio ??
     createSubwayAudio({
-      loadEngine: () => loadSubwayMotionEngine(assetBase),
+      loadMotion: () => loadSubwayMotion(assetBase),
       onAvailability: (available) => {
         if (alive && eligible) void context.setState('audioReady', available).catch(() => {});
       },

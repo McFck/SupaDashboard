@@ -467,6 +467,7 @@ describe('Subway owner runtime', () => {
         decodedCachePeakBytes: 0,
         cacheHits: 0,
         syntheticEmergencyAlert: true,
+        motion: undefined,
       }),
       dispose: vi.fn(),
     };

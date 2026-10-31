@@ -12,8 +12,7 @@ const LINE_IDS = JSON.parse(
 ).lines;
 const STATIC_ASSETS = [
   'assets/motion/runtime-cues.json',
-  'assets/motion/data.js',
-  'assets/motion/engine.js',
+  'assets/motion/motion.json',
   'assets/motion/door-sequence.js',
   ...LINE_IDS.flatMap((id) => [`assets/lines/${id}/line.json`, `assets/lines/${id}/pack.json`]),
 ];
@@ -95,6 +94,42 @@ export function cueAssetFiles(catalogue) {
   return [...files].sort();
 }
 
+/** Motion clips listed by `motion/motion.json`; their hashes are checked before staging. */
+export function motionAssetFiles(manifest) {
+  if (
+    !manifest ||
+    manifest.version !== 1 ||
+    !manifest.clips ||
+    typeof manifest.clips !== 'object' ||
+    Array.isArray(manifest.clips)
+  ) {
+    throw new Error('Invalid motion.json manifest');
+  }
+  return Object.entries(manifest.clips).map(([id, clip]) => {
+    if (!clip || typeof clip.file !== 'string' || !/^[a-f0-9]{64}$/.test(clip.sha256 || ''))
+      throw new Error(`Invalid motion clip: ${id}`);
+    resolveWithin(ASSET_ROOT, clip.file);
+    return clip;
+  });
+}
+
+async function validateMotion(assetRoot) {
+  const { bytes } = await readSafe(assetRoot, 'motion/motion.json');
+  let manifest;
+  try {
+    manifest = JSON.parse(bytes.toString('utf8'));
+  } catch (error) {
+    throw new Error(`Invalid motion.json: ${error.message}`);
+  }
+  const clips = motionAssetFiles(manifest);
+  for (const clip of clips) {
+    const { bytes: clipBytes } = await readSafe(assetRoot, clip.file);
+    if (digest(clipBytes) !== clip.sha256)
+      throw new Error(`Motion clip hash mismatch: ${clip.file}`);
+  }
+  return clips.map((clip) => `assets/${clip.file}`);
+}
+
 export async function validateCatalogue(repoRoot, assetRoot, catalogue) {
   const files = cueAssetFiles(catalogue);
   for (const [relative, expected] of Object.entries(catalogue.inputs || {})) {
@@ -133,7 +168,12 @@ export async function stageSubwayAssets({
   } catch (error) {
     throw new Error(`Invalid runtime-cues.json: ${error.message}`);
   }
-  const files = await validateCatalogue(repoRoot, assetRoot, catalogue);
+  const files = [
+    ...new Set([
+      ...(await validateCatalogue(repoRoot, assetRoot, catalogue)),
+      ...(await validateMotion(assetRoot)),
+    ]),
+  ].sort();
   await mkdir(outputRoot, { recursive: true });
   const urls = [];
   for (const file of files) {
