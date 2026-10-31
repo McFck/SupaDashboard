@@ -1,4 +1,4 @@
-// Outline app icons (24px grid, round caps and joins). Tabler paths are vendored; see THIRD_PARTY_NOTICES.md.
+// Outline app icons (24px grid, round caps and joins). Tabler paths are vendored; see src-tauri/THIRD-PARTY-NOTICES.txt.
 export const brandIcons: Record<string, string> = {
   'brand-battle-net': 'M21 12a9 9 0 1 1 -9 -9M12 7l5 5l-5 5l-5 -5z',
   'brand-brave': 'M12 3l6 2l1 4l-1 8l-6 4l-6 -4l-1 -8l1 -4l6 -2M9 10l3 2l3 -2M12 12v3',
