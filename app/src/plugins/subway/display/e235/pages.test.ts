@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScreenSchedule } from '../../rendering/screens';
-import { e235TransferLayout } from './data';
+import { e235Data, e235TransferLayout } from './data';
 import { drawE235DetailedTransfers } from './transfers';
 import { drawE235Page } from './pages';
 
@@ -43,6 +43,24 @@ function screen(page: ScreenSchedule['page'], language: ScreenSchedule['language
 }
 
 describe('E235 source transfer layouts', () => {
+  it('places every layout cell on one transfer of its station, inside the grid and without overlap', () => {
+    for (const station of e235Data.stations) {
+      for (const display of station.transferDisplays) {
+        for (const layout of display.layouts) {
+          const where = `${station.code} ${layout.mode}`;
+          const cells = new Set<string>();
+          for (const item of layout.lines) {
+            expect(station.transfers[item.ref], where).toBeDefined();
+            expect(item.row, where).toBeLessThan(layout.rows);
+            expect(item.column + (item.columnSpan ?? 1), where).toBeLessThanOrEqual(layout.columns);
+            cells.add(`${item.row}:${item.column}`);
+          }
+          expect(cells.size, where).toBe(layout.lines.length);
+        }
+      }
+    }
+  });
+
   it('renders Ikebukuro transfers in the source row order with their source icon types', () => {
     const layout = e235TransferLayout('JY13', 'inner', 'Transfers', 'ja');
     const { ctx, text, fillStyles } = recordingContext();
