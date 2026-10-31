@@ -219,7 +219,7 @@ describe('settings migration', () => {
       monitorLabel: null,
       fullscreen: true,
       alwaysOnTop: true,
-      iconSize: 'default',
+      iconScale: 1,
       background: { ...background, mode: 'color' },
     });
     expect(migrated.deck.pages[0]).toMatchObject({ cols: 4, sizing: 'manual', size: 88 });
@@ -228,10 +228,10 @@ describe('settings migration', () => {
 
     const modeOf = (mode: unknown) => migrate(old({ background: { mode } }, {})).display.background;
     expect([modeOf('wallpaper').mode, modeOf('video').mode]).toEqual(['wallpaper', 'color']);
-    expect(migrate(old({ iconSize: 'large' }, {})).display.iconSize).toBe('large');
-    for (const iconSize of [undefined, 'huge', 2]) {
-      expect(migrate(old({ iconSize }, {})).display.iconSize).toBe('default');
-    }
+    const scale = (display: object) =>
+      migrate(old({ iconScale: undefined, ...display }, {})).display.iconScale;
+    const cases = [{ iconSize: 'large' }, { iconScale: 1.3 }, { iconScale: 3 }];
+    expect(cases.map(scale)).toEqual([1.5, 1.3, 1]);
     for (const alwaysOnTop of [undefined, null, 'true', 1]) {
       expect(migrate(old({ alwaysOnTop }, {})).display.alwaysOnTop).toBe(false);
     }
