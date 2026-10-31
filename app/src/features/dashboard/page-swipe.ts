@@ -1,6 +1,7 @@
 export type SwipeIntent = 'pending' | 'horizontal' | 'vertical';
 
-const SWIPE_INTENT_SLOP = 8;
+// Finger jitter on a tap reaches 10-15 px; a smaller slop turns it into a swipe that steals the pointer from the applet.
+const SWIPE_INTENT_SLOP = 16;
 
 export function pageSwipeIntent(dx: number, dy: number): SwipeIntent {
   if (

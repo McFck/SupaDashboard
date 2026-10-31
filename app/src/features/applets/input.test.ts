@@ -53,7 +53,7 @@ describe('applet quick-action input', () => {
     recognizer.handle(down, rect, (event) => scene.push(event));
     recognizer.handle(up, rect, (event) => scene.push(event));
     expect(scene).toEqual([]);
-    vi.advanceTimersByTime(350);
+    vi.advanceTimersByTime(450);
     expect(open).not.toHaveBeenCalled();
     expect(scene).toEqual([down, up]);
   });
@@ -68,11 +68,11 @@ describe('applet quick-action input', () => {
     recognizer.handle(tapDown, rect, (event) => scene.push(event));
     recognizer.handle(tapUp, rect, (event) => scene.push(event));
     const dragDown = point('down', 100, 200),
-      move = point('move', 120, 210);
+      move = point('move', 120, 240);
     recognizer.handle(dragDown, rect, (event) => scene.push(event));
     expect(recognizer.handle(move, rect, (event) => scene.push(event))).toBe(false);
     scene.push(move);
-    const up = point('up', 150, 210);
+    const up = point('up', 150, 240);
     expect(recognizer.handle(up, rect, (event) => scene.push(event))).toBe(false);
     scene.push(up);
     expect(open).not.toHaveBeenCalled();

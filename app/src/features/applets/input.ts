@@ -6,6 +6,11 @@ export type AppletCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight'
 type ActivePress = { pointerId: number; down: SceneInput; events: SceneInput[]; held: boolean };
 type Timer = ReturnType<typeof setTimeout>;
 
+// Touch taps last 100-300 ms and drift a few pixels, so the limits are generous; a swipe or a hold still ends the sequence.
+const TAP_MAX_MS = 400;
+const TAP_GAP_MS = 450;
+const TAP_SLOP = 24;
+
 export class AppletInputRecognizer {
   private gesture: AppletGesture = 'tripleTap';
   private corner: AppletCorner = 'bottomRight';
@@ -49,7 +54,7 @@ export class AppletInputRecognizer {
       return false;
     }
     active.events.push(input);
-    if (input.kind === 'move' && this.distance(active.down, input) > 8) {
+    if (input.kind === 'move' && this.distance(active.down, input) > TAP_SLOP) {
       active.events.pop();
       this.flush();
       return false;
@@ -112,7 +117,8 @@ export class AppletInputRecognizer {
     if (
       this.pending.length &&
       this.lastTapUp &&
-      (input.time - this.lastTapUp.time > 350 || this.distance(this.lastTapUp, input) > 24)
+      (input.time - this.lastTapUp.time > TAP_GAP_MS ||
+        this.distance(this.lastTapUp, input) > TAP_SLOP)
     ) {
       this.flush();
     }
@@ -123,7 +129,7 @@ export class AppletInputRecognizer {
 
   private finishTap(active: ActivePress, up: SceneInput) {
     const duration = up.time - active.down.time;
-    if (duration < 0 || duration > 200 || this.distance(active.down, up) > 24) {
+    if (duration < 0 || duration > TAP_MAX_MS || this.distance(active.down, up) > TAP_SLOP) {
       this.flush();
       return true;
     }
@@ -136,7 +142,7 @@ export class AppletInputRecognizer {
       this.onOpen();
       return true;
     }
-    this.sequenceTimer = this.schedule(() => this.flush(), 350);
+    this.sequenceTimer = this.schedule(() => this.flush(), TAP_GAP_MS);
     return true;
   }
 

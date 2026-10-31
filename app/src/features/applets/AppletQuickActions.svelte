@@ -4,13 +4,14 @@
   import { actions } from '../plugins/registry';
   import { currentRuntime } from '../../app/runtime/session.svelte';
   import type { ActionDef, ActionRef } from '../plugins/contracts';
-  import { validAppletParam } from './definition';
+  import { settingParams, validAppletParam } from './definition';
   import ParamField from '../plugins/ui/ParamField.svelte';
   import { getAppletHostContext } from './context';
 
   const host = getAppletHostContext();
   const quickActionScale = $derived(1 / Math.max(host?.designScale ?? 1, 0.01));
   let root = $state<HTMLDivElement>();
+  let openedAt = 0;
   let expanded = $state<number | undefined>();
   let running = $state<number | undefined>();
   let drafts = $state<Record<number, Record<string, unknown>>>({});
@@ -22,6 +23,11 @@
         args[param.key] = param.default;
     return args;
   }
+  const quickSettings = $derived(
+    settingParams(host?.applet.settings).filter((param) =>
+      host?.applet.quickSettings?.includes(param.key),
+    ),
+  );
   const rows = $derived.by(() =>
     (host?.applet.quickActions ?? []).map((ref, index) => {
       const action = actions.get(ref.id);
@@ -54,6 +60,11 @@
     }
   }
 
+  // A touch tap that opens the overlay is followed by a synthesized click at the same spot, which lands on the backdrop.
+  function dismiss() {
+    if (performance.now() - openedAt > 500) host?.setQuickActionsOpen(false);
+  }
+
   function keydown(event: KeyboardEvent) {
     if (host?.quickActionsOpen && event.key === 'Escape') {
       event.preventDefault();
@@ -65,6 +76,7 @@
     const open = host?.quickActionsOpen;
     const element = root;
     if (!open || !element?.parentElement) return;
+    openedAt = performance.now();
     host?.resetSceneInput();
     const siblings = [...element.parentElement.children].filter(
       (child): child is HTMLElement => child !== element && child instanceof HTMLElement,
@@ -97,7 +109,7 @@
     aria-label="Close quick actions"
     tabindex="-1"
     class="absolute inset-0 bg-black/55"
-    onclick={() => host?.setQuickActionsOpen(false)}
+    onclick={dismiss}
   ></button>
   <div
     role="dialog"
@@ -124,6 +136,16 @@
         onclick={() => host?.setQuickActionsOpen(false)}>×</Button
       >
     </header>
+    {#each quickSettings.filter((param) => param.visible?.(host?.config ?? {}) ?? true) as param (param.key)}
+      <ParamField
+        {param}
+        value={host?.config[param.key]}
+        args={host?.config}
+        provider={host?.applet.plugin}
+        showPluginMark={false}
+        onchange={(value) => host?.setConfig({ [param.key]: value })}
+      />
+    {/each}
     {#each rows as row (row.index)}
       <div class="grid gap-2 rounded-lg border bg-background/70 p-2">
         <div class="flex min-w-0 items-center gap-2">
