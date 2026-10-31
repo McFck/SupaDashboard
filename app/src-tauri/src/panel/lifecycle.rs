@@ -1,8 +1,17 @@
 //! Single creation, readiness generations and pending reveals for the control panel.
+#[derive(Default, PartialEq, Eq)]
+enum Phase {
+    #[default]
+    Absent,
+    Creating,
+    Loading,
+    Ready,
+    Closing,
+}
+
 #[derive(Default)]
 pub(super) struct PanelLifecycle {
-    creating: bool,
-    ready: bool,
+    phase: Phase,
     pub(super) generation: u64,
     pending_reveal: Option<bool>,
 }
@@ -16,32 +25,35 @@ pub(super) enum ReadyAction {
 
 impl PanelLifecycle {
     pub(super) fn begin_creation(&mut self) -> bool {
-        if self.creating {
+        if self.phase != Phase::Absent {
             return false;
         }
-        self.creating = true;
-        self.ready = false;
+        self.phase = Phase::Creating;
         true
     }
 
     pub(super) fn creation_succeeded(&mut self) {
-        self.creating = false;
+        if self.phase == Phase::Creating {
+            self.phase = Phase::Loading;
+        }
     }
 
     pub(super) fn creation_failed(&mut self) {
-        self.creating = false;
-        self.ready = false;
+        self.phase = Phase::Absent;
         self.pending_reveal = None;
     }
 
     pub(super) fn request_open(&mut self) -> (u64, bool) {
         self.pending_reveal = Some(true);
-        (self.generation, self.ready)
+        (self.generation, self.phase == Phase::Ready)
     }
 
     pub(super) fn navigation_started(&mut self, was_visible: bool) -> u64 {
+        if self.phase == Phase::Closing {
+            return self.generation;
+        }
         self.generation = self.generation.saturating_add(1);
-        self.ready = false;
+        self.phase = Phase::Loading;
         if was_visible {
             self.pending_reveal.get_or_insert(false);
         }
@@ -49,10 +61,10 @@ impl PanelLifecycle {
     }
 
     pub(super) fn mark_ready(&mut self, generation: u64) -> ReadyAction {
-        if generation != self.generation {
+        if generation != self.generation || matches!(self.phase, Phase::Absent | Phase::Closing) {
             return ReadyAction::Stale;
         }
-        self.ready = true;
+        self.phase = Phase::Ready;
         if self.pending_reveal.is_some() {
             ReadyAction::Reveal
         } else {
@@ -61,7 +73,7 @@ impl PanelLifecycle {
     }
 
     pub(super) fn pending_focus(&self, generation: u64) -> Option<bool> {
-        if generation == self.generation && self.ready {
+        if generation == self.generation && self.phase == Phase::Ready {
             self.pending_reveal
         } else {
             None
@@ -77,14 +89,15 @@ impl PanelLifecycle {
     }
 
     pub(super) fn close_requested(&mut self) {
+        self.phase = Phase::Closing;
+        self.generation = self.generation.saturating_add(1);
         self.pending_reveal = None;
     }
 
-    pub(super) fn destroyed(&mut self) {
-        self.creating = false;
-        self.ready = false;
+    pub(super) fn destroyed(&mut self) -> bool {
+        self.phase = Phase::Absent;
         self.generation = self.generation.saturating_add(1);
-        self.pending_reveal = None;
+        self.pending_reveal.is_some()
     }
 }
 
@@ -93,7 +106,7 @@ mod tests {
     use super::{PanelLifecycle, ReadyAction};
 
     #[test]
-    fn preload_ready_stays_hidden() {
+    fn readiness_without_an_open_request_stays_hidden() {
         let mut state = PanelLifecycle::default();
         assert!(state.begin_creation());
         let generation = state.navigation_started(false);
@@ -124,7 +137,8 @@ mod tests {
         state.request_open();
         let generation = state.navigation_started(false);
         state.close_requested();
-        assert_eq!(state.mark_ready(generation), ReadyAction::Hidden);
+        assert_eq!(state.mark_ready(generation), ReadyAction::Stale);
+        assert!(!state.destroyed());
     }
 
     #[test]
@@ -161,13 +175,21 @@ mod tests {
     }
 
     #[test]
-    fn close_to_hide_keeps_readiness_for_warm_reopen() {
+    fn an_open_during_close_waits_for_destruction_and_a_fresh_handshake() {
         let mut state = PanelLifecycle::default();
         let generation = state.navigation_started(false);
         assert_eq!(state.mark_ready(generation), ReadyAction::Hidden);
         state.close_requested();
-        assert!(state.request_open().1);
-        assert_eq!(state.mark_ready(generation), ReadyAction::Reveal);
+        assert!(!state.request_open().1);
+        assert!(!state.begin_creation());
+        assert_eq!(state.mark_ready(generation), ReadyAction::Stale);
+        assert!(state.destroyed());
+        assert!(state.begin_creation());
+        let reopened = state.navigation_started(false);
+        state.creation_succeeded();
+        assert_eq!(state.mark_ready(reopened), ReadyAction::Reveal);
+        assert!(state.finish_reveal(reopened));
+        assert!(!state.finish_reveal(reopened));
     }
 
     #[test]
@@ -178,6 +200,6 @@ mod tests {
         state.destroyed();
         assert!(state.generation > generation);
         assert_eq!(state.mark_ready(generation), ReadyAction::Stale);
-        assert!(!state.ready);
+        assert!(!state.request_open().1);
     }
 }
