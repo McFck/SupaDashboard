@@ -2,6 +2,7 @@
   import ResizeFrame from '../../controls/ui/ResizeFrame.svelte';
   import { inside, type Grid, type Item } from '../grid';
   import { itemBox, resizeCornerGeometry, type ResizeCorner } from '../drag-geometry';
+  import { getAppletHostContext } from '../../applets/context';
   import type { DeckDrag } from './deck-drag.svelte';
   import type { RemovalChrome } from './removal-chrome.svelte';
 
@@ -41,6 +42,9 @@
     onresizekey: (event: KeyboardEvent, item: Item, corner: ResizeCorner) => void;
   } = $props();
 
+  const appletHost = getAppletHostContext();
+  /** Applet slots are drawn scaled to fit; the corner handles keep their screen size. */
+  const handleScale = $derived(1 / Math.max(appletHost?.designScale ?? 1, 0.01));
   const current = $derived(drag.current);
   const activeMove = $derived(current?.mode === 'move' && current.moved ? current : null);
   const movePreview = $derived(activeMove ?? drag.move.removal);
@@ -179,6 +183,7 @@
             corner
           ]} focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
           style:translate="{hitX}px {hitY}px"
+          style:scale={handleScale}
           onpointerdown={(event) => drag.begin(event, selectedItem, 'resize', corner)}
           onpointermove={(event) => drag.track(event, selectedItem)}
           onpointerup={(event) => drag.end(selectedItem, event)}
