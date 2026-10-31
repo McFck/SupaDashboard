@@ -26,7 +26,7 @@ export type AppletSettingsEntry = {
 export type Deck = { pages: Page[]; activePage: string };
 
 export type Settings = {
-  version: 10;
+  version: 11;
   display: {
     monitor: string | null;
     monitorLabel: string | null;
@@ -44,4 +44,6 @@ export type Settings = {
   appletLayouts: Record<string, Record<string, Record<string, Item[]>>>;
   /** control id -> active variant (gesture swaps are sticky across restarts) */
   variants: Record<string, number>;
+  /** App keys the user added by hand (`aumid:…` / `exe:…`), kept for the app picker's suggestions. */
+  apps: string[];
 };

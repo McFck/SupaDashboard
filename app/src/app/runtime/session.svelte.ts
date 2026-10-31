@@ -33,6 +33,7 @@ import { AppletController } from '../../features/applets/applet-controller';
 import { runtimeAppletValues, updateAppletValues } from '../../features/settings/applet-scope';
 import { commit } from '../../features/layout/history.svelte';
 import { startClock } from '../../features/automation/clock';
+import { startAppWatcher } from '../../features/apps/watcher.svelte';
 import { EMPTY, type RuntimeSnapshot } from './state';
 import { VariableSaver, type VariablePersistence } from './variable-persistence';
 import { effectiveVariant } from '../../features/controls/control-state';
@@ -46,6 +47,7 @@ export type RuntimeOptions = {
   onFailure?: (failure: ScenarioFailure) => void;
   onQueueFull?: (controlId: string, trigger: Trigger | 'event') => void;
   onAppletFailed?: (appletId: string) => void;
+  onAppsFailed?: () => void;
 };
 
 /** The state a control shows now: its variable binding first, else its manual state. */
@@ -111,8 +113,10 @@ export class RuntimeSession {
   private stopSettingsEffect: () => void = () => {};
   private readonly saver: VariableSaver;
   private readonly onFailure: (failure: ScenarioFailure) => void;
+  private readonly onAppsFailed: () => void;
   private revision = 0;
   private stopClock: () => void = () => {};
+  private stopApps: () => void = () => {};
   private disposed = false;
   private lastValues: Record<string, VariableValue> = {};
   private variableAncestry = new Map<string, EventAncestry>();
@@ -121,6 +125,7 @@ export class RuntimeSession {
     this.variables = options.variables ?? new VariableStore();
     this.saver = new VariableSaver(this.variables, options.persistence);
     this.onFailure = options.onFailure ?? (() => {});
+    this.onAppsFailed = options.onAppsFailed ?? (() => {});
     this.content = new ContentController(() => this.publish());
     this.status = new StatusController({
       sources: statusSources,
@@ -230,6 +235,7 @@ export class RuntimeSession {
     });
     this.publish();
     this.stopClock = startClock(this.variables);
+    this.stopApps = startAppWatcher(this.variables, this.onAppsFailed);
     current = this;
   }
 
@@ -441,6 +447,7 @@ export class RuntimeSession {
     const failures: unknown[] = [];
     for (const cleanup of [
       this.stopClock,
+      this.stopApps,
       this.stopRemoteSettings,
       this.stopSettingsEffect,
       this.unsubscribeVariables,

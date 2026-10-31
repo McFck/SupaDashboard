@@ -4,16 +4,12 @@ use super::model::{
 };
 use std::collections::HashMap;
 use std::ffi::c_void;
-use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
 use windows::Win32::Media::Audio::{
     IAudioSessionControl2, IAudioSessionManager2, IMMDevice, ISimpleAudioVolume,
 };
 use windows::Win32::System::Com::{CLSCTX_ALL, CoTaskMemFree};
-use windows::Win32::System::Threading::{
-    OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
-};
-use windows::core::{Interface, PWSTR};
+use windows::core::Interface;
 
 pub fn read_device_id(device: &IMMDevice) -> windows::core::Result<String> {
     let id = unsafe { device.GetId()? };
@@ -30,20 +26,7 @@ fn read_session_id(control: &IAudioSessionControl2) -> Option<String> {
 }
 
 fn process_name(pid: u32) -> Option<String> {
-    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()? };
-    let mut buffer = [0u16; 260];
-    let mut length = buffer.len() as u32;
-    let result = unsafe {
-        QueryFullProcessImageNameW(
-            handle,
-            PROCESS_NAME_WIN32,
-            PWSTR(buffer.as_mut_ptr()),
-            &mut length,
-        )
-    };
-    let _ = unsafe { CloseHandle(handle) };
-    result.ok()?;
-    String::from_utf16_lossy(&buffer[..length as usize])
+    crate::apps::identity::image_path(pid)?
         .rsplit('\\')
         .next()
         .map(normalize_target)
