@@ -112,7 +112,13 @@ fn create_panel(app: AppHandle) -> Result<(), String> {
         .visible(false)
         .focused(false)
         .theme(Some(tauri::Theme::Dark))
-        .background_color(tauri::window::Color(24, 24, 24, 255));
+        .background_color(tauri::window::Color(24, 24, 24, 255))
+        // Must equal the dashboard's `additionalBrowserArgs` in tauri.conf.json: both webviews share one WebView2
+        // environment, which refuses a second webview with different arguments.
+        .additional_browser_args(
+            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion \
+             --disable-backgrounding-occluded-windows",
+        );
     // macOS keeps its native traffic lights, inset into the header (32px tall) and over a hidden title.
     #[cfg(target_os = "macos")]
     let builder = builder

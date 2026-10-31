@@ -19,6 +19,7 @@
         "focus": false,
         "focusable": false,
         "noRedirectionBitmap": true,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows",
         "visible": false,
         "label": "main",
         "transparent": true,
