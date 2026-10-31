@@ -5,6 +5,8 @@ import { getCurrentWindow, type Window } from '@tauri-apps/api/window';
 import type { Page } from '../settings/schema';
 import {
   connectedMonitors,
+  setDashboardMonitor,
+  dashboardMonitorBlocked,
   openWindowStateStore,
   type WindowStateStore,
 } from '../../platform/window';
@@ -97,7 +99,7 @@ export class DisplayController {
     this.deck = deck;
     return this.serialize(async () => {
       this.windowed.configureMinimum(deck, bottomInset);
-      if (!this.fullscreen.active) {
+      if (!this.fullscreen.active && !this.unavailable && !(await this.targetMissing())) {
         await this.windowed.enforceMinimum();
       }
     }).catch(() => toast.error('Could not apply minimum window size'));
@@ -126,6 +128,8 @@ export class DisplayController {
     this.windowed.configureMinimum(deck, bottomInset);
     this.deck = deck;
     this.latest = initial;
+    this.windowed.selected = initial.monitor;
+    await setDashboardMonitor(initial.monitor);
     this.window.topmost = await this.win.isAlwaysOnTop();
     this.window.step();
     const startup = await this.windowed.startupPlacement(initial.monitor, deck);
@@ -182,7 +186,16 @@ export class DisplayController {
   /** Applies one display request. */
   private async apply(request: DisplayRequest) {
     const last = this.applied;
-    if (last && request.monitor === last.monitor && request.fullscreen === last.fullscreen) {
+    this.windowed.selected = request.monitor;
+    if (await setDashboardMonitor(request.monitor)) {
+      await this.hide();
+    }
+    if (
+      last &&
+      !this.unavailable &&
+      request.monitor === last.monitor &&
+      request.fullscreen === last.fullscreen
+    ) {
       await this.window.setTopmost(this.fullscreen.active || request.alwaysOnTop);
       return true;
     }
@@ -197,7 +210,7 @@ export class DisplayController {
       return false;
     }
 
-    if (this.unavailable && !this.fullscreen.active) {
+    if (this.unavailable) {
       await this.reopen(request, target, screens, current);
     } else if (request.fullscreen) {
       if (!this.fullscreen.active) {
@@ -234,6 +247,7 @@ export class DisplayController {
       throw new Error('Dashboard grid is not configured');
     }
     await this.windowed.restore(await this.windowed.startupPlacement(request.monitor, this.deck));
+    this.fullscreen.active = false;
     this.window.step();
     if (request.fullscreen) {
       await this.fullscreen.enter(target, screens, current);
@@ -243,6 +257,7 @@ export class DisplayController {
   }
 
   private async hide() {
+    this.windowed.cancelSave();
     if (!this.unavailable) {
       this.unavailable = true;
       await this.win.hide();
@@ -274,6 +289,13 @@ export class DisplayController {
         return;
       }
       const missing = chosenMonitorMissing(screens, request.monitor);
+      const blocked = await dashboardMonitorBlocked();
+      if (!this.live() || this.latest !== request) {
+        return;
+      }
+      if (blocked) {
+        await this.hide();
+      }
       if (missing && !this.unavailable) {
         await this.hide();
       } else if (!missing && this.unavailable) {
@@ -341,17 +363,29 @@ export class DisplayController {
 
   /** Reapplies fullscreen coverage or the windowed minimum after a resize or DPI change. */
   private async reconcile() {
-    if (this.window.transition) {
+    if (this.window.transition || this.unavailable || (await this.targetMissing())) {
       return;
     }
     if (!this.fullscreen.active) {
       await this.windowed.enforceMinimum();
       return;
     }
-    const { target } = await resolveTarget(this.applied?.monitor ?? null);
+    const { target } = await resolveTarget(this.latest?.monitor ?? null);
     if (target) {
       await this.fullscreen.reconcile(target);
     }
+  }
+
+  private async targetMissing() {
+    if (!this.latest?.monitor) {
+      return false;
+    }
+    const { target } = await resolveTarget(this.latest.monitor);
+    if (!target) {
+      await this.hide();
+      return true;
+    }
+    return false;
   }
 }
 

@@ -11,19 +11,25 @@ const native = vi.hoisted(() => ({
   screens: [] as MonitorGeometry[],
   bounds: { x: 10, y: 10, width: 400, height: 300 } as Geometry,
   adjustment: 0,
+  blocked: false,
   readMonitors: vi.fn<() => Promise<MonitorSnapshot>>(),
 }));
 vi.mock('../../platform/window', () => ({
   connectedMonitors: () => native.readMonitors(),
   readWindowBounds: async () => native.bounds,
-  setDashboardBounds: async (bounds: Geometry) =>
-    (native.bounds = { ...bounds, width: bounds.width + native.adjustment }),
+  setDashboardBounds: async (bounds: Geometry) => {
+    native.blocked = false;
+    return (native.bounds = { ...bounds, width: bounds.width + native.adjustment });
+  },
   setDashboardInteractionMode: async () => {},
+  setDashboardMonitor: async () => native.blocked,
+  dashboardMonitorBlocked: async () => native.blocked,
 }));
 
 let controller: DisplayController;
 beforeEach(() => {
   native.adjustment = 0;
+  native.blocked = false;
   native.readMonitors.mockReset();
   native.readMonitors.mockImplementation(async () => ({
     screens: native.screens,
@@ -84,6 +90,7 @@ it.each(['absent', 'invalid'] as const)(
 
 function windowFixture() {
   let scaleChanged = () => {};
+  let moved = () => {};
   native.screens = [
     {
       name: 'screen',
@@ -101,7 +108,10 @@ function windowFixture() {
     setAlwaysOnTop: async () => {},
     setMinSize,
     scaleFactor: async () => 1.5,
-    onMoved: async () => () => {},
+    onMoved: async (callback: () => void) => {
+      moved = callback;
+      return () => {};
+    },
     onResized: async () => () => {},
     onScaleChanged: async (callback: () => void) => {
       scaleChanged = callback;
@@ -136,6 +146,7 @@ function windowFixture() {
     show,
     stored,
     scaleChanged: () => scaleChanged(),
+    moved: () => moved(),
   };
 }
 
@@ -288,6 +299,84 @@ it('hides, and never saves over the remembered rectangle, when the chosen monito
   expect(stored.dashboardByMonitor).toEqual({
     second: { x: 2100, y: 60, width: 800, height: 500 },
   });
+});
+
+it.each([false, true])(
+  'rejects Windows relocation before the poll and restores remembered placement (fullscreen=%s)',
+  async (fullscreen) => {
+    const { deck, set, stored, moved, scaleChanged, show } = windowFixture();
+    native.screens.push(secondScreen());
+    const remembered = { x: 2100, y: 60, width: 800, height: 500 };
+    stored.dashboardByMonitor = { second: remembered };
+    vi.useFakeTimers();
+    try {
+      await controller.start({ ...onSecond, fullscreen }, deck);
+      set.mockClear();
+      native.screens.splice(1);
+      native.bounds = { x: 10, y: 10, width: 800, height: 500 };
+      moved();
+      await vi.advanceTimersByTimeAsync(400);
+      expect(set).not.toHaveBeenCalled();
+      scaleChanged();
+      await controller.updateGrid(deck, 0);
+      expect(native.bounds).toEqual({ x: 10, y: 10, width: 800, height: 500 });
+      expect(set).not.toHaveBeenCalled();
+      expect(stored.dashboardByMonitor).toEqual({ second: remembered });
+      await vi.advanceTimersByTimeAsync(1200);
+      expect(controller.unavailable).toBe(true);
+      native.screens.push(secondScreen());
+      await vi.advanceTimersByTimeAsync(1600);
+      expect(show).toHaveBeenCalledOnce();
+      expect(native.bounds).toEqual(
+        fullscreen ? { x: 1920, y: 0, width: 1920, height: 1080 } : remembered,
+      );
+      expect(stored.dashboardByMonitor).toEqual({ second: remembered });
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);
+
+it('restores after a native hide even when the monitor returns between availability polls', async () => {
+  const { deck, stored, moved, set, show } = windowFixture();
+  native.screens.push(secondScreen());
+  const remembered = { x: 2100, y: 60, width: 800, height: 500 };
+  stored.dashboardByMonitor = { second: remembered };
+  vi.useFakeTimers();
+  try {
+    await controller.start(onSecond, deck);
+    set.mockClear();
+    native.bounds = { x: 10, y: 10, width: 800, height: 500 };
+    native.blocked = true;
+    moved();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(set).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(native.bounds).toEqual(remembered);
+    expect(show).toHaveBeenCalledOnce();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('ignores polluted global and GDI placements when the chosen device path has no saved placement', async () => {
+  const { deck, stored } = windowFixture();
+  native.screens.push({ ...secondScreen(), legacyName: 'DISPLAY1' });
+  stored.dashboardByMonitor = { DISPLAY1: { x: 10, y: 10, width: 900, height: 700 } };
+  await controller.start(onSecond, deck);
+  expect(native.bounds.x).toBeGreaterThanOrEqual(1920);
+  expect(native.bounds.width).toBeGreaterThan(579);
+  expect(native.bounds.width).not.toBe(900);
+});
+
+it('moves to another monitor only after an explicit selection', async () => {
+  const { deck, show } = windowFixture();
+  native.screens.push(secondScreen());
+  await controller.start(onSecond, deck);
+  native.blocked = true;
+  await controller.request({ ...onSecond, monitor: 'screen' });
+  expect(native.bounds.x).toBeLessThan(1920);
+  expect(show).toHaveBeenCalledOnce();
 });
 
 it('does not hide a newly selected connected display when an old monitor check finishes', async () => {

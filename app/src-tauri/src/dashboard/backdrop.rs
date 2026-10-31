@@ -2,8 +2,10 @@
 //! wallpaper through DWM thumbnails. The compositor draws every wallpaper frame; this process only updates the
 //! thumbnails when the dashboard moves, resizes, shows, hides or changes mode. Everything runs on the UI thread.
 use super::geometry::Geometry;
+use super::monitor_guard::MonitorGuard;
 use std::cell::Cell;
 use std::mem::size_of;
+use std::rc::Rc;
 use std::sync::OnceLock;
 use windows::Win32::Foundation::{GetLastError, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::Graphics::Dwm::{
@@ -19,9 +21,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
     HTTRANSPARENT, IsIconic, IsWindow, IsWindowVisible, MA_NOACTIVATE, RegisterClassExW,
     RegisterWindowMessageW, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SMTO_ABORTIFHUNG, SMTO_BLOCK,
     SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER,
-    SWP_SHOWWINDOW, SendMessageTimeoutW, SetWindowLongPtrW, SetWindowPos, ShowWindow,
-    WM_DISPLAYCHANGE, WM_MOUSEACTIVATE, WM_NCHITTEST, WNDCLASSEXW, WS_EX_NOACTIVATE,
-    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+    SWP_SHOWWINDOW, SendMessageTimeoutW, SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOWPOS,
+    WM_DISPLAYCHANGE, WM_MOUSEACTIVATE, WM_NCHITTEST, WM_WINDOWPOSCHANGING, WNDCLASSEXW,
+    WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    WS_EX_TRANSPARENT, WS_POPUP,
 };
 use windows::core::{PCWSTR, w};
 
@@ -39,6 +42,7 @@ struct Layout {
 }
 
 pub struct Backdrop {
+    monitor: Rc<MonitorGuard>,
     dashboard: HWND,
     window: Cell<Option<HWND>>,
     source: Cell<Option<HWND>>,
@@ -51,8 +55,9 @@ pub struct Backdrop {
 }
 
 impl Backdrop {
-    pub fn new(dashboard: HWND) -> Self {
+    pub fn new(dashboard: HWND, monitor: Rc<MonitorGuard>) -> Self {
         Self {
+            monitor,
             dashboard,
             window: Cell::new(None),
             source: Cell::new(None),
@@ -409,6 +414,15 @@ unsafe extern "system" fn backdrop_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     match message {
+        WM_WINDOWPOSCHANGING if lparam.0 != 0 => {
+            let backdrop = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *const Backdrop;
+            if let Some(backdrop) = unsafe { backdrop.as_ref() } {
+                backdrop
+                    .monitor
+                    .changing(hwnd, unsafe { &mut *(lparam.0 as *mut WINDOWPOS) });
+            }
+            unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
+        }
         WM_NCHITTEST => LRESULT(HTTRANSPARENT as isize),
         WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
         _ if message == WM_DISPLAYCHANGE || message == taskbar_created() => {
