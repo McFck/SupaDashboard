@@ -1,12 +1,11 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { primaryMonitor } from '@tauri-apps/api/window';
-import { open } from '@tauri-apps/plugin-dialog';
 import { buildMonitorOptions, type MonitorOption } from '../features/display/monitor-options';
-import { APP_ACTIONS, appLabel, appRequest, isAppKey, usedApps } from '../features/apps/keys';
-import { commit } from '../features/layout/history.svelte';
-import { settings } from '../features/settings/state.svelte';
-import type { Option, Param, Plugin } from '../features/plugins/contracts';
-import { listApps, runAppCommand, type AppRow } from '../platform/apps';
+import { APP_ACTIONS, appRequest } from '../features/apps/keys';
+import { appParam } from '../features/apps/picker.svelte';
+import { ActionFailure } from '../features/automation/action-failure';
+import type { Param, Plugin } from '../features/plugins/contracts';
+import { runAppCommand } from '../platform/apps';
 import { monitors } from '../platform/window';
 
 const TITLES = {
@@ -17,60 +16,7 @@ const TITLES = {
   close: 'Close app',
 } as const;
 
-let rows: AppRow[] = [];
 let screens: MonitorOption[] = [];
-
-/** Running apps, then the Start menu, then apps used by actions or added by hand. */
-function appOptions(): Option[] {
-  const options: Option[] = rows.map((row) => ({
-    value: row.key,
-    label: row.label,
-    detail: row.key.startsWith('exe:') ? row.detail : undefined,
-  }));
-  const known = new Set(rows.map((row) => row.key));
-  for (const key of [...settings.apps, ...usedApps(settings.controls)]) {
-    if (!known.has(key)) {
-      known.add(key);
-      options.push({ value: key, label: appLabel(key) });
-    }
-  }
-  return options;
-}
-
-function remember(key: string) {
-  if (!settings.apps.includes(key)) {
-    settings.apps.push(key);
-    commit('Add app');
-  }
-}
-
-const appParam: Param = {
-  key: 'app',
-  label: 'App',
-  type: 'text',
-  default: '',
-  suggestions: appOptions,
-  refresh: async () => {
-    if (isTauri()) {
-      rows = await listApps();
-    }
-  },
-  manual: {
-    browse: async () => {
-      const path = await open({ filters: [{ name: 'App', extensions: ['exe'] }] });
-      if (typeof path !== 'string') {
-        return null;
-      }
-      remember(`exe:${path}`);
-      return `exe:${path}`;
-    },
-    keep: (value) => {
-      if (isAppKey(value) && !rows.some((row) => row.key === value)) {
-        remember(value);
-      }
-    },
-  },
-};
 
 const displayParam: Param = {
   key: 'display',
@@ -133,7 +79,20 @@ export const appsPlugin: Plugin = {
         id: `app.${op}`,
         title: TITLES[op],
         params: PARAMS[op],
-        run: (args) => runAppCommand(appRequest(op, args)),
+        run: async (args) => {
+          try {
+            await runAppCommand(appRequest(op, args));
+          } catch (error) {
+            // The native side answers with a short title such as "Couldn't close Discord".
+            throw new ActionFailure(
+              typeof error === 'string'
+                ? error
+                : error instanceof Error
+                  ? error.message
+                  : 'App action failed',
+            );
+          }
+        },
       });
     }
   },

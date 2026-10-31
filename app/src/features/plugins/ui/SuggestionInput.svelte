@@ -4,6 +4,7 @@
   import { Input } from '$lib/components/ui/input';
   import OptionTags from './OptionTags.svelte';
   import PluginMark from './PluginMark.svelte';
+  import Icon from '../../controls/ui/Icon.svelte';
   import type { Option } from '../contracts';
 
   let {
@@ -69,6 +70,12 @@
             label={option.label}
             class="flex min-w-0 cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
           >
+            {#if option.iconName}
+              <Icon
+                name={option.iconName}
+                size={16}
+              />
+            {/if}
             <span class="min-w-0 flex-1 truncate">{option.label}</span>
             <OptionTags
               detail={option.detail}

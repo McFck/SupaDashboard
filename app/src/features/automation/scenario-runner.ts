@@ -2,6 +2,7 @@ import type { ActionContext, ActionRef, EventAncestry } from '../plugins/contrac
 import type { ActionStep, Predicate, Trigger } from './scenario';
 import { isValidDelay, MAX_SCENARIO_DEPTH, MAX_SCENARIO_NODES } from './scenario';
 import { validateScenario } from './validate';
+import { ActionFailure } from './action-failure';
 import { awaitAction, ensureActive, nextTask, RunCancelled, wait } from './cancellation';
 import { evaluatePredicate, type PredicateEnvironment } from './expression';
 import type { VariableValue } from './variables';
@@ -26,6 +27,8 @@ export type ScenarioFailure = {
   stepId: string;
   kind: 'action' | 'condition' | 'delay' | 'cycle';
   actionId?: string;
+  /** The action's own toast title, when it gave one. */
+  message?: string;
 };
 
 export type RunResult = {
@@ -53,6 +56,7 @@ class StepFailure extends Error {
     readonly stepId: string,
     readonly kind: ScenarioFailure['kind'],
     readonly actionId?: string,
+    readonly detail?: string,
   ) {
     super('Scenario step failed');
   }
@@ -68,6 +72,7 @@ function failureOf(packet: TriggerPacket, failed: StepFailure): ScenarioFailure 
     stepId: failed.stepId,
     kind: failed.kind,
     ...(failed.actionId ? { actionId: failed.actionId } : {}),
+    ...(failed.detail ? { message: failed.detail } : {}),
   };
 }
 
@@ -123,7 +128,12 @@ export class ScenarioRunner {
           throw error;
         }
         if (step.kind === 'action') {
-          throw new StepFailure(step.id, 'action', step.action.id);
+          throw new StepFailure(
+            step.id,
+            'action',
+            step.action.id,
+            error instanceof ActionFailure ? error.message : undefined,
+          );
         }
         throw new StepFailure(step.id, step.kind === 'if' ? 'condition' : 'delay');
       }
