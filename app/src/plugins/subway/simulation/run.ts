@@ -2,7 +2,7 @@ import { stepStation, type LineDefinition } from './lines';
 import { advance, catchUp, dueDeadline, prepareDwell } from './run-advance';
 import { applyIncident, resumeService } from './run-incident';
 import { remainingJourneyMs } from './run-journey';
-import { activeNow, clamp, snapshotMotion } from './run-motion';
+import { activeNow, clamp, cruisePower, snapshotMotion } from './run-motion';
 import {
   finiteTime,
   lineFor,
@@ -247,8 +247,8 @@ export function snapshotRun(
     ? 0
     : state.phase === 'departing'
       ? 1
-      : state.phase === 'cruising'
-        ? 0.35
+      : state.phase === 'cruising' && state.segment
+        ? cruisePower(state.segment, at)
         : 0;
   const brake =
     braking ||
