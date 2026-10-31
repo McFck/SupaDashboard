@@ -1,6 +1,7 @@
 #[cfg(not(windows))]
 compile_error!("SupaDashboard builds for Windows only");
 
+mod apps;
 mod audio;
 mod content;
 mod dashboard;
@@ -34,6 +35,7 @@ pub fn run() {
                 audio::service::AudioService::start(app.handle().clone())
                     .map_err(std::io::Error::other)?,
             );
+            app.manage(apps::watch::AppsHub::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
@@ -65,6 +67,10 @@ pub fn run() {
             dashboard::commands::dashboard_backdrop,
             audio::service::audio_snapshot,
             audio::service::audio_update,
+            apps::apps_list,
+            apps::app_command,
+            apps::apps_watch,
+            apps::apps_unwatch,
             media::media_command,
             media::media_sessions_subscribe,
             media::media_sessions_unsubscribe,

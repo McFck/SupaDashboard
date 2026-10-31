@@ -275,6 +275,12 @@ fn enum_display_friendly_name(source_name: &str) -> Option<String> {
     None
 }
 
+/// Names and device paths of GDI-named monitors, for code that has no Tauri handle.
+pub(crate) fn describe(names: &[String]) -> Vec<MonitorName> {
+    let (display_config, enum_display) = windows_metadata(names);
+    map_monitor_names(names, &display_config, &enum_display, None)
+}
+
 #[tauri::command]
 pub async fn monitor_names(app: AppHandle) -> Result<Vec<MonitorName>, String> {
     let monitors = app
