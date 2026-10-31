@@ -53,6 +53,7 @@ async function startOwner(channel: RuntimeSync) {
     onFailure: reportFailure,
     onQueueFull: reportQueueFull,
     onAppletFailed: () => toast.error('Applet failed to start'),
+    onAppsFailed: () => toast.error('App state unavailable'),
   });
   channel.becomeOwner((request) => handleRuntimeRequest(session, request));
   const unsubscribe = session.snapshots.subscribe((snapshot) => {

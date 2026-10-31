@@ -1,5 +1,6 @@
 <script lang="ts">
   import { toast } from 'svelte-sonner';
+  import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Slider } from '$lib/components/ui/slider';
   import { Switch } from '$lib/components/ui/switch';
@@ -57,6 +58,16 @@
       ? [...withProvider, { value: current, label: current, plugin: provider }]
       : withProvider;
   });
+  async function browse() {
+    try {
+      const picked = await param.manual?.browse();
+      if (picked) {
+        onchange(picked);
+      }
+    } catch {
+      toast.error('Could not open the file picker');
+    }
+  }
   function input(event: { currentTarget: HTMLInputElement }) {
     const next = event.currentTarget.value;
     onchange(param.type === 'number' ? Number(next) : next);
@@ -72,14 +83,25 @@
     onopen={refresh}
     {showPluginMark}
   />
-{:else if param.type === 'text' && markedTextSuggestions}
-  <SuggestionInput
-    value={String(value ?? param.default ?? '')}
-    suggestions={suggestions ?? []}
-    {provider}
-    {onchange}
-    onrefresh={refresh}
-  />
+{:else if param.type === 'text' && (markedTextSuggestions || param.manual)}
+  <div
+    class="flex min-w-0 items-center gap-2"
+    onfocusout={() => param.manual?.keep(String(value ?? ''))}
+  >
+    <SuggestionInput
+      value={String(value ?? param.default ?? '')}
+      suggestions={suggestions ?? []}
+      {provider}
+      {onchange}
+      onrefresh={refresh}
+    />
+    {#if param.manual}
+      <Button
+        variant="outline"
+        onclick={browse}>Browse</Button
+      >
+    {/if}
+  </div>
 {:else if param.type === 'number' && param.min !== undefined && param.max !== undefined}
   <div class="flex w-48 items-center gap-3">
     <Slider

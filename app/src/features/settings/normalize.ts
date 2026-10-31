@@ -82,6 +82,10 @@ export function migrate(input: unknown): Settings {
     }
   }
 
+  const apps = saved.apps ?? [];
+  if (!Array.isArray(apps) || !apps.every((app) => typeof app === 'string')) {
+    throw new Error('Saved apps must be a list of text');
+  }
   const display = object(saved.display);
   const background = object(display.background);
   const pick = <T>(value: unknown, guard: (v: unknown) => boolean, fallback: T) =>
@@ -91,7 +95,7 @@ export function migrate(input: unknown): Settings {
   return {
     ...out,
     ...saved,
-    version: 10,
+    version: 11,
     controls,
     display: {
       ...out.display,
@@ -114,5 +118,6 @@ export function migrate(input: unknown): Settings {
     appletSettings,
     appletLayouts,
     variants,
+    apps: [...new Set(apps)],
   };
 }

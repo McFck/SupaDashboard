@@ -7,6 +7,7 @@ import { redo, startHistory, undo } from '../features/layout/history.svelte';
 import { loadSettings } from '../features/settings/persistence.svelte';
 import { initVolumeSync } from '../features/media/volume';
 import { followRemovals } from '../features/layout/removal';
+import { appsPlugin } from '../plugins/core-apps';
 import { corePlugin } from '../plugins/core';
 import { spotifyPlugin } from '../plugins/spotify';
 import { subwayPlugin } from '../plugins/subway';
@@ -17,7 +18,7 @@ import Root from './Root.svelte';
 import ControlPanel from '../panel/ControlPanel.svelte';
 import Dashboard from '../features/dashboard/Dashboard.svelte';
 
-const BUNDLED_PLUGINS = [corePlugin, uiPlugin, spotifyPlugin, subwayPlugin];
+const BUNDLED_PLUGINS = [corePlugin, appsPlugin, uiPlugin, spotifyPlugin, subwayPlugin];
 
 let disposed = false;
 

@@ -87,7 +87,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 10) {
+  if (typeof saved.version === 'number' && saved.version > 11) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -167,10 +167,10 @@ export function upgrade(input: Record<string, unknown>) {
     };
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
-  if (![3, 4, 5, 6, 7, 8, 9, 10].includes(saved.version as number)) {
+  if (![3, 4, 5, 6, 7, 8, 9, 10, 11].includes(saved.version as number)) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
-  if (![8, 9, 10].includes(saved.version as number)) {
+  if (![8, 9, 10, 11].includes(saved.version as number)) {
     saved = toV8(saved);
   }
   if (saved.version === 8) {
@@ -179,6 +179,9 @@ export function upgrade(input: Record<string, unknown>) {
   }
   if (saved.version === 9) {
     saved = { ...saved, version: 10, appletLayouts: mergeSubwaySide(object(saved.appletLayouts)) };
+  }
+  if (saved.version === 10) {
+    saved = { ...saved, version: 11, apps: [] };
   }
   const display = object(saved.display);
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {

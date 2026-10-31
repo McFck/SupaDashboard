@@ -42,7 +42,7 @@ export const DEFAULT_PAGE: Page = {
 };
 
 export const DEFAULTS: Settings = {
-  version: 10,
+  version: 11,
   display: {
     monitor: null,
     monitorLabel: null,
@@ -95,4 +95,5 @@ export const DEFAULTS: Settings = {
   appletSettings: {},
   appletLayouts: {},
   variants: {},
+  apps: [],
 };
