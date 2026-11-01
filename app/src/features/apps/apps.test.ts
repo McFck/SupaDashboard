@@ -44,6 +44,8 @@ describe('app requests', () => {
       { windows: null },
       { title: 3 },
       { windows: 'title', title: ' ' },
+      { windows: 'window', title: 'Friends List' },
+      { windows: 'window', window: 3 },
       { title: 'bad\nname' },
       { title: 'x'.repeat(1025) },
       { windows: 'main', hide: 'close', force: true },
@@ -53,6 +55,9 @@ describe('app requests', () => {
     expect(appRequest('focus', { app: 'aumid:Steam', windows: 'title', title: ' Steam ' })).toEqual(
       { op: 'focus', app: 'aumid:Steam', windows: 'title', title: 'Steam' },
     );
+    expect(
+      appRequest('toggle', { app: 'aumid:Steam', windows: 'window', window: ' Friends List ' }),
+    ).toEqual({ op: 'toggle', app: 'aumid:Steam', windows: 'window', title: 'Friends List' });
   });
 
   it('watches apps used by actions and apps added by hand, once each', () => {

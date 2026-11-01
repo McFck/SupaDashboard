@@ -16,6 +16,7 @@ fn window_selection_defaults_and_validation_protect_the_native_boundary() {
         serde_json::json!({"windows":"recent"}),
         serde_json::json!({"windows":null}),
         serde_json::json!({"windows":"title", "title":" "}),
+        serde_json::json!({"windows":"window", "title":""}),
         serde_json::json!({"title":3}),
         serde_json::json!({"title":"bad\nname"}),
         serde_json::json!({"title":"x".repeat(1025)}),
@@ -26,4 +27,7 @@ fn window_selection_defaults_and_validation_protect_the_native_boundary() {
     let command = parse(serde_json::json!({"windows":"title", "title":" STEAM "})).unwrap();
     assert_eq!(command.windows, Windows::Title);
     assert_eq!(command.title, "steam");
+    let command = parse(serde_json::json!({"windows":"window", "title":"Friends List"})).unwrap();
+    assert_eq!(command.windows, Windows::Window);
+    assert_eq!(command.title, "friends list");
 }

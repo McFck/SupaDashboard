@@ -38,6 +38,19 @@ pub async fn app_command(request: Request) -> Result<(), String> {
     .await
 }
 
+/// The titles of the app's windows right now, for the "Specific window" picker.
+#[tauri::command]
+pub async fn app_windows(app: String) -> Result<Vec<String>, String> {
+    let key = parse_key(&app)?;
+    blocking(move || {
+        let matcher = identity::matcher(&key)?;
+        let mut names = identity::Names::default();
+        let wins = windows::Scan::new(&mut names).windows(&matcher);
+        Ok(selection::titles(&wins))
+    })
+    .await
+}
+
 /// Replaces the watched set and returns its current state. A key that cannot be resolved is left out.
 #[tauri::command]
 pub async fn apps_watch(

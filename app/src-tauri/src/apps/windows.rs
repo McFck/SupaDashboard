@@ -14,8 +14,8 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, FindWindowExW, GA_ROOTOWNER, GW_OWNER, GWL_EXSTYLE, GetAncestor,
-    GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowTextW, GetWindowThreadProcessId,
-    IsIconic, IsWindowVisible, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+    GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowRect, GetWindowTextW,
+    GetWindowThreadProcessId, IsIconic, IsWindowVisible, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 use windows::core::{BOOL, w};
 
@@ -125,6 +125,9 @@ fn describe(hwnd: HWND, pid: u32) -> Win {
             size_of::<u32>() as u32,
         )
     };
+    let minimized = unsafe { IsIconic(hwnd) }.as_bool();
+    let mut bounds = RECT::default();
+    let _ = unsafe { GetWindowRect(hwnd, &mut bounds) };
     Win {
         hwnd: hwnd.0 as isize,
         pid,
@@ -133,7 +136,8 @@ fn describe(hwnd: HWND, pid: u32) -> Win {
         tool: style & WS_EX_TOOLWINDOW.0 != 0,
         app_window: style & WS_EX_APPWINDOW.0 != 0,
         cloaked: cloaked != 0,
-        minimized: unsafe { IsIconic(hwnd) }.as_bool(),
+        minimized,
+        sized: minimized || (bounds.right - bounds.left > 1 && bounds.bottom - bounds.top > 1),
         title: String::from_utf16_lossy(&title[..length]),
     }
 }

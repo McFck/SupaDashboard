@@ -37,6 +37,8 @@ pub enum Windows {
     #[default]
     All,
     Title,
+    /// One window, found again by its exact title after it is recreated.
+    Window,
 }
 
 /// The raw `app_command` payload.
@@ -97,7 +99,9 @@ pub fn parse_request(request: Request) -> Result<Command, String> {
     if request.title.len() > MAX_KEY || request.title.chars().any(char::is_control) {
         return Err("The window title is not valid".into());
     }
-    if request.windows == Windows::Title && request.title.trim().is_empty() {
+    if matches!(request.windows, Windows::Title | Windows::Window)
+        && request.title.trim().is_empty()
+    {
         return Err("Enter a window title".into());
     }
     if request.op == Op::Toggle
@@ -141,12 +145,14 @@ pub struct Win {
     /// Cloaked windows include those on another virtual desktop.
     pub cloaked: bool,
     pub minimized: bool,
+    /// False for the zero-size windows browser engines keep around; they are never a window the user sees.
+    pub sized: bool,
     pub title: String,
 }
 
 /// A window the user would call "the app's window". Hidden ones still prove the app is running.
 pub fn is_app_window(win: &Win) -> bool {
-    win.visible && !win.owned && (!win.tool || win.app_window) && !win.cloaked
+    win.visible && win.sized && !win.owned && (!win.tool || win.app_window) && !win.cloaked
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
@@ -316,6 +322,7 @@ mod tests {
             app_window: false,
             cloaked: false,
             minimized: false,
+            sized: true,
             title: String::new(),
         }
     }
@@ -356,6 +363,13 @@ mod tests {
             (
                 Win {
                     visible: false,
+                    ..win(1)
+                },
+                false,
+            ),
+            (
+                Win {
+                    sized: false,
                     ..win(1)
                 },
                 false,
