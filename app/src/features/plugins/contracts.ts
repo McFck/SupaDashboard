@@ -59,7 +59,7 @@ export type Param = {
   step?: number;
   /** Text only: lets the user add a value by hand. `browse` opens a picker and returns the value to use; `keep` remembers one that was typed. */
   manual?: { browse(): Promise<string | null>; keep(value: string): void };
-  /** Plugin settings only: hidden, not cleared, while false. Receives the resolved settings. */
+  /** Hidden, not cleared, while false. Receives the current arguments or resolved settings. */
   visible?: (args: Record<string, unknown>) => boolean;
 };
 

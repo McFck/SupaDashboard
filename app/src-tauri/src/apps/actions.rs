@@ -1,8 +1,7 @@
 //! What app commands do to windows: launch, focus, move to a display, minimize, close.
 use super::identity::{Matcher, init_com};
-use super::model::{
-    Command, Hide, Op, Plan, ToggleFacts, Win, is_app_window, plan_toggle, relocate,
-};
+use super::model::{Command, Hide, Op, Plan, Win, is_app_window, plan_toggle, relocate};
+use super::selection::{select, toggle_facts};
 use super::windows::{Monitor, Scan, hwnd, rect};
 use std::mem::size_of;
 use std::time::{Duration, Instant};
@@ -192,6 +191,14 @@ fn reveal(win: &Win, display: Option<&Monitor>, label: &str) -> Result<(), Strin
     }
 }
 
+fn reveal_selected(wins: &[Win], display: Option<&Monitor>, label: &str) -> Result<(), String> {
+    // Restore each window through the same path, leaving the stable primary target in front.
+    for win in wins.iter().rev() {
+        reveal(win, display, label)?;
+    }
+    Ok(())
+}
+
 fn minimize(wins: &[Win], label: &str) -> Result<(), String> {
     for win in wins.iter().filter(|win| is_app_window(win)) {
         let handle = hwnd(win);
@@ -237,14 +244,19 @@ fn top(wins: &[Win]) -> Option<&Win> {
 }
 
 /// Launches, then waits for the app's first window so it can be focused.
-fn launch_and_wait(names: &mut super::identity::Names, matcher: &Matcher) -> Result<Win, String> {
+fn launch_and_wait(
+    names: &mut super::identity::Names,
+    matcher: &Matcher,
+    command: &Command,
+) -> Result<Vec<Win>, String> {
     launch(matcher)?;
     let started = Instant::now();
     while started.elapsed() < WINDOW_WAIT {
         std::thread::sleep(Duration::from_millis(100));
         let found = Scan::new(names).windows(matcher);
-        if let Some(win) = top(&found) {
-            return Ok(win.clone());
+        let selected = select(&found, command.windows, &command.title);
+        if !selected.is_empty() {
+            return Ok(selected);
         }
     }
     Err(format!("{} didn't open a window", matcher.label))
@@ -267,11 +279,19 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
     let label = matcher.label.as_str();
     let target = display.map(|index| super::windows::monitors().swap_remove(index));
     let shown = top(&wins);
-    let reveal_top = |scan: &mut Scan, win: Option<&Win>| match win {
-        Some(win) => reveal(win, target.as_ref(), label),
-        None => {
-            let win = launch_and_wait(scan.names, matcher)?;
-            reveal(&win, target.as_ref(), label)
+    let selected = select(&wins, command.windows, &command.title);
+    if matches!(command.op, Op::Focus | Op::Toggle | Op::Minimize)
+        && selected.is_empty()
+        && shown.is_some()
+    {
+        return Err(format!("No matching window for {label}"));
+    }
+    let reveal_targets = |scan: &mut Scan| {
+        if selected.is_empty() {
+            let opened = launch_and_wait(scan.names, matcher, command)?;
+            reveal_selected(&opened, target.as_ref(), label)
+        } else {
+            reveal_selected(&selected, target.as_ref(), label)
         }
     };
     match command.op {
@@ -284,32 +304,26 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
         }
         Op::Focus => {
             guard_focus()?;
-            reveal_top(&mut scan, shown)
+            reveal_targets(&mut scan)
         }
         Op::Toggle => {
-            let foreground = scan.foreground_pid();
-            let facts = ToggleFacts {
-                running,
-                shown: shown.is_some(),
-                top_foreground: shown.is_some_and(|win| foreground == Some(win.pid)),
-                top_minimized: shown.is_some_and(|win| win.minimized),
-            };
+            let facts = toggle_facts(&selected, running, scan.foreground_root());
             let plan = plan_toggle(facts);
             if plan != Plan::Hide {
                 guard_focus()?;
             }
             match plan {
                 Plan::Launch => launch(matcher),
-                Plan::Restore | Plan::Raise => reveal_top(&mut scan, shown),
+                Plan::Restore | Plan::Raise => reveal_targets(&mut scan),
                 Plan::Hide => match command.hide {
-                    Hide::Minimize => minimize(&wins, label),
-                    Hide::Close => close(&mut scan, matcher, &wins, command.force),
+                    Hide::Minimize => minimize(&selected, label),
+                    Hide::Close => close(&mut scan, matcher, &selected, command.force),
                 },
             }
         }
         Op::Minimize if !running => Err(not_running(label)),
         Op::Close if !running => Err(not_running(label)),
-        Op::Minimize => minimize(&wins, label),
+        Op::Minimize => minimize(&selected, label),
         Op::Close => close(&mut scan, matcher, &wins, command.force),
     }
 }

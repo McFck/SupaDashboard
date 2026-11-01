@@ -161,13 +161,15 @@
           {#if actions.has(step.action.id)}
             <div class="grid gap-3">
               {#each actions.get(step.action.id)?.params ?? [] as param (param.key)}
-                <ParamField
-                  {param}
-                  provider={actions.get(step.action.id)?.plugin}
-                  args={step.action.args ?? {}}
-                  value={step.action.args?.[param.key]}
-                  onchange={(value) => setArg(param.key, value)}
-                />
+                {#if !param.visible || param.visible(step.action.args ?? {})}
+                  <ParamField
+                    {param}
+                    provider={actions.get(step.action.id)?.plugin}
+                    args={step.action.args ?? {}}
+                    value={step.action.args?.[param.key]}
+                    onchange={(value) => setArg(param.key, value)}
+                  />
+                {/if}
               {/each}
             </div>
           {/if}

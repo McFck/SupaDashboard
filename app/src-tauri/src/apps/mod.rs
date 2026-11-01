@@ -4,6 +4,9 @@ mod exit;
 pub mod identity;
 mod list;
 mod model;
+#[cfg(test)]
+mod request_tests;
+mod selection;
 pub mod watch;
 mod windows;
 

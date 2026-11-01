@@ -21,6 +21,8 @@ export type AppRequest = {
   display?: string;
   hide?: 'minimize' | 'close';
   force?: boolean;
+  windows?: 'main' | 'all' | 'title';
+  title?: string;
 };
 
 /** `aumid:<Start menu id>` or `exe:<absolute path>`. */
@@ -59,6 +61,28 @@ export function appRequest(op: AppOp, args: Record<string, unknown>): AppRequest
     throw new Error('Choose an app');
   }
   const request: AppRequest = { op, app: args.app };
+  if (op === 'focus' || op === 'toggle' || op === 'minimize') {
+    const windows = args.windows === undefined ? 'all' : args.windows;
+    if (windows !== 'main' && windows !== 'all' && windows !== 'title') {
+      throw new Error('Choose windows');
+    }
+    const title = args.title === undefined ? '' : args.title;
+    if (
+      typeof title !== 'string' ||
+      new TextEncoder().encode(title).length > MAX_KEY ||
+      /[\u0000-\u001f\u007f-\u009f]/.test(title)
+    ) {
+      throw new Error('The window title is not valid');
+    }
+    if (windows === 'title' && !title.trim()) {
+      throw new Error('Enter a window title');
+    }
+    if (op === 'toggle' && args.hide === 'close' && args.force === true && windows !== 'all') {
+      throw new Error('Force close requires All windows');
+    }
+    request.windows = windows;
+    request.title = title.trim();
+  }
   if (typeof args.display === 'string' && args.display) {
     request.display = args.display;
   }

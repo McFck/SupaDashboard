@@ -13,9 +13,9 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
 };
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, FindWindowExW, GW_OWNER, GWL_EXSTYLE, GetForegroundWindow, GetWindow,
-    GetWindowLongPtrW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, WS_EX_APPWINDOW,
-    WS_EX_TOOLWINDOW,
+    EnumWindows, FindWindowExW, GA_ROOTOWNER, GW_OWNER, GWL_EXSTYLE, GetAncestor,
+    GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowTextW, GetWindowThreadProcessId,
+    IsIconic, IsWindowVisible, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 use windows::core::{BOOL, w};
 
@@ -113,6 +113,8 @@ pub fn window_pid(hwnd: HWND, names: &mut Names) -> u32 {
 }
 
 fn describe(hwnd: HWND, pid: u32) -> Win {
+    let mut title = [0u16; 32768];
+    let length = unsafe { GetWindowTextW(hwnd, &mut title) } as usize;
     let style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) } as u32;
     let mut cloaked = 0u32;
     let _ = unsafe {
@@ -132,6 +134,7 @@ fn describe(hwnd: HWND, pid: u32) -> Win {
         app_window: style & WS_EX_APPWINDOW.0 != 0,
         cloaked: cloaked != 0,
         minimized: unsafe { IsIconic(hwnd) }.as_bool(),
+        title: String::from_utf16_lossy(&title[..length]),
     }
 }
 
@@ -146,12 +149,14 @@ pub struct Scan<'a> {
     processes: Option<Vec<(u32, String)>>,
     monitors: Option<Vec<Monitor>>,
     foreground: Option<u32>,
+    foreground_root: isize,
     own: u32,
 }
 
 impl<'a> Scan<'a> {
     pub fn new(names: &'a mut Names) -> Self {
         let foreground = unsafe { GetForegroundWindow() };
+        let foreground_root = unsafe { GetAncestor(foreground, GA_ROOTOWNER) }.0 as isize;
         let foreground = (!foreground.is_invalid()).then(|| window_pid(foreground, names));
         Self {
             names,
@@ -159,6 +164,7 @@ impl<'a> Scan<'a> {
             processes: None,
             monitors: None,
             foreground,
+            foreground_root,
             own: unsafe { GetCurrentProcessId() },
         }
     }
@@ -204,8 +210,8 @@ impl<'a> Scan<'a> {
         self.monitors.get_or_insert_with(monitors)
     }
 
-    pub fn foreground_pid(&self) -> Option<u32> {
-        self.foreground
+    pub fn foreground_root(&self) -> isize {
+        self.foreground_root
     }
 
     pub fn state(&mut self, matcher: &Matcher) -> AppState {
@@ -255,4 +261,63 @@ fn process_list() -> Vec<(u32, String)> {
     }
     let _ = unsafe { windows::Win32::Foundation::CloseHandle(snapshot) };
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DestroyWindow, WINDOW_EX_STYLE, WS_POPUP,
+    };
+
+    struct HiddenWindow(HWND);
+
+    impl Drop for HiddenWindow {
+        fn drop(&mut self) {
+            unsafe { DestroyWindow(self.0) }.unwrap();
+        }
+    }
+
+    fn hidden(owner: Option<HWND>, tool: bool) -> HiddenWindow {
+        HiddenWindow(
+            unsafe {
+                CreateWindowExW(
+                    if tool {
+                        WS_EX_TOOLWINDOW
+                    } else {
+                        WINDOW_EX_STYLE::default()
+                    },
+                    w!("STATIC"),
+                    w!("Steam test Friends"),
+                    WS_POPUP,
+                    -32000,
+                    -32000,
+                    100,
+                    100,
+                    owner,
+                    None,
+                    None,
+                    None,
+                )
+            }
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn native_snapshot_reads_titles_and_ownership_without_showing_test_windows() {
+        let main = hidden(None, false);
+        let dialog = hidden(Some(main.0), false);
+        let tool = hidden(None, true);
+        let pid = unsafe { GetCurrentProcessId() };
+        let main_win = describe(main.0, pid);
+        assert_eq!(main_win.title, "Steam test Friends");
+        assert!(!main_win.owned && !main_win.visible);
+        assert!(describe(dialog.0, pid).owned);
+        assert!(describe(tool.0, pid).tool);
+        assert_eq!(unsafe { GetAncestor(dialog.0, GA_ROOTOWNER) }, main.0);
+        for window in [main.0, dialog.0, tool.0] {
+            assert!(!unsafe { IsWindowVisible(window) }.as_bool());
+        }
+    }
 }

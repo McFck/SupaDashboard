@@ -8,7 +8,7 @@ describe('settings v11 to v12', () => {
       version: 11,
       controls: [{ id: 'x', type: 'button', variants: [], stateBinding: binding }],
     });
-    expect(migrated.version).toBe(12);
+    expect(migrated.version).toBe(13);
     expect(migrated.controls[0].stateBindings).toEqual([binding]);
     expect(migrated.controls[0]).not.toHaveProperty('stateBinding');
   });

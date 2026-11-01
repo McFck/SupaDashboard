@@ -30,6 +30,15 @@ pub enum Hide {
     Close,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Windows {
+    Main,
+    #[default]
+    All,
+    Title,
+}
+
 /// The raw `app_command` payload.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -42,6 +51,10 @@ pub struct Request {
     pub hide: Hide,
     #[serde(default)]
     pub force: bool,
+    #[serde(default)]
+    pub windows: Windows,
+    #[serde(default)]
+    pub title: String,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -52,6 +65,8 @@ pub struct Command {
     pub display: Option<String>,
     pub hide: Hide,
     pub force: bool,
+    pub windows: Windows,
+    pub title: String,
 }
 
 pub fn parse_key(raw: &str) -> Result<Key, String> {
@@ -79,12 +94,27 @@ pub fn parse_key(raw: &str) -> Result<Key, String> {
 }
 
 pub fn parse_request(request: Request) -> Result<Command, String> {
+    if request.title.len() > MAX_KEY || request.title.chars().any(char::is_control) {
+        return Err("The window title is not valid".into());
+    }
+    if request.windows == Windows::Title && request.title.trim().is_empty() {
+        return Err("Enter a window title".into());
+    }
+    if request.op == Op::Toggle
+        && request.hide == Hide::Close
+        && request.force
+        && request.windows != Windows::All
+    {
+        return Err("Force close requires All windows".into());
+    }
     Ok(Command {
         op: request.op,
         key: parse_key(&request.app)?,
         display: request.display.filter(|path| !path.is_empty()),
         hide: request.hide,
         force: request.force,
+        windows: request.windows,
+        title: request.title.trim().to_lowercase(),
     })
 }
 
@@ -111,6 +141,7 @@ pub struct Win {
     /// Cloaked windows include those on another virtual desktop.
     pub cloaked: bool,
     pub minimized: bool,
+    pub title: String,
 }
 
 /// A window the user would call "the app's window". Hidden ones still prove the app is running.
@@ -146,8 +177,8 @@ pub fn fold(wins: &[Win], alive: bool, foreground_pid: Option<u32>, display: Str
 pub struct ToggleFacts {
     pub running: bool,
     pub shown: bool,
-    pub top_foreground: bool,
-    pub top_minimized: bool,
+    pub foreground: bool,
+    pub minimized: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -162,10 +193,10 @@ pub fn plan_toggle(facts: ToggleFacts) -> Plan {
     if !facts.running || !facts.shown {
         // A tray app has no window to show; launching again makes a single-instance app show itself.
         Plan::Launch
-    } else if facts.top_minimized {
-        Plan::Restore
-    } else if facts.top_foreground {
+    } else if facts.foreground {
         Plan::Hide
+    } else if facts.minimized {
+        Plan::Restore
     } else {
         Plan::Raise
     }
@@ -213,6 +244,8 @@ mod tests {
             display: None,
             hide: Hide::Minimize,
             force: false,
+            windows: Windows::All,
+            title: String::new(),
         }
     }
 
@@ -256,11 +289,11 @@ mod tests {
 
     #[test]
     fn toggle_plans_cover_every_state() {
-        let facts = |running, shown, top_foreground, top_minimized| ToggleFacts {
+        let facts = |running, shown, foreground, minimized| ToggleFacts {
             running,
             shown,
-            top_foreground,
-            top_minimized,
+            foreground,
+            minimized,
         };
         for (given, plan) in [
             (facts(false, false, false, false), Plan::Launch),
@@ -283,6 +316,7 @@ mod tests {
             app_window: false,
             cloaked: false,
             minimized: false,
+            title: String::new(),
         }
     }
 
