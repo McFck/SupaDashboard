@@ -198,15 +198,16 @@ export class StatusController {
     for (const { artwork } of state.sessions) {
       if (artwork !== undefined && !this.art.has(artwork)) {
         this.art.set(artwork, null);
-        void this.host
-          .resolveArtwork(artwork)
-          .catch(() => null)
-          .then((url) => {
+        void this.host.resolveArtwork(artwork).then(
+          (url) => {
             if (!this.disposed && this.art.has(artwork)) {
               this.art.set(artwork, url);
               this.recompute();
             }
-          });
+          },
+          // A failed resolve is asked again on the next session update instead of blanking the cover for the track.
+          () => this.art.delete(artwork),
+        );
       }
     }
   }
