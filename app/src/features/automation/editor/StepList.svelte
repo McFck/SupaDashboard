@@ -222,7 +222,7 @@
   >
     <div
       use:stepDrop={{ path, index }}
-      class="visible absolute inset-0 z-20 hidden rounded-md border border-dashed border-border bg-card data-drop-over:border-ring data-drop-over:bg-accent data-drop-ready:block"
+      class="visible absolute inset-0 z-1 hidden rounded-md border border-dashed border-border bg-card data-drop-over:border-ring data-drop-over:bg-accent data-drop-ready:block"
     ></div>
     <Button
       variant={end ? 'secondary' : 'ghost'}
