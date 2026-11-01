@@ -13,6 +13,7 @@
   import { runtimeView } from '../../../app/runtime/state';
   import { parseVariableText, type VariableType } from '../../automation/variables';
   import Choice from '../../plugins/ui/Choice.svelte';
+  import SuggestionInput from '../../plugins/ui/SuggestionInput.svelte';
   import AppStateField from '../../apps/ui/AppStateField.svelte';
   import { APP_STATES, appFieldOf, parseAppVariable, pendingAppVariable } from '../../apps/keys';
 
@@ -176,9 +177,10 @@
       onclick={onremove}><Trash /></Button
     >
   </div>
-  <Choice
+  <SuggestionInput
+    strict
     value={appField ? pendingAppVariable(appField) : binding.variableId}
-    {options}
+    suggestions={options}
     placeholder="Variable"
     aria-label="State variable"
     onchange={setVariable}

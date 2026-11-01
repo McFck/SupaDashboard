@@ -9,7 +9,7 @@
   import { Label } from '$lib/components/ui/label';
   import Switch from '$lib/components/ui/switch/switch.svelte';
   import Choice from '../../plugins/ui/Choice.svelte';
-  import PluginMark from '../../plugins/ui/PluginMark.svelte';
+  import { pluginTitle } from '../../plugins/ui/PluginMark.svelte';
   import { runtimeView } from '../../../app/runtime/state';
   import { parseVariableText, type VariableType, type VariableRecord } from '../variables';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
@@ -154,7 +154,11 @@
     await mutate(`delete:${id}`, 'deleteVariable', { id });
   }
   function displayOwner(record: VariableRecord) {
-    return record.definition.owner === 'user' ? 'User' : record.definition.owner;
+    const owner = record.definition.owner;
+    if (owner === 'user') {
+      return 'User';
+    }
+    return pluginTitle(owner) ? `plugin:${owner}` : owner;
   }
 </script>
 
@@ -264,7 +268,6 @@
               {:else}
                 <div class="flex min-w-0 items-center gap-2">
                   <span class="min-w-0 flex-1 truncate font-medium">{record.definition.name}</span>
-                  <PluginMark plugin={record.definition.owner} />
                   {#if editable}<Button
                       size="icon-sm"
                       variant="ghost"
