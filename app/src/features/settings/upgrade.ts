@@ -1,6 +1,8 @@
 import { firstFree, type Item } from '../layout/grid';
 import { DEFAULT_PAGE } from './defaults';
 import { isRecord } from '../automation/plain-data';
+import { normalizeControl } from '../automation/normalize-control';
+import { actionRef, walkSteps } from '../automation/scenario';
 
 export function object(value: unknown): Record<string, unknown> {
   if (value === undefined || value === null) {
@@ -95,7 +97,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 12) {
+  if (typeof saved.version === 'number' && saved.version > 13) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -175,10 +177,10 @@ export function upgrade(input: Record<string, unknown>) {
     };
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
-  if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(saved.version as number)) {
+  if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(saved.version as number)) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
-  if (![8, 9, 10, 11, 12].includes(saved.version as number)) {
+  if (![8, 9, 10, 11, 12, 13].includes(saved.version as number)) {
     saved = toV8(saved);
   }
   if (saved.version === 8) {
@@ -193,6 +195,26 @@ export function upgrade(input: Record<string, unknown>) {
   }
   if (saved.version === 11) {
     saved = { ...saved, version: 12 };
+  }
+  if (saved.version === 12) {
+    // v13: cover legacy actions, nested branches, event lists and per-state triggers alike.
+    for (const control of rawControls) {
+      const { scenario } = normalizeControl(control);
+      if (!scenario) {
+        continue;
+      }
+      walkSteps(scenario, (step) => {
+        if (
+          step.kind === 'action' &&
+          actionRef(step.action) &&
+          ['app.toggle', 'app.focus', 'app.minimize'].includes(step.action.id)
+        ) {
+          step.action.args = { windows: 'all', title: '', ...object(step.action.args) };
+        }
+      });
+      control.scenario = scenario;
+    }
+    saved = { ...saved, version: 13 };
   }
   const display = object(saved.display);
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {

@@ -61,11 +61,30 @@ const forceParam = (label: string): Param => ({
   default: false,
 });
 
+const windowsParam: Param = {
+  key: 'windows',
+  label: 'Windows',
+  type: 'select',
+  default: 'all',
+  suggestions: [
+    { value: 'main', label: 'Main window' },
+    { value: 'all', label: 'All windows' },
+    { value: 'title', label: 'Window title contains' },
+  ],
+};
+const titleParam: Param = {
+  key: 'title',
+  label: 'Window title contains',
+  type: 'text',
+  default: '',
+  visible: (args) => args.windows === 'title',
+};
+
 const PARAMS: Record<(typeof APP_ACTIONS)[number], Param[]> = {
   open: [appParam],
-  focus: [appParam, displayParam],
-  toggle: [appParam, displayParam, hideParam, forceParam('Force close')],
-  minimize: [appParam],
+  focus: [appParam, windowsParam, titleParam, displayParam],
+  toggle: [appParam, windowsParam, titleParam, displayParam, hideParam, forceParam('Force close')],
+  minimize: [appParam, windowsParam, titleParam],
   close: [appParam, forceParam('Force')],
 };
 

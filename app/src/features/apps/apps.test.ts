@@ -33,7 +33,26 @@ describe('app requests', () => {
       app: 'aumid:Chat',
       hide: 'close',
       force: true,
+      windows: 'all',
+      title: '',
     });
+  });
+
+  it('rejects malformed window scopes before they can target other windows', () => {
+    for (const args of [
+      { windows: 'recent' },
+      { windows: null },
+      { title: 3 },
+      { windows: 'title', title: ' ' },
+      { title: 'bad\nname' },
+      { title: 'x'.repeat(1025) },
+      { windows: 'main', hide: 'close', force: true },
+    ]) {
+      expect(() => appRequest('toggle', { app: 'aumid:Steam', ...args })).toThrow();
+    }
+    expect(appRequest('focus', { app: 'aumid:Steam', windows: 'title', title: ' Steam ' })).toEqual(
+      { op: 'focus', app: 'aumid:Steam', windows: 'title', title: 'Steam' },
+    );
   });
 
   it('watches apps used by actions and apps added by hand, once each', () => {
