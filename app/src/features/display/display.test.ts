@@ -13,6 +13,7 @@ const native = vi.hoisted(() => ({
   adjustment: 0,
   blocked: false,
   readMonitors: vi.fn<() => Promise<MonitorSnapshot>>(),
+  shown: undefined as undefined | ((shown: boolean) => Promise<void>),
 }));
 vi.mock('../../platform/window', () => ({
   connectedMonitors: () => native.readMonitors(),
@@ -24,6 +25,7 @@ vi.mock('../../platform/window', () => ({
   setDashboardInteractionMode: async () => {},
   setDashboardMonitor: async () => native.blocked,
   dashboardMonitorBlocked: async () => native.blocked,
+  setDashboardShown: async (shown: boolean) => native.shown?.(shown),
 }));
 
 let controller: DisplayController;
@@ -103,6 +105,7 @@ function windowFixture() {
   const setMinSize = vi.fn(async () => {});
   const hide = vi.fn(async () => {});
   const show = vi.fn(async () => {});
+  native.shown = (shown) => (shown ? show() : hide());
   const win = {
     isAlwaysOnTop: async () => false,
     setAlwaysOnTop: async () => {},

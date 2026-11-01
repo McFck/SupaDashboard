@@ -7,7 +7,11 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { startDisplay, type DisplayController } from '../display/display';
 import type { Page, Settings } from '../settings/schema';
 import { toast } from 'svelte-sonner';
-import { setDashboardBackdrop, startTouchWindowAction } from '../../platform/window';
+import {
+  setDashboardBackdrop,
+  setDashboardShown,
+  startTouchWindowAction,
+} from '../../platform/window';
 
 type HoverEvent = { hovered: boolean; revision: number; clearClient?: boolean };
 type ResizeEvent = { resizing: boolean; revision: number };
@@ -159,7 +163,7 @@ export class DashboardWindow {
     await tick();
     // A chosen monitor that is not connected keeps the window hidden until the display controller reopens it.
     if (!this.disposed && isTauri() && this.controller && !this.controller.unavailable) {
-      await getCurrentWindow().show();
+      await setDashboardShown(true);
     }
     this.requestChanged();
     this.gridChanged();

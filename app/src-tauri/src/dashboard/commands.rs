@@ -20,6 +20,14 @@ pub async fn dashboard_set_bounds(app: AppHandle, bounds: Geometry) -> Result<Ge
 }
 
 #[tauri::command]
+pub async fn dashboard_set_shown(app: AppHandle, shown: bool) -> Result<(), String> {
+    on_main_window(&app, "visibility", move |window| {
+        super::policy::set_shown(&window, shown)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn dashboard_touch_window_action(
     app: AppHandle,
     action: super::touch_window::TouchWindowAction,

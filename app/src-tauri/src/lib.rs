@@ -65,6 +65,7 @@ pub fn run() {
             dashboard::commands::dashboard_interaction_mode,
             dashboard::commands::dashboard_touch_window_action,
             dashboard::commands::dashboard_backdrop,
+            dashboard::commands::dashboard_set_shown,
             audio::service::audio_snapshot,
             audio::service::audio_update,
             apps::apps_list,

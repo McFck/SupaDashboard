@@ -67,6 +67,8 @@ export const setDashboardMonitor = (monitor: string | null) =>
   invoke<boolean>('dashboard_interaction_mode', { selection: { monitor } });
 
 export const dashboardMonitorBlocked = () => invoke<boolean>('dashboard_interaction_mode');
+/** The dashboard's visibility is changed natively; Tauri's cached flag misses the monitor guard's own hides. */
+export const setDashboardShown = (shown: boolean) => invoke<void>('dashboard_set_shown', { shown });
 
 export const setDashboardBackdrop = (wallpaper: boolean, radius: number) =>
   invoke<void>('dashboard_backdrop', { wallpaper, radius });

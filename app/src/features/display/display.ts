@@ -7,6 +7,7 @@ import {
   connectedMonitors,
   setDashboardMonitor,
   dashboardMonitorBlocked,
+  setDashboardShown,
   openWindowStateStore,
   type WindowStateStore,
 } from '../../platform/window';
@@ -260,14 +261,14 @@ export class DisplayController {
     this.windowed.cancelSave();
     if (!this.unavailable) {
       this.unavailable = true;
-      await this.win.hide();
+      await setDashboardShown(false);
     }
     this.applied = null;
   }
 
   private async show() {
     if (this.unavailable) {
-      await this.win.show();
+      await setDashboardShown(true);
       this.unavailable = false;
     }
   }

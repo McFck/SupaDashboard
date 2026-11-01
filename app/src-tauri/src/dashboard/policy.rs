@@ -24,12 +24,13 @@ use windows::Win32::UI::WindowsAndMessaging::{
     FindWindowExW, GA_ROOT, GWL_EXSTYLE, GWL_STYLE, GetAncestor, GetCursorPos, GetMessageExtraInfo,
     GetWindowLongPtrW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTLEFT, HTRIGHT,
     HTTOP, HTTOPLEFT, HTTOPRIGHT, IsIconic, IsWindowVisible, MA_NOACTIVATE, PA_NOACTIVATE,
-    SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT, SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOWPOS,
-    WM_CANCELMODE, WM_DISPLAYCHANGE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_MOUSEACTIVATE,
-    WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_POINTERACTIVATE, WM_SHOWWINDOW,
-    WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
-    WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX, WindowFromPoint,
+    SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT, SW_HIDE, SW_SHOWNOACTIVATE, SWP_FRAMECHANGED,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos,
+    ShowWindow, WINDOWPOS, WM_CANCELMODE, WM_DISPLAYCHANGE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
+    WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
+    WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND,
+    WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WS_CAPTION, WS_EX_NOACTIVATE,
+    WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX, WindowFromPoint,
 };
 
 /// Identifies our subclass on the window ("SUPA").
@@ -46,6 +47,20 @@ struct PolicyState {
     fullscreen: Cell<bool>,
     minimized: Cell<bool>,
     resize_hit_test: Cell<bool>,
+}
+
+/// Shows or hides the dashboard without activating it. Tauri skips show and hide when its cached visibility already
+/// matches, and the monitor guard hides the window natively behind its back, so the dashboard's visibility is only
+/// ever changed natively.
+pub fn set_shown(window: &WebviewWindow, shown: bool) -> Result<(), String> {
+    let hwnd = hwnd_of(window)?;
+    let _ = unsafe { ShowWindow(hwnd, if shown { SW_SHOWNOACTIVATE } else { SW_HIDE }) };
+    Ok(())
+}
+
+/// The window's real visibility, which Tauri's cached flag can miss after a native hide.
+pub fn is_shown(window: &WebviewWindow) -> bool {
+    hwnd_of(window).is_ok_and(|hwnd| unsafe { IsWindowVisible(hwnd) }.as_bool())
 }
 
 pub fn hwnd_of(window: &WebviewWindow) -> Result<HWND, String> {

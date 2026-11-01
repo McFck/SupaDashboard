@@ -6,11 +6,8 @@ use tauri::{App, AppHandle, Manager};
 
 fn toggle_dashboard(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-        } else {
-            let _ = window.show();
-        }
+        let shown = crate::dashboard::policy::is_shown(&window);
+        let _ = crate::dashboard::policy::set_shown(&window, !shown);
     }
 }
 
