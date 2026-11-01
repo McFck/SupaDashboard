@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, PoisonError};
 
 use serde::Serialize;
 use tauri::{AppHandle, Monitor};
@@ -275,26 +277,37 @@ fn enum_display_friendly_name(source_name: &str) -> Option<String> {
     None
 }
 
-/// Names and device paths of GDI-named monitors, for code that has no Tauri handle.
-/// Display-config queries reach the display drivers and were run on every app-watcher refresh; with a virtual display
-/// (spacedesk) that frequency made the dashboard drop frames. The answer only changes with the monitor set.
-// ponytail: keyed by GDI names only, so a different monitor re-plugged under the same name keeps the old friendly name
-// until the set changes; key by device path if that ever matters.
+/// Bumped on every display configuration change; a description from an older generation is not reused.
+static GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// Names and device paths of GDI-named monitors.
+/// Display-config queries reach the display drivers; with a virtual display (spacedesk) they drop frames when run
+/// often and block for seconds while the topology changes. The answer only changes with the display configuration,
+/// so it is kept until the monitor set changes or `forget_descriptions` runs. An incomplete answer (a query failed
+/// mid-change) is not kept.
 pub(crate) fn describe(names: &[String]) -> Vec<MonitorName> {
-    static CACHE: std::sync::Mutex<Option<(Vec<String>, Vec<MonitorName>)>> =
-        std::sync::Mutex::new(None);
-    let mut cache = CACHE
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some((key, rows)) = cache.as_ref()
+    type Cache = Option<(u64, Vec<String>, Vec<MonitorName>)>;
+    static CACHE: Mutex<Cache> = Mutex::new(None);
+    let mut cache = CACHE.lock().unwrap_or_else(PoisonError::into_inner);
+    let generation = GENERATION.load(Ordering::Acquire);
+    if let Some((cached, key, rows)) = cache.as_ref()
+        && *cached == generation
         && key.as_slice() == names
     {
         return rows.clone();
     }
     let (display_config, enum_display) = windows_metadata(names);
     let rows = map_monitor_names(names, &display_config, &enum_display, None);
-    *cache = Some((names.to_vec(), rows.clone()));
+    if rows.iter().all(|row| !row.path.is_empty()) {
+        *cache = Some((generation, names.to_vec(), rows.clone()));
+    }
     rows
+}
+
+/// The display configuration changed (WM_DISPLAYCHANGE): the next `describe` asks Windows again. Called on the UI
+/// thread, so it never waits for a query in flight.
+pub(crate) fn forget_descriptions() {
+    GENERATION.fetch_add(1, Ordering::AcqRel);
 }
 
 #[tauri::command]
@@ -323,14 +336,13 @@ pub async fn monitor_names(app: AppHandle) -> Result<Vec<MonitorName>, String> {
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let (display_config, enum_display) = windows_metadata(&names);
-
-    Ok(map_monitor_names(
-        &names,
-        &display_config,
-        &enum_display,
-        primary_name,
-    ))
+    Ok(describe(&names)
+        .into_iter()
+        .map(|row| MonitorName {
+            primary: primary_name == Some(row.name.as_str()),
+            ..row
+        })
+        .collect())
 }
 
 #[cfg(test)]
