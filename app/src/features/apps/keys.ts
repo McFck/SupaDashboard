@@ -61,7 +61,7 @@ export function appRequest(op: AppOp, args: Record<string, unknown>): AppRequest
     throw new Error('Choose an app');
   }
   const request: AppRequest = { op, app: args.app };
-  if (op === 'focus' || op === 'toggle' || op === 'minimize') {
+  if (op === 'open' || op === 'focus' || op === 'toggle' || op === 'minimize') {
     const windows = args.windows === undefined ? 'all' : args.windows;
     if (!['main', 'all', 'title', 'window'].includes(windows as string)) {
       throw new Error('Choose windows');

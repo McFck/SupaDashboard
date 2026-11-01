@@ -280,7 +280,7 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
     let target = display.map(|index| super::windows::monitors().swap_remove(index));
     let shown = top(&wins);
     let selected = select(&wins, command.windows, &command.title);
-    if matches!(command.op, Op::Focus | Op::Toggle | Op::Minimize)
+    if matches!(command.op, Op::Open | Op::Focus | Op::Toggle | Op::Minimize)
         && selected.is_empty()
         && shown.is_some()
     {
@@ -295,11 +295,13 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
         }
     };
     match command.op {
+        // A running app reveals the chosen windows like Focus; only an app with no window is launched.
         Op::Open => {
             guard_focus()?;
-            match shown {
-                Some(win) => reveal(win, None, label),
-                None => launch(matcher),
+            if shown.is_some() {
+                reveal_selected(&selected, target.as_ref(), label)
+            } else {
+                launch(matcher)
             }
         }
         Op::Focus => {

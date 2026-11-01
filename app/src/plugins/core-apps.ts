@@ -96,7 +96,7 @@ const titleParam: Param = {
 };
 
 const PARAMS: Record<(typeof APP_ACTIONS)[number], Param[]> = {
-  open: [appParam],
+  open: [appParam, windowsParam, windowParam, titleParam],
   focus: [appParam, windowsParam, windowParam, titleParam, displayParam],
   toggle: [
     appParam,
