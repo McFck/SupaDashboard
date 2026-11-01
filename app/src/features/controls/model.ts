@@ -65,7 +65,7 @@ export type ControlConfig = {
   options?: Record<string, unknown>;
   variants: Variant[];
   scenario?: Scenario;
-  stateBinding?: StateBinding;
+  stateBindings?: StateBinding[];
   stateRoles?: StateRoles;
   /** Legacy trigger source, removed by normalizeControl. */
   gestures?: Partial<Record<Gesture, GestureBinding>>;

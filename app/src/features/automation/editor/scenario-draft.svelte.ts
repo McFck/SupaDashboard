@@ -173,10 +173,10 @@ export class ScenarioDraftEditor {
     const replacement = structuredClone($state.snapshot(latest)) as ControlConfig;
     replacement.scenario = clonePlain(draft.scenario);
     replacement.variants = clonePlain(draft.variants);
-    if (draft.stateBinding) {
-      replacement.stateBinding = clonePlain(draft.stateBinding);
+    if (draft.stateBindings?.length) {
+      replacement.stateBindings = clonePlain(draft.stateBindings);
     } else {
-      delete replacement.stateBinding;
+      delete replacement.stateBindings;
     }
     if (draft.stateRoles) {
       replacement.stateRoles = clonePlain(draft.stateRoles);
@@ -381,10 +381,10 @@ export class ScenarioDraftEditor {
     }
   }
 
-  updateBinding(binding: ScenarioDraft['stateBinding']) {
+  updateBindings(bindings: ScenarioDraft['stateBindings']) {
     const draft = this.draft;
     if (draft) {
-      this.draft = { ...draft, stateBinding: binding };
+      this.draft = { ...draft, stateBindings: bindings };
     }
   }
 
@@ -398,7 +398,11 @@ export class ScenarioDraftEditor {
 
   private issuesOf(draft: ScenarioDraft): ScenarioIssue[] {
     const stateIssues = validateStateConfiguration(
-      { variants: draft.variants, stateBinding: draft.stateBinding, stateRoles: draft.stateRoles },
+      {
+        variants: draft.variants,
+        stateBindings: draft.stateBindings,
+        stateRoles: draft.stateRoles,
+      },
       this.runtime.current.variables,
     );
     return [...validateScenario(draft.scenario), ...stateIssues];

@@ -26,7 +26,7 @@ export type AppletSettingsEntry = {
 export type Deck = { pages: Page[]; activePage: string };
 
 export type Settings = {
-  version: 11;
+  version: 12;
   display: {
     monitor: string | null;
     monitorLabel: string | null;

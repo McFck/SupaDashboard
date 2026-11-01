@@ -14,7 +14,7 @@ import { clonePlain } from '../plain-data';
 export type ScenarioDraft = {
   scenario: Scenario;
   variants: Variant[];
-  stateBinding?: StateBinding;
+  stateBindings?: StateBinding[];
   stateRoles?: StateRoles;
 };
 export type Branch = { stepId: string; arm: 'then' | 'else' };
@@ -26,7 +26,7 @@ export function createScenarioDraft(control: ControlConfig): ScenarioDraft {
   return clonePlain({
     scenario: control.scenario ?? emptyScenario(),
     variants: control.variants,
-    ...(control.stateBinding ? { stateBinding: control.stateBinding } : {}),
+    ...(control.stateBindings ? { stateBindings: control.stateBindings } : {}),
     ...(control.stateRoles ? { stateRoles: control.stateRoles } : {}),
   });
 }

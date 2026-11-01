@@ -12,13 +12,15 @@ const control: ControlConfig = {
     { id: 'off', label: 'Stopped', icon: null, background: null, color: '#aaa' },
     { id: 'on', label: 'Recording {count}', icon: 'Mic', background: '#123456', color: '#fff' },
   ],
-  stateBinding: {
-    variableId: 'recording',
-    cases: [
-      { value: false, stateId: 'off' },
-      { value: true, stateId: 'on' },
-    ],
-  },
+  stateBindings: [
+    {
+      variableId: 'recording',
+      cases: [
+        { value: false, stateId: 'off' },
+        { value: true, stateId: 'on' },
+      ],
+    },
+  ],
 };
 
 describe('effective button state', () => {
@@ -58,7 +60,7 @@ describe('effective button state', () => {
     expect(effectiveVariant(control, variables, 0)).toMatchObject({ index: 0, stateId: 'off' });
     const stale = {
       ...control,
-      stateBinding: { variableId: 'recording', cases: [{ value: true, stateId: 'deleted' }] },
+      stateBindings: [{ variableId: 'recording', cases: [{ value: true, stateId: 'deleted' }] }],
     };
     variables.set('recording', 'true');
     expect(effectiveVariant(stale, variables, 1)).toMatchObject({ index: 1, stateId: 'on' });
@@ -70,7 +72,7 @@ describe('effective button state', () => {
     variables.createUser({ id: 'active', name: 'active', type: 'boolean', initialValue: false });
     const stateful = {
       ...control,
-      stateBinding: { variableId: 'active', cases: [] },
+      stateBindings: [{ variableId: 'active', cases: [] }],
       stateRoles: { off: 'off', on: 'on' },
     };
     expect(effectiveVariant(stateful, variables, 1)).toMatchObject({ index: 0, stateId: 'off' });
@@ -98,5 +100,24 @@ describe('effective button state', () => {
         background: null,
       },
     });
+  });
+
+  it('lets the first binding with a matching mapping win, and falls through to the next', () => {
+    const variables = new VariableStore();
+    variables.createUser({ id: 'a', name: 'a', type: 'boolean', initialValue: false });
+    variables.createUser({ id: 'b', name: 'b', type: 'boolean', initialValue: true });
+    const two = {
+      ...control,
+      stateBindings: [
+        { variableId: 'a', cases: [{ value: true, stateId: 'on' }] },
+        { variableId: 'b', cases: [{ value: true, stateId: 'off' }] },
+      ],
+    };
+    expect(effectiveVariant(two, variables, 1)).toMatchObject({ stateId: 'off' });
+    variables.set('a', true);
+    expect(effectiveVariant(two, variables, 0)).toMatchObject({ stateId: 'on' });
+    variables.set('b', false);
+    variables.set('a', false);
+    expect(effectiveVariant(two, variables, 1)).toMatchObject({ index: 1 });
   });
 });

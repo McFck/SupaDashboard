@@ -68,6 +68,12 @@ export function appKeyForSlug(slug: string): string | undefined {
   return keys.find((key) => appSlug(key) === slug);
 }
 
+/** The key of the app whose name was typed out in full, so "steam" finishes like picking the row. */
+export function appKeyForName(text: string): string | undefined {
+  const name = text.trim().toLowerCase();
+  return name ? known.rows.find((row) => row.label.toLowerCase() === name)?.key : undefined;
+}
+
 /** Adds an app to the watched list, so its state variables exist while something refers to it. */
 export function rememberApp(key: string) {
   if (isAppKey(key) && !settings.apps.includes(key)) {

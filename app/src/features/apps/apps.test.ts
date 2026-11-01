@@ -4,6 +4,7 @@ import { normalizeControl } from '../automation/normalize-control';
 import { parseWatched, type WatchedApp } from '../../platform/apps';
 import { appRequest, watchedKeys } from './keys';
 import { evaluatePredicate } from '../automation/expression';
+import { validateScenario } from '../automation/validate';
 import type { Predicate } from '../automation/scenario';
 import { settings } from '../settings/state.svelte';
 import { appSlug, rememberApp } from './picker.svelte';
@@ -143,4 +144,38 @@ describe('app conditions', () => {
     rememberApp('exe:C:/a/Chat.exe');
     expect(watchedKeys(settings.controls, settings.apps)).toContain('exe:C:/a/Chat.exe');
   });
+
+  it.each(['running', 'focused', 'minimized', 'visible'])(
+    'keeps "if app is not %s then open, else minimize" a valid scenario',
+    (field) => {
+      const step = (id: string, action: string) => ({
+        id,
+        kind: 'action',
+        action: { id: action, args: { app: 'aumid:Steam' } },
+      });
+      for (const op of ['eq', 'ne'] as const) {
+        const scenario = {
+          triggers: {
+            press: {
+              steps: [
+                {
+                  id: 'if',
+                  kind: 'if',
+                  condition: {
+                    kind: 'compare',
+                    left: { kind: 'variable', id: `app.steam.${field}` },
+                    op,
+                    right: { kind: 'literal', value: true },
+                  },
+                  then: [step('open', 'app.open')],
+                  else: [step('min', 'app.minimize')],
+                },
+              ],
+            },
+          },
+        };
+        expect(validateScenario(scenario)).toEqual([]);
+      }
+    },
+  );
 });

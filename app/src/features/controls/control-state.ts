@@ -25,15 +25,28 @@ function getName(variables: RuntimeVariables | undefined, name: string): Variabl
   return record?.value;
 }
 
-function caseState(control: ControlConfig, value: VariableValue | undefined): string | undefined {
-  const binding = control.stateBinding;
-  if (value === undefined || !binding) return undefined;
-  const match = binding.cases.find(
-    (item) => typeof item.value === typeof value && item.value === value,
-  );
-  if (match) return match.stateId;
-  if (!binding.cases.length && typeof value === 'boolean' && control.stateRoles)
-    return value ? control.stateRoles.on : control.stateRoles.off;
+/** The first binding, top to bottom, whose mapping matches its variable's value decides the state. */
+function boundState(
+  control: ControlConfig,
+  variables: RuntimeVariables | undefined,
+): string | undefined {
+  const bindings = control.stateBindings ?? [];
+  for (const binding of bindings) {
+    const value = getValue(variables, binding.variableId);
+    if (value === undefined) continue;
+    const match = binding.cases.find(
+      (item) => typeof item.value === typeof value && item.value === value,
+    );
+    if (match) return match.stateId;
+    // A lone Boolean binding without mappings follows the Off/On roles.
+    if (
+      bindings.length === 1 &&
+      !binding.cases.length &&
+      typeof value === 'boolean' &&
+      control.stateRoles
+    )
+      return value ? control.stateRoles.on : control.stateRoles.off;
+  }
   return undefined;
 }
 
@@ -47,11 +60,8 @@ export function effectiveVariant(
   const fallback = count
     ? Math.min(Math.max(Number.isInteger(manualIndex) ? manualIndex : 0, 0), count - 1)
     : 0;
-  const boundValue = control.stateBinding
-    ? getValue(runtimeVariables, control.stateBinding.variableId)
-    : undefined;
-  const boundState = caseState(control, boundValue);
-  const index = boundState ? (variantIndexForState(control, boundState) ?? fallback) : fallback;
+  const bound = boundState(control, runtimeVariables);
+  const index = bound ? (variantIndexForState(control, bound) ?? fallback) : fallback;
   const variant = control.variants[index];
   return {
     index,

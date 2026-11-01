@@ -146,14 +146,18 @@
     if (!record) {
       return;
     }
+    const existing = draft.stateBindings ?? [];
+    if (existing.some((binding) => binding.variableId === id)) {
+      return;
+    }
     const cases =
-      record.definition.type === 'boolean' && draft.stateRoles
+      record.definition.type === 'boolean' && draft.stateRoles && !existing.length
         ? [
             { value: false, stateId: draft.stateRoles.off },
             { value: true, stateId: draft.stateRoles.on },
           ]
         : [];
-    onchange({ ...draft, stateBinding: { variableId: id, cases } });
+    onchange({ ...draft, stateBindings: [...existing, { variableId: id, cases }] });
   }
 
   function move(stepId: string, amount: number) {
