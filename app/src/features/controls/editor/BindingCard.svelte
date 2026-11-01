@@ -14,6 +14,7 @@
   import { parseVariableText, type VariableType } from '../../automation/variables';
   import Choice from '../../plugins/ui/Choice.svelte';
   import SuggestionInput from '../../plugins/ui/SuggestionInput.svelte';
+  import MonitorField from '../../apps/ui/MonitorField.svelte';
   import AppStateField from '../../apps/ui/AppStateField.svelte';
   import { APP_STATES, appFieldOf, parseAppVariable, pendingAppVariable } from '../../apps/keys';
 
@@ -219,6 +220,11 @@
               options={booleanLabels}
               aria-label="Mapped value"
               onchange={(value) => updateCase(index, { value: value === 'true' })}
+            />
+          {:else if appField === 'display'}
+            <MonitorField
+              value={String(item.value)}
+              onchange={(name) => updateCase(index, { value: name })}
             />
           {:else}
             <Input
