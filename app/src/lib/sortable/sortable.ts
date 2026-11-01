@@ -7,6 +7,12 @@ export type SortableOptions = {
   handle?: string;
   enabled?: boolean;
   onmove: (from: number, to: number) => void;
+  /** Elements outside the list that take a dropped item: they light up while dragging and replace onmove on release. */
+  drop?: {
+    selector: string;
+    accept: (zone: HTMLElement) => boolean;
+    ondrop: (from: number, zone: HTMLElement) => void;
+  };
 };
 
 /** A drag swallows the click that follows its release, for this long. */
@@ -19,6 +25,8 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
   let suppressed: { item: HTMLElement; until: number } | null = null;
   const settlement = new DropSettlement();
   let restoreTransitions: (() => void) | undefined;
+  let zones: HTMLElement[] = [];
+  let over: HTMLElement | null = null;
   let sessionListeners: AbortController | undefined;
   const nodeListeners = new AbortController();
   node.setAttribute('data-sortable-root', '');
@@ -50,8 +58,43 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     end(current);
   }
 
+  function markZones(current: SortSession) {
+    const { drop } = options;
+    if (!drop || zones.length) {
+      return;
+    }
+    zones = [...document.querySelectorAll<HTMLElement>(drop.selector)].filter(
+      (zone) => !current.source.contains(zone) && drop.accept(zone),
+    );
+    for (const zone of zones) {
+      zone.setAttribute('data-drop-ready', '');
+    }
+  }
+
+  function hover(event: PointerEvent) {
+    const next =
+      document
+        .elementsFromPoint(event.clientX, event.clientY)
+        .find((element) => zones.includes(element as HTMLElement)) ?? null;
+    if (next !== over) {
+      over?.removeAttribute('data-drop-over');
+      next?.setAttribute('data-drop-over', '');
+      over = next as HTMLElement | null;
+    }
+  }
+
+  function clearZones() {
+    for (const zone of zones) {
+      zone.removeAttribute('data-drop-ready');
+      zone.removeAttribute('data-drop-over');
+    }
+    zones = [];
+    over = null;
+  }
+
   /** Stops the session's frame, resets its styles and gives up pointer capture. */
   function end(current: SortSession) {
+    clearZones();
     if (current.frame !== null) {
       cancelAnimationFrame(current.frame);
       current.frame = null;
@@ -116,7 +159,7 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
     suppressed = null;
     reset();
     const items = options.items();
-    if (items.length < 2) {
+    if (items.length < 2 && !options.drop) {
       return;
     }
     const source = items.find((item) => item === target || item.contains(target));
@@ -134,7 +177,14 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
         animation.cancel();
       }
     }
-    session = new SortSession(node, options.axis, items, items.indexOf(source), event);
+    session = new SortSession(
+      node,
+      options.axis,
+      items,
+      items.indexOf(source),
+      event,
+      !!options.drop,
+    );
     startSessionListeners();
     session.capture();
   }
@@ -152,6 +202,8 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       event.preventDefault();
     }
     node.setAttribute('data-sorting', '');
+    markZones(current);
+    hover(event);
     schedulePaint(current);
   }
 
@@ -166,15 +218,18 @@ export function sortable(node: HTMLElement, initial: SortableOptions) {
       current.paint();
     }
     const { from, destination } = current;
+    const zone = commit ? over : null;
     // Measured while still displaced, so the settle can start from where the item was dropped.
-    const held = commit ? current.source.getBoundingClientRect() : null;
+    const held = commit && !zone ? current.source.getBoundingClientRect() : null;
     session = null;
     sessionListeners?.abort();
     end(current);
     if (current.moved) {
       suppressed = { item: current.source, until: performance.now() + CLICK_SUPPRESS_MS };
     }
-    if (commit && destination !== from) {
+    if (zone) {
+      options.drop?.ondrop(from, zone);
+    } else if (commit && destination !== from) {
       options.onmove(from, destination);
     }
     if (held) {

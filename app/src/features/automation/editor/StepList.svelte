@@ -14,14 +14,17 @@
   import StepCard from './StepCard.svelte';
   import StepList from './StepList.svelte';
   import StepPicker from './StepPicker.svelte';
+  import { stepDrop, stepDropTarget } from './step-drop';
   import { scrollParent, StepLayoutMotion } from './step-layout';
   import {
     insertScenarioStep,
     moveScenarioStep,
+    moveScenarioStepTo,
     removeScenarioStep,
     replaceScenarioStep,
     scenarioPathKey,
     scenarioStepsAt,
+    shiftScenarioStep,
     type ScenarioDraft,
     type StepListPath,
   } from './scenario-edit';
@@ -168,6 +171,26 @@
     }
   }
 
+  /** Alt+Arrow: through the Then and Else lists around the step, then back to the handle that moved. */
+  async function shift(stepId: string, direction: -1 | 1) {
+    const scenario = shiftScenarioStep(draft.scenario, path, stepId, direction);
+    if (!scenario) {
+      return;
+    }
+    await changeLayout(() => onchange({ ...draft, scenario }));
+    document
+      .querySelector<HTMLElement>(`[data-step-id="${CSS.escape(stepId)}"] [data-step-handle]`)
+      ?.focus({ preventScroll: true });
+  }
+
+  function dropInto(from: number, zone: HTMLElement) {
+    const step = steps[from];
+    const target = stepDropTarget(zone);
+    if (step && target) {
+      updateScenario(moveScenarioStepTo(draft.scenario, path, step.id, target.path, target.index));
+    }
+  }
+
   function reorder(from: number, to: number) {
     const step = steps[from];
     if (step) {
@@ -197,6 +220,10 @@
     data-step-insert
     class={end ? 'relative' : 'absolute inset-x-0 -top-8 h-7'}
   >
+    <div
+      use:stepDrop={{ path, index }}
+      class="visible absolute inset-0 z-20 hidden rounded-md border border-dashed border-border bg-card data-drop-over:border-ring data-drop-over:bg-accent data-drop-ready:block"
+    ></div>
     <Button
       variant={end ? 'secondary' : 'ghost'}
       size="sm"
@@ -225,6 +252,14 @@
       handle: '[data-step-handle]',
       enabled: !pickerKey,
       onmove: reorder,
+      drop: {
+        selector: '[data-step-drop]',
+        accept: (zone) => {
+          const target = stepDropTarget(zone);
+          return !!target && scenarioPathKey(target.path) !== listKey;
+        },
+        ondrop: dropInto,
+      },
     }}
     role="list"
     aria-label="Scenario steps"
@@ -265,6 +300,7 @@
           picker={pickerKey === replaceKey(step.id) ? replacePicker : undefined}
           {branch}
           onmove={(amount) => move(step.id, amount)}
+          onshift={(direction) => shift(step.id, direction)}
           onremove={() => updateScenario(removeScenarioStep(draft.scenario, path, step.id))}
           onupdate={(next) =>
             updateScenario(replaceScenarioStep(draft.scenario, path, step.id, next))}

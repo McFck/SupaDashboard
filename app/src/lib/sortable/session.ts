@@ -95,6 +95,8 @@ export class SortSession {
     readonly items: HTMLElement[],
     readonly from: number,
     event: PointerEvent,
+    /** The item may leave its list's bounds, to reach a drop zone elsewhere. */
+    private readonly free = false,
   ) {
     const props = AXES[axis];
     this.props = props;
@@ -181,7 +183,11 @@ export class SortSession {
     source.style.transition = 'none';
     source.style.zIndex = ACTIVE_Z_INDEX;
     source.setAttribute('data-sortable-active', '');
-    setTranslate(source, axis, position.translation);
+    setTranslate(
+      source,
+      axis,
+      this.free ? this.latest - this.start + this.scrollDelta() : position.translation,
+    );
     items.forEach((item, index) => {
       if (index === from) {
         return;

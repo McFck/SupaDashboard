@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { scenarioNodeCount, walkSteps, type ActionStep } from '../scenario';
 import type { ControlConfig } from '../../controls/model';
 import {
   createScenarioDraft,
   insertScenarioStep,
   moveScenarioStep,
+  moveScenarioStepTo,
   removeScenarioStep,
   replaceScenarioStep,
   sameScenarioDraft,
+  shiftScenarioStep,
   type StepListPath,
 } from './scenario-edit';
 
@@ -139,5 +142,90 @@ describe('scenario draft tree edits', () => {
     expect(sameScenarioDraft(originalDraft, createScenarioDraft(renamedControl))).toBe(true);
     const changedControl = { ...control, scenario: next };
     expect(sameScenarioDraft(originalDraft, createScenarioDraft(changedControl))).toBe(false);
+  });
+});
+
+describe('moving steps between lists', () => {
+  const elsePath: StepListPath = { ...root, branches: [{ stepId: 'if-1', arm: 'else' }] };
+  const ids = (scenario: typeof control.scenario) => {
+    const all: string[] = [];
+    walkSteps(scenario!, (step) => all.push(step.id));
+    return all.sort();
+  };
+  const listOfIds = (scenario: NonNullable<typeof control.scenario>, path: StepListPath) => {
+    let steps: ActionStep[] = scenario.triggers.press!.steps;
+    for (const branch of path.branches ?? []) {
+      const parent = steps.find((step) => step.id === branch.stepId);
+      steps = parent?.kind === 'if' ? parent[branch.arm] : [];
+    }
+    return steps.map((step) => step.id);
+  };
+
+  it('moves a step into a branch and back out without losing or duplicating anything', () => {
+    const into = moveScenarioStepTo(control.scenario!, root, 'tail', thenPath, 1);
+    expect(listOfIds(into, root)).toEqual(['if-1']);
+    expect(listOfIds(into, thenPath)).toEqual(['then-1', 'tail']);
+    const out = moveScenarioStepTo(into, thenPath, 'then-1', root, 0);
+    expect(listOfIds(out, root)).toEqual(['then-1', 'if-1']);
+    expect(listOfIds(out, thenPath)).toEqual(['tail']);
+    expect(ids(out)).toEqual(ids(control.scenario));
+    expect(scenarioNodeCount(out)).toBe(scenarioNodeCount(control.scenario!));
+  });
+
+  it('moves a Condition with its branches into another Condition', () => {
+    const nested = moveScenarioStepTo(
+      insertScenarioStep(control.scenario!, root, {
+        id: 'if-2',
+        kind: 'if',
+        condition: { kind: 'literal', value: true } as never,
+        then: [],
+        else: [],
+      }),
+      root,
+      'if-1',
+      { ...root, branches: [{ stepId: 'if-2', arm: 'else' }] },
+      0,
+    );
+    expect(listOfIds(nested, root)).toEqual(['tail', 'if-2']);
+    expect(listOfIds(nested, { ...root, branches: [{ stepId: 'if-2', arm: 'else' }] })).toEqual([
+      'if-1',
+    ]);
+    const deeper: StepListPath = {
+      ...root,
+      branches: [
+        { stepId: 'if-2', arm: 'else' },
+        { stepId: 'if-1', arm: 'else' },
+      ],
+    };
+    expect(listOfIds(nested, deeper)).toEqual(['else-1']);
+    expect(ids(nested)).toEqual([...ids(control.scenario), 'if-2'].sort());
+  });
+
+  it('refuses to move a Condition into its own branch and leaves the input untouched', () => {
+    expect(() => moveScenarioStepTo(control.scenario!, root, 'if-1', elsePath, 0)).toThrow(
+      /itself/,
+    );
+    expect(() => moveScenarioStepTo(control.scenario!, root, 'tail', thenPath, 5)).toThrow(
+      /position/,
+    );
+    expect(listOfIds(control.scenario!, root)).toEqual(['if-1', 'tail']);
+  });
+
+  it('shifts a step by keyboard through Then, Else and out, in reading order', () => {
+    let scenario = control.scenario!;
+    // 'tail' is below if-1: down from above enters; here walk it up into Else, Then, then out.
+    scenario = shiftScenarioStep(scenario, root, 'tail', -1)!;
+    expect(listOfIds(scenario, elsePath)).toEqual(['else-1', 'tail']);
+    scenario = shiftScenarioStep(scenario, elsePath, 'else-1', -1)!;
+    expect(listOfIds(scenario, thenPath)).toEqual(['then-1', 'else-1']);
+    scenario = shiftScenarioStep(scenario, thenPath, 'then-1', -1)!;
+    expect(listOfIds(scenario, root)).toEqual(['then-1', 'if-1']);
+    scenario = shiftScenarioStep(scenario, root, 'then-1', 1)!;
+    expect(listOfIds(scenario, thenPath)).toEqual(['then-1', 'else-1']);
+    scenario = shiftScenarioStep(scenario, thenPath, 'else-1', 1)!;
+    expect(listOfIds(scenario, thenPath)).toEqual(['then-1']);
+    expect(listOfIds(scenario, elsePath)).toEqual(['else-1', 'tail']);
+    expect(shiftScenarioStep(scenario, root, 'if-1', -1)).toBeUndefined();
+    expect(ids(scenario)).toEqual(ids(control.scenario));
   });
 });
