@@ -284,6 +284,7 @@ unsafe extern "system" fn dashboard_subclass(
             None
         }
         WM_DISPLAYCHANGE => {
+            crate::monitors::forget_descriptions();
             policy.monitor.check(hwnd);
             policy.backdrop.sync();
             None

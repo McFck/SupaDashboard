@@ -222,9 +222,13 @@ impl Backdrop {
         }
     }
 
-    /// Explorer restarted or the display layout changed: everything is registered again.
-    fn refresh(&self) {
-        self.source.set(None);
+    /// Explorer restarted or the display layout changed: everything is registered again. Only a restart looks for
+    /// the wallpaper window again (a destroyed one is found again anyway): that lookup waits up to 500 ms on
+    /// Explorer, which is busy during a display change, and this UI thread also carries the dashboard's touch input.
+    fn refresh(&self, explorer_restarted: bool) {
+        if explorer_restarted {
+            self.source.set(None);
+        }
         let mut thumbnails = self.thumbnails.take();
         unregister(&mut thumbnails);
         self.applied.set(None);
@@ -429,7 +433,7 @@ unsafe extern "system" fn backdrop_proc(
             let backdrop = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *const Backdrop;
             // SAFETY: set while the owning dashboard policy is alive and cleared before the window is destroyed.
             if let Some(backdrop) = unsafe { backdrop.as_ref() } {
-                backdrop.refresh();
+                backdrop.refresh(message != WM_DISPLAYCHANGE);
             }
             unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
         }
