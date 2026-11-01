@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::mem::size_of;
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Gdi::{
-    DISPLAY_DEVICE_ACTIVE, DISPLAY_DEVICEW, EnumDisplayDevicesW, GetMonitorInfoW,
+    DISPLAY_DEVICE_ACTIVE, DISPLAY_DEVICEW, EnumDisplayDevicesW, GetMonitorInfoW, HMONITOR,
     MONITOR_DEFAULTTONULL, MONITORINFOEXW, MonitorFromRect,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -17,6 +17,9 @@ pub struct MonitorGuard {
     selected: RefCell<Option<String>>,
     blocked: Cell<bool>,
     hiding: Cell<bool>,
+    /// The monitor handle last confirmed as the selected one. Device lookups are slow and can fail transiently on
+    /// virtual displays (spacedesk); a failed lookup on every z-order change hid the window for a frame.
+    confirmed: Cell<isize>,
 }
 
 fn decode(value: &[u16]) -> String {
@@ -64,6 +67,7 @@ impl MonitorGuard {
         if *self.selected.borrow() != monitor {
             *self.selected.borrow_mut() = monitor;
             self.blocked.set(false);
+            self.confirmed.set(0);
         }
         Ok(())
     }
@@ -92,15 +96,31 @@ impl MonitorGuard {
         let Some(selected) = selected.as_ref() else {
             return true;
         };
-        let monitor = unsafe { MonitorFromRect(rect, MONITOR_DEFAULTTONULL) };
+        let monitor: HMONITOR = unsafe { MonitorFromRect(rect, MONITOR_DEFAULTTONULL) };
+        if monitor.is_invalid() {
+            return false;
+        }
+        if monitor.0 as isize == self.confirmed.get() {
+            return true;
+        }
         let mut info = MONITORINFOEXW::default();
         info.monitorInfo.cbSize = size_of::<MONITORINFOEXW>() as u32;
-        unsafe { GetMonitorInfoW(monitor, &mut info.monitorInfo) }.as_bool()
-            && matches_monitor(selected, &info.szDevice)
+        let matched = unsafe { GetMonitorInfoW(monitor, &mut info.monitorInfo) }.as_bool()
+            && matches_monitor(selected, &info.szDevice);
+        if matched {
+            self.confirmed.set(monitor.0 as isize);
+        }
+        matched
     }
 
     /// Called before DefSubclassProc applies a proposed position or WS_VISIBLE.
     pub fn changing(&self, hwnd: HWND, position: &mut WINDOWPOS) {
+        // A z-order or activation change keeps the window where it is; only moves, resizes and shows are checked.
+        if position.flags.contains(SWP_NOMOVE | SWP_NOSIZE)
+            && !position.flags.contains(SWP_SHOWWINDOW)
+        {
+            return;
+        }
         let mut rect = RECT::default();
         if unsafe { GetWindowRect(hwnd, &mut rect) }.is_err() {
             return;
@@ -129,9 +149,9 @@ impl MonitorGuard {
             position.flags &= !SWP_SHOWWINDOW;
             position.flags |= SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW;
             self.hide(hwnd);
-        } else if self.blocked.get() {
-            position.flags &= !SWP_SHOWWINDOW;
-            position.flags |= SWP_HIDEWINDOW;
+        } else {
+            // Back on the selected monitor (it was reconnected): the window may show again.
+            self.blocked.set(false);
         }
     }
 

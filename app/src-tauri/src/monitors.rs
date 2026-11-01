@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 use tauri::{AppHandle, Monitor};
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct MonitorName {
     pub name: String,
     pub friendly: String,
@@ -276,9 +276,25 @@ fn enum_display_friendly_name(source_name: &str) -> Option<String> {
 }
 
 /// Names and device paths of GDI-named monitors, for code that has no Tauri handle.
+/// Display-config queries reach the display drivers and were run on every app-watcher refresh; with a virtual display
+/// (spacedesk) that frequency made the dashboard drop frames. The answer only changes with the monitor set.
+// ponytail: keyed by GDI names only, so a different monitor re-plugged under the same name keeps the old friendly name
+// until the set changes; key by device path if that ever matters.
 pub(crate) fn describe(names: &[String]) -> Vec<MonitorName> {
+    static CACHE: std::sync::Mutex<Option<(Vec<String>, Vec<MonitorName>)>> =
+        std::sync::Mutex::new(None);
+    let mut cache = CACHE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((key, rows)) = cache.as_ref()
+        && key.as_slice() == names
+    {
+        return rows.clone();
+    }
     let (display_config, enum_display) = windows_metadata(names);
-    map_monitor_names(names, &display_config, &enum_display, None)
+    let rows = map_monitor_names(names, &display_config, &enum_display, None);
+    *cache = Some((names.to_vec(), rows.clone()));
+    rows
 }
 
 #[tauri::command]
