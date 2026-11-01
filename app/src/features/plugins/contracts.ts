@@ -48,6 +48,8 @@ export type Param = {
   label: string;
   /** 'select' = dropdown of `suggestions` only; 'text' = free text with suggestions. */
   type: 'text' | 'number' | 'select' | 'boolean';
+  /** Select only: the dropdown is searchable, for lists that can grow long. */
+  searchable?: boolean;
   /** Offered values. A function is re-read each time the editor opens. */
   suggestions?: Option[] | ((args?: Record<string, unknown>) => Option[]);
   /** Reloads whatever `suggestions` reads; called when the dropdown opens. */

@@ -23,6 +23,7 @@ export function registerCoreAutomation(api: PluginApi) {
     key: 'variable',
     label: 'Variable',
     type: 'select',
+    searchable: true,
     suggestions: () =>
       api.listVariables().map((record) => ({
         value: record.definition.id,

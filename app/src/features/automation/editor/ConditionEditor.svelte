@@ -5,6 +5,7 @@
   import { settings } from '../../settings/state.svelte';
   import type { Operand, Predicate, Scalar } from '../scenario';
   import Choice from '../../plugins/ui/Choice.svelte';
+  import SuggestionInput from '../../plugins/ui/SuggestionInput.svelte';
   import AppStateField from '../../apps/ui/AppStateField.svelte';
   import { parseAppVariable } from '../../apps/keys';
   import { alignRight, comparators, firstPlainVariable, operandKind } from '../operand-kinds';
@@ -133,97 +134,107 @@
       />
     </div>
   {:else}
-    <div class={['grid gap-3', !appCondition && 'sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]']}>
-      {#each appCondition ? ['left'] : ['left', 'right'] as side (side)}
-        {@const operand = condition[side as 'left' | 'right']}
-        <div class="grid min-w-0 gap-1.5">
-          <Label class="text-xs text-muted-foreground"
-            >{side === 'left' ? 'Value' : 'Compare to'}</Label
-          >
-          <Choice
-            value={kindOf(side, operand)}
-            options={[
-              { value: 'literal', label: 'Value' },
-              { value: 'variable', label: 'Variable' },
-              { value: 'app', label: 'App' },
-              { value: 'state', label: 'Control state' },
-            ]}
-            onchange={(value) => changeOperandKind(side as 'left' | 'right', value)}
-          />
-          {#if operand.kind === 'variable' && kindOf(side, operand) === 'app'}
-            <AppStateField
-              value={operand.id}
-              negation={side === 'left' && appCondition
-                ? {
-                    negated: condition.op === 'ne',
-                    onchange: (negated) => onchange({ ...condition, op: negated ? 'ne' : 'eq' }),
-                  }
-                : undefined}
-              onchange={(id) => setOperand(side as 'left' | 'right', { ...operand, id })}
-            />
-          {:else if operand.kind === 'variable'}
+    <div class="@container">
+      <div
+        class={[
+          'grid items-start gap-3',
+          !appCondition && '@xl:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)]',
+        ]}
+      >
+        {#each appCondition ? ['left'] : ['left', 'right'] as side (side)}
+          {@const operand = condition[side as 'left' | 'right']}
+          <div class="grid min-w-0 content-start gap-1.5">
+            <Label class="text-xs text-muted-foreground"
+              >{side === 'left' ? 'Value' : 'Compare to'}</Label
+            >
             <Choice
-              value={operand.id}
-              options={variableOptions(operand.id)}
-              placeholder="Variable"
-              onchange={(value) => setOperand(side as 'left' | 'right', { ...operand, id: value })}
-            />
-          {:else if operand.kind === 'state'}
-            <Choice
-              value={operand.controlId}
-              options={controlStateOptions(operand.controlId)}
-              onchange={(value) =>
-                setOperand(side as 'left' | 'right', { ...operand, controlId: value })}
-            />
-          {:else}
-            <Choice
-              value={typeof operand.value}
+              value={kindOf(side, operand)}
               options={[
-                { value: 'boolean', label: 'Boolean' },
-                { value: 'number', label: 'Number' },
-                { value: 'string', label: 'Text' },
+                { value: 'literal', label: 'Value' },
+                { value: 'variable', label: 'Variable' },
+                { value: 'app', label: 'App' },
+                { value: 'state', label: 'Control state' },
               ]}
-              aria-label="Value type"
-              onchange={(value) => setLiteralType(side as 'left' | 'right', value)}
+              onchange={(value) => changeOperandKind(side as 'left' | 'right', value)}
             />
-            {#if typeof operand.value === 'boolean'}
+            {#if operand.kind === 'variable' && kindOf(side, operand) === 'app'}
+              <AppStateField
+                value={operand.id}
+                negation={side === 'left' && appCondition
+                  ? {
+                      negated: condition.op === 'ne',
+                      onchange: (negated) => onchange({ ...condition, op: negated ? 'ne' : 'eq' }),
+                    }
+                  : undefined}
+                onchange={(id) => setOperand(side as 'left' | 'right', { ...operand, id })}
+              />
+            {:else if operand.kind === 'variable'}
+              <SuggestionInput
+                strict
+                value={operand.id}
+                suggestions={variableOptions(operand.id)}
+                placeholder="Variable"
+                aria-label="Variable"
+                onchange={(value) =>
+                  setOperand(side as 'left' | 'right', { ...operand, id: value })}
+              />
+            {:else if operand.kind === 'state'}
               <Choice
-                value={String(operand.value)}
-                options={[
-                  { value: 'false', label: 'False' },
-                  { value: 'true', label: 'True' },
-                ]}
-                onchange={(value) => setLiteral(side as 'left' | 'right', value === 'true')}
+                value={operand.controlId}
+                options={controlStateOptions(operand.controlId)}
+                onchange={(value) =>
+                  setOperand(side as 'left' | 'right', { ...operand, controlId: value })}
               />
             {:else}
-              <Input
-                aria-label={side === 'left' ? 'Value' : 'Compare to'}
-                type={typeof operand.value === 'number' ? 'number' : 'text'}
-                value={String(operand.value ?? '')}
-                oninput={(e) => {
-                  const value = e.currentTarget.value;
-                  setLiteral(
-                    side as 'left' | 'right',
-                    typeof operand.value === 'number' ? Number(value) : value,
-                  );
-                }}
+              <Choice
+                value={typeof operand.value}
+                options={[
+                  { value: 'boolean', label: 'Boolean' },
+                  { value: 'number', label: 'Number' },
+                  { value: 'string', label: 'Text' },
+                ]}
+                aria-label="Value type"
+                onchange={(value) => setLiteralType(side as 'left' | 'right', value)}
               />
+              {#if typeof operand.value === 'boolean'}
+                <Choice
+                  value={String(operand.value)}
+                  options={[
+                    { value: 'false', label: 'False' },
+                    { value: 'true', label: 'True' },
+                  ]}
+                  onchange={(value) => setLiteral(side as 'left' | 'right', value === 'true')}
+                />
+              {:else}
+                <Input
+                  aria-label={side === 'left' ? 'Value' : 'Compare to'}
+                  type={typeof operand.value === 'number' ? 'number' : 'text'}
+                  value={String(operand.value ?? '')}
+                  oninput={(e) => {
+                    const value = e.currentTarget.value;
+                    setLiteral(
+                      side as 'left' | 'right',
+                      typeof operand.value === 'number' ? Number(value) : value,
+                    );
+                  }}
+                />
+              {/if}
             {/if}
-          {/if}
-        </div>
-        {#if side === 'left' && !appCondition}
-          <div class="grid min-w-0 gap-1.5">
-            <Label class="text-xs text-muted-foreground">Operator</Label>
-            <Choice
-              value={condition.op}
-              class="w-full min-w-0"
-              options={operators}
-              onchange={(value) =>
-                onchange({ ...condition, op: value as 'eq' | 'ne' | 'gt' | 'lt' })}
-            />
           </div>
-        {/if}
-      {/each}
+          {#if side === 'left' && !appCondition}
+            <div class="grid min-w-0 content-start gap-1.5">
+              <Label class="text-xs text-muted-foreground">Operator</Label>
+              <Choice
+                value={condition.op}
+                class="w-full min-w-0"
+                options={operators}
+                onchange={(value) =>
+                  onchange({ ...condition, op: value as 'eq' | 'ne' | 'gt' | 'lt' })}
+              />
+            </div>
+          {/if}
+        {/each}
+      </div>
     </div>
   {/if}
 </div>

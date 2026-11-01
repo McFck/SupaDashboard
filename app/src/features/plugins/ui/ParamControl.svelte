@@ -74,7 +74,18 @@
   }
 </script>
 
-{#if param.type === 'select'}
+{#if param.type === 'select' && param.searchable}
+  <SuggestionInput
+    strict
+    id={fieldId}
+    value={String(value ?? param.default ?? '')}
+    suggestions={selectOptions}
+    {provider}
+    aria-label={param.label}
+    {onchange}
+    onrefresh={refresh}
+  />
+{:else if param.type === 'select'}
   <Choice
     value={String(value ?? param.default ?? '')}
     id={fieldId}

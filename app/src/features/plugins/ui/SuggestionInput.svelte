@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import { Combobox } from 'bits-ui';
   import { Input } from '$lib/components/ui/input';
+  import { rankOptions } from '../ranking';
   import OptionTags from './OptionTags.svelte';
   import PluginMark from './PluginMark.svelte';
   import Icon from '../../controls/ui/Icon.svelte';
@@ -11,44 +12,80 @@
     value,
     suggestions,
     provider,
+    strict = false,
+    id,
+    placeholder,
+    'aria-label': ariaLabel,
     onchange,
     onrefresh,
   }: {
     value: string;
     suggestions: Option[];
     provider?: string;
+    /** Typing only searches; the answer is always one of the suggestions' values. */
+    strict?: boolean;
+    id?: string;
+    placeholder?: string;
+    'aria-label'?: string;
     onchange: (value: string) => void;
     onrefresh?: () => void;
   } = $props();
   let query = $state(untrack(() => value));
+  let typing = $state(false);
   let open = $state(false);
   let field = $state<HTMLElement | null>(null);
+  let anchor = $state<HTMLElement | null>(null);
   // The field may show an option's label instead of its value, so either one finds the selected option.
   const selected = $derived(
     suggestions.find((option) => option.value === value || option.label === value),
   );
-  const filtered = $derived.by(() => {
-    const search = query.trim().toLocaleLowerCase();
-    return search
-      ? suggestions.filter((option) =>
-          `${option.label} ${option.value}`.toLocaleLowerCase().includes(search),
-        )
-      : suggestions;
-  });
+  const display = $derived(selected?.label ?? value);
+  // Until the user types, the list is whole so the current pick can be swapped for another.
+  const filtered = $derived(rankOptions(suggestions, typing ? query : ''));
 
   $effect(() => {
-    if (query !== value) query = value;
+    query = display;
   });
   function input(event: Event) {
     query = (event.currentTarget as HTMLInputElement).value;
-    onchange(query);
+    typing = true;
+    open = true;
+    if (!strict) {
+      onchange(query);
+    }
   }
   function choose(next: string) {
-    query = next;
+    typing = false;
+    // A strict field shows the parent's answer again once it has taken the pick.
+    query = strict ? display : (suggestions.find((option) => option.value === next)?.label ?? next);
     onchange(next);
     // A picked suggestion is committed: close, and leave the field so it does not reopen.
     open = false;
     field?.blur();
+    // The combobox writes the picked label into the input itself; a field that keeps its answer elsewhere takes it back.
+    if (strict) {
+      setTimeout(() => {
+        if (field instanceof HTMLInputElement && !typing) {
+          field.value = query;
+        }
+      });
+    }
+  }
+  /** A value typed out in full counts as picked; anything else in a strict field is dropped. */
+  function leave() {
+    const text = query.trim().toLocaleLowerCase();
+    const exact = text
+      ? suggestions.find(
+          (option) =>
+            option.label.toLocaleLowerCase() === text || option.value.toLocaleLowerCase() === text,
+        )
+      : undefined;
+    typing = false;
+    if (exact && exact.value !== value) {
+      choose(exact.value);
+    } else if (strict) {
+      query = display;
+    }
   }
 </script>
 
@@ -63,7 +100,10 @@
     if (open) onrefresh?.();
   }}
 >
-  <div class="relative min-w-0 flex-1">
+  <div
+    bind:this={anchor}
+    class="relative min-w-0 flex-1"
+  >
     {#if selected?.iconName}
       <span
         class="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground"
@@ -78,9 +118,14 @@
       bind:ref={field}
       class="w-full min-w-0"
       oninput={input}
+      onblur={leave}
+      onclick={() => (open = true)}
     >
       {#snippet child({ props })}<Input
           {...props}
+          {id}
+          {placeholder}
+          aria-label={ariaLabel}
           class={selected?.iconName ? 'pl-9' : ''}
         />{/snippet}
     </Combobox.Input>
@@ -88,7 +133,8 @@
   {#if open}
     <Combobox.Portal>
       <Combobox.Content
-        class="z-50 max-h-60 min-w-(--bits-select-anchor-width) overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
+        customAnchor={anchor}
+        class="z-50 max-h-60 w-(--bits-combobox-anchor-width) overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
       >
         <Combobox.Group>
           {#each filtered as option (option.value)}
@@ -115,6 +161,9 @@
               <PluginMark plugin={option.plugin ?? provider} />
             </Combobox.Item>
           {/each}
+          {#if !filtered.length}<div class="px-3 py-2 text-sm text-muted-foreground">
+              No match
+            </div>{/if}
         </Combobox.Group>
       </Combobox.Content>
     </Combobox.Portal>
