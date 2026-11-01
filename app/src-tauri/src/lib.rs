@@ -69,6 +69,7 @@ pub fn run() {
             audio::service::audio_update,
             apps::apps_list,
             apps::app_command,
+            apps::app_windows,
             apps::apps_watch,
             apps::apps_unwatch,
             media::media_command,

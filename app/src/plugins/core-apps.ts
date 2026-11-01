@@ -1,11 +1,11 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { primaryMonitor } from '@tauri-apps/api/window';
 import { buildMonitorOptions, type MonitorOption } from '../features/display/monitor-options';
-import { APP_ACTIONS, appRequest } from '../features/apps/keys';
+import { APP_ACTIONS, appRequest, isAppKey } from '../features/apps/keys';
 import { appParam } from '../features/apps/picker.svelte';
 import { ActionFailure } from '../features/automation/action-failure';
 import type { Param, Plugin } from '../features/plugins/contracts';
-import { runAppCommand } from '../platform/apps';
+import { listAppWindows, runAppCommand } from '../platform/apps';
 import { monitors } from '../platform/window';
 
 const TITLES = {
@@ -69,8 +69,23 @@ const windowsParam: Param = {
   suggestions: [
     { value: 'main', label: 'Main window' },
     { value: 'all', label: 'All windows' },
+    { value: 'window', label: 'Specific window' },
     { value: 'title', label: 'Window title contains' },
   ],
+};
+let openWindows: string[] = [];
+const windowParam: Param = {
+  key: 'window',
+  label: 'Window',
+  type: 'select',
+  searchable: true,
+  default: '',
+  suggestions: () => openWindows.map((title) => ({ value: title, label: title })),
+  refresh: async (args) => {
+    const app = args?.app;
+    openWindows = isTauri() && isAppKey(app) ? await listAppWindows(app) : [];
+  },
+  visible: (args) => args.windows === 'window',
 };
 const titleParam: Param = {
   key: 'title',
@@ -82,9 +97,17 @@ const titleParam: Param = {
 
 const PARAMS: Record<(typeof APP_ACTIONS)[number], Param[]> = {
   open: [appParam],
-  focus: [appParam, windowsParam, titleParam, displayParam],
-  toggle: [appParam, windowsParam, titleParam, displayParam, hideParam, forceParam('Force close')],
-  minimize: [appParam, windowsParam, titleParam],
+  focus: [appParam, windowsParam, windowParam, titleParam, displayParam],
+  toggle: [
+    appParam,
+    windowsParam,
+    windowParam,
+    titleParam,
+    displayParam,
+    hideParam,
+    forceParam('Force close'),
+  ],
+  minimize: [appParam, windowsParam, windowParam, titleParam],
   close: [appParam, forceParam('Force')],
 };
 

@@ -1,20 +1,38 @@
-//! Selection is independent of focus and Z-order; the same snapshot drives Toggle and its action.
+//! Selection is independent of focus; the same snapshot drives Toggle and its action.
 use super::model::{ToggleFacts, Win, Windows, is_app_window};
 
+/// The windows a command acts on, in Z order (front first): restoring them back to front keeps that order and
+/// leaves the most recently active one focused. `Main` is the one oldest window, which does not change with focus.
 pub fn select(wins: &[Win], mode: Windows, title: &str) -> Vec<Win> {
     let title = title.trim().to_lowercase();
     let mut selected: Vec<Win> = wins
         .iter()
         .filter(|win| is_app_window(win))
-        .filter(|win| mode != Windows::Title || win.title.to_lowercase().contains(&title))
+        .filter(|win| match mode {
+            Windows::Title => win.title.to_lowercase().contains(&title),
+            Windows::Window => win.title.trim().to_lowercase() == title,
+            Windows::Main | Windows::All => true,
+        })
         .cloned()
         .collect();
-    // HWNDs stay fixed for a window's lifetime, unlike enumeration order or its changing title.
-    selected.sort_unstable_by_key(|win| win.hwnd as usize);
     if mode == Windows::Main {
+        // HWNDs stay fixed for a window's lifetime, unlike Z order or its changing title.
+        selected.sort_unstable_by_key(|win| win.hwnd as usize);
         selected.truncate(1);
     }
     selected
+}
+
+/// The distinct titles of the windows a user could pick, front first.
+pub fn titles(wins: &[Win]) -> Vec<String> {
+    let mut titles: Vec<String> = Vec::new();
+    for win in wins.iter().filter(|win| is_app_window(win)) {
+        let title = win.title.trim();
+        if !title.is_empty() && !titles.iter().any(|known| known == title) {
+            titles.push(title.to_owned());
+        }
+    }
+    titles
 }
 
 pub fn toggle_facts(selected: &[Win], running: bool, foreground_root: isize) -> ToggleFacts {
@@ -42,97 +60,110 @@ mod tests {
             app_window: false,
             cloaked: false,
             minimized: false,
+            sized: true,
         }
     }
 
-    #[test]
-    fn steam_group_hides_from_either_window_despite_mixed_minimization_and_z_order() {
-        let main = win(10, 1, "Steam");
-        let chat = win(20, 2, "Friends");
-        let minimized = Win {
-            minimized: true,
-            ..win(30, 3, "Chat")
-        };
-        for wins in [
-            vec![main.clone(), chat.clone(), minimized.clone()],
-            vec![minimized, chat, main],
-        ] {
-            let selected = select(&wins, Windows::All, "");
-            assert_eq!(
-                selected.iter().map(|w| w.hwnd).collect::<Vec<_>>(),
-                [10, 20, 30]
-            );
-            for foreground in [10, 20] {
-                assert_eq!(
-                    plan_toggle(toggle_facts(&selected, true, foreground)),
-                    Plan::Hide
-                );
-            }
-            assert_eq!(plan_toggle(toggle_facts(&selected, true, 99)), Plan::Raise);
-            let minimized: Vec<_> = selected
-                .into_iter()
-                .map(|w| Win {
-                    minimized: true,
-                    ..w
-                })
-                .collect();
-            assert_eq!(
-                plan_toggle(toggle_facts(&minimized, true, 99)),
-                Plan::Restore
-            );
-        }
-    }
-
-    #[test]
-    fn main_target_survives_focus_changes_and_helpers_never_become_targets() {
-        let wins = vec![
+    /// Steam's web helper in Z order: the Library and Friends in two processes, a hidden helper, a zero-size helper.
+    fn steam() -> Vec<Win> {
+        vec![
             Win {
                 visible: false,
-                ..win(1, 1, "Hidden")
+                ..win(5, 1, "")
             },
+            win(30, 2, "Friends List"),
             Win {
-                tool: true,
-                ..win(2, 1, "Tool")
+                sized: false,
+                ..win(40, 1, "Steam")
             },
-            Win {
-                owned: true,
-                ..win(3, 1, "Dialog")
-            },
-            Win {
-                cloaked: true,
-                ..win(4, 1, "Cloaked")
-            },
-            win(20, 1, "Friends"),
             win(10, 1, "Steam"),
-        ];
-        let selected = select(&wins, Windows::Main, "");
-        assert_eq!(selected, [wins[5].clone()]);
-        let reversed: Vec<_> = wins.into_iter().rev().collect();
-        assert_eq!(select(&reversed, Windows::Main, ""), selected);
-        // Another window in the same process must not hide the selected main window.
-        assert_eq!(plan_toggle(toggle_facts(&selected, true, 20)), Plan::Raise);
-        assert_eq!(plan_toggle(toggle_facts(&selected, true, 10)), Plan::Hide);
+        ]
+    }
+
+    fn handles(wins: &[Win]) -> Vec<isize> {
+        wins.iter().map(|win| win.hwnd).collect()
+    }
+
+    fn plan(selected: &[Win], foreground: isize) -> Plan {
+        plan_toggle(toggle_facts(selected, true, foreground))
     }
 
     #[test]
-    fn title_selects_only_matching_main_windows_and_never_falls_back() {
-        let wins = vec![
-            win(20, 1, "Steam Chat"),
-            win(10, 2, "STEAM"),
-            win(30, 1, "Friends"),
-            Win {
-                visible: false,
-                ..win(1, 1, "Steam helper")
-            },
-        ];
+    fn group_ignores_hidden_and_zero_size_helpers_and_keeps_z_order() {
+        assert_eq!(handles(&select(&steam(), Windows::All, "")), [30, 10]);
+    }
+
+    #[test]
+    fn group_hides_when_any_window_is_in_front_wherever_focus_moves() {
+        let selected = select(&steam(), Windows::All, "");
+        for foreground in [10, 30] {
+            assert_eq!(plan(&selected, foreground), Plan::Hide);
+        }
+        // Another app, or a hidden helper, in front: bring the group up instead.
+        for foreground in [99, 5] {
+            assert_eq!(plan(&selected, foreground), Plan::Raise);
+        }
+    }
+
+    #[test]
+    fn group_with_one_window_minimized_is_restored_as_a_whole_not_hidden() {
+        let mut selected = select(&steam(), Windows::All, "");
+        selected[1].minimized = true;
+        assert_eq!(plan(&selected, 99), Plan::Raise);
+        assert_eq!(plan(&selected, 30), Plan::Hide);
+        for win in &mut selected {
+            win.minimized = true;
+        }
+        assert_eq!(plan(&selected, 99), Plan::Restore);
+    }
+
+    #[test]
+    fn restore_order_follows_the_windows_z_order_not_their_handles() {
+        let mut wins = steam();
+        wins.swap(1, 3);
+        // Friends is now behind the Library: the Library is the one left focused.
+        assert_eq!(handles(&select(&wins, Windows::All, "")), [10, 30]);
+    }
+
+    #[test]
+    fn main_window_does_not_change_when_focus_moves() {
+        let wins = steam();
+        let reversed: Vec<_> = wins.iter().rev().cloned().collect();
+        assert_eq!(handles(&select(&wins, Windows::Main, "")), [10]);
+        assert_eq!(handles(&select(&reversed, Windows::Main, "")), [10]);
+        let main = select(&wins, Windows::Main, "");
+        assert_eq!(plan(&main, 30), Plan::Raise);
+        assert_eq!(plan(&main, 10), Plan::Hide);
+    }
+
+    #[test]
+    fn specific_window_matches_the_exact_title_again_after_it_is_recreated() {
+        let mut wins = steam();
         assert_eq!(
-            select(&wins, Windows::Title, " steam ")
-                .iter()
-                .map(|w| w.hwnd)
-                .collect::<Vec<_>>(),
-            [10, 20]
+            handles(&select(&wins, Windows::Window, " friends list ")),
+            [30]
         );
-        assert!(select(&wins, Windows::Title, "missing").is_empty());
+        // Friends is closed and reopened: new handle, same title.
+        wins[1] = win(77, 3, "Friends List");
+        assert_eq!(
+            handles(&select(&wins, Windows::Window, "friends list")),
+            [77]
+        );
+        assert!(select(&wins, Windows::Window, "friends").is_empty());
+        assert_eq!(handles(&select(&wins, Windows::Title, "friends")), [77]);
+    }
+
+    #[test]
+    fn picker_lists_each_visible_title_once() {
+        let mut wins = steam();
+        wins.push(win(50, 2, "Steam"));
+        assert_eq!(titles(&wins), ["Friends List", "Steam"]);
+    }
+
+    #[test]
+    fn missing_title_selects_nothing_and_never_falls_back() {
+        assert!(select(&steam(), Windows::Title, "missing").is_empty());
+        assert!(select(&steam(), Windows::Window, "missing").is_empty());
         assert_eq!(plan_toggle(toggle_facts(&[], false, 0)), Plan::Launch);
     }
 }

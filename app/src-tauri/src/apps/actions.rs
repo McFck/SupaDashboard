@@ -192,7 +192,7 @@ fn reveal(win: &Win, display: Option<&Monitor>, label: &str) -> Result<(), Strin
 }
 
 fn reveal_selected(wins: &[Win], display: Option<&Monitor>, label: &str) -> Result<(), String> {
-    // Restore each window through the same path, leaving the stable primary target in front.
+    // Restore each window through the same path, back to front, so the most recently active window ends up in front.
     for win in wins.iter().rev() {
         reveal(win, display, label)?;
     }

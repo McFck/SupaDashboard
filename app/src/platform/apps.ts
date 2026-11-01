@@ -54,6 +54,14 @@ export async function listApps(): Promise<AppRow[]> {
     : [];
 }
 
+/** The titles of an app's windows open right now. */
+export async function listAppWindows(app: string): Promise<string[]> {
+  const raw = await invoke<unknown>('app_windows', { app });
+  return Array.isArray(raw)
+    ? raw.filter((title): title is string => typeof title === 'string')
+    : [];
+}
+
 export const runAppCommand = (request: AppRequest) => invoke<void>('app_command', { request });
 
 export type AppsLink = { watch(keys: string[]): void; stop(): void };
