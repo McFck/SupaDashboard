@@ -58,6 +58,15 @@
       ? [...withProvider, { value: current, label: current, plugin: provider }]
       : withProvider;
   });
+  // A stored value no suggestion lists (an app that is not running) still reads as a name, never as its raw key.
+  const textSuggestions = $derived.by(() => {
+    const list = suggestions ?? [];
+    const current = String(value ?? param.default ?? '');
+    const described = list.some((option) => option.value === current)
+      ? undefined
+      : param.describe?.(current);
+    return described ? [...list, described] : list;
+  });
   async function browse() {
     try {
       const picked = await param.manual?.browse();
@@ -101,7 +110,7 @@
   >
     <SuggestionInput
       value={String(value ?? param.default ?? '')}
-      suggestions={suggestions ?? []}
+      suggestions={textSuggestions}
       {provider}
       {onchange}
       onrefresh={refresh}

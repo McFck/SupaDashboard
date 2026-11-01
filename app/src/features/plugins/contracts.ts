@@ -52,6 +52,8 @@ export type Param = {
   searchable?: boolean;
   /** Offered values. A function is re-read each time the editor opens. */
   suggestions?: Option[] | ((args?: Record<string, unknown>) => Option[]);
+  /** Text only: how a stored value reads in the field while no suggestion lists it. */
+  describe?: (value: string) => Option | undefined;
   /** Reloads whatever `suggestions` reads; called when the dropdown opens. */
   refresh?: (args?: Record<string, unknown>) => Promise<unknown>;
   default?: unknown;

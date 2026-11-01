@@ -132,6 +132,8 @@ export const appParam: Param = {
   type: 'text',
   default: '',
   suggestions: appOptions,
+  describe: (key) =>
+    isAppKey(key) ? { value: key, label: appName(key), iconName: appIcon(key) } : undefined,
   refresh: refreshApps,
   manual: appManual,
 };
