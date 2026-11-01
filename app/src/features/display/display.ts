@@ -54,6 +54,7 @@ export class DisplayController {
   private chain: Promise<unknown> = Promise.resolve();
   private disposed = false;
   private reconcileQueued = false;
+  private polling = false;
   private readonly listeners: (() => void)[] = [];
   private applied: DisplayRequest | null = null;
   private latest: DisplayRequest | null = null;
@@ -278,31 +279,39 @@ export class DisplayController {
     this.listeners.push(() => clearInterval(timer));
   }
 
-  /** Hides the window once its chosen monitor is gone and brings it back when that monitor returns. */
-  private checkMonitor() {
-    return this.serialize(async () => {
-      const request = this.latest;
-      if (!request?.monitor) {
-        return;
-      }
-      const { screens } = await connectedMonitors();
-      if (!this.live() || this.latest !== request) {
-        return;
-      }
-      const missing = chosenMonitorMissing(screens, request.monitor);
-      const blocked = await dashboardMonitorBlocked();
-      if (!this.live() || this.latest !== request) {
-        return;
-      }
-      if (blocked) {
-        await this.hide();
-      }
-      if (missing && !this.unavailable) {
-        await this.hide();
-      } else if (!missing && this.unavailable) {
-        void this.request(request);
-      }
-    }).catch((error) => console.warn('display monitor', error));
+  /** Hides the window once its chosen monitor is gone and brings it back when that monitor returns. Display queries
+   *  can take seconds while the topology changes, so a tick is skipped while one is in flight and the query runs
+   *  outside the queue; only the decision waits for queued display work. */
+  private async checkMonitor() {
+    const request = this.latest;
+    if (this.polling || !request?.monitor) {
+      return;
+    }
+    this.polling = true;
+    try {
+      const [{ screens }, blocked] = await Promise.all([
+        connectedMonitors(),
+        dashboardMonitorBlocked(),
+      ]);
+      await this.serialize(async () => {
+        if (this.latest !== request) {
+          return;
+        }
+        const missing = chosenMonitorMissing(screens, request.monitor);
+        if (blocked) {
+          await this.hide();
+        }
+        if (missing && !this.unavailable) {
+          await this.hide();
+        } else if (!missing && this.unavailable) {
+          void this.request(request);
+        }
+      });
+    } catch (error) {
+      console.warn('display monitor', error);
+    } finally {
+      this.polling = false;
+    }
   }
 
   private async listen() {

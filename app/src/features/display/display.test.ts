@@ -438,3 +438,46 @@ it('does not reopen an old display after the user selected a different connected
     vi.useRealTimers();
   }
 });
+
+it('never starts a monitor check while a slow one is still in flight', async () => {
+  const { deck } = windowFixture();
+  native.screens.push(secondScreen());
+  vi.useFakeTimers();
+  try {
+    await controller.start(onSecond, deck);
+    let inFlight = 0;
+    let most = 0;
+    native.readMonitors.mockReset();
+    native.readMonitors.mockImplementation(() => {
+      most = Math.max(most, ++inFlight);
+      return new Promise((resolve) =>
+        setTimeout(() => {
+          inFlight--;
+          resolve({ screens: native.screens, current: null, primary: null });
+        }, 3000),
+      );
+    });
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(most).toBe(1);
+    expect(native.readMonitors.mock.calls.length).toBeLessThanOrEqual(15_000 / 3000);
+  } finally {
+    controller.dispose();
+    vi.useRealTimers();
+  }
+});
+
+it('applies a display request while a monitor check is still waiting for Windows', async () => {
+  const { deck } = windowFixture();
+  native.screens.push(secondScreen());
+  vi.useFakeTimers();
+  try {
+    await controller.start(onSecond, deck);
+    native.readMonitors.mockReturnValueOnce(new Promise<MonitorSnapshot>(() => {}));
+    await vi.advanceTimersByTimeAsync(1500);
+    await controller.request({ ...onSecond, monitor: 'screen' });
+    expect(native.bounds.x).toBeLessThan(1920);
+  } finally {
+    controller.dispose();
+    vi.useRealTimers();
+  }
+});
