@@ -242,20 +242,46 @@ impl Worker {
     }
 
     /// Keeps ids for sessions that are still there and gives new ones a fresh id, in Windows' order.
+    ///
+    /// Windows can hand out new session objects for the same players when the list changes (another app starts
+    /// playing), so a session whose object is new takes over a vanished session of the same app before it counts as
+    /// new. Otherwise the widget showing that player would treat the unchanged track as a new one.
     fn reconcile(&mut self, sessions: &[Session]) {
         let mut previous = std::mem::take(&mut self.tracked);
-        for session in sessions {
-            let kept = previous
-                .iter()
-                .position(|tracked| same(&tracked.session, session));
-            let tracked = match kept {
-                Some(index) => previous.swap_remove(index),
-                None => {
-                    self.next_id += 1;
-                    let app_id = session
+        let mut kept: Vec<Option<Tracked>> = sessions
+            .iter()
+            .map(|session| {
+                previous
+                    .iter()
+                    .position(|tracked| same(&tracked.session, session))
+                    .map(|index| previous.swap_remove(index))
+            })
+            .collect();
+        for (slot, session) in kept.iter_mut().zip(sessions) {
+            if slot.is_some() {
+                continue;
+            }
+            let app_id = session
+                .SourceAppUserModelId()
+                .map(clip_id)
+                .unwrap_or_default();
+            let heir = previous.iter().position(|tracked| {
+                !app_id.is_empty()
+                    && tracked
+                        .session
                         .SourceAppUserModelId()
                         .map(clip_id)
-                        .unwrap_or_default();
+                        .ok()
+                        .as_ref()
+                        == Some(&app_id)
+            });
+            *slot = Some(match heir {
+                Some(index) => Tracked {
+                    session: session.clone(),
+                    ..previous.swap_remove(index)
+                },
+                None => {
+                    self.next_id += 1;
                     Tracked {
                         id: format!("{app_id}#{}", self.next_id),
                         session: session.clone(),
@@ -266,12 +292,11 @@ impl Worker {
                         failures: 0,
                     }
                 }
-            };
-            self.tracked.push(tracked);
+            });
         }
+        self.tracked = kept.into_iter().flatten().collect();
     }
 }
-
 fn clip_id(id: windows::core::HSTRING) -> String {
     clip(id, MAX_ID)
 }
