@@ -23,6 +23,7 @@
     picker,
     branch,
     onmove,
+    onshift,
     onremove,
     onupdate,
     onbind,
@@ -38,6 +39,8 @@
     /** A Condition's Then or Else list. */
     branch: Snippet<['then' | 'else']>;
     onmove: (amount: number) => void;
+    /** Alt+Arrow: move across the borders of Condition branches. */
+    onshift: (direction: -1 | 1) => void;
     onremove: () => void;
     onupdate: (step: ActionStep) => void;
     onbind: (variableId: string) => void;
@@ -97,13 +100,15 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      onmove(-1);
+    const direction = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0;
+    if (!direction) {
+      return;
     }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      onmove(1);
+    event.preventDefault();
+    if (event.altKey) {
+      onshift(direction);
+    } else {
+      onmove(direction);
     }
   }
 </script>
@@ -113,7 +118,7 @@
     data-step-handle
     type="button"
     aria-label="Reorder step"
-    disabled={count < 2 || locked}
+    disabled={locked}
     class="grid size-8 shrink-0 touch-none place-items-center rounded text-muted-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-40"
     onkeydown={handleKeydown}><GripVertical class="size-4" /></button
   >

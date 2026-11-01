@@ -151,6 +151,81 @@ export function moveScenarioStep(
   });
 }
 
+/** Moves a step, with everything inside it, to `index` of another list (or the same one); `index` counts the target after the step left. */
+export function moveScenarioStepTo(
+  scenario: Scenario,
+  from: StepListPath,
+  stepId: string,
+  to: StepListPath,
+  index: number,
+) {
+  if (to.branches?.some((branch) => branch.stepId === stepId)) {
+    throw new Error('A step cannot move into itself');
+  }
+  const next = clonePlain(scenario);
+  const source = listAt(next, from, false);
+  const at = source.findIndex((step) => step.id === stepId);
+  if (at < 0) throw new Error('Step is unavailable');
+  const [step] = source.splice(at, 1);
+  const target = listAt(next, to, false);
+  if (!Number.isInteger(index) || index < 0 || index > target.length)
+    throw new Error('Step position is invalid');
+  target.splice(index, 0, step);
+  return next;
+}
+
+/**
+ * The keyboard move across branch borders, following the order the steps read in: down enters a Condition below
+ * (its Then), leaves the end of Then for Else and the end of Else for after the Condition; up mirrors that.
+ * Undefined when the step simply stays in its list.
+ */
+export function shiftScenarioStep(
+  scenario: Scenario,
+  path: StepListPath,
+  stepId: string,
+  direction: -1 | 1,
+) {
+  const steps = scenarioStepsAt(scenario, path);
+  const at = steps.findIndex((step) => step.id === stepId);
+  if (at < 0) return undefined;
+  const neighbour = steps[at + direction];
+  const branches = path.branches ?? [];
+  const outerBranches = branches.slice(0, -1);
+  const arm = (base: Branch[], step: ActionStep, which: Branch['arm']): StepListPath => ({
+    ...path,
+    branches: [...base, { stepId: step.id, arm: which }],
+  });
+  if (neighbour?.kind === 'if') {
+    return moveScenarioStepTo(
+      scenario,
+      path,
+      stepId,
+      arm(branches, neighbour, direction > 0 ? 'then' : 'else'),
+      direction > 0 ? 0 : neighbour.else.length,
+    );
+  }
+  const parent = branches.at(-1);
+  if (neighbour || !parent) return undefined;
+  const outer = { ...path, branches: outerBranches };
+  const siblings = scenarioStepsAt(scenario, outer);
+  const parentIndex = siblings.findIndex((step) => step.id === parent.stepId);
+  const condition = siblings[parentIndex];
+  if (condition?.kind !== 'if') return undefined;
+  if (direction > 0 && parent.arm === 'then') {
+    return moveScenarioStepTo(scenario, path, stepId, arm(outerBranches, condition, 'else'), 0);
+  }
+  if (direction < 0 && parent.arm === 'else') {
+    return moveScenarioStepTo(
+      scenario,
+      path,
+      stepId,
+      arm(outerBranches, condition, 'then'),
+      condition.then.length,
+    );
+  }
+  return moveScenarioStepTo(scenario, path, stepId, outer, parentIndex + (direction > 0 ? 1 : 0));
+}
+
 export function setScenarioStateOverride(
   scenario: Scenario,
   path: ScenarioListOwner,
