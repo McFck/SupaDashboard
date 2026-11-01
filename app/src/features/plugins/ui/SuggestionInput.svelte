@@ -46,10 +46,17 @@
   $effect(() => {
     query = display;
   });
+  // Opening here bypasses the combobox's own onOpenChange, so the options refresh is asked for directly.
+  function show() {
+    if (!open) {
+      open = true;
+      onrefresh?.();
+    }
+  }
   function input(event: Event) {
     query = (event.currentTarget as HTMLInputElement).value;
     typing = true;
-    open = true;
+    show();
     if (!strict) {
       onchange(query);
     }
@@ -119,7 +126,7 @@
       class="w-full min-w-0"
       oninput={input}
       onblur={leave}
-      onclick={() => (open = true)}
+      onclick={show}
     >
       {#snippet child({ props })}<Input
           {...props}
