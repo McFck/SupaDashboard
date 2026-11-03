@@ -259,7 +259,10 @@
     const layoutChanged = layout !== previousLayout || dimensions !== previousGrid;
     if (
       active &&
-      (!editing || lostResizeSelection || layoutChanged || pixels !== previousMetrics)
+      (!editing ||
+        lostResizeSelection ||
+        layoutChanged ||
+        (pixels !== previousMetrics && active.moved))
     ) {
       drag.cancel(false);
     }
