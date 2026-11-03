@@ -15,6 +15,7 @@ export type Option = {
   detail?: string;
   /** A Lucide or app-pack icon name shown before the label. */
   iconName?: string;
+  appKey?: string;
   unavailable?: boolean;
   /** The selected label is still being resolved. */
   loading?: boolean;

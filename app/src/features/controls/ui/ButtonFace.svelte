@@ -73,6 +73,7 @@
     >
       <Icon
         name={appearance.icon ?? 'AppWindow'}
+        app={appearance.app}
         size={badgeSize * 0.56}
       />
     </span>

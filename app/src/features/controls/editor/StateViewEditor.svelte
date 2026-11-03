@@ -14,6 +14,9 @@
   import StateView from '../ui/StateView.svelte';
   import ColorField from '$lib/components/ColorField.svelte';
   import IconPicker from './IconPicker.svelte';
+  import ParamControl from '../../plugins/ui/ParamControl.svelte';
+  import { appParam, rememberApp } from '../../apps/picker.svelte';
+  import { isAppKey } from '../../apps/keys';
   import Choice from '../../plugins/ui/Choice.svelte';
 
   const id = $props.id();
@@ -76,6 +79,14 @@
 
   function update(patch: Partial<Variant>) {
     if (selected) onvariant(selectedIndex, { ...selected, ...patch });
+  }
+  function pickApp(value: unknown) {
+    if (value === '' || isAppKey(value)) {
+      if (value) {
+        rememberApp(value);
+      }
+      update({ app: value || undefined });
+    }
   }
   function stateView(index: number): TileAppearance {
     return variantView(variants[index], $runtimeView.variables);
@@ -282,15 +293,22 @@
             >{selected.style === 'app' ? 'App' : 'Icon'}</Label
           >
           <div class="flex min-w-0 items-center gap-2">
-            <IconPicker
-              size="sm"
-              value={selected.icon ?? undefined}
-              onchange={(icon) => update({ icon })}
-            />
+            {#if selected.style === 'app'}
+              <ParamControl
+                id={`${id}-app`}
+                param={appParam}
+                value={selected.app ?? ''}
+                onchange={pickApp}
+              />
+            {:else}<IconPicker
+                size="sm"
+                value={selected.icon ?? undefined}
+                onchange={(icon) => update({ icon })}
+              />{/if}
             <Button
               size="default"
               variant="ghost"
-              onclick={() => update({ icon: null })}>Clear icon</Button
+              onclick={() => update({ icon: null, app: undefined })}>Clear icon</Button
             >
           </div>
         </div>

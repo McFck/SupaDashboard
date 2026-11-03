@@ -70,5 +70,8 @@ pub fn list() -> Result<Vec<AppRow>, String> {
             .cmp(&a.running)
             .then_with(|| a.label.to_lowercase().cmp(&b.label.to_lowercase()))
     });
+    for row in &rows {
+        super::icons::allow(&row.key);
+    }
     Ok(rows)
 }

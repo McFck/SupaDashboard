@@ -4,7 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { commit } from '../layout/history.svelte';
 import type { Option, Param } from '../plugins/contracts';
 import { settings } from '../settings/state.svelte';
-import { listApps, type AppRow } from '../../platform/apps';
+import { listApps, loadAppIcon, type AppRow } from '../../platform/apps';
 import { appLabel, isAppKey, usedApps } from './keys';
 
 /** Process names of apps that have an icon in the `brand-*` pack. */
@@ -35,6 +35,31 @@ const BRAND_ICONS: Record<string, string> = {
 
 const known = $state<{ rows: AppRow[]; resolved: string[] }>({ rows: [], resolved: [] });
 const requested = new Set<string>();
+const images = $state<Record<string, string | undefined>>({});
+const imageRequests = new Map<string, Promise<void>>();
+
+export const appImage = (key: string) => images[key];
+
+export function requestAppIcon(key: string): Promise<void> {
+  if (!isTauri() || !isAppKey(key)) {
+    return Promise.resolve();
+  }
+  const cached = imageRequests.get(key);
+  if (cached) {
+    return cached;
+  }
+  const request = (async () => {
+    // Listing resolves saved/manual keys too, before the icon command accepts them.
+    if (!known.rows.some((row) => row.key === key)) {
+      await listApps([key]);
+    }
+    images[key] = await loadAppIcon(key);
+  })().catch(() => {
+    // Icon lookup is optional; a removed app keeps its brand or neutral fallback.
+  });
+  imageRequests.set(key, request);
+  return request;
+}
 let refreshing: Promise<void> | undefined;
 
 export function refreshApps(): Promise<void> {
@@ -43,7 +68,7 @@ export function refreshApps(): Promise<void> {
     return Promise.resolve();
   }
   // Share in-flight work and retain resolved names/icons when an app leaves the live list.
-  return (refreshing ??= listApps()
+  return (refreshing ??= listApps([...requested, ...manualKeys()])
     .then((rows) => {
       const keys = new Set(rows.map((row) => row.key));
       known.rows = [...rows, ...known.rows.filter((row) => !keys.has(row.key))];
@@ -109,7 +134,13 @@ export function appOption(key: string): Option {
   requested.add(key);
   const resolved = known.rows.some((row) => row.key === key);
   const loading = !resolved && !known.resolved.includes(key);
-  return { value: key, label: loading ? '' : appName(key), iconName: appIcon(key), loading };
+  return {
+    value: key,
+    label: loading ? '' : appName(key),
+    iconName: appIcon(key),
+    appKey: key,
+    loading,
+  };
 }
 
 /** Running apps, then the Start menu, then apps used by actions or added by hand. */
@@ -119,6 +150,7 @@ function appOptions(): Option[] {
     label: row.label,
     detail: row.key.startsWith('exe:') ? row.detail.split(/[\\/]/).pop() : undefined,
     iconName: appIcon(row.key),
+    appKey: row.key,
   }));
   const listed = new Set(known.rows.map((row) => row.key));
   for (const key of manualKeys()) {
