@@ -17,7 +17,7 @@
   }: { editor: ScenarioDraftEditor; blockedTriggers: ReadonlySet<Trigger> } = $props();
 
   const draft = $derived(editor.draft!);
-  // Without an effect the revealed button takes the count's place; an effect widens the slot so its icon sits beside the count.
+  // Without an effect the revealed button takes the count's place; an effect widens the slot so its mark sits beside the count.
   const countClass = (effect?: EffectId) =>
     effect
       ? 'w-12'

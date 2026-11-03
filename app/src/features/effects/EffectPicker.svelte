@@ -5,6 +5,7 @@
   import Hint from '$lib/components/ui/tooltip/hint.svelte';
   import { EFFECTS, type EffectId } from './catalogue';
   import EffectIcon from './EffectIcon.svelte';
+  import EffectMark from './EffectMark.svelte';
   let {
     value,
     label,
@@ -61,10 +62,8 @@
             class="effect-button shrink-0 text-muted-foreground"
             data-active={!!value}
           >
-            {#if gestureOwns}Replace gesture effect{:else if value}<EffectIcon
-                effect={value}
-                class="size-4"
-              />{:else}<Sparkles />{/if}
+            {#if gestureOwns}Replace gesture effect{:else if value}<EffectMark />{:else}<Sparkles
+              />{/if}
           </Button>
         {/snippet}
       </Hint>
