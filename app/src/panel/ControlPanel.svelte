@@ -1,6 +1,8 @@
 <script lang="ts">
   import { isTauri } from '@tauri-apps/api/core';
   import { Window } from '@tauri-apps/api/window';
+  import { toast } from 'svelte-sonner';
+  import { setDashboardShown } from '../platform/window';
   import Eye from '@lucide/svelte/icons/eye';
   import EyeOff from '@lucide/svelte/icons/eye-off';
   import LayoutGrid from '@lucide/svelte/icons/layout-grid';
@@ -54,19 +56,20 @@
     };
   });
   async function toggle() {
-    const revision = ++visibilityRevision;
-    const w = await Window.getByLabel('main');
-    if (!w) {
-      return;
-    }
-    if (visible) {
-      await w.hide();
-    } else {
-      await w.show();
-    }
-    const next = await w.isVisible();
-    if (revision === visibilityRevision) {
-      visible = next;
+    try {
+      const revision = ++visibilityRevision;
+      const w = await Window.getByLabel('main');
+      if (!w) {
+        return;
+      }
+      await setDashboardShown(!visible);
+      const next = await w.isVisible();
+      if (revision === visibilityRevision) {
+        visible = next;
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Dashboard visibility failed');
     }
   }
 </script>
