@@ -106,9 +106,8 @@ export function diagonalText(width: number, height: number, words: number[], spa
   }
   return { degrees: (-angle * 180) / Math.PI, size: Math.max(6, best.size), lines: best.lines };
 }
-/** App-icon faces: a large badge that leaves the label line its room, like the button glyph. */
-export function appBadgeSize(width: number, height: number, scale = 1, labelScale = 0) {
+/** App-icon faces show the icon alone: 60% of the shorter edge, scaled, always clear of the face's 12px padding. */
+export function appIconSize(width: number, height: number, scale = 1) {
   const edge = Math.max(0, Math.min(width, height));
-  const room = labelScale ? height - 24 - 8 - 16 * labelScale : edge - 24;
-  return Math.max(0, Math.min(edge * 0.6 * scale, room));
+  return Math.max(0, Math.min(edge * 0.6 * scale, edge - 24));
 }
