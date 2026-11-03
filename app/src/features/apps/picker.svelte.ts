@@ -33,12 +33,25 @@ const BRAND_ICONS: Record<string, string> = {
   zoom: 'zoom',
 };
 
-const known = $state<{ rows: AppRow[] }>({ rows: [] });
+const known = $state<{ rows: AppRow[]; resolved: string[] }>({ rows: [], resolved: [] });
+const requested = new Set<string>();
+let refreshing: Promise<void> | undefined;
 
-export async function refreshApps() {
-  if (isTauri()) {
-    known.rows = await listApps();
+export function refreshApps(): Promise<void> {
+  if (!isTauri()) {
+    known.resolved = [...requested, ...manualKeys()];
+    return Promise.resolve();
   }
+  // Share in-flight work and retain resolved names/icons when an app leaves the live list.
+  return (refreshing ??= listApps()
+    .then((rows) => {
+      const keys = new Set(rows.map((row) => row.key));
+      known.rows = [...rows, ...known.rows.filter((row) => !keys.has(row.key))];
+      known.resolved = [...requested, ...manualKeys()];
+    })
+    .finally(() => {
+      refreshing = undefined;
+    }));
 }
 
 /** The variable name part of an app: the picker's own answer, else the file name of an `exe:` key. */
@@ -92,6 +105,13 @@ export function appIcon(key: string) {
 export const appName = (key: string) =>
   known.rows.find((row) => row.key === key)?.label ?? appLabel(key);
 
+export function appOption(key: string): Option {
+  requested.add(key);
+  const resolved = known.rows.some((row) => row.key === key);
+  const loading = !resolved && !known.resolved.includes(key);
+  return { value: key, label: loading ? '' : appName(key), iconName: appIcon(key), loading };
+}
+
 /** Running apps, then the Start menu, then apps used by actions or added by hand. */
 function appOptions(): Option[] {
   const options: Option[] = known.rows.map((row) => ({
@@ -104,7 +124,7 @@ function appOptions(): Option[] {
   for (const key of manualKeys()) {
     if (!listed.has(key)) {
       listed.add(key);
-      options.push({ value: key, label: appLabel(key), iconName: appIcon(key) });
+      options.push(appOption(key));
     }
   }
   return options;
@@ -132,8 +152,7 @@ export const appParam: Param = {
   type: 'text',
   default: '',
   suggestions: appOptions,
-  describe: (key) =>
-    isAppKey(key) ? { value: key, label: appName(key), iconName: appIcon(key) } : undefined,
+  describe: (key) => (isAppKey(key) ? appOption(key) : undefined),
   refresh: refreshApps,
   manual: appManual,
 };
