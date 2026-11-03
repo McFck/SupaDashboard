@@ -178,6 +178,11 @@ export function appRequest(op: AppOp, args: Record<string, unknown>): AppRequest
 export function usedApps(controls: readonly ControlConfig[]): string[] {
   const used = new Set<string>();
   for (const control of controls) {
+    for (const variant of control.variants) {
+      if (isAppKey(variant.app)) {
+        used.add(variant.app);
+      }
+    }
     if (control.scenario) {
       walkSteps(control.scenario, (step) => {
         if (step.kind === 'action' && step.action.id.startsWith('app.')) {

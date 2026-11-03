@@ -1,6 +1,7 @@
 //! App control: open, focus, toggle, minimize and close any app, and watch its live state.
 mod actions;
 mod exit;
+mod icons;
 pub mod identity;
 mod list;
 mod model;
@@ -8,6 +9,7 @@ mod quit;
 #[cfg(test)]
 mod request_tests;
 mod selection;
+mod steam;
 pub mod watch;
 mod windows;
 
@@ -26,8 +28,21 @@ async fn blocking<T: Send + 'static>(
 }
 
 #[tauri::command]
-pub async fn apps_list() -> Result<Vec<AppRow>, String> {
-    blocking(list::list).await
+pub async fn apps_list(keys: Option<Vec<String>>) -> Result<Vec<AppRow>, String> {
+    blocking(move || {
+        for raw in keys.unwrap_or_default().into_iter().take(512) {
+            if let Ok(key) = parse_key(&raw) {
+                let _ = identity::matcher(&key);
+            }
+        }
+        list::list()
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn apps_icon(app: String) -> Result<Option<Vec<u8>>, String> {
+    blocking(move || icons::get(&app)).await
 }
 
 #[tauri::command]

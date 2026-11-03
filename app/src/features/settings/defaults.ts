@@ -42,7 +42,7 @@ export const DEFAULT_PAGE: Page = {
 };
 
 export const DEFAULTS: Settings = {
-  version: 16,
+  version: 17,
   display: {
     monitor: null,
     monitorLabel: null,

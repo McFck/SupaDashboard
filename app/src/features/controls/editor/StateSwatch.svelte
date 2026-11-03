@@ -11,9 +11,10 @@
   style:color={appearance.color ?? '#8ea8f0'}
   style:background={appearance.background ?? undefined}
 >
-  {#if appearance.icon}
+  {#if appearance.icon || appearance.app}
     <Icon
-      name={appearance.icon}
+      name={appearance.icon ?? undefined}
+      app={appearance.style === 'app' ? appearance.app : undefined}
       size={16}
     />
   {:else}

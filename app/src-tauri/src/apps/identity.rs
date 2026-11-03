@@ -142,13 +142,13 @@ pub fn aumid_slug(id: &str, exe: Option<&str>) -> String {
 
 /// Turns a key into a matcher. This is where an unknown Start-menu id or a missing file is refused.
 pub fn matcher(key: &Key) -> Result<Matcher, String> {
-    match key {
+    let resolved = match key {
         Key::Exe(path) => {
             if !std::path::Path::new(path).is_file() {
                 return Err("The app file was not found".into());
             }
             let exe = exe_name(path).ok_or("The app path must be an .exe")?;
-            Ok(Matcher {
+            Ok::<_, String>(Matcher {
                 key: format!("exe:{path}"),
                 slug: slug(&exe),
                 label: exe.clone(),
@@ -172,7 +172,9 @@ pub fn matcher(key: &Key) -> Result<Matcher, String> {
                 label,
             })
         }
-    }
+    }?;
+    super::icons::allow(&resolved.key);
+    Ok(resolved)
 }
 
 /// One Start-menu entry.
