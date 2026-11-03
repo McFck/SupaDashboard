@@ -3,6 +3,7 @@ import { DEFAULT_PAGE } from './defaults';
 import { isRecord } from '../automation/plain-data';
 import { normalizeControl } from '../automation/normalize-control';
 import { actionRef, walkSteps } from '../automation/scenario';
+import { TILE_STYLES } from '../controls/model';
 import { appVariable, parseAppVariable, windowState } from '../apps/keys';
 
 export function object(value: unknown): Record<string, unknown> {
@@ -82,6 +83,9 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
           throw new Error(`Variant ${field} must be text`);
         }
       }
+      if (variant.style !== undefined && !TILE_STYLES.some((style) => style === variant.style)) {
+        throw new Error('Variant style is unknown');
+      }
       return { ...variant, label: variant.label ?? '' };
     });
     return {
@@ -98,7 +102,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 15) {
+  if (typeof saved.version === 'number' && saved.version > 16) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -178,10 +182,10 @@ export function upgrade(input: Record<string, unknown>) {
     };
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
-  if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(saved.version as number)) {
+  if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(saved.version as number)) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
-  if (![8, 9, 10, 11, 12, 13, 14, 15].includes(saved.version as number)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16].includes(saved.version as number)) {
     saved = toV8(saved);
   }
   if (saved.version === 8) {
@@ -256,6 +260,10 @@ export function upgrade(input: Record<string, unknown>) {
       control.scenario = normalizeControl(control).scenario;
     }
     saved = { ...saved, version: 15 };
+  }
+  if (saved.version === 15) {
+    // v16: states gained an optional face style; states without one keep the default face.
+    saved = { ...saved, version: 16 };
   }
   const display = object(saved.display);
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {
