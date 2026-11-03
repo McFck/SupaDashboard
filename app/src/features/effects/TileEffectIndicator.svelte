@@ -8,6 +8,7 @@
   import type { ScenarioListOwner } from '../automation/editor/scenario-edit';
   import type { EffectId } from './catalogue';
   import EffectPicker from './EffectPicker.svelte';
+  import EffectIcon from './EffectIcon.svelte';
   import { commit } from '../layout/history.svelte';
   import { settings } from '../settings/state.svelte';
   import { actions, registeredEvents } from '../plugins/registry';
@@ -56,6 +57,7 @@
     }
     return result;
   });
+  const shown = $derived([...new Set(rows.map((row) => row.effect))].slice(0, 3));
   function change(owner: ScenarioListOwner, effect: EffectId | undefined, stepId?: string) {
     const latest = settings.controls.find((entry) => entry.id === control.id);
     if (!latest?.scenario) {
@@ -78,11 +80,20 @@
         {#snippet child({ props })}
           <Button
             {...props}
-            size="icon-sm"
-            variant="secondary"
+            size="sm"
+            variant="ghost"
             aria-label={`Effects for ${control.name}`}
-            class="rounded-full shadow"><Sparkles class="size-4" /></Button
+            class="h-7 gap-0 rounded-full bg-black/45 px-1.5 shadow-md ring-1 ring-white/15 backdrop-blur-md hover:bg-black/60"
           >
+            {#each shown as effect (effect)}
+              <EffectIcon
+                {effect}
+                class="size-4 [&:not(:first-child)]:-ml-1"
+              />
+            {:else}
+              <Sparkles class="size-4" />
+            {/each}
+          </Button>
         {/snippet}
       </Popover.Trigger>
       <Popover.Portal>
