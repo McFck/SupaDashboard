@@ -6,7 +6,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
-  import { MAX_VARIANTS, type TileAppearance, type Variant } from '../model';
+  import { MAX_VARIANTS, type TileAppearance, type TileStyle, type Variant } from '../model';
   import { variantView } from '../control-state';
   import { stateIdAt, variantIndexForState } from '../variants';
   import { runtimeView } from '../../../app/runtime/state';
@@ -67,6 +67,12 @@
     if (!ids.includes(previewId))
       previewId = roles?.off && ids.includes(roles.off) ? roles.off : (ids[0] ?? '');
   });
+
+  const styles: { value: TileStyle | undefined; label: string }[] = [
+    { value: undefined, label: 'Default' },
+    { value: 'text', label: 'Text only' },
+    { value: 'app', label: 'App icon' },
+  ];
 
   function update(patch: Partial<Variant>) {
     if (selected) onvariant(selectedIndex, { ...selected, ...patch });
@@ -258,20 +264,37 @@
         />
       </div>
       <div class="grid gap-1.5">
-        <Label class="text-xs leading-4 font-medium text-muted-foreground">Icon</Label>
-        <div class="flex min-w-0 items-center gap-2">
-          <IconPicker
-            size="sm"
-            value={selected.icon ?? undefined}
-            onchange={(icon) => update({ icon })}
-          />
-          <Button
-            size="default"
-            variant="ghost"
-            onclick={() => update({ icon: null })}>Clear icon</Button
-          >
+        <Label class="text-xs leading-4 font-medium text-muted-foreground">Style</Label>
+        <div class="flex flex-wrap gap-2">
+          {#each styles as style (style.label)}
+            <Button
+              size="sm"
+              variant={selected.style === style.value ? 'secondary' : 'outline'}
+              aria-pressed={selected.style === style.value}
+              onclick={() => update({ style: style.value })}>{style.label}</Button
+            >
+          {/each}
         </div>
       </div>
+      {#if selected.style !== 'text'}
+        <div class="grid gap-1.5">
+          <Label class="text-xs leading-4 font-medium text-muted-foreground"
+            >{selected.style === 'app' ? 'App' : 'Icon'}</Label
+          >
+          <div class="flex min-w-0 items-center gap-2">
+            <IconPicker
+              size="sm"
+              value={selected.icon ?? undefined}
+              onchange={(icon) => update({ icon })}
+            />
+            <Button
+              size="default"
+              variant="ghost"
+              onclick={() => update({ icon: null })}>Clear icon</Button
+            >
+          </div>
+        </div>
+      {/if}
       <div class="grid gap-1.5">
         <div class="flex min-w-0 items-center justify-between gap-2">
           <Label class="text-xs leading-4 font-medium text-muted-foreground"
