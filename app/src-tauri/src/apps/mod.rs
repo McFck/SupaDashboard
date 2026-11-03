@@ -1,6 +1,7 @@
 //! App control: open, focus, toggle, minimize and close any app, and watch its live state.
 mod actions;
 mod exit;
+mod icon_store;
 mod icons;
 pub mod identity;
 mod list;
@@ -16,7 +17,7 @@ mod windows;
 use list::AppRow;
 use model::{Request, parse_key, parse_request};
 use selection::WindowSelection;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use watch::{AppsHub, WatchSet, Watched};
 
 async fn blocking<T: Send + 'static>(
@@ -41,8 +42,28 @@ pub async fn apps_list(keys: Option<Vec<String>>) -> Result<Vec<AppRow>, String>
 }
 
 #[tauri::command]
-pub async fn apps_icon(app: String) -> Result<Option<Vec<u8>>, String> {
-    blocking(move || icons::get(&app)).await
+pub async fn apps_icon(
+    handle: AppHandle,
+    app: String,
+    refresh: Option<bool>,
+) -> Result<Option<Vec<u8>>, String> {
+    let dir = handle
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("icons");
+    let key = app.clone();
+    let refresh = refresh.unwrap_or(false);
+    let bytes = blocking(move || icons::get(&dir, &app, refresh)).await?;
+    if refresh {
+        handle
+            .emit(
+                "app-icon",
+                serde_json::json!({ "key": key, "bytes": bytes }),
+            )
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(bytes)
 }
 
 #[tauri::command]

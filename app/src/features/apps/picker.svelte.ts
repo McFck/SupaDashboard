@@ -4,7 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { commit } from '../layout/history.svelte';
 import type { Option, Param } from '../plugins/contracts';
 import { settings } from '../settings/state.svelte';
-import { listApps, loadAppIcon, type AppRow } from '../../platform/apps';
+import { listApps, type AppRow } from '../../platform/apps';
 import { appLabel, isAppKey, usedApps } from './keys';
 
 /** Process names of apps that have an icon in the `brand-*` pack. */
@@ -35,31 +35,6 @@ const BRAND_ICONS: Record<string, string> = {
 
 const known = $state<{ rows: AppRow[]; resolved: string[] }>({ rows: [], resolved: [] });
 const requested = new Set<string>();
-const images = $state<Record<string, string | undefined>>({});
-const imageRequests = new Map<string, Promise<void>>();
-
-export const appImage = (key: string) => images[key];
-
-export function requestAppIcon(key: string): Promise<void> {
-  if (!isTauri() || !isAppKey(key)) {
-    return Promise.resolve();
-  }
-  const cached = imageRequests.get(key);
-  if (cached) {
-    return cached;
-  }
-  const request = (async () => {
-    // Listing resolves saved/manual keys too, before the icon command accepts them.
-    if (!known.rows.some((row) => row.key === key)) {
-      await listApps([key]);
-    }
-    images[key] = await loadAppIcon(key);
-  })().catch(() => {
-    // Icon lookup is optional; a removed app keeps its brand or neutral fallback.
-  });
-  imageRequests.set(key, request);
-  return request;
-}
 let refreshing: Promise<void> | undefined;
 
 export function refreshApps(): Promise<void> {
