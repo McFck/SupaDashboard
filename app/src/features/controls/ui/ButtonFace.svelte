@@ -1,6 +1,12 @@
 <script lang="ts">
   import { settings } from '../../settings/state.svelte';
-  import { appBadgeSize, buttonIconSize, buttonLabelVisible, diagonalLabel } from '../face-layout';
+  import {
+    appBadgeSize,
+    buttonIconSize,
+    buttonLabelVisible,
+    diagonalText,
+    LINE_HEIGHT,
+  } from '../face-layout';
   import type { ControlFaceProps } from '../model';
   import Icon from './Icon.svelte';
 
@@ -17,12 +23,20 @@
   const badgeSize = $derived(
     appBadgeSize(pixelWidth, pixelHeight, settings.display.iconScale, labelScale),
   );
-  // Text-only faces fit their real box, which differs from the grid footprint in editor previews.
+  // Text-only faces fit their real box, which differs from the grid footprint in editor previews. Words and the
+  // space are measured once at 100px in the face's own font.
+  const words = $derived(appearance.label?.trim().split(/\s+/).filter(Boolean) ?? []);
   let faceWidth = $state(0),
     faceHeight = $state(0),
-    inkWidth = $state(0);
+    spaceWidth = $state(0),
+    wordWidths = $state<number[]>([]);
   const diagonal = $derived(
-    diagonalLabel(faceWidth || pixelWidth, faceHeight || pixelHeight, inkWidth / 100),
+    diagonalText(
+      faceWidth || pixelWidth,
+      faceHeight || pixelHeight,
+      words.map((_, i) => (wordWidths[i] ?? 0) / 100),
+      spaceWidth / 100,
+    ),
   );
 </script>
 
@@ -34,7 +48,7 @@
   >
 {/snippet}
 
-{#if style === 'text' && appearance.label}
+{#if style === 'text' && words.length}
   <span
     class="relative grid h-full w-full place-items-center overflow-hidden rounded-[inherit] transition-opacity {busy
       ? 'opacity-60'
@@ -47,15 +61,30 @@
     bind:clientHeight={faceHeight}
   >
     <span
-      class="diagonal invisible absolute text-[100px]"
+      class="invisible absolute flex text-[100px]"
       aria-hidden="true"
-      bind:offsetWidth={inkWidth}>{appearance.label}</span
     >
+      <span
+        class="diagonal"
+        bind:offsetWidth={spaceWidth}>&nbsp;</span
+      >
+      {#each words as word, i (i)}
+        <span
+          class="diagonal"
+          bind:offsetWidth={wordWidths[i]}>{word}</span
+        >
+      {/each}
+    </span>
     <span
-      class="diagonal ink"
+      class="ink grid justify-items-center"
       style:font-size="{diagonal.size}px"
-      style:transform="rotate({diagonal.degrees}deg)">{appearance.label}</span
+      style:line-height={LINE_HEIGHT}
+      style:transform="rotate({diagonal.degrees}deg)"
     >
+      {#each diagonal.lines as [from, to], line (line)}
+        <span class="diagonal">{words.slice(from, to).join(' ')}</span>
+      {/each}
+    </span>
   </span>
 {:else if style === 'app'}
   <span
@@ -101,7 +130,6 @@
   .diagonal {
     font-family: var(--font-display);
     font-weight: 700;
-    line-height: 1;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
