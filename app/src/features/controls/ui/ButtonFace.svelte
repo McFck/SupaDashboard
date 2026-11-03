@@ -1,7 +1,7 @@
 <script lang="ts">
   import { settings } from '../../settings/state.svelte';
   import {
-    appBadgeSize,
+    appIconSize,
     buttonIconSize,
     buttonLabelVisible,
     diagonalText,
@@ -20,9 +20,6 @@
   const iconSize = $derived(
     buttonIconSize(pixelWidth, pixelHeight, compact, settings.display.iconScale, labelScale),
   );
-  const badgeSize = $derived(
-    appBadgeSize(pixelWidth, pixelHeight, settings.display.iconScale, labelScale),
-  );
   // Text-only faces fit their real box, which differs from the grid footprint in editor previews. Words and the
   // space are measured once at 100px in the face's own font.
   const words = $derived(appearance.label?.trim().split(/\s+/).filter(Boolean) ?? []);
@@ -39,14 +36,6 @@
     ),
   );
 </script>
-
-{#snippet label()}
-  <span
-    class="max-w-[90%] truncate text-xs font-semibold tracking-wide text-zinc-100"
-    style:font-size="{12 * settings.display.labelScale}px"
-    style:line-height="{16 * settings.display.labelScale}px">{appearance.label}</span
-  >
-{/snippet}
 
 {#if style === 'text' && words.length}
   <span
@@ -88,25 +77,19 @@
   </span>
 {:else if style === 'app'}
   <span
-    class="flex h-full w-full flex-col items-center justify-center gap-2 rounded-[inherit] p-3"
+    class="grid h-full w-full place-items-center rounded-[inherit] p-3"
+    style:color={appearance.color ?? undefined}
     style:background={appearance.background === undefined
       ? undefined
       : (appearance.background ?? 'transparent')}
   >
-    <span
-      class="badge grid shrink-0 place-items-center text-white transition-opacity {busy
-        ? 'opacity-60'
-        : ''}"
-      style:width="{badgeSize}px"
-      style:height="{badgeSize}px"
-    >
+    <span class="app-icon grid place-items-center transition-opacity {busy ? 'opacity-60' : ''}">
       <Icon
         name={appearance.icon ?? 'AppWindow'}
         app={appearance.app}
-        size={badgeSize * 0.56}
+        size={appIconSize(pixelWidth, pixelHeight, settings.display.iconScale)}
       />
     </span>
-    {#if labelScale}{@render label()}{/if}
   </span>
 {:else}
   <span
@@ -123,7 +106,13 @@
         fallback=""
       />
     </span>
-    {#if !compact && appearance.label}{@render label()}{/if}
+    {#if !compact && appearance.label}
+      <span
+        class="max-w-[90%] truncate text-xs font-semibold tracking-wide text-zinc-100"
+        style:font-size="{12 * settings.display.labelScale}px"
+        style:line-height="{16 * settings.display.labelScale}px">{appearance.label}</span
+      >
+    {/if}
   </span>
 {/if}
 
@@ -145,21 +134,5 @@
     background-clip: text;
     color: transparent;
     filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.45));
-  }
-  /* A rounded app badge lit from above in the tile accent. */
-  .badge {
-    border-radius: 26%;
-    background:
-      linear-gradient(180deg, rgb(255 255 255 / 0.22), transparent 55%),
-      linear-gradient(
-        160deg,
-        color-mix(in oklab, var(--accent, #8ea8f0) 85%, white),
-        color-mix(in oklab, var(--accent, #8ea8f0) 70%, black)
-      );
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.3),
-      inset 0 -1px 0 rgb(0 0 0 / 0.25),
-      0 10px 24px -10px rgb(0 0 0 / 0.75),
-      0 2px 6px rgb(0 0 0 / 0.3);
   }
 </style>
