@@ -1,5 +1,5 @@
 // Concrete Tauri window, monitor and window-state store I/O for the dashboard window. Nothing runs on import.
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import { load } from '@tauri-apps/plugin-store';
 import {
   availableMonitors,
@@ -13,6 +13,19 @@ import { buildMonitorOptions } from '../features/display/monitor-options';
 export type WindowStateStore = Awaited<ReturnType<typeof load>>;
 
 export const monitors = () => availableMonitors();
+
+/** The connected monitors as Settings → Display lists them; empty outside the app. */
+export async function monitorChoices() {
+  if (!isTauri()) {
+    return [];
+  }
+  const [list, names, primary] = await Promise.all([
+    availableMonitors(),
+    invoke<unknown[]>('monitor_names'),
+    primaryMonitor(),
+  ]);
+  return buildMonitorOptions(list, names, primary);
+}
 
 const monitorPaths = new Map<string, string>();
 

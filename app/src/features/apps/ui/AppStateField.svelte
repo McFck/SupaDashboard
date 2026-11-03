@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
   import Choice from '../../plugins/ui/Choice.svelte';
+  import MonitorField from './MonitorField.svelte';
   import ParamControl from '../../plugins/ui/ParamControl.svelte';
   import type { Param } from '../../plugins/contracts';
   import {
@@ -33,13 +34,16 @@
     onchange,
     negation,
     fixedField,
+    monitor,
   }: {
     value: string;
     onchange: (variableId: string) => void;
-    /** Conditions: reads "is / is not" before the state, and offers only the on/off states. */
+    /** Conditions: reads "is / is not" before the state. */
     negation?: { negated: boolean; onchange: (negated: boolean) => void };
     /** Bindings: the state was chosen with the variable, so only the app is asked. */
     fixedField?: AppField;
+    /** Conditions: the monitor the "On display" state is compared to. */
+    monitor?: { value: string; onchange: (name: string) => void };
   } = $props();
   const fieldId = $props.id();
   const parsed = $derived(parseAppVariable(value));
@@ -130,7 +134,9 @@
         class="w-full min-w-0"
         value={field}
         options={negation
-          ? APP_STATES.filter((state) => state.value !== 'display')
+          ? APP_STATES.map((state) =>
+              state.value === 'display' ? { ...state, label: 'On display' } : state,
+            )
           : [...APP_STATES]}
         aria-label="App state"
         onchange={setField}
@@ -167,5 +173,11 @@
         />
       </div>
     {/if}
+  {/if}
+  {#if monitor && field === 'display'}
+    <MonitorField
+      value={monitor.value}
+      onchange={monitor.onchange}
+    />
   {/if}
 </div>

@@ -105,6 +105,20 @@
     }
     setOperand(side, value);
   }
+  /** The state decides what the condition compares to: on/off for flags, a monitor name for the display. */
+  function setAppVariable(id: string) {
+    if (condition.kind !== 'compare') return;
+    const compared = condition.right.kind === 'literal' ? condition.right.value : undefined;
+    const wanted = parseAppVariable(id)?.field === 'display' ? 'string' : 'boolean';
+    onchange({
+      ...condition,
+      left: { kind: 'variable', id },
+      right:
+        typeof compared === wanted
+          ? condition.right
+          : { kind: 'literal', value: wanted === 'string' ? '' : true },
+    });
+  }
   function setLiteral(side: 'left' | 'right', value: Scalar) {
     setOperand(side, { kind: 'literal', value });
   }
@@ -166,7 +180,17 @@
                       onchange: (negated) => onchange({ ...condition, op: negated ? 'ne' : 'eq' }),
                     }
                   : undefined}
-                onchange={(id) => setOperand(side as 'left' | 'right', { ...operand, id })}
+                monitor={side === 'left' && appCondition && condition.right.kind === 'literal'
+                  ? {
+                      value: typeof condition.right.value === 'string' ? condition.right.value : '',
+                      onchange: (name) =>
+                        onchange({ ...condition, right: { kind: 'literal', value: name } }),
+                    }
+                  : undefined}
+                onchange={(id) =>
+                  side === 'left' && appCondition
+                    ? setAppVariable(id)
+                    : setOperand(side as 'left' | 'right', { ...operand, id })}
               />
             {:else if operand.kind === 'variable'}
               <SuggestionInput

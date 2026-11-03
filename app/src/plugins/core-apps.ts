@@ -1,13 +1,11 @@
-import { invoke, isTauri } from '@tauri-apps/api/core';
-import { primaryMonitor } from '@tauri-apps/api/window';
-import { buildMonitorOptions, type MonitorOption } from '../features/display/monitor-options';
+import type { MonitorOption } from '../features/display/monitor-options';
 import { APP_ACTIONS, appRequest } from '../features/apps/keys';
 import { windowsParam, windowParam, titleParam } from '../features/apps/window-params';
 import { appParam } from '../features/apps/picker.svelte';
 import { ActionFailure } from '../features/automation/action-failure';
 import type { Param, Plugin } from '../features/plugins/contracts';
 import { runAppCommand } from '../platform/apps';
-import { monitors } from '../platform/window';
+import { monitorChoices } from '../platform/window';
 
 const TITLES = {
   open: 'Open app',
@@ -34,14 +32,7 @@ const displayParam: Param = {
     })),
   ],
   refresh: async () => {
-    if (isTauri()) {
-      const [list, names, primary] = await Promise.all([
-        monitors(),
-        invoke<unknown[]>('monitor_names'),
-        primaryMonitor(),
-      ]);
-      screens = buildMonitorOptions(list, names, primary);
-    }
+    screens = await monitorChoices();
   },
 };
 
