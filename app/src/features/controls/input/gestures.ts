@@ -9,6 +9,7 @@ import {
   type PullState,
 } from './pull';
 import type { Trigger } from '../../automation/scenario';
+import { untrack } from 'svelte';
 
 type Pointer = {
   state: PullState;
@@ -18,7 +19,12 @@ type Pointer = {
 };
 /** Tile press feedback (PressFeedback), told when a pointer press starts and how it ends. */
 export type PressFeedbackHandle = { start(event: PointerEvent): void; end(tapped: boolean): void };
-type GestureHandlers = {
+export type GestureEffectHandlers = {
+  onEffectPoint?: (point: { x: number; y: number }) => void;
+  onEffectHold?: (captured: unknown) => void;
+  onEffectEnd?: () => void;
+};
+type GestureHandlers = GestureEffectHandlers & {
   onTrigger: (trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) => void;
   captureTrigger?: (trigger: Trigger, interactionId: string) => unknown;
   enabled?: boolean;
@@ -47,6 +53,9 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
   };
   const press = new PressMachine({
     trigger: (trigger, captures) => {
+      if (trigger === 'longPress') {
+        handlers.onEffectHold?.(captures[trigger]);
+      }
       dispatch(trigger, captures);
       if (trigger === 'longPress' && pointer) {
         handlers.onPull?.(null);
@@ -64,6 +73,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
       return;
     }
     press.cancel();
+    handlers.onEffectEnd?.();
     keyboard = null;
     if (pointer) {
       const snapshot = pointer.snapshot;
@@ -78,6 +88,10 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
       return;
     }
     const rect = node.getBoundingClientRect();
+    handlers.onEffectPoint?.({
+      x: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
+    });
     const { pullBindings } = handlers;
     pointer = {
       state: beginPull(e.pointerId, e.clientX, e.clientY, rect.width, rect.height),
@@ -102,6 +116,13 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
       handlers.feedback?.end(false);
     }
     handlers.onPull?.(press.long ? null : result.snapshot);
+    if (!press.long) {
+      if (result.snapshot?.armed) {
+        handlers.onEffectHold?.(pointer.captures[result.snapshot.direction]);
+      } else {
+        handlers.onEffectEnd?.();
+      }
+    }
   };
   const up = (e: PointerEvent) => {
     if (!pointer || e.pointerId !== pointer.state.pointerId) {
@@ -118,6 +139,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
       }
     }
     handlers.onPull?.(null);
+    handlers.onEffectEnd?.();
   };
   const lost = (e: PointerEvent) => cancel(e.pointerId);
   const keydown = (e: KeyboardEvent) => {
@@ -125,6 +147,7 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
       return;
     }
     e.preventDefault();
+    handlers.onEffectPoint?.({ x: 0.5, y: 0.5 });
     keyboard = captureTriggers(handlers.captureTrigger);
     press.start(keyboard);
   };
@@ -136,15 +159,18 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
     const captures = keyboard;
     keyboard = null;
     press.end({ x: 0, y: 0, captures });
+    handlers.onEffectEnd?.();
   };
   // Assistive technology activates with a click that has no pointer sequence (detail 0).
   const click = (e: MouseEvent) => {
     if (handlers.enabled === false || e.detail !== 0 || pointer || keyboard) {
       return;
     }
+    handlers.onEffectPoint?.({ x: 0.5, y: 0.5 });
     press.tap({ x: e.clientX, y: e.clientY, captures: captureTriggers(handlers.captureTrigger) });
   };
-  const blur = () => cancel();
+  // Removing a focused tile fires blur inside Svelte's DOM reconciliation.
+  const blur = () => untrack(() => cancel());
 
   const listeners = new AbortController();
   const { signal } = listeners;
@@ -164,13 +190,15 @@ export function gestures(node: HTMLElement, initial: GestureHandlers) {
     update: (next: GestureHandlers) => {
       handlers = next;
       if (handlers.enabled === false) {
-        cancel();
+        untrack(() => cancel());
       }
     },
     destroy() {
-      cancel();
-      listeners.abort();
-      handlers.onPull?.(null);
+      untrack(() => {
+        cancel();
+        listeners.abort();
+        handlers.onPull?.(null);
+      });
     },
   };
 }

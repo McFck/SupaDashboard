@@ -8,8 +8,10 @@ import { runtimeCommands } from '../../../app/runtime/commands';
 import { runtimeView } from '../../../app/runtime/state';
 import { runtimeVariables } from '../../automation/runtime-variables.svelte';
 import type { Trigger } from '../../automation/scenario';
+import { isTriggerPacket } from '../../automation/capture';
 import type { TriggerPacket } from '../../automation/scenario-runner';
 import { settings } from '../../settings/state.svelte';
+import type { GestureEffectHandlers } from '../input/gestures';
 
 type Host = { control(): ControlConfig; itemId?(): string | undefined };
 /** PullContent: settles a released pull and commits the action at the right moment. */
@@ -19,6 +21,29 @@ export class ControlTile {
   readonly #host: Host;
   readonly #commands = runtimeCommands;
   readonly #runtime = fromStore(runtimeView);
+  private heldPacket: TriggerPacket | undefined;
+  private origin = { x: 0.5, y: 0.5 };
+  readonly gestureEffects: GestureEffectHandlers = {
+    onEffectPoint: (point) => {
+      this.origin = point;
+    },
+    onEffectHold: (captured) => {
+      if (captured === this.heldPacket) {
+        return;
+      }
+      if (!isTriggerPacket(captured)) {
+        return;
+      }
+      this.heldPacket = captured;
+      this.#commands.holdTileEffect(captured);
+    },
+    onEffectEnd: () => {
+      if (this.heldPacket) {
+        this.#commands.endTileEffect(this.heldPacket.interactionId);
+      }
+      this.heldPacket = undefined;
+    },
+  };
 
   readonly effective = $derived.by(() => {
     const control = this.#host.control();
@@ -36,17 +61,20 @@ export class ControlTile {
   }
 
   /** Capture one trigger at press start, frozen with the state the control had then. */
-  capture = (trigger: Trigger, interactionId: string) =>
-    this.#commands.captureRuntimeTrigger(
+  capture = (trigger: Trigger, interactionId: string) => {
+    const packet = this.#commands.captureRuntimeTrigger(
       this.#host.control().id,
       this.#host.itemId?.() ?? '',
       trigger,
       interactionId,
     );
+    return packet ? { ...packet, origin: this.origin } : undefined;
+  };
 
   /** Run a captured trigger. A committed pull runs once its content has handed over to the new state. */
   run(captured: unknown, snapshot?: PullSnapshot, content?: PullRelease) {
-    const packet = captured as TriggerPacket | undefined;
+    const original = isTriggerPacket(captured) ? captured : undefined;
+    const packet = original && snapshot ? { ...original, effect: undefined } : original;
     if (snapshot) {
       void content?.release(snapshot, () => {
         void this.#commands.dispatchRuntimePacket(packet);

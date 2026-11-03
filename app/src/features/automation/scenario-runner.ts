@@ -6,8 +6,11 @@ import { ActionFailure } from './action-failure';
 import { awaitAction, ensureActive, nextTask, RunCancelled, wait } from './cancellation';
 import { evaluatePredicate, type PredicateEnvironment } from './expression';
 import type { VariableValue } from './variables';
+import type { EffectId } from '../effects/catalogue';
 
 export type TriggerPacket = {
+  effect?: EffectId;
+  origin?: { x: number; y: number };
   controlId: string;
   itemId: string;
   trigger: Trigger | 'event';
@@ -37,6 +40,7 @@ export type RunResult = {
 };
 
 export type RunnerServices = {
+  effect?(packet: TriggerPacket, effect: EffectId, signal: AbortSignal): void;
   runAction(ref: ActionRef, context: ActionContext): unknown | Promise<unknown>;
   getVariable(id: string): VariableValue | undefined;
   findVariable(name: string): VariableValue | undefined;
@@ -84,7 +88,10 @@ export class ScenarioRunner {
     signal: AbortSignal = new AbortController().signal,
   ): Promise<RunResult> {
     const snapshot = structuredClone(packet);
-    const issues = validateScenario({ triggers: { press: { steps: snapshot.steps } }, events: [] });
+    const issues = validateScenario({
+      triggers: { press: { steps: snapshot.steps, effect: snapshot.effect } },
+      events: [],
+    });
     if (issues.length) {
       return {
         status: 'failed',
@@ -92,6 +99,10 @@ export class ScenarioRunner {
       };
     }
     try {
+      ensureActive(signal);
+      if (snapshot.effect) {
+        this.services.effect?.(snapshot, snapshot.effect, signal);
+      }
       await this.runList(snapshot.steps, { count: 0, signal, packet: snapshot }, 0);
       return { status: 'completed' };
     } catch (error) {
@@ -118,6 +129,9 @@ export class ScenarioRunner {
         ensureActive(state.signal);
       }
       try {
+        if (step.effect && !state.packet.effect) {
+          this.services.effect?.(state.packet, step.effect, state.signal);
+        }
         await this.runStep(step, state, depth);
         ensureActive(state.signal);
       } catch (error) {

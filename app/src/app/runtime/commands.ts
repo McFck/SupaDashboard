@@ -73,6 +73,7 @@ export async function simulateRuntimeEvent(eventId: string, parameter?: string) 
 
 export async function stopRuntimeControl(controlId: string) {
   const runtime = currentRuntime();
+  runtime?.effects.clear(controlId);
   if (runtime) return runtime.execution.stopControl(controlId);
   return requestRuntime({ type: 'stop', payload: { controlId } });
 }
@@ -104,6 +105,8 @@ function setAppletConfig(appletId: string, values: Record<string, unknown>) {
 }
 
 export const runtimeCommands = {
+  holdTileEffect: (packet: TriggerPacket) => currentRuntime()?.effects.hold(packet),
+  endTileEffect: (interactionId: string) => currentRuntime()?.effects.end(interactionId),
   captureRuntimeTrigger,
   dispatchRuntimePacket,
   dispatchRuntimeTrigger,

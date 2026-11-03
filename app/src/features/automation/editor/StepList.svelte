@@ -12,6 +12,9 @@
     type ActionStep,
   } from '../scenario';
   import StepCard from './StepCard.svelte';
+  import EffectPicker from '../../effects/EffectPicker.svelte';
+  import { setScenarioEffect } from '../../effects/scenario-effects';
+  import { listOf } from './scenario-edit';
   import StepList from './StepList.svelte';
   import StepPicker from './StepPicker.svelte';
   import { stepDrop, stepDropTarget } from './step-drop';
@@ -88,7 +91,10 @@
       onchange({
         ...draft,
         scenario: current
-          ? replaceScenarioStep(draft.scenario, path, current.id, step)
+          ? replaceScenarioStep(draft.scenario, path, current.id, {
+              ...step,
+              effect: current.effect,
+            })
           : insertScenarioStep(draft.scenario, path, step, index),
       });
       if (current) {
@@ -267,6 +273,15 @@
     data-kana="ステップ"
   >
     {#each steps as step, index (step.id)}
+      {#snippet stepEffect()}
+        <EffectPicker
+          value={step.effect}
+          label="Action effect"
+          conflict={listOf(draft.scenario, path)?.effect ? 'Replace gesture effect' : undefined}
+          onchange={(effect) =>
+            updateScenario(setScenarioEffect(draft.scenario, path, effect, step.id))}
+        />
+      {/snippet}
       {#snippet replacePicker()}
         {@render picker(index, step)}
       {/snippet}
@@ -286,13 +301,14 @@
         role="listitem"
         tabindex="-1"
         in:stepEnter={{ id: step.id }}
-        class="relative grid min-w-0 gap-3 rounded-xl bg-card p-3 outline-none data-sortable-active:shadow-lg data-sortable-active:ring-1 data-sortable-active:ring-ring/40 {highlightedId ===
+        class="effect-hover relative grid min-w-0 gap-3 rounded-xl bg-card p-3 outline-none data-sortable-active:shadow-lg data-sortable-active:ring-1 data-sortable-active:ring-ring/40 {highlightedId ===
         step.id
           ? 'shadow-[inset_2px_0_0_var(--ring)]'
           : ''}"
       >
         {@render insertion(index)}
         <StepCard
+          effectPicker={stepEffect}
           {step}
           {index}
           count={steps.length}

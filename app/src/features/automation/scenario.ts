@@ -1,4 +1,5 @@
 import type { ActionRef } from '../plugins/contracts';
+import type { EffectId } from '../effects/catalogue';
 import { isRecord } from './plain-data';
 
 export type Trigger =
@@ -23,12 +24,17 @@ export type Predicate =
   | { kind: 'compare'; left: Operand; op: 'eq' | 'ne' | 'gt' | 'lt'; right: Operand }
   | { kind: 'expression'; source: string };
 
-export type ActionStep =
+export type ActionStep = { effect?: EffectId } & (
   | { id: string; kind: 'action'; action: ActionRef }
   | { id: string; kind: 'delay'; ms: number }
-  | { id: string; kind: 'if'; condition: Predicate; then: ActionStep[]; else: ActionStep[] };
+  | { id: string; kind: 'if'; condition: Predicate; then: ActionStep[]; else: ActionStep[] }
+);
 
-export type TriggerList = { steps: ActionStep[]; byState?: Record<string, ActionStep[]> };
+export type TriggerList = {
+  effect?: EffectId;
+  steps: ActionStep[];
+  byState?: Record<string, ActionStep[]>;
+};
 
 export type EventList = { id: string; eventId: string; parameter?: string; list: TriggerList };
 

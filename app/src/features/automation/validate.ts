@@ -1,6 +1,7 @@
 import { compileExpression } from './expression-parser';
 import { isRecord } from './plain-data';
 import { validAppVariable } from '../apps/keys';
+import { isEffectId } from '../effects/catalogue';
 import {
   actionRef,
   isValidDelay,
@@ -87,6 +88,9 @@ class ScenarioWalk {
     if (!isRecord(list)) {
       return;
     }
+    if (list.effect !== undefined && !isEffectId(list.effect)) {
+      this.add(path, 'Effect is unavailable');
+    }
     this.steps(list.steps, `${path}.steps`, 1);
     if (isRecord(list.byState)) {
       for (const [stateId, steps] of Object.entries(list.byState)) {
@@ -113,6 +117,9 @@ class ScenarioWalk {
       this.add(path, 'Step IDs must be unique');
     }
     this.ids.add(step.id);
+    if (step.effect !== undefined && !isEffectId(step.effect)) {
+      this.add(path, 'Effect is unavailable');
+    }
     if (step.kind === 'action') {
       if (!actionRef(step.action)) {
         this.add(path, 'Action reference is invalid');

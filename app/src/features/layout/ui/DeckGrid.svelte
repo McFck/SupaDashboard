@@ -31,6 +31,8 @@
   import { TileMotion } from './tile-motion.svelte';
   import { RemovalChrome } from './removal-chrome.svelte';
   import DeckEditChrome from './DeckEditChrome.svelte';
+  import TileEffectIndicator from '../../effects/TileEffectIndicator.svelte';
+  import TileEffects from '../../effects/TileEffects.svelte';
 
   type GridLayout = Pick<Page, 'rows' | 'cols' | 'size' | 'sizing' | 'gap'> & { items: Item[] };
   type ContextTarget = { item: string } | { cell: { x: number; y: number } };
@@ -354,8 +356,9 @@
     >
       <div
         use:motion.register={item.id}
+        data-effect-tile
         data-dashboard-tile
-        class="relative h-full w-full min-h-0 min-w-0"
+        class="relative h-full w-full min-h-0 min-w-0 rounded-[var(--tile-radius,22px)]"
         style:translate={lifted && active
           ? `${active.moveX}px ${active.moveY}px`
           : displaced
@@ -363,6 +366,7 @@
             : null}
       >
         <div
+          data-effect-face
           data-dashboard-tile
           class="h-full w-full"
           inert={editing}
@@ -379,7 +383,7 @@
             pixelHeight={renderItem.h * pitch - metrics.gap}
             {presentation}
             itemId={item.id}
-            pressFeedbackDisabled={editing}
+            pressFeedbackDisabled={editing || !pageVisible}
             {...face ? { face, compact } : {}}
           />
         </div>
@@ -406,6 +410,13 @@
               }
             }}
           ></div>
+          <TileEffectIndicator {control} />
+        {/if}
+        {#if !editing && pageVisible && $runtimeView.effects?.some((effect) => effect.tileId === item.id || effect.tileId === control.id)}
+          <TileEffects
+            itemId={item.id}
+            controlId={control.id}
+          />
         {/if}
       </div>
     </div>

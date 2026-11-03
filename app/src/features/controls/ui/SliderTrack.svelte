@@ -11,7 +11,7 @@
   } from '../input/pull';
   import type { ControlFaceProps, TilePresentation } from '../model';
   import { captureTriggers, PressMachine, type Captures, type Tap } from '../input/press';
-  import type { PressFeedbackHandle } from '../input/gestures';
+  import type { PressFeedbackHandle, GestureEffectHandlers } from '../input/gestures';
   import type { Trigger } from '../../automation/scenario';
   import { onDestroy, tick, untrack } from 'svelte';
   import { prefersReducedMotion } from 'svelte/motion';
@@ -64,6 +64,7 @@
     capturetrigger,
     ontrigger,
     feedback,
+    gestureEffects,
   }: {
     level: number | null;
     muted?: boolean;
@@ -92,6 +93,7 @@
     capturetrigger?: (trigger: Trigger, interactionId: string) => unknown;
     ontrigger?: (trigger: Trigger, captured?: unknown, snapshot?: PullSnapshot) => void;
     feedback?: PressFeedbackHandle;
+    gestureEffects?: GestureEffectHandlers;
   } = $props();
 
   let el = $state<HTMLElement>();
@@ -174,7 +176,12 @@
 
   // A short press sets the value where it landed (or mutes on the icon); it can pair into a double tap.
   const press = new PressMachine<Tap & { rect: TrackRect }>({
-    trigger: (trigger, captures) => ontrigger?.(trigger, captures[trigger]),
+    trigger: (trigger, captures) => {
+      if (trigger === 'longPress') {
+        gestureEffects?.onEffectHold?.(captures[trigger]);
+      }
+      ontrigger?.(trigger, captures[trigger]);
+    },
     tap: ({ x, y, rect }) => {
       const onIcon = vertical
         ? y > rect.bottom - Math.min(rect.width, 48)
@@ -192,6 +199,10 @@
       return;
     }
     const rect = rectNow();
+    gestureEffects?.onEffectPoint?.({
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    });
     drag = {
       state: beginPull(e.pointerId, e.clientX, e.clientY, rect.width, rect.height),
       rect,
@@ -238,6 +249,11 @@
     } else {
       active = false;
       onpull?.(axis ? result.snapshot : null);
+      if (result.snapshot?.armed) {
+        gestureEffects?.onEffectHold?.(drag.captures[result.snapshot.direction]);
+      } else {
+        gestureEffects?.onEffectEnd?.();
+      }
     }
   }
   function up(e: PointerEvent) {
@@ -263,6 +279,7 @@
       }
     }
     onpull?.(null);
+    gestureEffects?.onEffectEnd?.();
   }
   function cancel(pointerId?: number) {
     if (!drag || (pointerId != null && pointerId !== drag.state.pointerId)) {
@@ -272,6 +289,7 @@
     drag = null;
     active = false;
     press.cancel();
+    gestureEffects?.onEffectEnd?.();
     feedback?.end(false);
     if (finished.state.lockedAxis !== valueAxis(finished.vertical)) {
       oncancel?.(finished.snapshot);
@@ -284,6 +302,7 @@
     if (drag && drag.vertical !== orientation) cancel(drag.state.pointerId);
   });
   onDestroy(() => {
+    gestureEffects?.onEffectEnd?.();
     press.cancel();
     drag = null;
     cancelReadiness();

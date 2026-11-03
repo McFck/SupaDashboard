@@ -3,6 +3,7 @@ import { isRecord } from '../../features/automation/plain-data';
 import type { PageChangeReason } from '../../features/layout/page-controller';
 import { readStatus } from '../../features/media/now-playing-read';
 import type { RuntimeSnapshot } from './state';
+import { validTileEffects } from '../../features/effects/effect-runtime';
 
 const REQUEST_TYPES = [
   'snapshot',
@@ -116,6 +117,7 @@ export function validSnapshot(value: unknown): value is RuntimeSnapshot {
     typeof value.activePage === 'string' &&
     isRecord(value.variables) &&
     isRecord(value.busy) &&
+    (value.effects === undefined || validTileEffects(value.effects)) &&
     readStatus(value.status) !== null
   );
 }

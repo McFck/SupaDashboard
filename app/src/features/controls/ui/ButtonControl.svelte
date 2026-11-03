@@ -62,6 +62,7 @@
   bind:clientWidth={width}
   bind:clientHeight={height}
   use:gestures={{
+    ...tile.gestureEffects,
     onTrigger,
     captureTrigger: tile.capture,
     enabled: !pressFeedbackDisabled,

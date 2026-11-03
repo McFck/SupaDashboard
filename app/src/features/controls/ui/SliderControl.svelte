@@ -198,6 +198,7 @@
                 }}
                 oncancel={(p) => content?.cancelPull(p)}
                 capturetrigger={tile.capture}
+                gestureEffects={tile.gestureEffects}
                 ontrigger={onTrigger}
                 {feedback}
               />

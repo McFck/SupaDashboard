@@ -39,7 +39,8 @@ import { VariableSaver, type VariablePersistence } from './variable-persistence'
 import { effectiveVariant } from '../../features/controls/control-state';
 import { ExecutionEngine } from '../../features/automation/execution-engine';
 import type { ControlConfig } from '../../features/controls/model';
-import { stateIdAt } from '../../features/controls/variants';
+import { EffectRuntime } from '../../features/effects/effect-runtime';
+import { stateIndex } from '../../features/controls/variants';
 
 export type RuntimeOptions = {
   variables?: VariableStore;
@@ -56,22 +57,6 @@ export function controlStateId(
   variables: Parameters<typeof effectiveVariant>[1],
 ) {
   return effectiveVariant(control, variables, settings.variants[control.id] ?? 0).stateId;
-}
-
-/** Resolves a state by ID, by index (older settings), or relative to `current` for migrated next/prev gestures. */
-function stateIndex(control: ControlConfig, current: number, stateId: string) {
-  const count = control.variants.length;
-  if (stateId === 'next') {
-    return (current + 1) % count;
-  }
-  if (stateId === 'prev') {
-    return (current - 1 + count) % count;
-  }
-  const index = control.variants.findIndex((_, i) => stateIdAt(control, i) === stateId);
-  if (index < 0 && /^\d+$/.test(stateId) && Number(stateId) < count) {
-    return Number(stateId);
-  }
-  return index;
 }
 
 function fingerprint(control: ControlConfig) {
@@ -100,6 +85,7 @@ export class RuntimeSession {
   readonly variables: VariableStore;
   readonly events = new EventRegistry();
   readonly snapshots = writable<RuntimeSnapshot>(EMPTY);
+  readonly effects = new EffectRuntime(() => this.publish());
   readonly execution: ExecutionEngine;
   private readonly runner: ScenarioRunner;
   private readonly quickActions = new Set<AbortController>();
@@ -135,7 +121,10 @@ export class RuntimeSession {
     this.pages = new PageController({
       getDeck: () => settings.deck,
       isOwner: () => this.isOwner,
-      onChange: () => this.publish(),
+      onChange: () => {
+        this.effects.clear();
+        this.publish();
+      },
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(id, parameter, payload, ancestry),
       onEventFailure: () =>
@@ -167,6 +156,7 @@ export class RuntimeSession {
     this.events.register({ id: 'variables.changed', title: 'Variable changed', plugin: 'core' });
     this.events.register({ id: 'page.changed', title: 'Page changed', plugin: 'core' });
     this.runner = new ScenarioRunner({
+      effect: (packet, effect, signal) => this.effects.start(packet, effect, signal),
       runAction: (ref, context) => runAction(ref, context),
       getVariable: (id) => this.variables.getValue(id),
       findVariable: (name) => this.variables.findByName(name)?.value,
@@ -177,7 +167,13 @@ export class RuntimeSession {
         this.emitEvent(id, parameter, payload, ancestry),
     });
     this.execution = new ExecutionEngine({
-      execute: (packet, signal) => this.runner.run(packet, signal),
+      execute: async (packet, signal) => {
+        const result = await this.runner.run(packet, signal);
+        if (result.status === 'cancelled' || result.status === 'failed') {
+          this.effects.end(packet.interactionId);
+        }
+        return result;
+      },
       getFingerprint: (id) => {
         const control = controlById(id);
         return control ? fingerprint(control) : undefined;
@@ -455,6 +451,7 @@ export class RuntimeSession {
       () => this.status.dispose(),
       this.detachRegistry,
       () => this.execution.dispose(),
+      () => this.effects.clear(),
       () => this.quickActions.forEach((controller) => controller.abort()),
     ]) {
       try {
@@ -493,6 +490,7 @@ export class RuntimeSession {
       busy: this.execution.busy(),
       content: this.content.snapshot(),
       status: this.status.snapshot(),
+      effects: this.effects.snapshot(),
     });
   }
 }

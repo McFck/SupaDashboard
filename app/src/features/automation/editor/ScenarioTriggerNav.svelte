@@ -7,6 +7,8 @@
   import { listStepCount, TRIGGER_LABELS, TRIGGERS, type Trigger } from '../scenario';
   import PluginMark, { pluginTitle } from '../../plugins/ui/PluginMark.svelte';
   import type { ScenarioDraftEditor } from './scenario-draft.svelte';
+  import EffectPicker from '../../effects/EffectPicker.svelte';
+  import { effectSteps, setScenarioEffect } from '../../effects/scenario-effects';
 
   let {
     editor,
@@ -24,34 +26,52 @@
     {@const label = TRIGGER_LABELS[trigger]}
     {@const steps = listStepCount(draft.scenario.triggers[trigger])}
     {@const selected = editor.selectedKey === `trigger:${trigger}`}
-    <Button
-      variant={selected ? 'secondary' : 'ghost'}
-      size="sm"
-      class="w-full min-w-0 justify-between gap-2 px-2.5"
-      disabled={blockedTriggers.has(trigger)}
-      aria-label={`${label}, ${steps} steps`}
-      aria-pressed={selected}
-      onclick={() => editor.selectList(`trigger:${trigger}`)}
-    >
-      <span class="truncate">{label}</span>
-      <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
-    </Button>
+    <div class="effect-hover flex min-w-0 items-center gap-1">
+      <Button
+        variant={selected ? 'secondary' : 'ghost'}
+        size="sm"
+        class="w-full min-w-0 flex-1 justify-between gap-2 px-2.5"
+        disabled={blockedTriggers.has(trigger)}
+        aria-label={`${label}, ${steps} steps`}
+        aria-pressed={selected}
+        onclick={() => editor.selectList(`trigger:${trigger}`)}
+      >
+        <span class="truncate">{label}</span>
+        <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
+      </Button>
+      <EffectPicker
+        value={draft.scenario.triggers[trigger]?.effect}
+        label={`${label} effect`}
+        conflict={effectSteps(draft.scenario.triggers[trigger] ?? { steps: [] }).some(
+          (step) => step.effect,
+        )
+          ? 'Replace action effects'
+          : undefined}
+        onchange={(effect) =>
+          editor.update({
+            ...draft,
+            scenario: setScenarioEffect(draft.scenario, { kind: 'trigger', trigger }, effect),
+          })}
+      />
+    </div>
   {/each}
   <div class="mt-4 grid gap-2">
-    <div class="flex items-center justify-between gap-2 border-x border-transparent px-2.5">
-      <h3 class="text-xs font-semibold text-muted-foreground">Events</h3>
-      <Badge
-        variant="secondary"
-        class="-mr-1.5 border-0 px-1.5 py-0 text-xs text-muted-foreground"
-        ><span class="tabular-nums">{draft.scenario.events.length}</span></Badge
-      >
+    <div class="grid grid-cols-[minmax(0,1fr)_28px] gap-1">
+      <div class="flex items-center justify-between gap-2 border-x border-transparent px-2.5">
+        <h3 class="text-xs font-semibold text-muted-foreground">Events</h3>
+        <Badge
+          variant="secondary"
+          class="-mr-1.5 border-0 px-1.5 py-0 text-xs text-muted-foreground"
+          ><span class="tabular-nums">{draft.scenario.events.length}</span></Badge
+        >
+      </div>
     </div>
     {#each draft.scenario.events as event (event.id)}
       {@const definition = editor.eventDefinition(event.eventId)}
       {@const providerTitle = pluginTitle(definition?.plugin)}
       {@const steps = listStepCount(event.list)}
       {@const selected = editor.selectedKey === `event:${event.id}`}
-      <div class="flex min-w-0 items-center gap-1">
+      <div class="effect-hover flex min-w-0 items-center gap-1">
         <Button
           size="icon-sm"
           variant="ghost"
@@ -72,6 +92,22 @@
           <PluginMark plugin={definition?.plugin} />
           <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
         </Button>
+        <EffectPicker
+          value={event.list.effect}
+          label={`${editor.eventLabel(event)} effect`}
+          conflict={effectSteps(event.list).some((step) => step.effect)
+            ? 'Replace action effects'
+            : undefined}
+          onchange={(effect) =>
+            editor.update({
+              ...draft,
+              scenario: setScenarioEffect(
+                draft.scenario,
+                { kind: 'event', eventId: event.id },
+                effect,
+              ),
+            })}
+        />
       </div>
     {/each}
     {#if editor.eventDefinitions.length}

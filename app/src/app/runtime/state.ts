@@ -1,8 +1,10 @@
 import { writable } from 'svelte/store';
 import type { VariableSnapshot } from '../../features/automation/variables';
 import { EMPTY_STATUS, type StatusSnapshot } from '../../features/media/now-playing';
+import type { TileEffect } from '../../features/effects/effect-runtime';
 
 export type RuntimeSnapshot = {
+  effects?: TileEffect[];
   online: boolean;
   owner: boolean;
   revision: number;

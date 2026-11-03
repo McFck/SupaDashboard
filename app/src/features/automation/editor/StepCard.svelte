@@ -21,6 +21,7 @@
     count,
     locked,
     picker,
+    effectPicker,
     branch,
     onmove,
     onshift,
@@ -36,6 +37,7 @@
     locked: boolean;
     /** Shown instead of the body while this step's picker is open. */
     picker?: Snippet;
+    effectPicker: Snippet;
     /** A Condition's Then or Else list. */
     branch: Snippet<['then' | 'else']>;
     onmove: (amount: number) => void;
@@ -130,6 +132,7 @@
   {#if step.kind === 'action' && !actions.has(step.action.id)}<span
       class="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">Unavailable</span
     >{/if}
+  {@render effectPicker()}
   <Button
     size="icon-sm"
     variant="ghost"

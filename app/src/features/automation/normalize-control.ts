@@ -1,6 +1,8 @@
 import type { ControlConfig } from '../controls/model';
 import { migrateLegacy, stepsFromAction } from './legacy-scenario';
 import { isRecord } from './plain-data';
+import { isEffectId } from '../effects/catalogue';
+import { normalizeEffects } from '../effects/scenario-effects';
 import {
   TRIGGERS,
   type ActionStep,
@@ -59,16 +61,27 @@ function normalizeSteps(
     const step = isRecord(raw) ? raw : {};
     const base = typeof step.id === 'string' && step.id ? step.id : `${path}-${index + 1}`;
     if (step.kind === 'action') {
-      return stepsFromAction(step.action, base, makeId);
+      return stepsFromAction(step.action, base, makeId).map((value) => ({
+        ...value,
+        ...(isEffectId(step.effect) ? { effect: step.effect } : {}),
+      }));
     }
     if (step.kind === 'delay') {
-      return [{ id: makeId(base), kind: 'delay', ms: step.ms } as ActionStep];
+      return [
+        {
+          id: makeId(base),
+          kind: 'delay',
+          ms: step.ms,
+          ...(isEffectId(step.effect) ? { effect: step.effect } : {}),
+        } as ActionStep,
+      ];
     }
     if (step.kind === 'if') {
       return [
         {
           id: makeId(base),
           kind: 'if',
+          ...(isEffectId(step.effect) ? { effect: step.effect } : {}),
           condition: structuredClone(step.condition),
           then: normalizeSteps(step.then, `${path}-${index + 1}-then`, makeId),
           else: normalizeSteps(step.else, `${path}-${index + 1}-else`, makeId),
@@ -90,6 +103,7 @@ function normalizeScenario(input: unknown, makeId: (base: string) => string): Sc
       for (const [stateId, steps] of Object.entries(list.byState))
         byState[stateId] = normalizeSteps(steps, `${trigger}-${stateId}`, makeId);
     triggers[trigger] = {
+      ...(isEffectId(list.effect) ? { effect: list.effect } : {}),
       steps: normalizeSteps(list.steps, trigger, makeId),
       ...(isRecord(list.byState) ? { byState } : {}),
     };
@@ -107,7 +121,7 @@ function normalizeScenario(input: unknown, makeId: (base: string) => string): Sc
         };
       })
     : [];
-  return { triggers, events };
+  return normalizeEffects({ triggers, events });
 }
 
 /** Convert old control fields at the settings/plugin boundary; runtime code only reads the canonical tree. */

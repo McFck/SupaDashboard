@@ -121,6 +121,7 @@
           tabindex="-1"
           disabled={pressFeedbackDisabled}
           use:gestures={{
+            ...tile.gestureEffects,
             onTrigger: trigger,
             captureTrigger: tile.capture,
             enabled: !pressFeedbackDisabled,

@@ -12,6 +12,22 @@ export function variantIndexForState(control: Pick<ControlConfig, 'variants'>, s
   return index < 0 ? undefined : index;
 }
 
+/** Relative states and numeric indices remain accepted for migrated actions. */
+export function stateIndex(control: ControlConfig, current: number, stateId: string) {
+  const count = control.variants.length;
+  if (stateId === 'next') {
+    return (current + 1) % count;
+  }
+  if (stateId === 'prev') {
+    return (current - 1 + count) % count;
+  }
+  const index = variantIndexForState(control, stateId);
+  if (index === undefined && /^\d+$/.test(stateId) && Number(stateId) < count) {
+    return Number(stateId);
+  }
+  return index ?? -1;
+}
+
 /** Move a state; scenario references use stable IDs. Returns the reordered current index. */
 export function moveVariant(
   control: ControlConfig,
