@@ -9,25 +9,23 @@ use std::mem::size_of;
 use std::rc::Rc;
 use tauri::{Manager, WebviewWindow};
 use windows::Win32::Foundation::{
-    GetLastError, HWND, LPARAM, LRESULT, POINT, RECT, SetLastError, WIN32_ERROR, WPARAM,
+    GetLastError, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, SetLastError, WIN32_ERROR, WPARAM,
 };
-use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, TrackMouseEvent,
 };
 use windows::Win32::UI::Shell::{
-    DefSubclassProc, GetWindowSubclass, ITaskbarList2, RemoveWindowSubclass, SetWindowSubclass,
-    TaskbarList,
+    DefSubclassProc, GetWindowSubclass, RemoveWindowSubclass, SetWindowSubclass,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     FindWindowExW, GA_ROOT, GWL_EXSTYLE, GWL_STYLE, GetAncestor, GetCursorPos, GetMessageExtraInfo,
     GetWindowLongPtrW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTLEFT, HTRIGHT,
     HTTOP, HTTOPLEFT, HTTOPRIGHT, IsIconic, IsWindowVisible, MA_NOACTIVATE, PA_NOACTIVATE,
     SC_MAXIMIZE, SC_MOVE, SC_SIZE, STYLESTRUCT, SW_HIDE, SW_SHOWNOACTIVATE, SWP_FRAMECHANGED,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos,
-    ShowWindow, WINDOWPOS, WM_CANCELMODE, WM_DISPLAYCHANGE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
-    WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetPropW, SetWindowLongPtrW,
+    SetWindowPos, ShowWindow, WINDOWPOS, WM_CANCELMODE, WM_DISPLAYCHANGE, WM_ENTERSIZEMOVE,
+    WM_EXITSIZEMOVE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
     WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND,
     WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WS_CAPTION, WS_EX_NOACTIVATE,
     WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX, WindowFromPoint,
@@ -73,6 +71,16 @@ pub fn install(window: &WebviewWindow) -> Result<(), String> {
         .set_focusable(false)
         .map_err(|error| format!("could not disable dashboard focusability: {error}"))?;
     let hwnd = hwnd_of(window)?;
+    // NonRudeHWND opts out of shell fullscreen detection before first show (MarkFullscreenWindow docs).
+    // MarkFullscreenWindow(FALSE) still allows detection; TRUE explicitly classifies us as fullscreen.
+    unsafe {
+        SetPropW(
+            hwnd,
+            windows::core::w!("NonRudeHWND"),
+            Some(HANDLE(1usize as _)),
+        )
+    }
+    .map_err(|error| format!("could not disable dashboard fullscreen detection: {error}"))?;
     let monitor = Rc::new(MonitorGuard::default());
     let state = Box::into_raw(Box::new(PolicyState {
         monitor: monitor.clone(),
@@ -141,7 +149,7 @@ pub fn set_interaction_mode(window: &WebviewWindow, fullscreen: bool) -> Result<
         super::touch_surface::cancel(hwnd);
         clear_pointer_state(policy);
         policy.backdrop.set_fullscreen(fullscreen);
-        mark_fullscreen(hwnd, fullscreen)
+        Ok(())
     })
 }
 
@@ -166,20 +174,6 @@ pub fn monitor_blocked(window: &WebviewWindow) -> Result<bool, String> {
 
 pub fn restore_monitor(window: &WebviewWindow, bounds: Geometry) -> Result<(), String> {
     with_policy(window, |_, policy| policy.monitor.restore(bounds))
-}
-
-/// The window never activates, so Windows does not treat it as fullscreen and keeps its monitor's taskbar on top
-/// unless the shell is told explicitly.
-fn mark_fullscreen(hwnd: HWND, fullscreen: bool) -> Result<(), String> {
-    let taskbar: ITaskbarList2 =
-        unsafe { CoCreateInstance(&TaskbarList, None, CLSCTX_INPROC_SERVER) }
-            .map_err(|error| format!("could not reach the taskbar: {error}"))?;
-    unsafe {
-        taskbar
-            .HrInit()
-            .and_then(|()| taskbar.MarkFullscreenWindow(hwnd, fullscreen))
-    }
-    .map_err(|error| format!("could not update the taskbar for fullscreen: {error}"))
 }
 
 /// Touch and pen input also reach the window as mouse messages carrying this signature in the message extra info
