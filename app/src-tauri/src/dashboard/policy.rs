@@ -178,7 +178,7 @@ pub fn restore_monitor(window: &WebviewWindow, bounds: Geometry) -> Result<(), S
 
 /// Touch and pen input also reach the window as mouse messages carrying this signature in the message extra info
 /// (MI_WP_SIGNATURE); they are not a hovering mouse.
-const fn is_pointer_synthesized(extra_info: isize) -> bool {
+pub(super) const fn is_pointer_synthesized(extra_info: isize) -> bool {
     (extra_info as u32) & 0xFFFF_FF00 == 0xFF51_5700
 }
 
