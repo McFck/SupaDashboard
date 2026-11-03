@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { Combobox } from 'bits-ui';
+  import { fade } from 'svelte/transition';
   import { Input } from '$lib/components/ui/input';
   import Skeleton from '$lib/components/ui/skeleton/Skeleton.svelte';
   import { rankOptions } from '../ranking';
@@ -113,14 +114,17 @@
     class="relative min-w-0 flex-1"
   >
     {#if selected?.iconName}
-      <span
-        class="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground"
-      >
-        <Icon
-          name={selected.iconName}
-          size={16}
-        />
-      </span>
+      {#key selected.iconName}
+        <span
+          in:fade={{ duration: 250 }}
+          class="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground"
+        >
+          <Icon
+            name={selected.iconName}
+            size={16}
+          />
+        </span>
+      {/key}
     {/if}
     <Combobox.Input
       bind:ref={field}
@@ -135,7 +139,7 @@
           {placeholder}
           aria-label={ariaLabel}
           aria-busy={selected?.loading || undefined}
-          class={selected?.iconName ? 'pl-9' : ''}
+          class="duration-300 aria-busy:text-transparent {selected?.iconName ? 'pl-9' : ''}"
         />{/snippet}
     </Combobox.Input>
     {#if selected?.loading}

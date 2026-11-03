@@ -1,9 +1,10 @@
 <script lang="ts">
   import Sparkles from '@lucide/svelte/icons/sparkles';
-  import { Popover } from 'bits-ui';
+  import { mergeProps, Popover } from 'bits-ui';
   import { Button } from '$lib/components/ui/button';
   import Hint from '$lib/components/ui/tooltip/hint.svelte';
   import { EFFECTS, type EffectId } from './catalogue';
+  import EffectIcon from './EffectIcon.svelte';
   let {
     value,
     label,
@@ -53,17 +54,17 @@
       <Hint text={gestureOwns ? undefined : label}>
         {#snippet children(hint)}
           <Button
-            {...hint}
-            {...props}
+            {...mergeProps(hint, props)}
             variant="ghost"
             size={gestureOwns ? 'sm' : 'icon-sm'}
             aria-label={gestureOwns ? 'Replace gesture effect' : label}
-            class="effect-button shrink-0 {value ? 'text-primary' : 'text-muted-foreground'}"
+            class="effect-button shrink-0 text-muted-foreground"
             data-active={!!value}
           >
-            {#if gestureOwns}Replace gesture effect{:else}<Sparkles
-                fill={value ? 'currentColor' : 'none'}
-              />{/if}
+            {#if gestureOwns}Replace gesture effect{:else if value}<EffectIcon
+                effect={value}
+                class="size-4"
+              />{:else}<Sparkles />{/if}
           </Button>
         {/snippet}
       </Hint>
@@ -72,7 +73,7 @@
   <Popover.Portal>
     <Popover.Content
       sideOffset={5}
-      class="z-[100] w-64 rounded-xl bg-popover p-2 text-popover-foreground shadow-lg ring-1 ring-border"
+      class="z-[100] w-[22.5rem] rounded-xl bg-popover p-2 text-popover-foreground shadow-lg ring-1 ring-border"
       aria-label="Tile effect"
     >
       {#if pending}
@@ -83,25 +84,27 @@
           onclick={replace}>{conflict}</Button
         >
       {:else}
-        <div class="grid grid-cols-3 gap-1">
-          <Button
-            size="sm"
-            aria-label="None"
-            variant={!value ? 'secondary' : 'ghost'}
-            onclick={() => choose()}>None</Button
-          >
+        <Button
+          size="sm"
+          aria-label="None"
+          variant={!value ? 'secondary' : 'ghost'}
+          class="mb-1 w-full"
+          onclick={() => choose()}>None</Button
+        >
+        <div class="grid grid-cols-5 gap-1">
           {#each EFFECTS as effect (effect.id)}
             <Button
               size="sm"
               aria-label={effect.label}
-              variant={value === effect.id ? 'secondary' : 'ghost'}
-              class="h-14 flex-col gap-1 text-xs"
+              aria-pressed={value === effect.id}
+              variant="ghost"
+              class="h-16 min-w-0 flex-col gap-1.5 px-0.5 text-[11px] aria-pressed:bg-accent aria-pressed:ring-1 aria-pressed:ring-primary/70"
               onclick={() => choose(effect.id)}
             >
-              <span
-                aria-hidden="true"
-                class="text-lg">{effect.icon}</span
-              >{effect.label}
+              <EffectIcon
+                effect={effect.id}
+                class="size-7"
+              /><span class="w-full truncate">{effect.label}</span>
             </Button>
           {/each}
         </div>
