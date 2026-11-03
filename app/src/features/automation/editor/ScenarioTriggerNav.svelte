@@ -3,6 +3,7 @@
   import Trash from '@lucide/svelte/icons/trash-2';
   import { DropdownMenu } from 'bits-ui';
   import { Button } from '$lib/components/ui/button';
+  import { Badge } from '$lib/components/ui/badge';
   import { listStepCount, TRIGGER_LABELS, TRIGGERS, type Trigger } from '../scenario';
   import PluginMark, { pluginTitle } from '../../plugins/ui/PluginMark.svelte';
   import type { ScenarioDraftEditor } from './scenario-draft.svelte';
@@ -26,7 +27,7 @@
     <Button
       variant={selected ? 'secondary' : 'ghost'}
       size="sm"
-      class="min-w-0 justify-between gap-2"
+      class="w-full min-w-0 justify-between gap-2 px-2.5"
       disabled={blockedTriggers.has(trigger)}
       aria-label={`${label}, ${steps} steps`}
       aria-pressed={selected}
@@ -37,9 +38,13 @@
     </Button>
   {/each}
   <div class="mt-4 grid gap-2">
-    <div class="flex items-center justify-between gap-2">
+    <div class="flex items-center justify-between gap-2 border-x border-transparent px-2.5">
       <h3 class="text-xs font-semibold text-muted-foreground">Events</h3>
-      <span class="text-xs tabular-nums text-muted-foreground">{draft.scenario.events.length}</span>
+      <Badge
+        variant="secondary"
+        class="-mr-1.5 border-0 px-1.5 py-0 text-xs text-muted-foreground"
+        ><span class="tabular-nums">{draft.scenario.events.length}</span></Badge
+      >
     </div>
     {#each draft.scenario.events as event (event.id)}
       {@const definition = editor.eventDefinition(event.eventId)}
@@ -48,9 +53,17 @@
       {@const selected = editor.selectedKey === `event:${event.id}`}
       <div class="flex min-w-0 items-center gap-1">
         <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Remove event listener"
+          onclick={() => editor.removeEvent(event.id)}
+        >
+          <Trash />
+        </Button>
+        <Button
           variant={selected ? 'secondary' : 'ghost'}
           size="sm"
-          class="min-w-0 flex-1 justify-start truncate"
+          class="w-full min-w-0 flex-1 justify-start gap-2 truncate px-2.5"
           aria-label={`${editor.eventLabel(event)}, ${steps} steps${providerTitle ? `, Plugin: ${providerTitle}` : ''}`}
           aria-pressed={selected}
           onclick={() => editor.selectList(`event:${event.id}`)}
@@ -58,14 +71,6 @@
           <span class="truncate">{editor.eventLabel(event)}</span>
           <PluginMark plugin={definition?.plugin} />
           <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
-        </Button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Remove event listener"
-          onclick={() => editor.removeEvent(event.id)}
-        >
-          <Trash />
         </Button>
       </div>
     {/each}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
@@ -47,6 +48,7 @@
       .refresh?.(args)
       .then(() => version++)
       .catch(() => toast.error('Could not refresh options'));
+  onMount(refresh);
   const markedTextSuggestions = $derived(
     showPluginMark && (suggestions ?? []).some((option) => pluginTitle(option.plugin ?? provider)),
   );
@@ -109,6 +111,7 @@
     onfocusout={() => param.manual?.keep(String(value ?? ''))}
   >
     <SuggestionInput
+      aria-label={param.label}
       value={String(value ?? param.default ?? '')}
       suggestions={textSuggestions}
       {provider}

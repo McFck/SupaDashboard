@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import { Combobox } from 'bits-ui';
   import { Input } from '$lib/components/ui/input';
+  import Skeleton from '$lib/components/ui/skeleton/Skeleton.svelte';
   import { rankOptions } from '../ranking';
   import OptionTags from './OptionTags.svelte';
   import PluginMark from './PluginMark.svelte';
@@ -30,7 +31,6 @@
     onchange: (value: string) => void;
     onrefresh?: () => void;
   } = $props();
-  let query = $state(untrack(() => value));
   let typing = $state(false);
   let open = $state(false);
   let field = $state<HTMLElement | null>(null);
@@ -40,6 +40,7 @@
     suggestions.find((option) => option.value === value || option.label === value),
   );
   const display = $derived(selected?.label ?? value);
+  let query = $state(untrack(() => display));
   // Until the user types, the list is whole so the current pick can be swapped for another.
   const filtered = $derived(rankOptions(suggestions, typing ? query : ''));
 
@@ -133,9 +134,13 @@
           {id}
           {placeholder}
           aria-label={ariaLabel}
+          aria-busy={selected?.loading || undefined}
           class={selected?.iconName ? 'pl-9' : ''}
         />{/snippet}
     </Combobox.Input>
+    {#if selected?.loading}
+      <Skeleton class="pointer-events-none absolute top-1/2 left-9 h-3.5 w-24 -translate-y-1/2" />
+    {/if}
   </div>
   {#if open}
     <Combobox.Portal>

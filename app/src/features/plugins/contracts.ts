@@ -16,6 +16,8 @@ export type Option = {
   /** A Lucide or app-pack icon name shown before the label. */
   iconName?: string;
   unavailable?: boolean;
+  /** The selected label is still being resolved. */
+  loading?: boolean;
 };
 export type EventAncestry = { depth: number; listeners: string[] };
 

@@ -1,7 +1,5 @@
 <script lang="ts">
   // Picks an app and one of its live states; the answer is the app's state variable id.
-  import { onMount } from 'svelte';
-  import { toast } from 'svelte-sonner';
   import Choice from '../../plugins/ui/Choice.svelte';
   import ParamControl from '../../plugins/ui/ParamControl.svelte';
   import type { Param } from '../../plugins/contracts';
@@ -9,12 +7,11 @@
   import {
     appKeyForName,
     appKeyForSlug,
-    appName,
+    appOption,
     appManual,
     appParam,
     appSlug,
     isOfferedApp,
-    refreshApps,
     rememberApp,
   } from '../picker.svelte';
 
@@ -36,13 +33,7 @@
   let chosen = $state<AppField | null>(null);
   const field = $derived(fixedField ?? chosen ?? parsed?.field ?? 'running');
   let typed = $state<string | null>(null);
-  const shown = $derived(
-    typed ?? (parsed ? appName(appKeyForSlug(parsed.slug) ?? parsed.slug) : ''),
-  );
-
-  onMount(() => {
-    refreshApps().catch(() => toast.error('Could not refresh options'));
-  });
+  const shown = $derived(typed ?? (parsed ? (appKeyForSlug(parsed.slug) ?? parsed.slug) : ''));
 
   /** Typing alone changes nothing; a suggestion or a finished entry names the app. */
   function choose(text: string) {
@@ -60,6 +51,10 @@
 
   const param: Param = {
     ...appParam,
+    describe: (key) =>
+      parsed && key === parsed.slug
+        ? { ...appOption(appKeyForSlug(key) ?? key), value: key }
+        : appParam.describe?.(key),
     manual: { browse: appManual.browse, keep: choose },
   };
 
