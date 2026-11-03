@@ -19,6 +19,8 @@
   import { settings } from '../../settings/state.svelte';
   import { duplicateInSlot, removeWithDust, resizeInSlot } from '../slot-edits';
   import VariantList from './VariantList.svelte';
+  import EffectMark from '../../effects/EffectMark.svelte';
+  import { hasEffects } from '../../effects/scenario-effects';
 
   type Axis = 'w' | 'h';
 
@@ -97,10 +99,20 @@
 {/snippet}
 
 <header class="flex h-12 shrink-0 items-center gap-3 px-4">
-  <p class="min-w-0 flex-1 truncate font-display text-base font-semibold tracking-wide">{title}</p>
+  <p class="min-w-0 truncate font-display text-base font-semibold tracking-wide">{title}</p>
+  {#if hasEffects(control.scenario)}
+    <span
+      role="img"
+      aria-label="Effects"
+      class="-ml-1"
+    >
+      <EffectMark class="size-6" />
+    </span>
+  {/if}
   <Button
     size="icon-sm"
     variant="ghost"
+    class="ml-auto"
     aria-label="Duplicate"
     onclick={duplicate}
   >

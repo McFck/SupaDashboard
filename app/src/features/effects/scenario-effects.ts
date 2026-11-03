@@ -15,6 +15,14 @@ export function effectSteps(list: TriggerList) {
   return steps;
 }
 
+/** True when any trigger or event list, or a step inside one, plays an effect. */
+export function hasEffects(scenario: Scenario | undefined) {
+  return [
+    ...Object.values(scenario?.triggers ?? {}),
+    ...(scenario?.events ?? []).map((event) => event.list),
+  ].some((list) => list && (list.effect || effectSteps(list).some((step) => step.effect)));
+}
+
 /** Canonical ownership applies to common, per-state and nested action lists together. */
 export function normalizeEffects(scenario: Scenario) {
   const next = clonePlain(scenario);

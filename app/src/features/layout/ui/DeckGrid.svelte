@@ -31,7 +31,6 @@
   import { TileMotion } from './tile-motion.svelte';
   import { RemovalChrome } from './removal-chrome.svelte';
   import DeckEditChrome from './DeckEditChrome.svelte';
-  import TileEffectIndicator from '../../effects/TileEffectIndicator.svelte';
   import TileEffects from '../../effects/TileEffects.svelte';
 
   type GridLayout = Pick<Page, 'rows' | 'cols' | 'size' | 'sizing' | 'gap'> & { items: Item[] };
@@ -410,7 +409,6 @@
               }
             }}
           ></div>
-          <TileEffectIndicator {control} />
         {/if}
         {#if !editing && pageVisible && $runtimeView.effects?.some((effect) => effect.tileId === item.id || effect.tileId === control.id)}
           <TileEffects
