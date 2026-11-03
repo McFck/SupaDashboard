@@ -44,8 +44,8 @@ export function parseWatched(raw: unknown): WatchedApp[] {
   );
 }
 
-export async function listApps(): Promise<AppRow[]> {
-  const raw = await invoke<unknown>('apps_list');
+export async function listApps(keys: string[] = []): Promise<AppRow[]> {
+  const raw = await invoke<unknown>('apps_list', { keys });
   return Array.isArray(raw)
     ? raw.filter(
         (row): row is AppRow =>
@@ -57,6 +57,64 @@ export async function listApps(): Promise<AppRow[]> {
           typeof row.running === 'boolean',
       )
     : [];
+}
+
+export async function loadAppIcon(key: string): Promise<string | undefined> {
+  return readAppIcon(await invoke<unknown>('apps_icon', { app: key }));
+}
+
+/** Only bounded PNG frames become image URLs; native replies never supply a URL. */
+export function readAppIcon(raw: unknown): string | undefined {
+  if (
+    !Array.isArray(raw) ||
+    raw.length > 1024 * 1024 ||
+    !raw.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+  ) {
+    return undefined;
+  }
+  const bytes = Uint8Array.from(raw);
+  if (![137, 80, 78, 71, 13, 10, 26, 10].every((byte, i) => bytes[i] === byte)) {
+    return undefined;
+  }
+  const view = new DataView(bytes.buffer);
+  let offset = 8;
+  let data = false;
+  while (offset + 12 <= bytes.length) {
+    const length = view.getUint32(offset);
+    const type = String.fromCharCode(...bytes.slice(offset + 4, offset + 8));
+    if (offset + length + 12 > bytes.length) {
+      return undefined;
+    }
+    if (offset === 8) {
+      if (
+        type !== 'IHDR' ||
+        length !== 13 ||
+        view.getUint32(16) === 0 ||
+        view.getUint32(16) > 512 ||
+        view.getUint32(20) === 0 ||
+        view.getUint32(20) > 512
+      ) {
+        return undefined;
+      }
+    } else if (type === 'IHDR') {
+      return undefined;
+    }
+    if (type === 'IDAT' && length > 0) {
+      data = true;
+    }
+    offset += length + 12;
+    if (type === 'IEND') {
+      if (length !== 0 || !data || offset !== bytes.length) {
+        return undefined;
+      }
+      let binary = '';
+      for (const byte of bytes) {
+        binary += String.fromCharCode(byte);
+      }
+      return `data:image/png;base64,${btoa(binary)}`;
+    }
+  }
+  return undefined;
 }
 
 /** The titles of an app's windows open right now. */

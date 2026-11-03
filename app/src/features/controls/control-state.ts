@@ -82,5 +82,6 @@ export function variantView(
     color: variant?.color,
     background: variant?.background,
     style: variant?.style,
+    app: variant?.app,
   };
 }

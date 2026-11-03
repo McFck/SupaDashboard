@@ -22,6 +22,7 @@
       color: value.view.color,
       background: value.view.background,
       style: value.view.style,
+      app: value.view.app,
     },
   });
   let shown = $state<TilePresentation>(untrack(() => copy(presentation)));
@@ -38,7 +39,8 @@
       a.icon === b.icon &&
       a.color === b.color &&
       a.background === b.background &&
-      a.style === b.style
+      a.style === b.style &&
+      a.app === b.app
     );
   }
 

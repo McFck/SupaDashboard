@@ -121,6 +121,7 @@
         >
           <Icon
             name={selected.iconName}
+            app={selected.appKey}
             size={16}
           />
         </span>
@@ -165,6 +166,7 @@
                 >
                   <Icon
                     name={option.iconName}
+                    app={option.appKey}
                     size={16}
                   />
                 </span>

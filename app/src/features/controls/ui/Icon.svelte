@@ -11,16 +11,39 @@
 </script>
 
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import { appIcon, appImage, requestAppIcon } from '../../apps/picker.svelte';
   let {
     name,
+    app,
     size = 24,
     fallback = '',
-  }: { name?: string; size?: number; fallback?: string } = $props();
-  const Lucide = $derived(name ? (icons as Record<string, any>)[name] : undefined);
-  const custom = $derived(name ? (brandIcons[name] ?? customIcons.get(name)) : undefined);
+  }: { name?: string; app?: string; size?: number; fallback?: string } = $props();
+  const icon = $derived(app ? appIcon(app) : name);
+  const image = $derived(app ? appImage(app) : undefined);
+  let failed = $state<string>();
+  $effect(() => {
+    if (app) {
+      const key = app;
+      untrack(() => void requestAppIcon(key));
+    }
+  });
+  const Lucide = $derived(icon ? (icons as Record<string, any>)[icon] : undefined);
+  const custom = $derived(icon ? (brandIcons[icon] ?? customIcons.get(icon)) : undefined);
 </script>
 
-{#if Lucide}
+{#if image && image !== failed}
+  <img
+    src={image}
+    alt=""
+    width={size}
+    height={size}
+    class="shrink-0 object-contain"
+    onerror={() => {
+      failed = image;
+    }}
+  />
+{:else if Lucide}
   <Lucide
     {size}
     strokeWidth={1.75}

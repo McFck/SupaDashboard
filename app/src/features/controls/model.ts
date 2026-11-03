@@ -24,11 +24,15 @@ export type Variant = {
   color?: string | null;
   background?: string | null;
   style?: TileStyle;
+  app?: string;
   /** Legacy action source, removed by normalizeControl. */ action?: ActionRef;
   value?: ValueRef;
 };
 /** A resolved, presentation-only view supplied by ACTIONS; these fields are never persisted here. */
-export type TileAppearance = Pick<Variant, 'label' | 'icon' | 'color' | 'background' | 'style'>;
+export type TileAppearance = Pick<
+  Variant,
+  'label' | 'icon' | 'color' | 'background' | 'style' | 'app'
+>;
 export type TilePresentation = { key: string; view: TileAppearance };
 export type SliderFaceState = {
   level: number | null;
