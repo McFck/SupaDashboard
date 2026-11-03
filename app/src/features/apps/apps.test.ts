@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { VariableStore } from '../automation/variables';
 import { normalizeControl } from '../automation/normalize-control';
 import { parseWatched, type WatchedApp } from '../../platform/apps';
-import { appRequest, watchedKeys } from './keys';
+import {
+  appRequest,
+  watchedKeys,
+  appVariable,
+  parseAppVariable,
+  validAppVariable,
+  watchedSelections,
+} from './keys';
+import { effectiveVariant } from '../controls/control-state';
+import { validateStateConfiguration } from '../controls/state-validation';
 import { evaluatePredicate } from '../automation/expression';
 import { validateScenario } from '../automation/validate';
 import type { Predicate } from '../automation/scenario';
@@ -22,6 +31,13 @@ const state = (over: Partial<WatchedApp> = {}): WatchedApp => ({
 });
 
 describe('app requests', () => {
+  it('never turns a graceful quit into a forced termination', () => {
+    expect(appRequest('quit', { app: 'aumid:Chat' })).toEqual({ op: 'quit', app: 'aumid:Chat' });
+    expect(() => appRequest('quit', { app: 'aumid:Chat', force: true })).toThrow(
+      'Quit app cannot force close',
+    );
+  });
+
   it('refuses a missing or foreign app key before anything reaches the native side', () => {
     for (const app of [undefined, '', 'chat', 'path:C:/a.exe', 'exe:', 'exe:C:/a\n.exe']) {
       expect(() => appRequest('open', { app })).toThrow('Choose an app');
@@ -82,6 +98,91 @@ describe('app requests', () => {
 });
 
 describe('native app state', () => {
+  it('keeps scoped conditions and bindings independent of the apps other windows', () => {
+    const selection = { windows: 'window', title: 'Friends List' } as const;
+    const id = appVariable('chat', 'visible', selection);
+    const control = normalizeControl({
+      id: 'b',
+      type: 'button',
+      variants: [{ id: 'off' }, { id: 'on' }],
+      stateBindings: [{ variableId: id, cases: [{ value: true, stateId: 'on' }] }],
+      scenario: {
+        triggers: {
+          press: {
+            steps: [
+              {
+                id: 'if',
+                kind: 'if',
+                condition: {
+                  kind: 'compare',
+                  left: { kind: 'variable', id },
+                  op: 'eq',
+                  right: { kind: 'literal', value: true },
+                },
+                then: [],
+                else: [],
+              },
+            ],
+          },
+        },
+        events: [],
+      },
+    });
+    expect(watchedSelections([control])).toEqual([{ slug: 'chat', ...selection }]);
+    expect(validateStateConfiguration(control, { revision: 0, records: {} })).toEqual([]);
+    const variables = new VariableStore();
+    let push: (apps: WatchedApp[]) => void = () => {};
+    const watcher = new AppWatcher({
+      variables,
+      keys: () => [],
+      link: (onState) => {
+        push = onState;
+        return { watch: () => {}, stop: () => {} };
+      },
+      onError: () => {
+        throw new Error('Watcher failed');
+      },
+    });
+    const nativeSelection = { slug: 'chat', ...selection };
+    for (const visible of [false, true]) {
+      push([state({ visible: true }), state({ selection: nativeSelection, visible })]);
+      expect(variables.getValue('app.chat.visible')).toBe(true);
+      expect(variables.getValue(id)).toBe(visible);
+      expect(effectiveVariant(control, variables.snapshot(), 0).stateId).toBe(
+        visible ? 'on' : 'off',
+      );
+      expect(
+        evaluatePredicate(
+          {
+            kind: 'compare',
+            left: { kind: 'variable', id },
+            op: 'eq',
+            right: { kind: 'literal', value: true },
+          },
+          {
+            getVariable: (key) => variables.getValue(key),
+            findVariable: () => undefined,
+            getState: () => undefined,
+          },
+        ),
+      ).toBe(visible);
+    }
+    watcher.destroy();
+  });
+
+  it('rejects malformed scoped references instead of treating them as app-wide state', () => {
+    const id = appVariable('chat', 'focused', { windows: 'title', title: 'A.b / 日本語' });
+    expect(parseAppVariable(id)?.selection?.title).toBe('A.b / 日本語');
+    expect(validAppVariable(id)).toBe(true);
+    for (const suffix of [
+      'bad%',
+      encodeURIComponent('{"windows":"recent","title":"x"}'),
+      encodeURIComponent('{"windows":"window","title":""}'),
+    ]) {
+      expect(validAppVariable(`app.chat.focused@${suffix}`)).toBe(false);
+    }
+    expect(parseWatched([{ ...state(), selection: { windows: 'recent', title: '' } }])).toEqual([]);
+  });
   it('drops malformed entries so they never reach variables', () => {
     expect(
       parseWatched([

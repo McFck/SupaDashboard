@@ -4,6 +4,7 @@ mod exit;
 pub mod identity;
 mod list;
 mod model;
+mod quit;
 #[cfg(test)]
 mod request_tests;
 mod selection;
@@ -12,8 +13,9 @@ mod windows;
 
 use list::AppRow;
 use model::{Request, parse_key, parse_request};
+use selection::WindowSelection;
 use tauri::{AppHandle, State};
-use watch::{AppsHub, Watched};
+use watch::{AppsHub, WatchSet, Watched};
 
 async fn blocking<T: Send + 'static>(
     job: impl FnOnce() -> Result<T, String> + Send + 'static,
@@ -57,7 +59,11 @@ pub async fn apps_watch(
     app: AppHandle,
     hub: State<'_, AppsHub>,
     keys: Vec<String>,
+    selections: Vec<WindowSelection>,
 ) -> Result<Vec<Watched>, String> {
+    for selection in &selections {
+        selection.validate()?;
+    }
     let matchers = blocking(move || {
         Ok(keys
             .iter()
@@ -70,6 +76,10 @@ pub async fn apps_watch(
         hub.unwatch();
         return Ok(Vec::new());
     }
+    let matchers = WatchSet {
+        matchers,
+        selections,
+    };
     let initial = matchers.clone();
     hub.watch(&app, matchers)?;
     blocking(move || Ok(watch::current(&initial))).await

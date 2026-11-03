@@ -1,9 +1,10 @@
 // App keys and the arguments of app actions. The native side validates again; this fails early with a short title.
 import { walkSteps } from '../automation/scenario';
 import type { ControlConfig } from '../controls/model';
+import { readWindowSelection, type WindowSelection } from './window-selection';
 
 const MAX_KEY = 1024;
-export const APP_ACTIONS = ['open', 'focus', 'toggle', 'minimize', 'close'] as const;
+export const APP_ACTIONS = ['open', 'focus', 'toggle', 'minimize', 'close', 'quit'] as const;
 export type AppOp = (typeof APP_ACTIONS)[number];
 
 export const APP_STATES = [
@@ -36,10 +37,80 @@ export function isAppKey(value: unknown): value is string {
 }
 
 /** `app.<slug>.<state>`, the variable the watcher publishes for an app, taken apart. */
-export function parseAppVariable(id: string): { slug: string; field: AppField } | undefined {
-  const match = /^app\.([a-z0-9_-]+)\.([a-z]+)$/.exec(id);
+export function parseAppVariable(
+  id: string,
+): { slug: string; field: AppField; selection?: WindowSelection } | undefined {
+  const match = /^app\.([a-z0-9_-]+)\.([a-z]+)(?:@(.+))?$/.exec(id);
   const field = APP_STATES.find((state) => state.value === match?.[2]);
-  return match && field ? { slug: match[1], field: field.value } : undefined;
+  if (!match || !field) {
+    return undefined;
+  }
+  if (!match[3]) {
+    return { slug: match[1], field: field.value };
+  }
+  try {
+    const selection = readWindowSelection(JSON.parse(decodeURIComponent(match[3])));
+    if (!selection || !windowState(field.value)) {
+      return undefined;
+    }
+    return { slug: match[1], field: field.value, selection };
+  } catch {
+    return undefined;
+  } // A malformed stored suffix must never fall back to app-wide state.
+}
+
+export const windowState = (field: AppField) =>
+  field === 'focused' || field === 'visible' || field === 'minimized';
+
+export function appVariable(slug: string, field: AppField, selection?: WindowSelection) {
+  const suffix =
+    selection && windowState(field)
+      ? `@${encodeURIComponent(JSON.stringify({ windows: selection.windows, title: selection.title }))}`
+      : '';
+  return `app.${slug}.${field}${suffix}`;
+}
+
+export function validAppVariable(id: string) {
+  const parsed = parseAppVariable(id);
+  if (!parsed) {
+    return !id.startsWith('app.') || !id.includes('@');
+  }
+  const selection = parsed.selection;
+  return (
+    !selection ||
+    selection.windows === 'main' ||
+    selection.windows === 'all' ||
+    !!selection.title.trim()
+  );
+}
+
+/** Scoped variables used by saved conditions and bindings, deduplicated across controls. */
+export function watchedSelections(controls: readonly ControlConfig[]) {
+  const selections = new Map<string, WindowSelection & { slug: string }>();
+  const add = (id: string) => {
+    const parsed = parseAppVariable(id);
+    if (parsed?.selection && validAppVariable(id)) {
+      const value = { slug: parsed.slug, ...parsed.selection };
+      selections.set(JSON.stringify(value), value);
+    }
+  };
+  for (const control of controls) {
+    for (const binding of control.stateBindings ?? []) {
+      add(binding.variableId);
+    }
+    if (control.scenario) {
+      walkSteps(control.scenario, (step) => {
+        if (step.kind === 'if' && step.condition.kind === 'compare') {
+          for (const operand of [step.condition.left, step.condition.right]) {
+            if (operand.kind === 'variable') {
+              add(operand.id);
+            }
+          }
+        }
+      });
+    }
+  }
+  return [...selections.values()];
 }
 
 /** The id of a binding that picked an app state but no app yet. */
@@ -59,6 +130,9 @@ export function appLabel(key: string) {
 export function appRequest(op: AppOp, args: Record<string, unknown>): AppRequest {
   if (!isAppKey(args.app)) {
     throw new Error('Choose an app');
+  }
+  if (op === 'quit' && args.force === true) {
+    throw new Error('Quit app cannot force close');
   }
   const request: AppRequest = { op, app: args.app };
   if (op === 'focus' || op === 'toggle' || op === 'minimize') {

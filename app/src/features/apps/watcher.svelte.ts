@@ -1,11 +1,16 @@
 import { untrack } from 'svelte';
 import type { VariableStore, VariableType, VariableValue } from '../automation/variables';
-import { appsLink, type AppsLink, type WatchedApp } from '../../platform/apps';
+import {
+  appsLink,
+  type AppsLink,
+  type WatchedApp,
+  type AppWindowSelection,
+} from '../../platform/apps';
 import { settings } from '../settings/state.svelte';
-import { watchedKeys } from './keys';
+import { appVariable, watchedKeys, watchedSelections, windowState, type AppField } from './keys';
 
 const OWNER = 'core-apps';
-const FIELDS: readonly [keyof WatchedApp & string, VariableType, VariableValue][] = [
+const FIELDS: readonly [AppField, VariableType, VariableValue][] = [
   ['running', 'boolean', false],
   ['focused', 'boolean', false],
   ['minimized', 'boolean', false],
@@ -17,6 +22,7 @@ type Host = {
   variables: VariableStore;
   /** The app keys to watch; read inside an effect, so a change re-syncs. */
   keys(): string[];
+  selections?(): AppWindowSelection[];
   link(onState: (apps: WatchedApp[]) => void, onError: () => void): AppsLink;
   onError(): void;
 };
@@ -37,16 +43,17 @@ export class AppWatcher {
     this.stopEffect = $effect.root(() => {
       $effect(() => {
         const keys = [...host.keys()].sort();
-        untrack(() => this.sync(keys));
+        const selections = host.selections?.() ?? [];
+        untrack(() => this.sync(keys, selections));
       });
     });
   }
 
-  private sync(keys: string[]) {
-    const next = JSON.stringify(keys);
+  private sync(keys: string[], selections: AppWindowSelection[]) {
+    const next = JSON.stringify({ keys, selections });
     if (next !== this.watched) {
       this.watched = next;
-      this.link.watch(keys);
+      this.link.watch(keys, selections);
       if (!keys.length) {
         this.apply([]);
       }
@@ -59,7 +66,10 @@ export class AppWatcher {
     try {
       for (const app of apps) {
         for (const [field, type, initialValue] of FIELDS) {
-          const id = `app.${app.slug}.${field}`;
+          if (app.selection && !windowState(field)) {
+            continue;
+          }
+          const id = appVariable(app.slug, field, app.selection);
           if (!variables.get(id)) {
             variables.define(
               { id, name: id, type, owner: OWNER, persistent: false, readOnly: true, initialValue },
@@ -96,6 +106,7 @@ export function startAppWatcher(variables: VariableStore, onError: () => void) {
   const watcher = new AppWatcher({
     variables,
     keys: () => watchedKeys(settings.controls, settings.apps),
+    selections: () => watchedSelections(settings.controls),
     link: appsLink,
     onError,
   });

@@ -20,6 +20,7 @@ pub enum Op {
     Toggle,
     Minimize,
     Close,
+    Quit,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
@@ -30,7 +31,7 @@ pub enum Hide {
     Close,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Windows {
     Main,
@@ -96,6 +97,12 @@ pub fn parse_key(raw: &str) -> Result<Key, String> {
 }
 
 pub fn parse_request(request: Request) -> Result<Command, String> {
+    if request.op == Op::Quit && request.force {
+        return Err("Quit app cannot force close".into());
+    }
+    if request.op == Op::Quit && request.windows != Windows::All {
+        return Err("Quit app requires All windows".into());
+    }
     if request.title.len() > MAX_KEY || request.title.chars().any(char::is_control) {
         return Err("The window title is not valid".into());
     }

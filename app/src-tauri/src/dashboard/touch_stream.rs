@@ -1,4 +1,5 @@
 //! Contact lifetime and ordered delivery of a touch gesture to the browser.
+use super::geometry::Geometry;
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::VecDeque;
@@ -11,6 +12,10 @@ pub struct Contact {
     /// The initial physical touch point survives moves while the frontend's window-gesture request is in flight.
     #[serde(skip)]
     pub origin: (i32, i32),
+    #[serde(skip)]
+    pub screen: (i32, i32),
+    #[serde(skip)]
+    pub surface: Geometry,
 }
 
 pub enum Phase {
@@ -40,19 +45,7 @@ impl TouchStream {
                 }
                 "touchStart"
             }
-            Phase::Move => {
-                let Some(current) = self
-                    .contacts
-                    .iter_mut()
-                    .find(|contact| contact.id == point.id)
-                else {
-                    return false;
-                };
-                point.origin = current.origin;
-                *current = point;
-                "touchMove"
-            }
-            Phase::End => {
+            Phase::Move | Phase::End => {
                 let Some(index) = self
                     .contacts
                     .iter()
@@ -60,9 +53,29 @@ impl TouchStream {
                 else {
                     return false;
                 };
-                self.contacts.remove(index);
-                // CDP's explicit end points identify the contacts being released, not the remaining fingers.
-                return self.enqueue(json!({"type": "touchEnd", "touchPoints": [point]}));
+                let current = &self.contacts[index];
+                let wrapped = wraps_edge(
+                    current.screen.0,
+                    point.screen.0,
+                    current.surface.x,
+                    current.surface.width,
+                ) || wraps_edge(
+                    current.screen.1,
+                    point.screen.1,
+                    current.surface.y,
+                    current.surface.height,
+                );
+                if wrapped || matches!(phase, Phase::End) {
+                    let previous = self.contacts.remove(index);
+                    // Some sensors wrap to the opposite edge as contact leaves the panel. End at the last valid sample.
+                    let ended = if wrapped { previous } else { point };
+                    // CDP's explicit end points identify the contacts being released, not the remaining fingers.
+                    return self.enqueue(json!({"type": "touchEnd", "touchPoints": [ended]}));
+                }
+                point.origin = current.origin;
+                point.surface = current.surface;
+                self.contacts[index] = point;
+                "touchMove"
             }
         };
         self.enqueue(json!({"type": kind, "touchPoints": self.contacts }))
@@ -118,6 +131,18 @@ impl TouchStream {
     }
 }
 
+fn wraps_edge(previous: i32, next: i32, start: i64, length: i64) -> bool {
+    if length <= 0 {
+        return false;
+    }
+    let previous = i64::from(previous) - start;
+    let next = i64::from(next) - start;
+    let band = length / 20;
+    let low = |value| (0..=band).contains(&value);
+    let high = |value| (length - band..=length).contains(&value);
+    (low(previous) && high(next)) || (high(previous) && low(next))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,7 +152,83 @@ mod tests {
             x,
             y: 12.0,
             origin: (0, 0),
+            screen: (x as i32, 12),
+            surface: Geometry {
+                x: 0,
+                y: 0,
+                width: 1000,
+                height: 1000,
+            },
         }
+    }
+
+    fn sensor_point(id: u32, screen: (i32, i32)) -> Contact {
+        Contact {
+            id,
+            x: f64::from(screen.0),
+            y: f64::from(screen.1),
+            origin: screen,
+            screen,
+            surface: Geometry {
+                x: -2000,
+                y: 1360,
+                width: 2560,
+                height: 1760,
+            },
+        }
+    }
+
+    #[test]
+    fn leaving_any_sensor_edge_releases_at_the_last_valid_point_without_a_second_action() {
+        for (last, wrapped) in [
+            ((-1000, 3100), (-1000, 1364)),
+            ((-1000, 1364), (-1000, 3100)),
+            ((-1990, 2000), (550, 2000)),
+            ((550, 2000), (-1990, 2000)),
+        ] {
+            for release_only in [false, true] {
+                let mut stream = TouchStream::default();
+                stream.update(Phase::Start, sensor_point(1, (-1000, 2000)));
+                stream.complete();
+                stream.update(Phase::Start, sensor_point(2, (-500, 2000)));
+                stream.complete();
+                stream.update(Phase::Move, sensor_point(1, last));
+                stream.complete();
+                let phase = if release_only {
+                    Phase::End
+                } else {
+                    Phase::Move
+                };
+                stream.update(phase, sensor_point(1, wrapped));
+                assert_eq!(
+                    stream.front().unwrap(),
+                    &json!({
+                        "type":"touchEnd", "touchPoints":[{"id":1,"x":f64::from(last.0),"y":f64::from(last.1)}]
+                    })
+                );
+                stream.complete();
+                assert!(!stream.update(Phase::Move, sensor_point(1, wrapped)));
+                assert!(!stream.update(Phase::End, sensor_point(1, wrapped)));
+                assert!(stream.contains(2));
+                assert!(stream.front().is_none());
+                assert!(stream.update(Phase::Start, sensor_point(1, wrapped)));
+            }
+        }
+    }
+
+    #[test]
+    fn a_continuous_pivot_can_travel_back_across_the_sensor_without_ending_the_contact() {
+        let mut stream = TouchStream::default();
+        stream.update(Phase::Start, sensor_point(1, (-1000, 2000)));
+        stream.complete();
+        for y in [2500, 3100, 2500, 2000, 1500, 1364] {
+            stream.update(Phase::Move, sensor_point(1, (-1000, y)));
+            assert_eq!(stream.front().unwrap()["type"], "touchMove");
+            assert!(stream.contains(1));
+            stream.complete();
+        }
+        stream.update(Phase::End, sensor_point(1, (-1000, 1364)));
+        assert_eq!(stream.front().unwrap()["touchPoints"][0]["y"], 1364.0);
     }
 
     #[test]

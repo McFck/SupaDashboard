@@ -74,6 +74,26 @@ describe('configured pull state', () => {
     expect(updatePull(overshoot.state, 0, 47.99, bindings).snapshot?.armed).toBe(false);
   });
 
+  it.each([
+    [0, 1, 'swipeDown'],
+    [0, -1, 'swipeUp'],
+    [1, 0, 'swipeRight'],
+    [-1, 0, 'swipeLeft'],
+  ] as const)('allows a %s,%s pull to pivot before release', (x, y, direction) => {
+    const bindings = pullBindingsFor(prev, 0);
+    bindings.swipeLeft = { kind: 'variant', variant: 1 };
+    bindings.swipeRight = { kind: 'variant', variant: 1 };
+    const start = beginPull(4, 0, 0, 200, 200);
+    const first = updatePull(start, x * 8, y * 8, bindings);
+    expect(first.snapshot).toMatchObject({ direction, armed: false });
+    const origin = updatePull(first.state, 0, 0, bindings);
+    const reversed = updatePull(origin.state, x * -100, y * -100, bindings);
+    expect(reversed.snapshot?.armed).toBe(true);
+    expect(reversed.snapshot?.direction).not.toBe(direction);
+    const resumed = updatePull(reversed.state, x * 60, y * 60, bindings);
+    expect(resumed.snapshot).toMatchObject({ direction, armed: true });
+  });
+
   it('keeps bindings resolving to the active variant out of the pull map', () => {
     const one: ControlConfig = {
       ...prev,

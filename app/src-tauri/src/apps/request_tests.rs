@@ -1,6 +1,22 @@
 use super::model::{Request, Windows, parse_request};
 
 #[test]
+fn quit_cannot_force_termination_or_pretend_to_target_one_window() {
+    for extra in [
+        serde_json::json!({}),
+        serde_json::json!({"force":true}),
+        serde_json::json!({"windows":"main"}),
+    ] {
+        let mut raw = serde_json::json!({"op":"quit", "app":"aumid:Chat"});
+        raw.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        let result = parse_request(serde_json::from_value(raw).unwrap());
+        assert_eq!(result.is_ok(), extra.as_object().unwrap().is_empty());
+    }
+}
+
+#[test]
 fn window_selection_defaults_and_validation_protect_the_native_boundary() {
     let parse = |extra: serde_json::Value| {
         let mut raw = serde_json::json!({ "op": "toggle", "app": "aumid:Steam" });

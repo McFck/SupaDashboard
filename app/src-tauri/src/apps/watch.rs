@@ -3,6 +3,7 @@
 use super::exit::ExitWaits;
 use super::identity::{Matcher, Names};
 use super::model::AppState;
+use super::selection::WindowSelection;
 use super::windows::Scan;
 use serde::Serialize;
 use std::cell::{Cell, RefCell};
@@ -16,11 +17,11 @@ use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook, UnhookWinEvent};
 use windows::Win32::UI::WindowsAndMessaging::{
     DispatchMessageW, EVENT_OBJECT_CLOAKED, EVENT_OBJECT_CREATE, EVENT_OBJECT_DESTROY,
-    EVENT_OBJECT_HIDE, EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_UNCLOAKED,
-    EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZESTART, GA_PARENT,
-    GetAncestor, GetDesktopWindow, GetMessageW, KillTimer, MSG, OBJID_WINDOW, PostThreadMessageW,
-    SetTimer, TranslateMessage, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_APP, WM_QUIT,
-    WM_TIMER,
+    EVENT_OBJECT_HIDE, EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_NAMECHANGE,
+    EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MINIMIZEEND,
+    EVENT_SYSTEM_MINIMIZESTART, GA_PARENT, GetAncestor, GetDesktopWindow, GetMessageW, KillTimer,
+    MSG, OBJID_WINDOW, PostThreadMessageW, SetTimer, TranslateMessage, WINEVENT_OUTOFCONTEXT,
+    WINEVENT_SKIPOWNPROCESS, WM_APP, WM_QUIT, WM_TIMER,
 };
 
 /// Events arrive in bursts (a window opening fires several); one recompute serves the burst.
@@ -30,37 +31,57 @@ const DEBOUNCE_MS: u32 = 150;
 pub struct Watched {
     pub key: String,
     pub slug: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection: Option<WindowSelection>,
     #[serde(flatten)]
     pub state: AppState,
 }
 
+#[derive(Clone)]
+pub struct WatchSet {
+    pub matchers: Vec<Matcher>,
+    pub selections: Vec<WindowSelection>,
+}
+
 /// The watched apps' states, their window handles, and the processes whose exit changes a state.
-fn snapshot(
-    matchers: &[Matcher],
-    names: &mut Names,
-) -> (Vec<Watched>, HashSet<isize>, HashSet<u32>) {
+fn snapshot(watched: &WatchSet, names: &mut Names) -> (Vec<Watched>, HashSet<isize>, HashSet<u32>) {
     let mut scan = Scan::new(names);
     let mut windows = HashSet::new();
     let mut pids = HashSet::new();
-    let states = matchers
+    let states = watched
+        .matchers
         .iter()
-        .map(|matcher| {
+        .flat_map(|matcher| {
             let wins = scan.windows(matcher);
             windows.extend(wins.iter().map(|win| win.hwnd));
             pids.extend(wins.iter().map(|win| win.pid));
             pids.extend(scan.pids(matcher));
-            Watched {
+            let mut states = vec![Watched {
                 key: matcher.key.clone(),
                 slug: matcher.slug.clone(),
+                selection: None,
                 state: scan.state(matcher),
+            }];
+            for selection in watched
+                .selections
+                .iter()
+                .filter(|selection| selection.slug == matcher.slug)
+            {
+                states.push(Watched {
+                    key: matcher.key.clone(),
+                    slug: matcher.slug.clone(),
+                    selection: Some(selection.clone()),
+                    state: super::selection::state(&wins, selection, scan.foreground_root()),
+                });
             }
+            states
         })
         .collect();
     (states, windows, pids)
 }
 
-pub fn current(matchers: &[Matcher]) -> Vec<Watched> {
-    snapshot(matchers, &mut Names::default()).0
+pub fn current(watched: &WatchSet) -> Vec<Watched> {
+    snapshot(watched, &mut Names::default()).0
 }
 
 thread_local! {
@@ -106,12 +127,13 @@ unsafe extern "system" fn on_event(
     }
 }
 
-fn run(app: AppHandle, shared: Arc<Mutex<Vec<Matcher>>>, ready: mpsc::Sender<Result<u32, String>>) {
+fn run(app: AppHandle, shared: Arc<Mutex<WatchSet>>, ready: mpsc::Sender<Result<u32, String>>) {
     let ranges = [
         (EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND),
         (EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MINIMIZEEND),
         (EVENT_OBJECT_CREATE, EVENT_OBJECT_HIDE),
         (EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE),
+        (EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE),
         (EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED),
     ];
     let hooks: Vec<HWINEVENTHOOK> = ranges
@@ -140,7 +162,9 @@ fn run(app: AppHandle, shared: Arc<Mutex<Vec<Matcher>>>, ready: mpsc::Sender<Res
     let mut last: Vec<Watched> = Vec::new();
     let mut exits = ExitWaits::new();
     let mut refresh = |last: &mut Vec<Watched>| {
-        let matchers = shared.lock().map(|list| list.clone()).unwrap_or_default();
+        let Ok(matchers) = shared.lock().map(|list| list.clone()) else {
+            return;
+        };
         let (states, windows, pids) = snapshot(&matchers, &mut Names::default());
         TRACKED.with(|set| *set.borrow_mut() = windows);
         exits.sync(&pids);
@@ -174,7 +198,7 @@ fn run(app: AppHandle, shared: Arc<Mutex<Vec<Matcher>>>, ready: mpsc::Sender<Res
 
 struct Running {
     thread: u32,
-    matchers: Arc<Mutex<Vec<Matcher>>>,
+    matchers: Arc<Mutex<WatchSet>>,
 }
 
 /// Owns the watcher thread. It runs only while some app is watched.
@@ -184,7 +208,7 @@ pub struct AppsHub {
 }
 
 impl AppsHub {
-    pub fn watch(&self, app: &AppHandle, matchers: Vec<Matcher>) -> Result<(), String> {
+    pub fn watch(&self, app: &AppHandle, matchers: WatchSet) -> Result<(), String> {
         let mut running = self.running.lock().map_err(|_| "apps hub poisoned")?;
         if let Some(active) = running.as_ref() {
             *active.matchers.lock().map_err(|_| "apps hub poisoned")? = matchers;

@@ -5,7 +5,17 @@
   import Choice from '../../plugins/ui/Choice.svelte';
   import ParamControl from '../../plugins/ui/ParamControl.svelte';
   import type { Param } from '../../plugins/contracts';
-  import { APP_STATES, isAppKey, parseAppVariable, type AppField } from '../keys';
+  import {
+    APP_STATES,
+    appVariable,
+    isAppKey,
+    parseAppVariable,
+    windowState,
+    type AppField,
+  } from '../keys';
+  import { windowsParam, windowParam, titleParam } from '../window-params';
+  import type { WindowSelection } from '../window-selection';
+  import { Label } from '$lib/components/ui/label';
   import {
     appKeyForName,
     appKeyForSlug,
@@ -34,7 +44,14 @@
   const fieldId = $props.id();
   const parsed = $derived(parseAppVariable(value));
   let chosen = $state<AppField | null>(null);
-  const field = $derived(fixedField ?? chosen ?? parsed?.field ?? 'running');
+  const field = $derived(fixedField ?? parsed?.field ?? chosen ?? 'running');
+  const selection: WindowSelection = $derived(parsed?.selection ?? { windows: 'main', title: '' });
+  const windowArgs = $derived({
+    app: parsed ? appKeyForSlug(parsed.slug) : undefined,
+    windows: selection.windows,
+    title: selection.title,
+    window: selection.title,
+  });
   let typed = $state<string | null>(null);
   const shown = $derived(
     typed ?? (parsed ? appName(appKeyForSlug(parsed.slug) ?? parsed.slug) : ''),
@@ -51,7 +68,7 @@
     if (key && slug) {
       rememberApp(key);
       typed = null;
-      const id = `app.${slug}.${field}`;
+      const id = appVariable(slug, field, selection);
       if (id !== value) {
         onchange(id);
       }
@@ -66,7 +83,19 @@
   function setField(next: string) {
     chosen = next as AppField;
     if (parsed) {
-      onchange(`app.${parsed.slug}.${chosen}`);
+      onchange(appVariable(parsed.slug, chosen, selection));
+    }
+  }
+
+  function setSelection(next: WindowSelection) {
+    if (parsed) {
+      onchange(appVariable(parsed.slug, field, next));
+    }
+  }
+
+  function setWindows(windows: unknown) {
+    if (windows === 'main' || windows === 'all' || windows === 'window' || windows === 'title') {
+      setSelection({ windows, title: selection.title });
     }
   }
 </script>
@@ -107,5 +136,36 @@
         onchange={setField}
       />
     </div>
+  {/if}
+  {#if parsed && windowState(field)}
+    <div class="grid gap-1.5">
+      <Label
+        for={`${fieldId}-windows`}
+        class="text-xs text-muted-foreground">Windows</Label
+      >
+      <ParamControl
+        id={`${fieldId}-windows`}
+        param={windowsParam}
+        value={selection.windows}
+        args={windowArgs}
+        onchange={setWindows}
+      />
+    </div>
+    {#if selection.windows === 'window' || selection.windows === 'title'}
+      {@const windowField = selection.windows === 'window' ? windowParam : titleParam}
+      <div class="grid gap-1.5">
+        <Label
+          for={`${fieldId}-title`}
+          class="text-xs text-muted-foreground">{windowField.label}</Label
+        >
+        <ParamControl
+          id={`${fieldId}-title`}
+          param={windowField}
+          value={selection.title}
+          args={windowArgs}
+          onchange={(title) => setSelection({ ...selection, title: String(title) })}
+        />
+      </div>
+    {/if}
   {/if}
 </div>

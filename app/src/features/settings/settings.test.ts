@@ -44,7 +44,7 @@ describe('settings migration', () => {
       slots: { 'bottom-strip': ['prev'], dock: ['prev'] },
     };
     const s = migrate(v1);
-    expect(s.version).toBe(13);
+    expect(s.version).toBe(14);
     expect(s.deck.pages[0].applet).toBe('subway');
     expect(s.display).toMatchObject({
       monitor: 'X',
@@ -95,7 +95,7 @@ describe('settings migration', () => {
 
   it('uses defaults for missing data and refuses to overwrite a future settings version', () => {
     expect(migrate(undefined)).toEqual(DEFAULTS);
-    expect(() => migrate({ version: 14 })).toThrow('newer than this app supports');
+    expect(() => migrate({ version: 15 })).toThrow('newer than this app supports');
     expect(() => migrate({ version: 99 })).toThrow('newer than this app supports');
     expect(() => migrate({ version: '5', controls: [] })).toThrow('Unsupported settings version');
   });
@@ -343,7 +343,7 @@ describe('settings migration', () => {
       pageRotation: { intervalSeconds: 10 },
     };
     const migrated = migrate(interrupted);
-    expect(migrated).toMatchObject({ version: 13, deck: { pages: [{ applet: 'subway' }] } });
+    expect(migrated).toMatchObject({ version: 14, deck: { pages: [{ applet: 'subway' }] } });
     expect(migrated).not.toHaveProperty('pageRotation');
   });
 
@@ -421,7 +421,7 @@ describe('settings v7 to v8', () => {
     'moves skin %s to the pages and the settings and layouts to the applet keys',
     (_, skin, applets) => {
       const migrated = migrate(v7File(skin));
-      expect(migrated.version).toBe(13);
+      expect(migrated.version).toBe(14);
       expect(migrated).not.toHaveProperty('skin');
       expect(migrated).not.toHaveProperty('skinSettings');
       expect(migrated).not.toHaveProperty('skinLayouts');
@@ -484,7 +484,7 @@ describe('settings v9 to v10', () => {
       },
     };
     const migrated = migrate(file);
-    expect(migrated.version).toBe(13);
+    expect(migrated.version).toBe(14);
     expect(migrated.appletLayouts.subway['page-1']).toEqual({
       strip: [
         ...strip,

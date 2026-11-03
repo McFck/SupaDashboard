@@ -3,6 +3,7 @@ import type { ControlConfig } from './model';
 import { stateIdAt } from './variants';
 import type { StateBinding } from '../automation/scenario';
 import type { VariableSnapshot } from '../automation/variables';
+import { parseAppVariable, validAppVariable } from '../apps/keys';
 
 export function validateStateConfiguration(
   control: Pick<ControlConfig, 'variants' | 'stateBindings' | 'stateRoles'>,
@@ -35,7 +36,14 @@ function validateBinding(
 ) {
   const issues: { path: string; message: string }[] = [];
   const variable = variables?.records[binding.variableId];
-  if (!binding.variableId || !variable || variable.definition.available === false)
+  // A draft's scoped variable starts being watched only after Save.
+  const scoped = parseAppVariable(binding.variableId)?.selection;
+  if (
+    !validAppVariable(binding.variableId) ||
+    !binding.variableId ||
+    (!variable && !scoped) ||
+    variable?.definition.available === false
+  )
     issues.push({ path: `${path}.variableId`, message: 'Bound variable is unavailable' });
   const seen = new Set<string>();
   for (const item of binding.cases) {
@@ -45,13 +53,16 @@ function validateBinding(
     seen.add(key);
     if (!states.has(item.stateId))
       issues.push({ path: `${path}.cases`, message: 'Bound state is unavailable' });
-    if (!variable) continue;
+    if (!variable && !scoped) {
+      continue;
+    }
+    const type = variable?.definition.type ?? 'boolean';
     const validType =
-      variable.definition.type === 'boolean'
+      type === 'boolean'
         ? typeof item.value === 'boolean'
-        : variable.definition.type === 'integer'
+        : type === 'integer'
           ? typeof item.value === 'number' && Number.isSafeInteger(item.value)
-          : variable.definition.type === 'float'
+          : type === 'float'
             ? typeof item.value === 'number' && Number.isFinite(item.value)
             : typeof item.value === 'string';
     if (!validType)

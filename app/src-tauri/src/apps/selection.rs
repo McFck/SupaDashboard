@@ -1,5 +1,36 @@
 //! Selection is independent of focus; the same snapshot drives Toggle and its action.
-use super::model::{ToggleFacts, Win, Windows, is_app_window};
+use super::model::{AppState, ToggleFacts, Win, Windows, is_app_window};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct WindowSelection {
+    pub slug: String,
+    pub windows: Windows,
+    pub title: String,
+}
+
+impl WindowSelection {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.slug.is_empty()
+            || self.slug.len() > 1024
+            || !self
+                .slug
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
+        {
+            return Err("The app is not valid".into());
+        }
+        if self.title.len() > 1024
+            || self.title.chars().any(char::is_control)
+            || (matches!(self.windows, Windows::Title | Windows::Window)
+                && self.title.trim().is_empty())
+        {
+            return Err("The window title is not valid".into());
+        }
+        Ok(())
+    }
+}
 
 /// The windows a command acts on, in Z order (front first): restoring them back to front keeps that order and
 /// leaves the most recently active one focused. `Main` is the one oldest window, which does not change with focus.
@@ -41,6 +72,17 @@ pub fn toggle_facts(selected: &[Win], running: bool, foreground_root: isize) -> 
         shown: !selected.is_empty(),
         foreground: selected.iter().any(|win| win.hwnd == foreground_root),
         minimized: !selected.is_empty() && selected.iter().all(|win| win.minimized),
+    }
+}
+
+pub fn state(wins: &[Win], selection: &WindowSelection, foreground_root: isize) -> AppState {
+    let selected = select(wins, selection.windows, &selection.title);
+    AppState {
+        running: !selected.is_empty(),
+        focused: selected.iter().any(|win| win.hwnd == foreground_root),
+        minimized: !selected.is_empty() && selected.iter().all(|win| win.minimized),
+        visible: selected.iter().any(|win| !win.minimized),
+        display: String::new(),
     }
 }
 
@@ -165,5 +207,41 @@ mod tests {
         assert!(select(&steam(), Windows::Title, "missing").is_empty());
         assert!(select(&steam(), Windows::Window, "missing").is_empty());
         assert_eq!(plan_toggle(toggle_facts(&[], false, 0)), Plan::Launch);
+    }
+
+    #[test]
+    fn scoped_states_ignore_the_apps_other_windows_and_reset_when_the_target_disappears() {
+        let mut wins = steam();
+        wins[1].minimized = true;
+        let selection = WindowSelection {
+            slug: "steam".into(),
+            windows: Windows::Window,
+            title: "Friends List".into(),
+        };
+        let result = state(&wins, &selection, 10);
+        assert!(result.minimized);
+        assert!(!result.visible && !result.focused);
+        assert!(state(&wins, &selection, 30).focused);
+        wins.remove(1);
+        assert_eq!(state(&wins, &selection, 10), AppState::default());
+    }
+
+    #[test]
+    fn watch_selections_reject_invalid_slugs_and_titles() {
+        let mut selection = WindowSelection {
+            slug: "steam".into(),
+            windows: Windows::Window,
+            title: "Friends List".into(),
+        };
+        assert!(selection.validate().is_ok());
+        for title in ["", " ", "bad\nname"] {
+            selection.title = title.into();
+            assert!(selection.validate().is_err());
+        }
+        selection.title = "x".repeat(1025);
+        assert!(selection.validate().is_err());
+        selection.title = "Friends List".into();
+        selection.slug = "../steam".into();
+        assert!(selection.validate().is_err());
     }
 }

@@ -3,6 +3,7 @@ import { DEFAULT_PAGE } from './defaults';
 import { isRecord } from '../automation/plain-data';
 import { normalizeControl } from '../automation/normalize-control';
 import { actionRef, walkSteps } from '../automation/scenario';
+import { appVariable, parseAppVariable, windowState } from '../apps/keys';
 
 export function object(value: unknown): Record<string, unknown> {
   if (value === undefined || value === null) {
@@ -97,7 +98,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 13) {
+  if (typeof saved.version === 'number' && saved.version > 14) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -177,10 +178,10 @@ export function upgrade(input: Record<string, unknown>) {
     };
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
-  if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(saved.version as number)) {
+  if (![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].includes(saved.version as number)) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
-  if (![8, 9, 10, 11, 12, 13].includes(saved.version as number)) {
+  if (![8, 9, 10, 11, 12, 13, 14].includes(saved.version as number)) {
     saved = toV8(saved);
   }
   if (saved.version === 8) {
@@ -215,6 +216,39 @@ export function upgrade(input: Record<string, unknown>) {
       control.scenario = scenario;
     }
     saved = { ...saved, version: 13 };
+  }
+  if (saved.version === 13) {
+    // v14 gives window-state conditions and bindings an explicit Main window default.
+    const scoped = (id: string) => {
+      const parsed = parseAppVariable(id);
+      return parsed && windowState(parsed.field) && !parsed.selection
+        ? appVariable(parsed.slug, parsed.field, { windows: 'main', title: '' })
+        : id;
+    };
+    for (const control of rawControls) {
+      if (Array.isArray(control.stateBindings)) {
+        for (const value of control.stateBindings) {
+          const binding = object(value);
+          if (typeof binding.variableId === 'string') {
+            binding.variableId = scoped(binding.variableId);
+          }
+        }
+      }
+      const { scenario } = normalizeControl(control);
+      if (scenario) {
+        walkSteps(scenario, (step) => {
+          if (step.kind === 'if' && step.condition.kind === 'compare') {
+            for (const operand of [step.condition.left, step.condition.right]) {
+              if (operand.kind === 'variable') {
+                operand.id = scoped(operand.id);
+              }
+            }
+          }
+        });
+        control.scenario = scenario;
+      }
+    }
+    saved = { ...saved, version: 14 };
   }
   const display = object(saved.display);
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {

@@ -322,7 +322,15 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
         }
         Op::Minimize if !running => Err(not_running(label)),
         Op::Close if !running => Err(not_running(label)),
+        Op::Quit if !running => Err(not_running(label)),
         Op::Minimize => minimize(&selected, label),
         Op::Close => close(&mut scan, matcher, &wins, command.force),
+        Op::Quit => {
+            let mut pids = scan.pids(matcher);
+            pids.extend(wins.iter().map(|win| win.pid));
+            pids.sort_unstable();
+            pids.dedup();
+            super::quit::quit(&pids, label)
+        }
     }
 }

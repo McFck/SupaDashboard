@@ -1,11 +1,12 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { primaryMonitor } from '@tauri-apps/api/window';
 import { buildMonitorOptions, type MonitorOption } from '../features/display/monitor-options';
-import { APP_ACTIONS, appRequest, isAppKey } from '../features/apps/keys';
+import { APP_ACTIONS, appRequest } from '../features/apps/keys';
+import { windowsParam, windowParam, titleParam } from '../features/apps/window-params';
 import { appParam } from '../features/apps/picker.svelte';
 import { ActionFailure } from '../features/automation/action-failure';
 import type { Param, Plugin } from '../features/plugins/contracts';
-import { listAppWindows, runAppCommand } from '../platform/apps';
+import { runAppCommand } from '../platform/apps';
 import { monitors } from '../platform/window';
 
 const TITLES = {
@@ -14,6 +15,7 @@ const TITLES = {
   toggle: 'Toggle app',
   minimize: 'Minimize app',
   close: 'Close app',
+  quit: 'Quit app',
 } as const;
 
 let screens: MonitorOption[] = [];
@@ -61,40 +63,6 @@ const forceParam = (label: string): Param => ({
   default: false,
 });
 
-const windowsParam: Param = {
-  key: 'windows',
-  label: 'Windows',
-  type: 'select',
-  default: 'all',
-  suggestions: [
-    { value: 'main', label: 'Main window' },
-    { value: 'all', label: 'All windows' },
-    { value: 'window', label: 'Specific window' },
-    { value: 'title', label: 'Window title contains' },
-  ],
-};
-let openWindows: string[] = [];
-const windowParam: Param = {
-  key: 'window',
-  label: 'Window',
-  type: 'select',
-  searchable: true,
-  default: '',
-  suggestions: () => openWindows.map((title) => ({ value: title, label: title })),
-  refresh: async (args) => {
-    const app = args?.app;
-    openWindows = isTauri() && isAppKey(app) ? await listAppWindows(app) : [];
-  },
-  visible: (args) => args.windows === 'window',
-};
-const titleParam: Param = {
-  key: 'title',
-  label: 'Window title contains',
-  type: 'text',
-  default: '',
-  visible: (args) => args.windows === 'title',
-};
-
 const PARAMS: Record<(typeof APP_ACTIONS)[number], Param[]> = {
   open: [appParam],
   focus: [appParam, windowsParam, windowParam, titleParam, displayParam],
@@ -109,6 +77,7 @@ const PARAMS: Record<(typeof APP_ACTIONS)[number], Param[]> = {
   ],
   minimize: [appParam, windowsParam, windowParam, titleParam],
   close: [appParam, forceParam('Force')],
+  quit: [appParam],
 };
 
 export const appsPlugin: Plugin = {

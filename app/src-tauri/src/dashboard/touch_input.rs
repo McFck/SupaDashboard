@@ -7,12 +7,13 @@ use webview2_com::{
     CallDevToolsProtocolMethodCompletedHandler, Microsoft::Web::WebView2::Win32::*,
 };
 use windows::Win32::{
-    Foundation::{HWND, POINT, WPARAM},
+    Foundation::{HWND, POINT, RECT, WPARAM},
     Graphics::Gdi::ScreenToClient,
     UI::{
         HiDpi::GetDpiForWindow,
         Input::Pointer::{
-            GetPointerTouchInfo, GetPointerType, POINTER_FLAG_CANCELED, POINTER_TOUCH_INFO,
+            GetPointerDeviceRects, GetPointerTouchInfo, GetPointerType, POINTER_FLAG_CANCELED,
+            POINTER_TOUCH_INFO,
         },
         WindowsAndMessaging::*,
     },
@@ -81,7 +82,10 @@ impl TouchInput {
             self.update_window(hwnd, id, screen, matches!(phase, Phase::End))?;
             return Ok(false);
         }
-        self.browser_contact(hwnd, id, point, phase)
+        let mut device = RECT::default();
+        let mut display = RECT::default();
+        unsafe { GetPointerDeviceRects(info.pointerInfo.sourceDevice, &mut device, &mut display)? };
+        self.browser_contact(hwnd, id, point, phase, display.into())
     }
 
     fn browser_contact(
@@ -90,6 +94,7 @@ impl TouchInput {
         id: u32,
         mut point: POINT,
         phase: Phase,
+        surface: super::geometry::Geometry,
     ) -> windows::core::Result<bool> {
         let screen = (point.x, point.y);
         unsafe { ScreenToClient(hwnd, &mut point) }.ok()?;
@@ -111,6 +116,8 @@ impl TouchInput {
                 x: f64::from(point.x) / scale,
                 y: f64::from(point.y) / scale,
                 origin: screen,
+                screen,
+                surface,
             },
         ))
     }

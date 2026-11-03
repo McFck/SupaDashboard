@@ -1,5 +1,6 @@
 import { compileExpression } from './expression-parser';
 import { isRecord } from './plain-data';
+import { validAppVariable } from '../apps/keys';
 import {
   actionRef,
   isValidDelay,
@@ -44,7 +45,7 @@ function validOperand(operand: unknown) {
     );
   }
   if (operand.kind === 'variable') {
-    return typeof operand.id === 'string' && !!operand.id;
+    return typeof operand.id === 'string' && !!operand.id && validAppVariable(operand.id);
   }
   return operand.kind === 'state' && typeof operand.controlId === 'string' && !!operand.controlId;
 }

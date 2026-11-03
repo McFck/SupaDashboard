@@ -3,6 +3,9 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { isRecord } from '../features/automation/plain-data';
 import type { AppRequest } from '../features/apps/keys';
+import { readWindowSelection, type WindowSelection } from '../features/apps/window-selection';
+
+export type AppWindowSelection = WindowSelection & { slug: string };
 
 export type WatchedApp = {
   key: string;
@@ -12,6 +15,7 @@ export type WatchedApp = {
   minimized: boolean;
   visible: boolean;
   display: string;
+  selection?: WindowSelection;
 };
 export type AppRow = {
   key: string;
@@ -35,6 +39,7 @@ export function parseWatched(raw: unknown): WatchedApp[] {
       typeof item.slug === 'string' &&
       /^[a-z0-9_-]+$/.test(item.slug) &&
       typeof item.display === 'string' &&
+      (item.selection === undefined || !!readWindowSelection(item.selection)) &&
       FLAGS.every((flag) => typeof item[flag] === 'boolean'),
   );
 }
@@ -64,7 +69,10 @@ export async function listAppWindows(app: string): Promise<string[]> {
 
 export const runAppCommand = (request: AppRequest) => invoke<void>('app_command', { request });
 
-export type AppsLink = { watch(keys: string[]): void; stop(): void };
+export type AppsLink = {
+  watch(keys: string[], selections: AppWindowSelection[]): void;
+  stop(): void;
+};
 
 /**
  * One native subscription for the watched keys. `watch` replaces the set; an empty set releases the
@@ -76,7 +84,7 @@ export function appsLink(onState: (apps: WatchedApp[]) => void, onError: () => v
   let queue: Promise<unknown> = Promise.resolve();
   const enqueue = (job: () => Promise<void>) => (queue = queue.catch(() => {}).then(job));
   return {
-    watch(keys) {
+    watch(keys, selections) {
       if (!isTauri()) {
         return;
       }
@@ -96,7 +104,7 @@ export function appsLink(onState: (apps: WatchedApp[]) => void, onError: () => v
             onState(parseWatched(event.payload));
           }
         });
-        const snapshot = parseWatched(await invoke<unknown>('apps_watch', { keys }));
+        const snapshot = parseWatched(await invoke<unknown>('apps_watch', { keys, selections }));
         if (mine === epoch) {
           onState(snapshot);
         }
