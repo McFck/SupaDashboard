@@ -1,6 +1,6 @@
 <script lang="ts">
   import Sparkles from '@lucide/svelte/icons/sparkles';
-  import { Popover } from 'bits-ui';
+  import { mergeProps, Popover } from 'bits-ui';
   import { Button } from '$lib/components/ui/button';
   import Hint from '$lib/components/ui/tooltip/hint.svelte';
   import { EFFECTS, type EffectId } from './catalogue';
@@ -53,8 +53,7 @@
       <Hint text={gestureOwns ? undefined : label}>
         {#snippet children(hint)}
           <Button
-            {...hint}
-            {...props}
+            {...mergeProps(hint, props)}
             variant="ghost"
             size={gestureOwns ? 'sm' : 'icon-sm'}
             aria-label={gestureOwns ? 'Replace gesture effect' : label}
