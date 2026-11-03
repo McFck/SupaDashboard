@@ -250,6 +250,7 @@
         aria-label={label}
         disabled={pressFeedbackDisabled}
         use:gestures={{
+          ...tile.gestureEffects,
           onTrigger,
           captureTrigger: tile.capture,
           enabled: !pressFeedbackDisabled,

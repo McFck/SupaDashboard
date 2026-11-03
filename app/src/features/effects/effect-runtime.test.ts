@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EffectRuntime, validTileEffects } from './effect-runtime';
+import { EffectRuntime, releasePullEffects, validTileEffects } from './effect-runtime';
 import { isTriggerPacket } from '../automation/capture';
 import {
   ScenarioRunner,
@@ -82,6 +82,79 @@ describe('tile effect ownership', () => {
     runtime.start(packet(), 'lightning');
     expect(runtime.snapshot()[0].loop).toBe(false);
     runtime.clear();
+  });
+
+  it.each(['swipeUp', 'swipeDown', 'swipeLeft', 'swipeRight'] as const)(
+    'previews action effects for an armed %s without duplicate loops',
+    (trigger) => {
+      vi.useFakeTimers();
+      const runtime = new EffectRuntime(() => {});
+      const captured: TriggerPacket = {
+        ...packet(trigger),
+        effect: undefined,
+        steps: [{ id: 'action', kind: 'action', action: { id: 'open' }, effect: 'hearts' }],
+      };
+      runtime.hold(captured);
+      runtime.hold(captured);
+      runtime.start(captured, 'hearts');
+      vi.advanceTimersByTime(4000);
+      expect(runtime.snapshot()).toMatchObject([{ effect: 'hearts', loop: true, stopping: false }]);
+      runtime.end(captured.interactionId);
+      vi.advanceTimersByTime(200);
+      expect(runtime.snapshot()).toEqual([]);
+      runtime.hold(captured);
+      expect(runtime.snapshot()).toMatchObject([{ effect: 'hearts', loop: true, stopping: false }]);
+      runtime.clear();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it('does not replay pull effects when delayed actions run after the preview has faded', async () => {
+    vi.useFakeTimers();
+    const runtime = new EffectRuntime(() => {});
+    const runAction = vi.fn();
+    const captured: TriggerPacket = {
+      ...packet('swipeUp'),
+      effect: undefined,
+      steps: [
+        { id: 'wait', kind: 'delay', ms: 1000 },
+        { id: 'first', kind: 'action', action: { id: 'open' }, effect: 'hearts' },
+        {
+          id: 'branch',
+          kind: 'if',
+          condition: {
+            kind: 'compare',
+            left: { kind: 'literal', value: 1 },
+            op: 'eq',
+            right: { kind: 'literal', value: 1 },
+          },
+          then: [{ id: 'second', kind: 'action', action: { id: 'close' }, effect: 'snow' }],
+          else: [],
+        },
+      ],
+    };
+    const original = structuredClone(captured);
+    runtime.hold(captured);
+    expect(runtime.snapshot().map((effect) => effect.effect)).toEqual(['hearts', 'snow']);
+    const released = releasePullEffects(captured);
+    runtime.end(captured.interactionId);
+    const runner = new ScenarioRunner({
+      runAction,
+      getVariable: () => undefined,
+      findVariable: () => undefined,
+      setVariable: async () => true,
+      getState: () => 'on',
+      setState: () => {},
+      emitEvent: async () => {},
+      effect: (source, effect, signal) => runtime.start(source, effect, signal),
+    });
+    const run = runner.run(released);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect((await run).status).toBe('completed');
+    expect(runAction).toHaveBeenCalledTimes(2);
+    expect(runtime.snapshot()).toEqual([]);
+    expect(captured).toEqual(original);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('starts an action effect only at its step and stops it when execution is aborted', async () => {

@@ -12,6 +12,7 @@ import { isTriggerPacket } from '../../automation/capture';
 import type { TriggerPacket } from '../../automation/scenario-runner';
 import { settings } from '../../settings/state.svelte';
 import type { GestureEffectHandlers } from '../input/gestures';
+import { releasePullEffects } from '../../effects/effect-runtime';
 
 type Host = { control(): ControlConfig; itemId?(): string | undefined };
 /** PullContent: settles a released pull and commits the action at the right moment. */
@@ -74,7 +75,10 @@ export class ControlTile {
   /** Run a captured trigger. A committed pull runs once its content has handed over to the new state. */
   run(captured: unknown, snapshot?: PullSnapshot, content?: PullRelease) {
     const original = isTriggerPacket(captured) ? captured : undefined;
-    const packet = original && snapshot ? { ...original, effect: undefined } : original;
+    const packet =
+      original && original === this.heldPacket && original.trigger.startsWith('swipe')
+        ? releasePullEffects(original)
+        : original;
     if (snapshot) {
       void content?.release(snapshot, () => {
         void this.#commands.dispatchRuntimePacket(packet);

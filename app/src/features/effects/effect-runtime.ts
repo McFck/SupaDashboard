@@ -1,6 +1,17 @@
 import type { TriggerPacket } from '../automation/scenario-runner';
 import { isEffectId, type EffectId } from './catalogue';
 import { isRecord } from '../automation/plain-data';
+import { walkSteps } from '../automation/scenario';
+
+/** Pull effects belong to the armed preview, even if execution is queued until after it fades. */
+export function releasePullEffects(packet: TriggerPacket): TriggerPacket {
+  const released = structuredClone(packet);
+  delete released.effect;
+  walkSteps({ triggers: { press: released }, events: [] }, (step) => {
+    delete step.effect;
+  });
+  return released;
+}
 
 export type TileEffect = {
   id: number;
@@ -80,6 +91,16 @@ export class EffectRuntime {
     this.holds.set(packet.interactionId, packet);
     if (packet.effect) {
       this.start(packet, packet.effect);
+    } else if (packet.trigger.startsWith('swipe')) {
+      const effects = new Set<EffectId>();
+      walkSteps({ triggers: { press: packet }, events: [] }, (step) => {
+        if (step.effect) {
+          effects.add(step.effect);
+        }
+      });
+      for (const effect of effects) {
+        this.start(packet, effect);
+      }
     }
   }
 
@@ -88,10 +109,10 @@ export class EffectRuntime {
       return;
     }
     const loop = this.holds.get(packet.interactionId)?.trigger === packet.trigger;
-    // Recognition already started the gesture effect before its action entered the runner.
+    // Recognition already started the held effect before its action entered the runner.
     if (
       loop &&
-      packet.effect === effect &&
+      (packet.effect === effect || packet.trigger.startsWith('swipe')) &&
       [...this.active.values()].some(
         (entry) =>
           entry.interaction === packet.interactionId &&
