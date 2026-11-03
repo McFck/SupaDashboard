@@ -1,34 +1,25 @@
 <script lang="ts">
-  // One glossy glyph per effect; hovering the element that holds it previews the effect in miniature.
+  // Fine-line monochrome glyph over a faint tinted light; hovering its holder previews the effect.
   import { cn } from '$lib/utils';
-  import type { EffectId } from './catalogue';
+  import { effectTint, type EffectId } from './catalogue';
 
   let { effect, class: className }: { effect: EffectId; class?: string } = $props();
   // Gradient ids are document-global, so every instance gets its own.
   const id = $props.id();
-  const fill = (name: string) => `url(#${id}-${name})`;
-  const PALETTE: Record<EffectId, [string, string]> = {
-    shake: ['#c4b5fd', '#7c3aed'],
-    hearts: ['#fda4af', '#e11d48'],
-    lightning: ['#fef08a', '#f59e0b'],
-    sparkles: ['#fef3c7', '#eab308'],
-    confetti: ['#f9a8d4', '#db2777'],
-    ripple: ['#a5f3fc', '#0891b2'],
-    glow: ['#fde68a', '#f97316'],
-    snow: ['#e0f2fe', '#38bdf8'],
-    fire: ['#fde047', '#ea580c'],
-    bubbles: ['#bae6fd', '#2563eb'],
-  };
-  const tone = $derived(PALETTE[effect]);
   const SPOKES = [0, 60, 120, 180, 240, 300];
-  const CONFETTI = [
-    { x: 4, y: 5, r: -20, c: '#f472b6' },
-    { x: 11, y: 3, r: 25, c: '#facc15' },
-    { x: 17, y: 6, r: -35, c: '#22d3ee' },
-    { x: 6, y: 13, r: 40, c: '#a3e635' },
-    { x: 14, y: 12, r: -10, c: '#a78bfa' },
-    { x: 9, y: 19, r: 15, c: '#fb923c' },
-    { x: 17, y: 18, r: -45, c: '#f472b6' },
+  const SLIVERS = [
+    { x: 5, y: 5, r: -25, o: 0.5 },
+    { x: 12, y: 3.5, r: 30, o: 1 },
+    { x: 18.5, y: 7, r: -50, o: 0.7 },
+    { x: 7.5, y: 12.5, r: 55, o: 0.85 },
+    { x: 15.5, y: 13, r: -15, o: 0.45 },
+    { x: 10, y: 19.5, r: 20, o: 0.7 },
+    { x: 18, y: 18.5, r: -40, o: 1 },
+  ];
+  const BUBBLES = [
+    { x: 9.5, y: 14.5, r: 5.5 },
+    { x: 17, y: 7.5, r: 3.2 },
+    { x: 18, y: 18, r: 2 },
   ];
 </script>
 
@@ -36,210 +27,169 @@
   viewBox="0 0 24 24"
   aria-hidden="true"
   class={cn('effect-icon size-6 shrink-0 overflow-visible', className)}
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.1"
+  stroke-linecap="round"
+  stroke-linejoin="round"
 >
   <defs>
-    <linearGradient
-      id="{id}-body"
-      x1="0"
-      y1="0"
-      x2="0"
-      y2="1"
-    >
+    <radialGradient id="{id}-light">
       <stop
         offset="0"
-        stop-color={tone[0]}
+        stop-color={effectTint(effect)}
+        stop-opacity="0.45"
       />
       <stop
         offset="1"
-        stop-color={tone[1]}
-      />
-    </linearGradient>
-    <radialGradient
-      id="{id}-orb"
-      cx="0.38"
-      cy="0.32"
-      r="0.75"
-    >
-      <stop
-        offset="0"
-        stop-color="#fff"
-        stop-opacity="0.95"
-      />
-      <stop
-        offset="0.35"
-        stop-color={tone[0]}
-      />
-      <stop
-        offset="1"
-        stop-color={tone[1]}
+        stop-color={effectTint(effect)}
+        stop-opacity="0"
       />
     </radialGradient>
   </defs>
+  <circle
+    class="light"
+    cx="12"
+    cy="12"
+    r="12"
+    fill="url(#{id}-light)"
+    stroke="none"
+  />
   {#if effect === 'shake'}
-    <g
+    <path
       class="lines"
-      stroke={tone[0]}
-      stroke-width="1.6"
-      stroke-linecap="round"
-      fill="none"
-    >
-      <path d="M3.5 9v6M1.5 10.5v3M20.5 9v6M22.5 10.5v3" />
-    </g>
+      d="M3.5 9.5v5M1.5 11v2M20.5 9.5v5M22.5 11v2"
+      stroke-opacity="0.5"
+    />
     <g class="shake">
       <rect
-        x="6.5"
-        y="5"
-        width="11"
-        height="14"
-        rx="3"
-        fill={fill('body')}
+        x="7"
+        y="5.5"
+        width="10"
+        height="13"
+        rx="2.5"
       />
       <path
-        d="M8.5 8.5c0-1 .7-1.5 1.6-1.5h3.6"
-        stroke="#fff"
-        stroke-opacity="0.55"
-        stroke-width="1.2"
-        stroke-linecap="round"
-        fill="none"
+        d="M9.5 15.5h5"
+        stroke-opacity="0.5"
       />
     </g>
   {:else if effect === 'hearts'}
     <path
       class="float"
-      d="M19 6.6s-2.4-1.4-2.4-3.2a1.4 1.4 0 0 1 2.4-1 1.4 1.4 0 0 1 2.4 1c0 1.8-2.4 3.2-2.4 3.2z"
-      fill={tone[0]}
+      d="M18.5 6.4s-2-1.2-2-2.7a1.15 1.15 0 0 1 2-.8 1.15 1.15 0 0 1 2 .8c0 1.5-2 2.7-2 2.7z"
+      stroke-opacity="0.6"
     />
-    <g class="beat">
+    <path
+      class="beat"
+      d="M11 20.5s-7.5-4.4-7.5-9.9A4.3 4.3 0 0 1 11 7.9a4.3 4.3 0 0 1 7.5 2.7c0 5.5-7.5 9.9-7.5 9.9z"
+    />
+  {:else if effect === 'lightning'}
+    <g class="flash">
+      <path d="M13 1.5 10.4 7l2.6 1.6-3.8 5.6 2.2 1.2-3.1 7.1" />
       <path
-        d="M11 21s-8-4.7-8-10.6A4.6 4.6 0 0 1 11 7.5a4.6 4.6 0 0 1 8 2.9C19 16.3 11 21 11 21z"
-        fill={fill('body')}
-      />
-      <ellipse
-        cx="7.3"
-        cy="10.6"
-        rx="1.7"
-        ry="1"
-        transform="rotate(-35 7.3 10.6)"
-        fill="#fff"
-        fill-opacity="0.6"
+        d="m10.4 7-3.2 3.3M13 8.6l3.6 2.6.6 3.3M9.2 14.2l-2.7 1.7"
+        stroke-width="0.7"
+        stroke-opacity="0.6"
       />
     </g>
-  {:else if effect === 'lightning'}
-    <path
-      class="flash"
-      d="M13.8 1.5 4.5 13.6h6.3L9.2 22.5l10.3-12.6h-6.4l.7-8.4z"
-      fill={fill('body')}
-      stroke="#fff"
-      stroke-opacity="0.35"
-      stroke-width="0.6"
-      stroke-linejoin="round"
-    />
   {:else if effect === 'sparkles'}
     <path
       class="twinkle"
-      d="M10 4c.7 4.6 1.4 5.3 6 6-4.6.7-5.3 1.4-6 6-.7-4.6-1.4-5.3-6-6 4.6-.7 5.3-1.4 6-6z"
-      fill={fill('body')}
+      d="M10 3.5c.5 4.8 1.2 5.5 6 6-4.8.5-5.5 1.2-6 6-.5-4.8-1.2-5.5-6-6 4.8-.5 5.5-1.2 6-6z"
     />
     <path
       class="twinkle late"
-      d="M18.5 2.5c.3 1.9.6 2.2 2.5 2.5-1.9.3-2.2.6-2.5 2.5-.3-1.9-.6-2.2-2.5-2.5 1.9-.3 2.2-.6 2.5-2.5z"
-      fill={tone[0]}
+      d="M18.5 2.5v4M16.5 4.5h4"
+      stroke-width="0.8"
     />
     <path
       class="twinkle"
-      d="M18 15c.3 1.6.5 1.8 2 2-1.5.2-1.7.4-2 2-.3-1.6-.5-1.8-2-2 1.5-.2 1.7-.4 2-2z"
-      fill={tone[0]}
+      d="M18 15.5v3.5M16.25 17.25h3.5"
+      stroke-width="0.8"
+      stroke-opacity="0.7"
     />
   {:else if effect === 'confetti'}
-    {#each CONFETTI as piece, index (index)}
+    {#each SLIVERS as piece, index (index)}
       <g
         class="fall"
         style:animation-delay="{index * -0.17}s"
       >
-        <rect
-          x={piece.x}
-          y={piece.y}
-          width="3.2"
-          height="1.8"
-          rx="0.5"
-          fill={piece.c}
-          transform="rotate({piece.r} {piece.x + 1.6} {piece.y + 0.9})"
+        <path
+          d="M{piece.x - 1.4} {piece.y}h2.8"
+          stroke-opacity={piece.o}
+          transform="rotate({piece.r} {piece.x} {piece.y})"
         />
       </g>
     {/each}
   {:else if effect === 'ripple'}
-    <g
-      fill="none"
-      stroke={tone[0]}
-    >
-      <circle
-        class="ring"
-        cx="12"
-        cy="12"
-        r="9.5"
-        stroke-width="1.2"
-        stroke-opacity="0.45"
-      />
-      <circle
-        class="ring late"
-        cx="12"
-        cy="12"
-        r="6.2"
-        stroke-width="1.5"
-        stroke-opacity="0.8"
-      />
-    </g>
+    <circle
+      class="ring"
+      cx="12"
+      cy="12"
+      r="10"
+      stroke-width="0.7"
+      stroke-opacity="0.35"
+    />
+    <circle
+      class="ring late"
+      cx="12"
+      cy="12"
+      r="6.5"
+      stroke-width="0.9"
+      stroke-opacity="0.7"
+    />
     <circle
       cx="12"
       cy="12"
-      r="3"
-      fill={fill('orb')}
+      r="2"
+      fill="currentColor"
+      stroke="none"
     />
   {:else if effect === 'glow'}
     <circle
       class="halo"
       cx="12"
       cy="12"
-      r="10.5"
-      fill={tone[0]}
-      fill-opacity="0.28"
+      r="9"
+      stroke-width="0.7"
+      stroke-dasharray="0.6 2.2"
+      stroke-opacity="0.6"
     />
     <circle
       cx="12"
       cy="12"
-      r="6.5"
-      fill={fill('orb')}
+      r="4.5"
+    />
+    <circle
+      cx="12"
+      cy="12"
+      r="1.6"
+      fill="currentColor"
+      stroke="none"
     />
   {:else if effect === 'snow'}
-    <g
-      class="spin"
-      stroke-width="1.7"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      fill="none"
-    >
+    <g class="spin">
       {#each SPOKES as angle (angle)}
         <path
-          d="M12 12V2.8M9.6 4.6 12 6.8l2.4-2.2"
-          stroke={angle < 90 || angle > 270 ? tone[0] : tone[1]}
+          d="M12 12V2.5M10.2 4.5 12 6.2l1.8-1.7M10.8 8.4 12 9.5l1.2-1.1"
           transform="rotate({angle} 12 12)"
+          stroke-width="0.9"
         />
       {/each}
     </g>
   {:else if effect === 'fire'}
     <g class="flicker">
       <path
-        d="M12 1.8c.9 3.6 6.3 6 6.3 12a6.3 6.3 0 0 1-12.6 0c0-2.9 1.5-4.7 3-5.9.1 1.8.9 3 2.1 3.4-.3-4-.3-7.1 1.2-9.5z"
-        fill={fill('body')}
+        d="M12 2c.8 3.4 6 5.8 6 11.5a6 6 0 0 1-12 0c0-2.8 1.4-4.5 2.9-5.6.1 1.7.8 2.8 2 3.2-.3-3.8-.3-6.8 1.1-9.1z"
       />
       <path
-        d="M12 12.8c.5 1.7 3 2.8 3 5.4a3 3 0 0 1-6 0c0-1.6 1-2.6 1.8-3.2.1.9.5 1.3 1 1.5-.1-1.5 0-2.7.2-3.7z"
-        fill="#fef9c3"
-        fill-opacity="0.9"
+        d="M12 13c.5 1.6 2.6 2.6 2.6 5a2.6 2.6 0 0 1-5.2 0c0-1.5.9-2.4 1.6-3"
+        stroke-opacity="0.6"
       />
     </g>
   {:else}
-    {#each [{ x: 9, y: 15, r: 5.5 }, { x: 17.5, y: 8, r: 3.4 }, { x: 18, y: 18.5, r: 2.2 }] as bubble, index (index)}
+    {#each BUBBLES as bubble, index (index)}
       <g
         class="rise"
         style:animation-delay="{index * -0.4}s"
@@ -248,10 +198,12 @@
           cx={bubble.x}
           cy={bubble.y}
           r={bubble.r}
-          fill={fill('orb')}
-          fill-opacity="0.85"
-          stroke={tone[0]}
-          stroke-width="0.6"
+        />
+        <path
+          d="M{bubble.x - bubble.r * 0.55} {bubble.y - bubble.r * 0.1}a{bubble.r * 0.6} {bubble.r *
+            0.6} 0 0 1 {bubble.r * 0.45} -{bubble.r * 0.45}"
+          stroke-width="0.7"
+          stroke-opacity="0.7"
         />
       </g>
     {/each}
@@ -259,10 +211,7 @@
 </svg>
 
 <style>
-  .effect-icon {
-    filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.35));
-  }
-  /* Only animated parts: the static spokes and confetti keep their attribute rotations. */
+  /* Only animated parts: the static spokes and slivers keep their attribute rotations. */
   :is(
     .shake,
     .lines,
@@ -275,13 +224,17 @@
     .halo,
     .spin,
     .flicker,
-    .rise
+    .rise,
+    .light
   ) {
     transform-box: fill-box;
     transform-origin: center;
   }
   /* Hovering or focusing the control that holds the icon plays its preview. */
   @media (prefers-reduced-motion: no-preference) {
+    :global(:is(:hover, :focus-visible)) > .effect-icon .light {
+      animation: halo 1.2s ease-in-out infinite;
+    }
     :global(:is(:hover, :focus-visible)) > .effect-icon .shake {
       animation: shake 0.45s ease-in-out infinite;
     }
@@ -310,7 +263,7 @@
       animation: halo 1.2s ease-in-out infinite;
     }
     :global(:is(:hover, :focus-visible)) > .effect-icon .spin {
-      animation: spin 3s linear infinite;
+      animation: spin 6s linear infinite;
     }
     :global(:is(:hover, :focus-visible)) > .effect-icon .flicker {
       animation: flicker 0.5s ease-in-out infinite alternate;
@@ -325,10 +278,10 @@
   }
   @keyframes shake {
     25% {
-      transform: translateX(-1.5px) rotate(-6deg);
+      transform: translateX(-1px) rotate(-4deg);
     }
     75% {
-      transform: translateX(1.5px) rotate(6deg);
+      transform: translateX(1px) rotate(4deg);
     }
   }
   @keyframes fade {
@@ -339,7 +292,7 @@
   @keyframes beat {
     15%,
     45% {
-      transform: scale(1.14);
+      transform: scale(1.1);
     }
     30% {
       transform: scale(1);
@@ -356,18 +309,16 @@
     30%,
     60% {
       opacity: 1;
-      filter: brightness(1.5);
     }
     20%,
     45% {
-      opacity: 0.35;
-      filter: none;
+      opacity: 0.3;
     }
   }
   @keyframes twinkle {
     50% {
-      transform: scale(0.55) rotate(45deg);
-      opacity: 0.6;
+      transform: scale(0.6) rotate(45deg);
+      opacity: 0.5;
     }
   }
   @keyframes fall {
@@ -390,7 +341,7 @@
   }
   @keyframes halo {
     50% {
-      transform: scale(0.75);
+      transform: scale(0.8);
       opacity: 0.5;
     }
   }
@@ -401,7 +352,7 @@
   }
   @keyframes flicker {
     to {
-      transform: scale(0.92, 1.08) skewX(-3deg);
+      transform: scale(0.94, 1.06) skewX(-3deg);
     }
   }
   @keyframes rise {

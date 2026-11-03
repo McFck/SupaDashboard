@@ -106,7 +106,7 @@
       aria-label="Effects"
       class="-ml-1"
     >
-      <EffectMark class="size-6" />
+      <EffectMark />
     </span>
   {/if}
   <Button
