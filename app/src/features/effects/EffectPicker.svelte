@@ -2,6 +2,7 @@
   import Sparkles from '@lucide/svelte/icons/sparkles';
   import { Popover } from 'bits-ui';
   import { Button } from '$lib/components/ui/button';
+  import Hint from '$lib/components/ui/tooltip/hint.svelte';
   import { EFFECTS, type EffectId } from './catalogue';
   let {
     value,
@@ -43,26 +44,29 @@
       variant="ghost"
       size="icon-sm"
       aria-label={label}
-      title="Gesture effect owns this trigger"
       disabled
       class="effect-button shrink-0 text-muted-foreground"><Sparkles /></Button
     >
   {/if}
   <Popover.Trigger>
     {#snippet child({ props })}
-      <Button
-        {...props}
-        variant="ghost"
-        size={gestureOwns ? 'sm' : 'icon-sm'}
-        aria-label={gestureOwns ? 'Replace gesture effect' : label}
-        title={label}
-        class="effect-button shrink-0 {value ? 'text-primary' : 'text-muted-foreground'}"
-        data-active={!!value}
-      >
-        {#if gestureOwns}Replace gesture effect{:else}<Sparkles
-            fill={value ? 'currentColor' : 'none'}
-          />{/if}
-      </Button>
+      <Hint text={gestureOwns ? undefined : label}>
+        {#snippet children(hint)}
+          <Button
+            {...hint}
+            {...props}
+            variant="ghost"
+            size={gestureOwns ? 'sm' : 'icon-sm'}
+            aria-label={gestureOwns ? 'Replace gesture effect' : label}
+            class="effect-button shrink-0 {value ? 'text-primary' : 'text-muted-foreground'}"
+            data-active={!!value}
+          >
+            {#if gestureOwns}Replace gesture effect{:else}<Sparkles
+                fill={value ? 'currentColor' : 'none'}
+              />{/if}
+          </Button>
+        {/snippet}
+      </Hint>
     {/snippet}
   </Popover.Trigger>
   <Popover.Portal>

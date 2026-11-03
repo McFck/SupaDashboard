@@ -26,7 +26,7 @@
     {@const label = TRIGGER_LABELS[trigger]}
     {@const steps = listStepCount(draft.scenario.triggers[trigger])}
     {@const selected = editor.selectedKey === `trigger:${trigger}`}
-    <div class="effect-hover flex min-w-0 items-center gap-1">
+    <div class="effect-hover relative flex min-w-0 items-center">
       <Button
         variant={selected ? 'secondary' : 'ghost'}
         size="sm"
@@ -39,24 +39,26 @@
         <span class="truncate">{label}</span>
         <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
       </Button>
-      <EffectPicker
-        value={draft.scenario.triggers[trigger]?.effect}
-        label={`${label} effect`}
-        conflict={effectSteps(draft.scenario.triggers[trigger] ?? { steps: [] }).some(
-          (step) => step.effect,
-        )
-          ? 'Replace action effects'
-          : undefined}
-        onchange={(effect) =>
-          editor.update({
-            ...draft,
-            scenario: setScenarioEffect(draft.scenario, { kind: 'trigger', trigger }, effect),
-          })}
-      />
+      <div class="absolute top-1/2 right-8 -translate-y-1/2">
+        <EffectPicker
+          value={draft.scenario.triggers[trigger]?.effect}
+          label={`${label} effect`}
+          conflict={effectSteps(draft.scenario.triggers[trigger] ?? { steps: [] }).some(
+            (step) => step.effect,
+          )
+            ? 'Replace action effects'
+            : undefined}
+          onchange={(effect) =>
+            editor.update({
+              ...draft,
+              scenario: setScenarioEffect(draft.scenario, { kind: 'trigger', trigger }, effect),
+            })}
+        />
+      </div>
     </div>
   {/each}
   <div class="mt-4 grid gap-2">
-    <div class="grid grid-cols-[minmax(0,1fr)_28px] gap-1">
+    <div class="grid grid-cols-1">
       <div class="flex items-center justify-between gap-2 border-x border-transparent px-2.5">
         <h3 class="text-xs font-semibold text-muted-foreground">Events</h3>
         <Badge
@@ -71,7 +73,7 @@
       {@const providerTitle = pluginTitle(definition?.plugin)}
       {@const steps = listStepCount(event.list)}
       {@const selected = editor.selectedKey === `event:${event.id}`}
-      <div class="effect-hover flex min-w-0 items-center gap-1">
+      <div class="effect-hover relative flex min-w-0 items-center gap-1">
         <Button
           size="icon-sm"
           variant="ghost"
@@ -92,22 +94,24 @@
           <PluginMark plugin={definition?.plugin} />
           <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
         </Button>
-        <EffectPicker
-          value={event.list.effect}
-          label={`${editor.eventLabel(event)} effect`}
-          conflict={effectSteps(event.list).some((step) => step.effect)
-            ? 'Replace action effects'
-            : undefined}
-          onchange={(effect) =>
-            editor.update({
-              ...draft,
-              scenario: setScenarioEffect(
-                draft.scenario,
-                { kind: 'event', eventId: event.id },
-                effect,
-              ),
-            })}
-        />
+        <div class="absolute top-1/2 right-8 -translate-y-1/2">
+          <EffectPicker
+            value={event.list.effect}
+            label={`${editor.eventLabel(event)} effect`}
+            conflict={effectSteps(event.list).some((step) => step.effect)
+              ? 'Replace action effects'
+              : undefined}
+            onchange={(effect) =>
+              editor.update({
+                ...draft,
+                scenario: setScenarioEffect(
+                  draft.scenario,
+                  { kind: 'event', eventId: event.id },
+                  effect,
+                ),
+              })}
+          />
+        </div>
       </div>
     {/each}
     {#if editor.eventDefinitions.length}
