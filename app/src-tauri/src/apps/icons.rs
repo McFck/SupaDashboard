@@ -1,6 +1,7 @@
 //! Shell icons for app identities resolved by this module; never a caller-supplied image path.
-use super::{identity, model::parse_key};
+use super::{icon_store, identity, model::parse_key};
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use windows::Win32::Foundation::{GENERIC_READ, HGLOBAL, SIZE};
 use windows::Win32::Graphics::Gdi::{DeleteObject, HPALETTE};
@@ -31,17 +32,26 @@ pub fn allow(key: &str) {
         .insert(key.to_owned());
 }
 
-pub fn get(key: &str) -> Result<Option<Vec<u8>>, String> {
+pub fn get(dir: &Path, key: &str, refresh: bool) -> Result<Option<Vec<u8>>, String> {
     parse_key(key)?;
     let mut cache = ICONS
         .get_or_init(Mutex::default)
         .lock()
         .map_err(|e| e.to_string())?;
-    if !cache.allowed.contains(key) {
-        return Err("The app has not been resolved".into());
+    if !refresh {
+        if let Some(bytes) = cache.images.get(key) {
+            return Ok(bytes.clone());
+        }
     }
-    if let Some(bytes) = cache.images.get(key) {
-        return Ok(bytes.clone());
+    let saved = icon_store::read(dir, key)?;
+    if !refresh && saved.is_some() {
+        cache.images.insert(key.to_owned(), saved.clone());
+        return Ok(saved);
+    }
+    if !cache.allowed.contains(key) {
+        drop(cache);
+        identity::matcher(&parse_key(key)?)?;
+        return get(dir, key, refresh);
     }
     identity::init_com();
     let path = match parse_key(key)? {
@@ -50,6 +60,11 @@ pub fn get(key: &str) -> Result<Option<Vec<u8>>, String> {
     };
     // Missing artwork is harmless: the picker keeps its brand or neutral icon.
     let bytes = shell_png(&path).ok();
+    if let Some(bytes) = &bytes {
+        icon_store::write(dir, key, bytes)?;
+    } else if refresh {
+        return Err("Could not extract app icon".into());
+    }
     if cache.images.len() >= 256 {
         if let Some(oldest) = cache.images.keys().next().cloned() {
             cache.images.remove(&oldest);
@@ -149,7 +164,14 @@ mod tests {
             "aumid:unresolved-icon-test",
             "../settings.json",
         ] {
-            assert!(super::get(key).is_err());
+            assert!(
+                super::get(
+                    &std::env::temp_dir().join("supa-unresolved-icons"),
+                    key,
+                    false
+                )
+                .is_err()
+            );
         }
     }
 
@@ -164,7 +186,9 @@ mod tests {
         });
         let key = format!("exe:{path}");
         super::identity::matcher(&super::parse_key(&key).unwrap()).unwrap();
-        let bytes = super::get(&key).unwrap().unwrap();
+        let bytes = super::get(&std::env::temp_dir().join("supa-probe-icons"), &key, true)
+            .unwrap()
+            .unwrap();
         assert!(bytes.starts_with(b"\x89PNG\r\n\x1a\n"));
         assert!(bytes.len() > 100);
         let factory: IWICImagingFactory =

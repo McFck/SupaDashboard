@@ -3,6 +3,9 @@
   import Trash from '@lucide/svelte/icons/trash-2';
   import ArrowDown from '@lucide/svelte/icons/arrow-down';
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import { Hint } from '$lib/components/ui/tooltip';
+  import { refreshAppIcon } from '../../apps/icons.svelte';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
@@ -50,6 +53,7 @@
   );
   let selectedId = $state('');
   let previewId = $state('');
+  let refreshingIcon = $state(false);
   const selectedIndex = $derived(variantIndexForState({ variants }, selectedId) ?? 0);
   const selected = $derived(variants[selectedIndex]);
   const preview = $derived(
@@ -86,6 +90,18 @@
         rememberApp(value);
       }
       update({ app: value || undefined });
+    }
+  }
+  async function refreshIcon() {
+    const key = selected?.app;
+    if (!key || refreshingIcon) {
+      return;
+    }
+    refreshingIcon = true;
+    try {
+      await refreshAppIcon(key);
+    } finally {
+      refreshingIcon = false;
     }
   }
   function stateView(index: number): TileAppearance {
@@ -300,6 +316,18 @@
                 value={selected.app ?? ''}
                 onchange={pickApp}
               />
+              <Hint text="Refresh icon">
+                {#snippet children(props)}
+                  <Button
+                    {...props}
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Refresh icon"
+                    disabled={!selected.app || refreshingIcon}
+                    onclick={refreshIcon}><RefreshCw /></Button
+                  >
+                {/snippet}
+              </Hint>
             {:else}<IconPicker
                 size="sm"
                 value={selected.icon ?? undefined}
