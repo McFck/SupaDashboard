@@ -57,3 +57,26 @@ export function sliderFaceText(width: number, height: number, vertical: boolean)
     percentage: thickness >= (vertical ? 56 : 32) && length >= (vertical ? 88 : 112),
   };
 }
+
+/**
+ * Text-only faces run one line corner to corner. `ink` is the line's width per pixel of font size; the rotated line
+ * box stays inside 80% of the face, so the rounded corners never cut its ends.
+ */
+export function diagonalLabel(width: number, height: number, ink: number) {
+  const angle = Math.atan2(height, width);
+  const cos = Math.cos(angle),
+    sin = Math.sin(angle);
+  const fit = Math.min(
+    (width * 0.8) / (ink * cos + sin),
+    (height * 0.8) / (ink * sin + cos),
+    Math.min(width, height) * 0.45,
+  );
+  return { degrees: (-angle * 180) / Math.PI, size: Math.max(9, fit) };
+}
+
+/** App-icon faces: a large badge that leaves the label line its room, like the button glyph. */
+export function appBadgeSize(width: number, height: number, scale = 1, labelScale = 0) {
+  const edge = Math.max(0, Math.min(width, height));
+  const room = labelScale ? height - 24 - 8 - 16 * labelScale : edge - 24;
+  return Math.max(0, Math.min(edge * 0.6 * scale, room));
+}
