@@ -11,6 +11,7 @@
   import { setMediaContentPages } from '../media/content-visibility';
   import { runtimeCommands } from '../../app/runtime/commands';
   import { DashboardWindow } from './dashboard-window.svelte';
+  import { DashboardCursor } from './dashboard-cursor.svelte';
   import { DragGaps } from './drag-gaps.svelte';
   import { pageOffset } from './page-motion';
   import { Pager } from './pager.svelte';
@@ -28,6 +29,7 @@
   let shell: HTMLDivElement;
   let pageHost: HTMLDivElement;
   let gaps = $state<DragGaps>();
+  let cursor = $state<DashboardCursor>();
 
   const dashboard = new DashboardWindow(
     () => settings.display,
@@ -55,6 +57,8 @@
   });
 
   onMount(() => {
+    const dashboardCursor = new DashboardCursor(document.documentElement);
+    cursor = dashboardCursor;
     pager.start();
     const resize = () => pager.resize();
     window.addEventListener('resize', resize);
@@ -64,6 +68,7 @@
     dashboard.start();
 
     return () => {
+      dashboardCursor.destroy();
       dashboard.destroy();
       pager.destroy();
       setMediaContentPages([]);
@@ -121,6 +126,7 @@
   class="dashboard-shell relative h-full w-full overflow-hidden"
   data-fullscreen={dashboard.appliedFullscreen}
   data-hovered={dashboard.showChrome}
+  data-cursor={cursor?.visible ? 'mouse' : 'hidden'}
   style:border-radius="{dashboard.appliedFullscreen ? 0 : bg.radius}px"
   bind:this={shell}
   onpointerdowncapture={pager.pointerDown}
@@ -196,6 +202,11 @@
 {/if}
 
 <style>
+  :global(body:has(.dashboard-shell[data-cursor='hidden'])),
+  :global(body:has(.dashboard-shell[data-cursor='hidden']) *) {
+    cursor: none !important;
+  }
+
   :global(.dashboard-shell),
   :global(.dashboard-shell *) {
     -webkit-app-region: no-drag;

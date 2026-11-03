@@ -1,6 +1,7 @@
 //! The borderless dashboard window: native input policy, geometry and the commands that move it.
 mod backdrop;
 pub mod commands;
+mod cursor;
 mod events;
 mod geometry;
 mod monitor_guard;

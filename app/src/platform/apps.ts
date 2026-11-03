@@ -59,8 +59,13 @@ export async function listApps(keys: string[] = []): Promise<AppRow[]> {
     : [];
 }
 
-export async function loadAppIcon(key: string): Promise<string | undefined> {
-  return readAppIcon(await invoke<unknown>('apps_icon', { app: key }));
+export async function loadAppIcon(key: string, refresh = false): Promise<string | undefined> {
+  const raw = await invoke<unknown>('apps_icon', { app: key, refresh });
+  const image = readAppIcon(raw);
+  if (raw !== null && !image) {
+    throw new Error('Invalid app icon');
+  }
+  return image;
 }
 
 /** Only bounded PNG frames become image URLs; native replies never supply a URL. */

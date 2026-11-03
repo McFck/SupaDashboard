@@ -12,7 +12,8 @@
 
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { appIcon, appImage, requestAppIcon } from '../../apps/picker.svelte';
+  import { appIcon } from '../../apps/picker.svelte';
+  import { appImage, requestAppIcon } from '../../apps/icons.svelte';
   let {
     name,
     app,

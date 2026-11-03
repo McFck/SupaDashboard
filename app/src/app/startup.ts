@@ -5,6 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { install, installEnabled } from '../features/plugins/registry';
 import { redo, startHistory, undo } from '../features/layout/history.svelte';
 import { loadSettings } from '../features/settings/persistence.svelte';
+import { startAppIcons } from '../features/apps/icons.svelte';
 import { initVolumeSync } from '../features/media/volume';
 import { followRemovals } from '../features/layout/removal';
 import { appsPlugin } from '../plugins/core-apps';
@@ -21,6 +22,7 @@ import Dashboard from '../features/dashboard/Dashboard.svelte';
 const BUNDLED_PLUGINS = [corePlugin, appsPlugin, uiPlugin, spotifyPlugin, subwayPlugin];
 
 let disposed = false;
+let stopAppIcons: (() => void) | undefined;
 
 function currentView(): WindowView {
   let label: string;
@@ -35,6 +37,7 @@ function currentView(): WindowView {
 
 function dispose() {
   disposed = true;
+  stopAppIcons?.();
   void stopRuntimeServices();
 }
 
@@ -106,6 +109,14 @@ export async function startApp() {
     await loadSettings();
   } catch (error) {
     console.warn('settings', error);
+  }
+  try {
+    stopAppIcons = await startAppIcons();
+    if (disposed) {
+      stopAppIcons();
+    }
+  } catch (error) {
+    console.warn('app icons', error);
   }
   const volume = initVolumeSync().catch((error) => console.warn('volume sync', error));
   if (view === 'dashboard') {

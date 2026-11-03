@@ -22,6 +22,8 @@ struct Surface {
     root: HWND,
     browser: HWND,
     input: TouchInput,
+    cursor: super::cursor::Cursor,
+    app: tauri::AppHandle,
 }
 
 pub async fn install(window: WebviewWindow) -> Result<(), String> {
@@ -66,7 +68,7 @@ fn create(controller: ICoreWebView2Controller, app: tauri::AppHandle) -> windows
                 "WebView2 input window is unavailable",
             ));
         }
-        let input = TouchInput::new(controller, app)?;
+        let input = TouchInput::new(controller, app.clone())?;
         // Chromium drops wheel events over unrelated host windows. Keeping this child inside its input tree
         // preserves native mouse-wheel routing while our procedure consumes touch pointer messages.
         let hwnd = create_window(browser)?;
@@ -74,6 +76,8 @@ fn create(controller: ICoreWebView2Controller, app: tauri::AppHandle) -> windows
             root: parent,
             browser,
             input,
+            cursor: Default::default(),
+            app,
         })));
         if !SetWindowSubclass(hwnd, Some(input_subclass), SUBCLASS, state as usize).as_bool() {
             let error = windows::core::Error::from_thread();
@@ -232,6 +236,7 @@ unsafe extern "system" fn input_subclass(
         WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP | WM_NCPOINTERDOWN
         | WM_NCPOINTERUPDATE | WM_NCPOINTERUP | WM_POINTERENTER | WM_POINTERLEAVE
         | WM_POINTERWHEEL | WM_POINTERHWHEEL => {
+            state.cursor.pointer(hwnd, wp, &state.app);
             if state.input.pointer(hwnd, message, wp) {
                 return LRESULT(0);
             }
@@ -267,12 +272,23 @@ fn mouse_message(
     wp: WPARAM,
     lp: LPARAM,
 ) -> Option<LRESULT> {
+    if matches!(message, WM_MOUSEFIRST..=WM_MOUSELAST | WM_NCMOUSEMOVE) {
+        state.cursor.mouse(
+            hwnd,
+            matches!(message, WM_MOUSEMOVE | WM_NCMOUSEMOVE),
+            &state.app,
+        );
+    }
     match message {
         WM_MOUSEACTIVATE => return Some(LRESULT(MA_NOACTIVATE as isize)),
         WM_NCHITTEST => {
             return Some(unsafe { SendMessageW(state.root, message, Some(wp), Some(lp)) });
         }
         WM_SETCURSOR => {
+            if !state.cursor.visible() {
+                unsafe { SetCursor(None) };
+                return Some(LRESULT(1));
+            }
             let target = if lp.0 as u16 as u32 == HTCLIENT {
                 state.browser
             } else {
@@ -298,11 +314,13 @@ fn mouse_message(
             }
         }
         WM_NCMOUSELEAVE => {
+            state.cursor.leave(&state.app);
             // Chromium ignores the client leave while the pointer is still over our native resize band.
             unsafe {
                 SendMessageW(state.browser, WM_MOUSELEAVE, None, None);
             }
         }
+        WM_MOUSELEAVE => state.cursor.leave(&state.app),
         _ => {}
     }
     // WebView2 receives the original Win32 mouse messages, never synthetic DOM mouse events.
