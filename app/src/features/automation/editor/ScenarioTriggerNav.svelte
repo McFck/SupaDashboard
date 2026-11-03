@@ -9,6 +9,7 @@
   import type { ScenarioDraftEditor } from './scenario-draft.svelte';
   import EffectPicker from '../../effects/EffectPicker.svelte';
   import { effectSteps, setScenarioEffect } from '../../effects/scenario-effects';
+  import type { EffectId } from '../../effects/catalogue';
 
   let {
     editor,
@@ -16,6 +17,12 @@
   }: { editor: ScenarioDraftEditor; blockedTriggers: ReadonlySet<Trigger> } = $props();
 
   const draft = $derived(editor.draft!);
+  // Without an effect the revealed button takes the count's place; an effect widens the slot so its icon sits beside the count.
+  const countClass = (effect?: EffectId) =>
+    effect
+      ? 'w-12'
+      : 'w-5 transition-opacity group-hover/effect:opacity-0 group-focus-within/effect:opacity-0 group-has-[[data-state=open]]/effect:opacity-0';
+  const slotClass = (effect?: EffectId) => (effect ? 'right-7' : 'right-1');
 </script>
 
 <nav
@@ -26,7 +33,8 @@
     {@const label = TRIGGER_LABELS[trigger]}
     {@const steps = listStepCount(draft.scenario.triggers[trigger])}
     {@const selected = editor.selectedKey === `trigger:${trigger}`}
-    <div class="effect-hover relative flex min-w-0 items-center">
+    {@const effect = draft.scenario.triggers[trigger]?.effect}
+    <div class="effect-hover group/effect relative flex min-w-0 items-center">
       <Button
         variant={selected ? 'secondary' : 'ghost'}
         size="sm"
@@ -37,11 +45,15 @@
         onclick={() => editor.selectList(`trigger:${trigger}`)}
       >
         <span class="truncate">{label}</span>
-        <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
+        <span
+          class="shrink-0 text-right text-xs tabular-nums text-muted-foreground {countClass(
+            effect,
+          )}">{steps}</span
+        >
       </Button>
-      <div class="absolute top-1/2 right-8 -translate-y-1/2">
+      <div class="absolute top-1/2 -translate-y-1/2 {slotClass(effect)}">
         <EffectPicker
-          value={draft.scenario.triggers[trigger]?.effect}
+          value={effect}
           label={`${label} effect`}
           conflict={effectSteps(draft.scenario.triggers[trigger] ?? { steps: [] }).some(
             (step) => step.effect,
@@ -73,7 +85,7 @@
       {@const providerTitle = pluginTitle(definition?.plugin)}
       {@const steps = listStepCount(event.list)}
       {@const selected = editor.selectedKey === `event:${event.id}`}
-      <div class="effect-hover relative flex min-w-0 items-center gap-1">
+      <div class="effect-hover group/effect relative flex min-w-0 items-center gap-1">
         <Button
           size="icon-sm"
           variant="ghost"
@@ -92,9 +104,13 @@
         >
           <span class="truncate">{editor.eventLabel(event)}</span>
           <PluginMark plugin={definition?.plugin} />
-          <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{steps}</span>
+          <span
+            class="ml-auto shrink-0 text-right text-xs tabular-nums text-muted-foreground {countClass(
+              event.list.effect,
+            )}">{steps}</span
+          >
         </Button>
-        <div class="absolute top-1/2 right-8 -translate-y-1/2">
+        <div class="absolute top-1/2 -translate-y-1/2 {slotClass(event.list.effect)}">
           <EffectPicker
             value={event.list.effect}
             label={`${editor.eventLabel(event)} effect`}
