@@ -58,22 +58,54 @@ export function sliderFaceText(width: number, height: number, vertical: boolean)
   };
 }
 
+/** Line height of text-only faces, in ems. */
+export const LINE_HEIGHT = 1.08;
+
 /**
- * Text-only faces run one line corner to corner. `ink` is the line's width per pixel of font size; the rotated line
- * box stays inside 80% of the face, so the rounded corners never cut its ends.
+ * Text-only faces: the label's words, as widths per pixel of font size, wrap into balanced lines laid along the
+ * tile's diagonal. Every line count is tried; the one whose rotated block fits 72% of the face at the largest size
+ * wins, so short labels stay on one bold line and long ones stack. Words are never broken or truncated.
  */
-export function diagonalLabel(width: number, height: number, ink: number) {
+export function diagonalText(width: number, height: number, words: number[], space: number) {
   const angle = Math.atan2(height, width);
   const cos = Math.cos(angle),
     sin = Math.sin(angle);
-  const fit = Math.min(
-    (width * 0.8) / (ink * cos + sin),
-    (height * 0.8) / (ink * sin + cos),
-    Math.min(width, height) * 0.45,
-  );
-  return { degrees: (-angle * 180) / Math.PI, size: Math.max(9, fit) };
+  const span = (from: number, to: number) =>
+    words.slice(from, to).reduce((sum, w) => sum + w, 0) + space * (to - from - 1);
+  // widest[n][j]: the smallest widest line when the first j words take n lines; cut[n][j] is where line n starts.
+  const k = words.length;
+  const widest = [[0, ...words.map(() => Infinity)]];
+  const cut: number[][] = [[]];
+  let best = { size: 0, lines: [[0, k]] };
+  for (let n = 1; n <= k; n++) {
+    widest[n] = Array(k + 1).fill(Infinity);
+    cut[n] = Array(k + 1).fill(0);
+    for (let j = n; j <= k; j++) {
+      for (let m = n - 1; m < j; m++) {
+        const w = Math.max(widest[n - 1][m], span(m, j));
+        if (w < widest[n][j]) {
+          widest[n][j] = w;
+          cut[n][j] = m;
+        }
+      }
+    }
+    const block = widest[n][k],
+      tall = n * LINE_HEIGHT;
+    const size = Math.min(
+      (width * 0.72) / (block * cos + tall * sin),
+      (height * 0.72) / (block * sin + tall * cos),
+      Math.min(width, height) * 0.36,
+    );
+    if (size > best.size) {
+      const lines: number[][] = [];
+      for (let line = n, end = k; line > 0; end = cut[line][end], line--) {
+        lines.unshift([cut[line][end], end]);
+      }
+      best = { size, lines };
+    }
+  }
+  return { degrees: (-angle * 180) / Math.PI, size: Math.max(6, best.size), lines: best.lines };
 }
-
 /** App-icon faces: a large badge that leaves the label line its room, like the button glyph. */
 export function appBadgeSize(width: number, height: number, scale = 1, labelScale = 0) {
   const edge = Math.max(0, Math.min(width, height));
