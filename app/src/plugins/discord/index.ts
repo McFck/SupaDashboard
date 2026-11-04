@@ -18,6 +18,7 @@ function followOwner(api: PluginApi) {
     void Promise.all([
       api.setVariable('discord.muted', connected && view.muted),
       api.setVariable('discord.deafened', connected && view.deafened),
+      api.setVariable('discord.inChannel', view.state === 'inVoice'),
     ]).catch(() => toast.error('Discord state unavailable'));
   };
   const stopRuntime = runtimeView.subscribe(() => {
@@ -96,7 +97,7 @@ export const discordPlugin: Plugin = {
         },
       });
     }
-    for (const field of ['muted', 'deafened'] as const) {
+    for (const field of ['muted', 'deafened', 'inChannel'] as const) {
       api.registerVariable({
         id: `discord.${field}`,
         name: `discord.${field}`,

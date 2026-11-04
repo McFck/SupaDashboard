@@ -257,8 +257,9 @@ export async function voiceCommand(voice: VoiceCommand) {
   if (latest.state !== 'idle' && latest.state !== 'inVoice') {
     throw new Error('Connect Discord first');
   }
+  // Leaving while out of voice already meets the action's goal.
   if (voice === 'leave' && latest.state !== 'inVoice') {
-    throw new Error('Not in a voice channel');
+    return;
   }
   if (voice === 'rejoin' && !latest.lastChannel) {
     throw new Error('No channel to rejoin');
