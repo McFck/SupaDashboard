@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
+  import { toast } from 'svelte-sonner';
   import { primaryMonitor, type Monitor } from '@tauri-apps/api/window';
   import Star from '@lucide/svelte/icons/star';
   import { Button } from '$lib/components/ui/button';
@@ -23,6 +24,7 @@
   let nativeNames = $state<unknown[]>([]);
   let primaryScreen = $state<Monitor | null>(null);
   let resetting = $state(false);
+  let copying = $state(false);
   let alive = false;
   let refreshGeneration = 0;
 
@@ -79,6 +81,30 @@
       refreshGeneration++;
     };
   });
+
+  async function copyToRelease() {
+    if (!import.meta.env.DEV || copying) {
+      return;
+    }
+    copying = true;
+    try {
+      if (
+        !(await confirm({
+          title: 'Replace release app settings?',
+          action: 'Copy',
+          destructive: true,
+        }))
+      ) {
+        return;
+      }
+      await invoke('plugin:dev-data|copy_settings_to_release');
+      toast.success('Settings copied to release app');
+    } catch (error) {
+      toast.error(error === 'Close the release app first' ? error : 'Could not copy settings');
+    } finally {
+      copying = false;
+    }
+  }
 
   async function reset() {
     if (resetting) {
@@ -146,4 +172,20 @@
       >
     </Row>
   </Section>
+
+  {#if import.meta.env.DEV}
+    <Section title="Development">
+      <Row label="Release app">
+        <Button
+          size="sm"
+          disabled={copying}
+          onclick={() => {
+            void copyToRelease();
+          }}
+        >
+          Copy settings to release app
+        </Button>
+      </Row>
+    </Section>
+  {/if}
 </div>

@@ -5,6 +5,8 @@ mod apps;
 mod audio;
 mod content;
 mod dashboard;
+#[cfg(debug_assertions)]
+mod dev_data;
 mod media;
 mod monitors;
 mod panel;
@@ -13,11 +15,19 @@ mod tray;
 use tauri::{Manager, WindowEvent};
 
 pub fn run() {
-    tauri::Builder::default()
+    let context = tauri::generate_context!();
+    #[cfg(debug_assertions)]
+    let context = dev_data::context(context);
+    let builder = tauri::Builder::default();
+    #[cfg(debug_assertions)]
+    let builder = builder.plugin(dev_data::plugin());
+    builder
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            #[cfg(debug_assertions)]
+            dev_data::seed(app.handle()).map_err(std::io::Error::other)?;
             app.handle().plugin(
                 tauri_plugin_log::Builder::default()
                     .level(if cfg!(debug_assertions) {
@@ -79,6 +89,6 @@ pub fn run() {
             media::media_sessions_unsubscribe,
             media::media_artwork_resolve,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while building tauri application");
 }

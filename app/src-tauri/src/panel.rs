@@ -25,7 +25,7 @@ pub struct PanelBootstrap {
     pub generation: u64,
 }
 
-fn require_panel(window: &WebviewWindow) -> Result<(), String> {
+pub(crate) fn require_panel(window: &WebviewWindow) -> Result<(), String> {
     require_panel_label(window.label())
 }
 
