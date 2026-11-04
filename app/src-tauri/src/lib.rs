@@ -8,6 +8,8 @@ mod dashboard;
 #[cfg(debug_assertions)]
 mod dev_data;
 mod discord;
+mod http;
+mod lyrics;
 mod media;
 mod monitors;
 mod panel;
@@ -48,6 +50,7 @@ pub fn run() {
             );
             app.manage(apps::watch::AppsHub::default());
             app.manage(discord::DiscordHub::default());
+            app.manage(lyrics::LyricsHub::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
@@ -95,6 +98,7 @@ pub fn run() {
             discord::discord_authorize,
             discord::discord_logout,
             discord::discord_voice,
+            lyrics::lyrics_get,
         ])
         .run(context)
         .expect("error while building tauri application");
