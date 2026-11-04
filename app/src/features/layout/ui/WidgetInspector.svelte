@@ -193,7 +193,7 @@
   {:else if control.type === 'web'}
     <WebEditor {control} />
     {@render scenarioSection()}
-  {:else}
+  {:else if control.type !== 'discordVoice'}
     <VariantList {control} />
     {@render scenarioSection()}
   {/if}
