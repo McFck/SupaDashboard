@@ -37,7 +37,7 @@ export function moveOptions(
       const target = { appletId: from.appletId, pageId: page.id, slotId };
       return [
         {
-          value: `${page.id}::${slotId}`,
+          value: JSON.stringify([page.id, slotId]),
           label: page.name,
           detail: mode === 'page' ? undefined : slotId,
           disabled: !movePlacementToSlot(source, itemId, target),
