@@ -16,7 +16,7 @@ import type { ControlConfig, Variant } from '../../controls/model';
 import { stateIdAt } from '../../controls/variants';
 import { validateStateConfiguration } from '../../controls/state-validation';
 import { runtimeView } from '../../../app/runtime/state';
-import { registeredEvents } from '../../plugins/registry';
+import { controlTriggers, controlTypes, registeredEvents } from '../../plugins/registry';
 import { controlById, settings } from '../../settings/state.svelte';
 import { commit } from '../../layout/history.svelte';
 import {
@@ -57,11 +57,15 @@ export class ScenarioDraftEditor {
   private manualFallbackStateId = '';
 
   readonly control = $derived(controlById(this.controlId()));
-  readonly contentControl = $derived(
-    this.control?.type === 'media' || this.control?.type === 'web',
+  readonly triggers = $derived(controlTriggers(this.control?.type ?? ''));
+  /** Content tiles and trigger-restricted types have no views or state bindings. */
+  readonly stateless = $derived(
+    this.control?.type === 'media' ||
+      this.control?.type === 'web' ||
+      !!controlTypes.get(this.control?.type ?? '')?.triggers,
   );
   readonly tabs = $derived<ScenarioEditorTab[]>(
-    this.contentControl ? ['scenario', 'variables'] : ['scenario', 'views', 'binding', 'variables'],
+    this.stateless ? ['scenario', 'variables'] : ['scenario', 'views', 'binding', 'variables'],
   );
   readonly eventDefinitions = $derived(
     registeredEvents(Object.values(this.runtime.current.variables.records)),

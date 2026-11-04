@@ -193,8 +193,10 @@
   {:else if control.type === 'web'}
     <WebEditor {control} />
     {@render scenarioSection()}
-  {:else if control.type !== 'discordVoice'}
-    <VariantList {control} />
+  {:else}
+    {#if !controlTypes.get(control.type)?.triggers}
+      <VariantList {control} />
+    {/if}
     {@render scenarioSection()}
   {/if}
 </div>

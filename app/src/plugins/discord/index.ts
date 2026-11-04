@@ -69,6 +69,7 @@ export const discordPlugin: Plugin = {
       size: { w: 2, h: 2 },
       minSize: { w: 1, h: 1 },
       maxSize: { w: 8, h: 6 },
+      triggers: ['press', 'longPress', 'doubleTap'],
       create: () => ({
         name: 'Voice channel',
         scenario: emptyScenario(),

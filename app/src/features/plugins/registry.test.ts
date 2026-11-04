@@ -139,4 +139,35 @@ describe('status sources', () => {
     expect(() => attempt((api) => api.registerStatusSource(source('app:spotify')))).toThrow();
     expect(() => attempt((api) => api.registerStatusSource(source('known-app:x')))).toThrow();
   });
+
+  it('never runs a saved trigger list for a trigger its control type does not offer', async () => {
+    const registry = await import('./registry');
+    const { settings } = await import('../settings/state.svelte');
+    settings.controls = [
+      {
+        id: 'voice',
+        type: 'restricted',
+        name: '',
+        variants: [],
+        scenario: { triggers: {}, events: [] },
+      },
+    ];
+    registry.controlTypes.set('restricted', {
+      type: 'restricted',
+      title: 'Restricted',
+      icon: '',
+      component: {} as import('svelte').Component,
+      size: { w: 1, h: 1 },
+      create: () => ({ name: '', variants: [] }),
+      triggers: ['press'],
+    });
+    const runs = (trigger: import('../automation/scenario').Trigger | 'event') =>
+      registry.runsTrigger({ controlId: 'voice', trigger });
+    expect([runs('press'), runs('event'), runs('release'), runs('swipeUp')]).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
+  });
 });

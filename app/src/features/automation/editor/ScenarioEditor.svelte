@@ -191,7 +191,7 @@
 
     {#if editor.draft && control}
       <div
-        class="grid min-h-0 min-w-0 flex-1 {editor.contentControl
+        class="grid min-h-0 min-w-0 flex-1 {editor.stateless
           ? 'grid-cols-[176px_minmax(0,1fr)]'
           : 'grid-cols-[176px_minmax(0,1fr)_240px]'} max-[900px]:grid-cols-[144px_minmax(0,1fr)]"
       >
@@ -204,7 +204,7 @@
             {@render tabPanel(tab)}
           {/each}
         </main>
-        {#if !editor.contentControl}
+        {#if !editor.stateless}
           <ScenarioStatesAside {editor} />
         {/if}
       </div>
