@@ -1,7 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { emptyScenario } from '../features/automation/scenario';
 import type { Plugin } from '../features/plugins/contracts';
 import { nativeSessions } from '../platform/media';
+import LyricsEditor from './spotify/ui/LyricsEditor.svelte';
+import LyricsTile from './spotify/ui/LyricsTile.svelte';
 
 export const spotifyPlugin: Plugin = {
   id: 'spotify',
@@ -33,6 +36,22 @@ export const spotifyPlugin: Plugin = {
       kind: 'nowPlaying',
       mediaSourceId: 'spotify',
       subscribe: nativeSessions('spotify'),
+    });
+    api.registerControl({
+      type: 'spotifyLyrics',
+      title: 'Lyrics',
+      icon: 'spotify',
+      component: LyricsTile,
+      editor: LyricsEditor,
+      size: { w: 2, h: 3 },
+      minSize: { w: 2, h: 1 },
+      maxSize: { w: 8, h: 8 },
+      triggers: [],
+      create: () => ({
+        name: 'Lyrics',
+        scenario: emptyScenario(),
+        variants: [{ id: 'state-1', label: '' }],
+      }),
     });
     api.registerAction({
       id: 'spotify.open',

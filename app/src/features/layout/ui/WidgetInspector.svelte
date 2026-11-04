@@ -194,9 +194,15 @@
     <WebEditor {control} />
     {@render scenarioSection()}
   {:else}
-    {#if !controlTypes.get(control.type)?.triggers}
+    {@const def = controlTypes.get(control.type)}
+    {#if !def?.triggers}
       <VariantList {control} />
     {/if}
-    {@render scenarioSection()}
+    {#if def?.editor}
+      <def.editor {control} />
+    {/if}
+    {#if def?.triggers?.length !== 0}
+      {@render scenarioSection()}
+    {/if}
   {/if}
 </div>
