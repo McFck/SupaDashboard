@@ -55,6 +55,14 @@ export function registerCoreAutomation(api: PluginApi) {
     },
   });
   api.registerAction({
+    id: 'page.back',
+    title: 'Back to last page',
+    run: (_args, context) => {
+      const runtime = pageRuntime(context);
+      runtime.pages.back(context?.eventAncestry);
+    },
+  });
+  api.registerAction({
     id: 'page.goto',
     title: 'Go to page',
     params: [pageParam],

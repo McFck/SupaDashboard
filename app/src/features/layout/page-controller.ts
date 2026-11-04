@@ -7,6 +7,7 @@ export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'reconcile';
 export class PageController {
   activePage: string;
   private priorOrder: string[];
+  private lastPage: string | undefined;
 
   constructor(
     private readonly host: {
@@ -40,6 +41,7 @@ export class PageController {
       return false;
     }
     const previousPage = this.activePage;
+    this.lastPage = previousPage;
     this.activePage = pageId;
     deck.activePage = pageId;
     this.host.onChange();
@@ -58,6 +60,10 @@ export class PageController {
         }
       });
     return true;
+  }
+
+  back(ancestry?: EventAncestry) {
+    return this.lastPage !== undefined && this.change(this.lastPage, 'action', ancestry);
   }
 
   changeInDirection(
