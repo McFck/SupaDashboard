@@ -59,6 +59,7 @@ pub struct Player {
     pub playing: bool,
     pub smart_shuffle: bool,
     pub shuffle: bool,
+    pub device_id: Option<String>,
 }
 
 pub fn player(body: &str) -> Result<Player, String> {
@@ -69,6 +70,10 @@ pub fn player(body: &str) -> Result<Player, String> {
         kind: String,
     }
     #[derive(Deserialize)]
+    struct Device {
+        id: Option<String>,
+    }
+    #[derive(Deserialize)]
     struct Response {
         item: Option<Track>,
         is_playing: bool,
@@ -76,6 +81,7 @@ pub fn player(body: &str) -> Result<Player, String> {
         smart_shuffle: bool,
         #[serde(default)]
         shuffle_state: bool,
+        device: Option<Device>,
     }
     let response: Response = serde_json::from_str(body).map_err(|_| "Invalid Spotify player")?;
     let uri = match response.item {
@@ -87,11 +93,19 @@ pub fn player(body: &str) -> Result<Player, String> {
         }
         _ => None,
     };
+    let device_id = response.device.and_then(|device| device.id);
+    if device_id
+        .as_ref()
+        .is_some_and(|id| id.is_empty() || id.len() > 512 || id.chars().any(char::is_control))
+    {
+        return Err("Invalid Spotify device".into());
+    }
     Ok(Player {
         uri,
         playing: response.is_playing,
         smart_shuffle: response.smart_shuffle,
         shuffle: response.shuffle_state,
+        device_id,
     })
 }
 
@@ -135,6 +149,23 @@ pub fn user(body: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rejects_malformed_device_ids_before_targeting_playback() {
+        let mut body =
+            serde_json::json!({"item":null,"is_playing":false,"device":{"id":"desktop"}});
+        assert_eq!(
+            player(&body.to_string()).unwrap().device_id.as_deref(),
+            Some("desktop")
+        );
+        for id in [
+            serde_json::json!(""),
+            serde_json::json!("bad\nname"),
+            serde_json::json!(42),
+        ] {
+            body["device"]["id"] = id;
+            assert!(player(&body.to_string()).is_err());
+        }
+    }
     #[test]
     fn rejects_unknown_shuffle_state_and_treats_smart_as_enabled() {
         for (body, expected) in [

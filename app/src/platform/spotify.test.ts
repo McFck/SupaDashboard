@@ -26,9 +26,19 @@ describe('Spotify trust boundaries', () => {
     for (const mode of ['on', 'off', 'toggle']) {
       vi.mocked(invoke).mockRejectedValueOnce('native failure');
       await expect(spotifyTransport(`shuffle:${mode}`)).rejects.toEqual(
-        new ActionFailure('Spotify shuffle failed'),
+        new ActionFailure('native failure'),
       );
       expect(invoke).toHaveBeenLastCalledWith('spotify_shuffle', { mode });
+    }
+    vi.mocked(invoke).mockRejectedValueOnce('Turn off smart shuffle in Spotify');
+    await expect(spotifyTransport('shuffle:toggle')).rejects.toEqual(
+      new ActionFailure('Turn off smart shuffle in Spotify'),
+    );
+    for (const error of ['x'.repeat(81), 'unsafe\nerror', { message: 'not a native title' }]) {
+      vi.mocked(invoke).mockRejectedValueOnce(error);
+      await expect(spotifyTransport('shuffle:off')).rejects.toEqual(
+        new ActionFailure('Spotify shuffle failed'),
+      );
     }
     await expect(spotifyTransport('shuffle:smart')).rejects.toThrow('Invalid Spotify command');
   });

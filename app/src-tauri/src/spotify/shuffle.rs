@@ -14,13 +14,8 @@ pub enum Mode {
     Toggle,
 }
 
-pub(super) enum Outcome {
-    Applied { enabled: bool },
-    Fallback { enabled: bool, error: String },
-}
-
 impl Mode {
-    fn enabled(self, current: bool) -> bool {
+    pub(super) fn enabled(self, current: bool) -> bool {
         match self {
             Self::On => true,
             Self::Off => false,
@@ -70,32 +65,21 @@ pub async fn spotify_shuffle(
     spotify.operation(Operation::Shuffle(mode)).await
 }
 
-pub(super) async fn native(
-    mode: Mode,
-    web_current: Option<bool>,
-    media: &MediaHub,
-) -> Result<Outcome, String> {
+pub(super) async fn native(mode: Mode, media: &MediaHub) -> Result<(), String> {
     // The Spotify worker serializes the full operation, including its Web API fallback.
     let _command = media.commands.lock().await;
     let session = media::session(Some("spotify"))
         .await
-        .ok()
-        .flatten()
-        .map(|(s, _)| s);
-    let current = web_current.or_else(|| session.as_ref().and_then(|s| active(s).ok()));
+        .map_err(|_| "Spotify session unavailable")?
+        .ok_or("Spotify isn't playing")?
+        .0;
     let enabled = match mode {
-        Mode::Toggle => mode.enabled(current.ok_or("Spotify shuffle unavailable")?),
+        Mode::Toggle => mode.enabled(active(&session)?),
         _ => mode.enabled(false),
     };
-    let result = match session {
-        Some(session) => apply(&session, enabled).await,
-        None => Err("Spotify isn't playing".into()),
-    };
+    let result = apply(&session, enabled).await;
     media.wake();
-    Ok(match result {
-        Ok(()) => Outcome::Applied { enabled },
-        Err(error) => Outcome::Fallback { enabled, error },
-    })
+    result
 }
 
 #[cfg(test)]
