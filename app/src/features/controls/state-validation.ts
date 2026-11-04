@@ -70,6 +70,12 @@ function validateBinding(
         path: `${path}.cases`,
         message: 'State value does not match the variable type',
       });
+    if (
+      variable?.definition.options &&
+      (typeof item.value !== 'string' || !variable.definition.options.includes(item.value))
+    ) {
+      issues.push({ path: `${path}.cases`, message: 'State value is not an allowed option' });
+    }
   }
   return issues;
 }

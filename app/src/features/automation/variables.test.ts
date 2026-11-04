@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseVariableText, VariableStore, type VariableDefinition } from './variables';
+import {
+  parseVariableText,
+  validVariableSnapshot,
+  VariableStore,
+  type VariableDefinition,
+} from './variables';
 
 const def = (
   id: string,
@@ -19,6 +24,45 @@ const def = (
 });
 
 describe('typed variables', () => {
+  it('upgrades v1 variable records without changing values or adding restrictions', () => {
+    const input = {
+      version: 1,
+      records: [{ definition: def('text', 'Text', 'string', ''), value: 'custom value' }],
+    };
+    const original = structuredClone(input);
+    const variables = new VariableStore(input);
+    expect(variables.needsRecovery).toBe(false);
+    expect(variables.serializePersistent()).toEqual({ ...input, version: 2 });
+    expect(input).toEqual(original);
+  });
+  it('rejects enum values and malformed options at definition, write, persistence and mirror boundaries', () => {
+    const definition = def('mode', 'Mode', 'string', 'off', {
+      options: ['off', 'shuffle', 'smart'],
+    });
+    const store = new VariableStore();
+    store.define(definition);
+    definition.options?.push('outside');
+    expect(() => store.set('mode', 'outside')).toThrow('allowed option');
+    store.set('mode', 'smart');
+    expect(() => store.set('mode', 'on')).toThrow('allowed option');
+    expect(validVariableSnapshot(store.snapshot())).toBe(true);
+    expect(new VariableStore(store.serializePersistent()).getValue('mode')).toBe('smart');
+    for (const options of [[], ['off', 'off'], [true], 'off']) {
+      const invalid = { ...definition, options };
+      const saved = { version: 1, records: [{ definition: invalid, value: 'off' }] };
+      expect(new VariableStore(saved).needsRecovery).toBe(true);
+      expect(validVariableSnapshot({ revision: 0, records: { mode: saved.records[0] } })).toBe(
+        false,
+      );
+    }
+    expect(() => store.define({ ...definition, initialValue: 'unknown' })).toThrow(
+      'allowed option',
+    );
+    const saved = store.serializePersistent();
+    saved.records[0].value = 'unknown';
+    expect(new VariableStore(saved).needsRecovery).toBe(true);
+    expect(validVariableSnapshot({ revision: 0, records: { mode: saved.records[0] } })).toBe(false);
+  });
   it.each([{}, { version: 9, records: [] }, { version: 1, records: {} }])(
     'starts with an empty recoverable store for an unsupported envelope: %j',
     (raw) => {

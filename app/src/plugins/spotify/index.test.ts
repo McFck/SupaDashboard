@@ -79,6 +79,13 @@ it('keeps smart shuffle across media updates and falls back to media when Web AP
   expect(variables.serializePersistent().records).toEqual([]);
   media(true);
   expect(variables.getValue('spotify.shuffle')).toBe('shuffle');
+  sources.spotify({ ...ready, smartShuffle: false, shuffle: false });
+  expect(variables.getValue('spotify.shuffle')).toBe('off');
+  sources.spotify({ ...ready, smartShuffle: false, shuffle: true });
+  media(false);
+  expect(variables.getValue('spotify.shuffle')).toBe('shuffle');
+  sources.spotify({ state: 'needsAuth' });
+  expect(variables.getValue('spotify.shuffle')).toBe('off');
   sources.spotify(ready);
   media(false);
   expect(variables.getValue('spotify.shuffle')).toBe('smart');

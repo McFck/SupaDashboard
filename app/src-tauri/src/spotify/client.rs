@@ -1,5 +1,5 @@
 use super::{
-    Command, Message, Operation, SpotifyHub, api, auth,
+    Command, Message, Operation, SpotifyHub, api, auth, shuffle,
     store::{Credentials, Store},
 };
 use crate::http;
@@ -69,7 +69,7 @@ pub(super) async fn run(
 impl Client {
     fn publish(&self, error: Option<String>) {
         let view: Value = if self.store.credentials.tokens.is_some() {
-            json!({"state":"ready", "user":self.store.credentials.user_name, "trackUri":self.player.uri, "liked":self.liked, "smartShuffle":self.player.smart_shuffle, "error":error})
+            json!({"state":"ready", "user":self.store.credentials.user_name, "trackUri":self.player.uri, "liked":self.liked, "smartShuffle":self.player.smart_shuffle, "shuffle":self.player.shuffle, "error":error})
         } else {
             json!({"state":"needsAuth", "error":error})
         };
@@ -196,7 +196,55 @@ impl Client {
                 Ok(())
             }
             Operation::Command(command) => self.command(command).await,
+            Operation::Shuffle(mode) => {
+                let result = self.shuffle(mode).await;
+                if let Err(error) = &result {
+                    log::warn!("Spotify shuffle failed: {error}");
+                }
+                result
+            }
         }
+    }
+
+    async fn shuffle(&mut self, mode: shuffle::Mode) -> Result<(), String> {
+        // A fresh Web API read also handles GSMTC lag after an earlier fallback, and smart -> off.
+        let current = if self.store.credentials.tokens.is_some() {
+            match self.request("GET", "/me/player").await {
+                Ok(response) if response.status != 204 => Some(api::shuffle(&response.body)?),
+                // Native playback remains usable if the account or Web API is unavailable.
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let enabled = match shuffle::native(mode, current, &self.app.state()).await? {
+            shuffle::Outcome::Applied { enabled } => {
+                if self.store.credentials.tokens.is_none() {
+                    return Ok(());
+                }
+                let response = self.request("GET", "/me/player").await?;
+                if response.status != 204 && api::shuffle(&response.body)? == enabled {
+                    self.player.shuffle = enabled;
+                    self.player.smart_shuffle = false;
+                    return Ok(());
+                }
+                log::warn!("Spotify Web API did not confirm GSMTC shuffle; using Web API write");
+                enabled
+            }
+            shuffle::Outcome::Fallback { enabled, error } => {
+                if self.store.credentials.tokens.is_none() {
+                    return Err(error);
+                }
+                log::warn!("{error}; using Spotify Web API shuffle");
+                enabled
+            }
+        };
+        // Preserve the original target: retrying Toggle could undo a partly applied write.
+        self.request("PUT", &format!("/me/player/shuffle?state={enabled}"))
+            .await?;
+        self.player.smart_shuffle = false;
+        self.player.shuffle = enabled;
+        Ok(())
     }
 
     async fn command(&mut self, command: Command) -> Result<(), String> {

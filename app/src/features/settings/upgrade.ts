@@ -20,6 +20,18 @@ export function positiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
+/** Variables v2 adds optional string options; v1 records retain their existing unrestricted values. */
+export function upgradeVariables(input: unknown) {
+  if (
+    !isRecord(input) ||
+    (input.version !== 1 && input.version !== 2) ||
+    !Array.isArray(input.records)
+  ) {
+    return undefined;
+  }
+  return { version: 2 as const, records: input.records };
+}
+
 function savedControls(raw: unknown): (Record<string, unknown> & {
   id: string;
   name: string;

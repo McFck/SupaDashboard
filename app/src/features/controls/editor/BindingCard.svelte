@@ -83,6 +83,7 @@
           { value: 'true', label: 'True' },
         ],
   );
+  const valueOptions = $derived(variable?.definition.options);
 
   function setVariable(id: string) {
     if (id === (appField ? pendingAppVariable(appField) : binding.variableId)) return;
@@ -109,11 +110,12 @@
   function addCase() {
     const type = caseType;
     const values: Scalar[] =
-      type === 'boolean'
+      valueOptions ??
+      (type === 'boolean'
         ? [false, true]
         : type === 'integer' || type === 'float'
           ? [0, 1, -1]
-          : [''];
+          : ['']);
     let value = values.find(
       (candidate) =>
         !binding.cases.some(
@@ -121,6 +123,7 @@
         ),
     );
     if (value === undefined) {
+      if (valueOptions) return;
       if (type === 'string') {
         let suffix = 1;
         while (binding.cases.some((item) => item.value === `Value ${suffix}`)) suffix++;
@@ -204,7 +207,9 @@
       <Button
         size="sm"
         variant="outline"
-        disabled={!states.length || (caseType === 'boolean' && binding.cases.length >= 2)}
+        disabled={!states.length ||
+          (caseType === 'boolean' && binding.cases.length >= 2) ||
+          !!valueOptions?.every((value) => binding.cases.some((item) => item.value === value))}
         onclick={addCase}><Plus /> Add mapping</Button
       >
     </div>
@@ -220,6 +225,13 @@
               options={booleanLabels}
               aria-label="Mapped value"
               onchange={(value) => updateCase(index, { value: value === 'true' })}
+            />
+          {:else if valueOptions}
+            <Choice
+              value={String(item.value)}
+              options={valueOptions.map((value) => ({ value, label: value }))}
+              aria-label="Mapped value"
+              onchange={(value) => updateCase(index, { value })}
             />
           {:else if appField === 'display'}
             <MonitorField
