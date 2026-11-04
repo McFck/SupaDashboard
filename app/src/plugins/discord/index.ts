@@ -56,7 +56,7 @@ export const discordPlugin: Plugin = {
   setup(api) {
     api.registerIcon(
       'discord-voice',
-      'M8 4 5 5C3 8 2 12 2 16l4 2 1-2m10 0 1 2 4-2c0-4-1-8-3-11l-3-1-1 2H9L8 4ZM9 11v2m6-2v2M7 16c3 1 7 1 10 0',
+      'M8 4 5 5C3 8 2 12 2 16l4 2 1-2m10 0 1 2 4-2c0-4-1-8-3-11l-3-1-1 2H9L8 4M9 11v2m6-2v2M7 16c3 1 7 1 10 0',
     );
     api.registerAppIcon('discord', 'discord-voice');
     for (const [command, title] of [
