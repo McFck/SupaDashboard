@@ -160,8 +160,12 @@ export async function spotifyTransport(command: string) {
   if (command.startsWith('shuffle:')) {
     try {
       await invoke<void>('spotify_shuffle', { mode: command.slice('shuffle:'.length) });
-    } catch {
-      throw new ActionFailure('Spotify shuffle failed');
+    } catch (error) {
+      const title =
+        typeof error === 'string' && error.length <= 80 && validText(error)
+          ? error
+          : 'Spotify shuffle failed';
+      throw new ActionFailure(title);
     }
     return;
   }

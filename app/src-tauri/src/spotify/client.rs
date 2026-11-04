@@ -149,18 +149,46 @@ impl Client {
         if self.store.credentials.tokens.is_none() {
             return Ok(());
         }
-        let response = self.request("GET", "/me/player").await?;
-        self.player = if response.status == 204 {
-            api::Player::default()
-        } else {
-            api::player(&response.body)?
-        };
+        self.read_player().await?;
         self.liked = None;
         if let Some(uri) = &self.player.uri {
             let path = format!("/me/library/contains?{}", http::form(&[("uris", uri)]));
             self.liked = Some(api::contains(&self.request("GET", &path).await?.body)?);
         }
         Ok(())
+    }
+
+    async fn read_player(&mut self) -> Result<Option<bool>, String> {
+        let response = self.request("GET", "/me/player").await?;
+        let active = if response.status == 204 {
+            None
+        } else {
+            Some(api::shuffle(&response.body)?)
+        };
+        let player = if response.status == 204 {
+            api::Player::default()
+        } else {
+            api::player(&response.body)?
+        };
+        if player.uri != self.player.uri {
+            self.liked = None;
+        }
+        self.player = player;
+        Ok(active)
+    }
+
+    async fn confirm_shuffle(&mut self, enabled: bool) -> Result<(), String> {
+        for _ in 0..5 {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            let actual = self.read_player().await?.ok_or("Spotify isn't playing")?;
+            if !self.player.smart_shuffle && actual == enabled {
+                return Ok(());
+            }
+        }
+        if self.player.smart_shuffle {
+            return Err("Turn off smart shuffle in Spotify".into());
+        }
+        Err("Spotify ignored shuffle".into())
     }
 
     async fn operation(&mut self, operation: Operation) -> Result<(), String> {
@@ -207,44 +235,53 @@ impl Client {
     }
 
     async fn shuffle(&mut self, mode: shuffle::Mode) -> Result<(), String> {
-        // A fresh Web API read also handles GSMTC lag after an earlier fallback, and smart -> off.
-        let current = if self.store.credentials.tokens.is_some() {
-            match self.request("GET", "/me/player").await {
-                Ok(response) if response.status != 204 => Some(api::shuffle(&response.body)?),
-                // Native playback remains usable if the account or Web API is unavailable.
-                _ => None,
-            }
+        if self.store.credentials.tokens.is_none() {
+            return shuffle::native(mode, &self.app.state()).await;
+        }
+        let current = self.read_player().await?.ok_or("Spotify isn't playing")?;
+        let enabled = mode.enabled(current);
+        if self.player.smart_shuffle {
+            // Spotify ignores Off while Smart is active; a confirmed On first exits Smart.
+            self.set_shuffle(true).await?;
+        }
+        if self.player.shuffle == enabled {
+            return Ok(());
+        }
+        self.set_shuffle(enabled).await
+    }
+
+    async fn set_shuffle(&mut self, enabled: bool) -> Result<(), String> {
+        let device_id = self.player.device_id.clone();
+        let explicit = if enabled {
+            shuffle::Mode::On
         } else {
-            None
+            shuffle::Mode::Off
         };
-        let enabled = match shuffle::native(mode, current, &self.app.state()).await? {
-            shuffle::Outcome::Applied { enabled } => {
-                if self.store.credentials.tokens.is_none() {
-                    return Ok(());
-                }
-                let response = self.request("GET", "/me/player").await?;
-                if response.status != 204 && api::shuffle(&response.body)? == enabled {
-                    self.player.shuffle = enabled;
-                    self.player.smart_shuffle = false;
-                    return Ok(());
-                }
-                log::warn!("Spotify Web API did not confirm GSMTC shuffle; using Web API write");
-                enabled
-            }
-            shuffle::Outcome::Fallback { enabled, error } => {
-                if self.store.credentials.tokens.is_none() {
-                    return Err(error);
-                }
+        match shuffle::native(explicit, &self.app.state()).await {
+            Ok(()) => match self.confirm_shuffle(enabled).await {
+                Ok(()) => return Ok(()),
+                Err(error) => log::warn!("{error}; using Spotify Web API shuffle"),
+            },
+            Err(error) => {
                 log::warn!("{error}; using Spotify Web API shuffle");
-                enabled
             }
-        };
-        // Preserve the original target: retrying Toggle could undo a partly applied write.
-        self.request("PUT", &format!("/me/player/shuffle?state={enabled}"))
-            .await?;
-        self.player.smart_shuffle = false;
-        self.player.shuffle = enabled;
-        Ok(())
+        }
+        // An HTTP success only acknowledges the command; publish observations, never its target.
+        let state = enabled.to_string();
+        let mut fields = vec![("state", state.as_str())];
+        if let Some(id) = device_id.as_deref() {
+            fields.push(("device_id", id));
+        }
+        let write = self
+            .request(
+                "PUT",
+                &format!("/me/player/shuffle?{}", http::form(&fields)),
+            )
+            .await;
+        match self.confirm_shuffle(enabled).await {
+            Ok(()) => Ok(()),
+            Err(confirmation) => Err(write.err().unwrap_or(confirmation)),
+        }
     }
 
     async fn command(&mut self, command: Command) -> Result<(), String> {
