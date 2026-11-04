@@ -32,6 +32,7 @@ struct Client {
     retry: usize,
     next_retry: Instant,
     last_view: Value,
+    mute_before_deaf: Option<bool>,
     subscribed_channel: Option<model::Channel>,
 }
 
@@ -63,6 +64,7 @@ pub async fn run(app: AppHandle, generation: u64, path: PathBuf, mut messages: R
         retry: 0,
         next_retry: Instant::now(),
         last_view: Value::Null,
+        mute_before_deaf: None,
         subscribed_channel: None,
     };
     if client.store.credentials.is_none() {
@@ -234,7 +236,17 @@ impl Client {
         if name == "VOICE_CHANNEL_SELECT" {
             self.selected().await?;
         } else {
-            self.voice = self.voice.event(name, &event["data"]);
+            let next = self.voice.event(name, &event["data"]);
+            if name == "VOICE_SETTINGS_UPDATE" {
+                if let (Some((muted, false)), Some((_, true))) =
+                    (self.voice.settings, next.settings)
+                {
+                    self.mute_before_deaf = Some(muted);
+                } else if next.settings.is_some_and(|(_, deaf)| !deaf) {
+                    self.mute_before_deaf = None;
+                }
+            }
+            self.voice = next;
         }
         Ok(())
     }

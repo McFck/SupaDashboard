@@ -16,12 +16,15 @@ pub(super) async fn execute(client: &mut Client, command: VoiceCommand) -> Resul
             let args = match command {
                 VoiceCommand::ToggleMute => json!({"mute":!muted}),
                 VoiceCommand::ToggleDeaf if deafened => {
-                    json!({"deaf":false,"mute":false})
+                    json!({"deaf":false,"mute":client.mute_before_deaf.unwrap_or(muted)})
                 }
                 VoiceCommand::ToggleDeaf => json!({"deaf":true}),
                 _ => return Err("Invalid Discord voice command".into()),
             };
             client.request("SET_VOICE_SETTINGS", args).await?;
+            if matches!(command, VoiceCommand::ToggleDeaf) {
+                client.mute_before_deaf = if deafened { None } else { Some(muted) };
+            }
             let settings = client.request("GET_VOICE_SETTINGS", json!({})).await?;
             client.voice = client.voice.event("VOICE_SETTINGS_UPDATE", &settings);
         }
