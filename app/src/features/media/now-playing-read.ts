@@ -63,6 +63,15 @@ function readSession(value: unknown): NowPlayingSession | null {
     return null;
   }
   const timeline = readTimeline(value.timeline);
+  if (
+    (value.shuffle != null && typeof value.shuffle !== 'boolean') ||
+    (value.repeat != null &&
+      value.repeat !== 'off' &&
+      value.repeat !== 'context' &&
+      value.repeat !== 'track')
+  ) {
+    return null;
+  }
   return {
     sessionId: value.sessionId,
     ...(id(value.trackId) ? { trackId: value.trackId } : {}),
@@ -72,6 +81,10 @@ function readSession(value: unknown): NowPlayingSession | null {
     state: value.state,
     current: value.current === true,
     ...(timeline ? { timeline } : {}),
+    ...(typeof value.shuffle === 'boolean' ? { shuffle: value.shuffle } : {}),
+    ...(value.repeat === 'off' || value.repeat === 'context' || value.repeat === 'track'
+      ? { repeat: value.repeat }
+      : {}),
     ...(typeof value.artwork === 'string' && HANDLE.test(value.artwork)
       ? { artwork: value.artwork }
       : {}),

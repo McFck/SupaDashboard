@@ -151,6 +151,8 @@ export type NowPlayingSession = {
   timeline?: NowPlayingTimeline;
   /** Handle issued by the native artwork cache; anything else is ignored. */
   artwork?: string;
+  shuffle?: boolean;
+  repeat?: 'off' | 'context' | 'track';
 };
 
 export type NowPlayingSourceState =
