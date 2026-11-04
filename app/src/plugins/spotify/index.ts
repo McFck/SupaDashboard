@@ -32,14 +32,23 @@ function followOwner(api: PluginApi) {
       }
       // Set before subscribing: variable writes can synchronously publish another runtime snapshot.
       stopSources = () => {};
+      let smartShuffle = false;
+      let shuffle = false;
+      const shuffleValue = () => {
+        if (smartShuffle) {
+          return 'smart';
+        }
+        return shuffle ? 'shuffle' : 'off';
+      };
       const stopSpotify = subscribeSpotify((view) => {
         if (!currentRuntime()?.isOwner) {
           return;
         }
+        smartShuffle = view.state === 'ready' && view.smartShuffle;
         set({
           connected: view.state === 'ready',
           liked: view.state === 'ready' && view.liked === true,
-          smartShuffle: view.state === 'ready' && view.smartShuffle,
+          shuffle: shuffleValue(),
         });
         if (view.error && view.error !== lastError) {
           toast.error(view.error);
@@ -53,7 +62,8 @@ function followOwner(api: PluginApi) {
           sessions.find((s) => s.current) ??
           sessions.find((s) => s.state === 'playing') ??
           sessions[0];
-        set({ shuffle: session?.shuffle === true, repeat: session?.repeat ?? 'off' });
+        shuffle = session?.shuffle === true;
+        set({ shuffle: shuffleValue(), repeat: session?.repeat ?? 'off' });
       }, controller.signal);
       stopSources = () => {
         stopSpotify();
@@ -169,6 +179,8 @@ export const spotifyPlugin: Plugin = {
         id: `spotify.${op}`,
         title,
         bindableVariable: () => `spotify.${op}`,
+        bindableValues:
+          op === 'shuffle' ? ['off', 'shuffle', 'smart'] : ['off', 'context', 'track'],
         params: [
           {
             key: 'mode',
@@ -189,12 +201,12 @@ export const spotifyPlugin: Plugin = {
         },
       });
     }
-    for (const field of ['liked', 'shuffle', 'smartShuffle', 'connected', 'repeat'] as const) {
+    for (const field of ['liked', 'shuffle', 'connected', 'repeat'] as const) {
       api.registerVariable({
         id: `spotify.${field}`,
         name: `spotify.${field}`,
-        type: field === 'repeat' ? 'string' : 'boolean',
-        initialValue: field === 'repeat' ? 'off' : false,
+        type: field === 'repeat' || field === 'shuffle' ? 'string' : 'boolean',
+        initialValue: field === 'repeat' || field === 'shuffle' ? 'off' : false,
         persistent: false,
         readOnly: true,
       });

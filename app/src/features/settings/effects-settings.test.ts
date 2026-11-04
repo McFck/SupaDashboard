@@ -54,7 +54,7 @@ describe('settings v15 effects', () => {
     };
     const saved = migrate(input);
     const scenario = saved.controls[0].scenario;
-    expect(saved.version).toBe(18);
+    expect(saved.version).toBe(19);
     expect(scenario?.triggers.press?.effect).toBe('hearts');
     expect(JSON.stringify(scenario?.triggers.press)).not.toMatch(/lightning|snow|fire/);
     expect(scenario?.triggers.release?.effect).toBeUndefined();

@@ -5,6 +5,8 @@
   import Plus from '@lucide/svelte/icons/plus';
   import { Button } from '$lib/components/ui/button';
   import { runtimeView } from '../../../app/runtime/state';
+  import { stateIdAt } from '../../controls/variants';
+  import type { VariableValue } from '../variables';
   import {
     MAX_SCENARIO_DEPTH,
     MAX_SCENARIO_NODES,
@@ -150,7 +152,7 @@
     };
   }
 
-  function bindVariable(id: string) {
+  function bindVariable(id: string, values?: readonly VariableValue[]) {
     const record = $runtimeView.variables.records[id];
     if (!record) {
       return;
@@ -159,13 +161,19 @@
     if (existing.some((binding) => binding.variableId === id)) {
       return;
     }
-    const cases =
+    let cases: { value: VariableValue; stateId: string }[] =
       record.definition.type === 'boolean' && draft.stateRoles && !existing.length
         ? [
             { value: false, stateId: draft.stateRoles.off },
             { value: true, stateId: draft.stateRoles.on },
           ]
         : [];
+    if (values && draft.variants.length >= values.length) {
+      cases = values.map((value, index) => ({
+        value,
+        stateId: stateIdAt(draft, index),
+      }));
+    }
     onchange({ ...draft, stateBindings: [...existing, { variableId: id, cases }] });
   }
 

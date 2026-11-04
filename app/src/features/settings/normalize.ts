@@ -96,7 +96,7 @@ export function migrate(input: unknown): Settings {
   return {
     ...out,
     ...saved,
-    version: 18,
+    version: 19,
     controls,
     display: {
       ...out.display,

@@ -80,6 +80,8 @@ export type ActionDef = {
   title: string;
   params?: Param[];
   bindableVariable?(args: Record<string, unknown>): string | undefined;
+  /** Values mapped to the tile's states in order when enough states exist. */
+  bindableValues?: readonly VariableValue[];
   run(args: Record<string, unknown>, context?: ActionContext): unknown | Promise<unknown>;
 };
 

@@ -105,7 +105,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 18) {
+  if (typeof saved.version === 'number' && saved.version > 19) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -186,11 +186,11 @@ export function upgrade(input: Record<string, unknown>) {
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
   if (
-    ![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(saved.version as number)
+    ![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(saved.version as number)
   ) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(saved.version as number)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(saved.version as number)) {
     saved = toV8(saved);
   }
   if (saved.version === 8) {
@@ -289,6 +289,35 @@ export function upgrade(input: Record<string, unknown>) {
       }
     }
     saved = { ...saved, version: 18 };
+  }
+  if (saved.version === 18) {
+    // v19 folds the two non-persistent shuffle variables into one string; saved mappings keep their meaning.
+    for (const control of rawControls) {
+      if (!Array.isArray(control.stateBindings)) {
+        continue;
+      }
+      for (const value of control.stateBindings) {
+        const binding = object(value);
+        const smart = binding.variableId === 'spotify.smartShuffle';
+        if (!smart && binding.variableId !== 'spotify.shuffle') {
+          continue;
+        }
+        binding.variableId = 'spotify.shuffle';
+        const cases: unknown[] = Array.isArray(binding.cases) ? binding.cases : [];
+        binding.cases = cases.flatMap((item) => {
+          const entry = object(item);
+          if (typeof entry.value !== 'boolean') {
+            return [entry];
+          }
+          const mapping = smart
+            ? { true: ['smart'], false: ['off', 'shuffle'] }
+            : { true: ['shuffle', 'smart'], false: ['off'] };
+          const values = mapping[entry.value ? 'true' : 'false'];
+          return values.map((value) => ({ ...entry, value }));
+        });
+      }
+    }
+    saved = { ...saved, version: 19 };
   }
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {
     throw new Error('Monitor label must be text');
