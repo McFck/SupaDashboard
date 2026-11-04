@@ -204,6 +204,9 @@
             </Section>
           </div>
         {/each}
+        {#if plugin.settingsSection}
+          <plugin.settingsSection />
+        {/if}
         <div
           id={aboutId}
           class="scroll-mt-14 @[900px]:scroll-mt-9"

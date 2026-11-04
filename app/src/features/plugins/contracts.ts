@@ -192,5 +192,7 @@ export type Plugin = {
   source?: string;
   /** Part of the app itself: not listed on the Plugins page. */
   builtin?: boolean;
+  /** A section of the plugin page for settings that must stay out of settings.json, such as credentials. */
+  settingsSection?: Component;
   setup(api: PluginApi): void;
 };
