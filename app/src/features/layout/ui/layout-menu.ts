@@ -4,7 +4,8 @@ import { TRIGGER_LABELS, TRIGGERS, type Trigger } from '../../automation/scenari
 import { registeredEvents } from '../../plugins/registry';
 import { controlById, settings } from '../../settings/state.svelte';
 import type { Selection } from '../grid';
-import type { MoveMode } from '../move-options';
+import { moveOptions, type MoveMode } from '../move-options';
+import { appletById } from '../../applets/deck';
 import { layoutFor, type LayoutTarget } from '../applet-layouts';
 import { duplicateInSlot } from '../slot-edits';
 import { clipboard } from '../widget-clipboard.svelte';
@@ -46,6 +47,7 @@ export function layoutMenuActions(
   if (!item || !control) {
     return 'cell' in target ? [edit, pasteAction] : [];
   }
+  const applet = appletById(slot.appletId);
 
   const eventTitles = new Map(registeredEvents().map((event) => [event.id, event.title]));
   const configured = TRIGGERS.filter(
@@ -78,10 +80,18 @@ export function layoutMenuActions(
     pasteAction,
     {
       label: 'Move to page…',
-      disabled: settings.deck.pages.length <= 1,
+      disabled: !moveOptions(settings, applet, 'page', slot, item.id).some(
+        (option) => !option.disabled,
+      ),
       run: () => host.openMove('page', slot, item.id),
     },
-    { label: 'Move to slot…', run: () => host.openMove('slot', slot, item.id) },
+    {
+      label: 'Move to slot…',
+      disabled: !moveOptions(settings, applet, 'slot', slot, item.id).some(
+        (option) => !option.disabled,
+      ),
+      run: () => host.openMove('slot', slot, item.id),
+    },
     {
       label: 'Duplicate',
       run: () =>
