@@ -4,11 +4,12 @@ import type { NowPlayingSession } from '../../../features/plugins/contracts';
 import { nativeSessions } from '../../../platform/media';
 import { getLyrics, type LyricsView } from '../../../platform/lyrics';
 import { lineAt, positionAt } from '../lyric-clock';
+import { KineticScroll } from './kinetic-scroll';
 
 export type TileView = { kind: 'idle' } | { kind: 'loading' } | LyricsView;
 type Host = { visible(): boolean; offsetMs(): number };
 
-/** Follow pauses this long (ms) after the last scroll input, then glides back to the sung line. */
+/** Follow waits this long (ms) after the user's scrolling comes to rest, then glides back to the sung line. */
 const HOLD_MS = 4000;
 /** Height fraction where the sung line rests. */
 const ANCHOR = 0.4;
@@ -21,7 +22,8 @@ const pick = (sessions: readonly NowPlayingSession[]) =>
 export class LyricsTileController {
   view = $state<TileView>({ kind: 'idle' });
   active = $state(-1);
-  #node: HTMLElement | undefined;
+  #scroll: KineticScroll | undefined;
+  #content: HTMLElement | undefined;
   readonly #host: Host;
   #session = $state<NowPlayingSession>();
   #key = '';
@@ -110,33 +112,31 @@ export class LyricsTileController {
 
   /** Scrolls the sung line to its resting height unless the user holds the scroll. */
   #follow() {
-    const line = this.#node?.children[Math.max(0, this.active)];
-    if (!this.#node || this.#held || !(line instanceof HTMLElement)) {
+    const line = this.#content?.children[Math.max(0, this.active)];
+    if (!this.#scroll || this.#held || !(line instanceof HTMLElement)) {
       return;
     }
-    const top = line.offsetTop + line.offsetHeight / 2 - this.#node.clientHeight * ANCHOR;
+    const top = line.offsetTop + line.offsetHeight / 2 - this.#scroll.height * ANCHOR;
     const smooth = !this.#jump && !prefersReducedMotion.current;
     this.#jump = false;
-    this.#node.scrollTo({ top, behavior: smooth ? 'smooth' : 'instant' });
+    this.#scroll.scrollTo(top, smooth);
   }
 
-  /**
-   * Action for the scroller. Scroll input (not `scroll` events, which follow scrolls too) holds follow until it
-   * has stopped for a while.
-   */
+  /** Action for the scroller, whose first child is the content it moves. */
   scroller = (node: HTMLElement) => {
-    this.#node = node;
-    const events = ['wheel', 'touchstart', 'touchmove', 'pointerdown'] as const;
-    for (const type of events) {
-      node.addEventListener(type, this.#hold, { passive: true });
+    const content = node.firstElementChild;
+    if (!(content instanceof HTMLElement)) {
+      return;
     }
+    const scroll = new KineticScroll(node, content, { onInput: this.#hold, onRest: this.#release });
+    this.#scroll = scroll;
+    this.#content = content;
     return {
       destroy: () => {
-        for (const type of events) {
-          node.removeEventListener(type, this.#hold);
-        }
-        if (this.#node === node) {
-          this.#node = undefined;
+        scroll.destroy();
+        if (this.#scroll === scroll) {
+          this.#scroll = undefined;
+          this.#content = undefined;
         }
       },
     };
@@ -144,6 +144,10 @@ export class LyricsTileController {
 
   #hold = () => {
     this.#held = true;
+    clearTimeout(this.#holdTimer);
+  };
+
+  #release = () => {
     clearTimeout(this.#holdTimer);
     this.#holdTimer = setTimeout(() => {
       this.#held = false;

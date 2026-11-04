@@ -49,6 +49,7 @@
   data-lyrics-tile={lyrics.view.kind}
   style="-webkit-app-region: no-drag"
   style:--size="{size}px"
+  style:--height="{pixelHeight}px"
   class="tile-content h-full w-full"
 >
   {#if lyrics.view.kind === 'synced' || lyrics.view.kind === 'plain'}
@@ -57,22 +58,26 @@
       role="region"
       aria-label="Lyrics"
       class="scroller"
-      class:synced={lyrics.view.kind === 'synced'}
     >
-      {#if lyrics.view.kind === 'synced'}
-        {#each lyrics.view.lines as line, index (index)}
-          <p
-            class="line"
-            class:past={index < lyrics.active}
-            class:active={index === lyrics.active}
-            aria-current={index === lyrics.active ? 'true' : undefined}
-          >
-            {line.text.trim() || '♪'}
-          </p>
-        {/each}
-      {:else}
-        <p class="plain">{lyrics.view.text}</p>
-      {/if}
+      <div
+        class="content"
+        class:synced={lyrics.view.kind === 'synced'}
+      >
+        {#if lyrics.view.kind === 'synced'}
+          {#each lyrics.view.lines as line, index (index)}
+            <p
+              class="line"
+              class:past={index < lyrics.active}
+              class:active={index === lyrics.active}
+              aria-current={index === lyrics.active ? 'true' : undefined}
+            >
+              {line.text.trim() || '♪'}
+            </p>
+          {/each}
+        {:else}
+          <p class="plain">{lyrics.view.text}</p>
+        {/if}
+      </div>
     </div>
   {:else if lyrics.view.kind === 'loading'}
     <div
@@ -103,11 +108,10 @@
   .scroller {
     position: absolute;
     inset: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    touch-action: pan-y;
-    scrollbar-width: none;
+    overflow: hidden;
+    /* KineticScroll owns every drag, so neither the browser nor the page pager pans. */
+    touch-action: none;
+    user-select: none;
     padding-inline: max(14px, calc(var(--size) * 0.85));
     /* Lines fade in and out at the edges instead of being cut. */
     mask-image: linear-gradient(
@@ -125,10 +129,14 @@
     display: block;
   }
   .synced::before {
-    height: 40%;
+    height: calc(var(--height) * 0.4);
   }
   .synced::after {
-    height: 60%;
+    height: calc(var(--height) * 0.6);
+  }
+  .content {
+    position: relative;
+    will-change: transform;
   }
   .line {
     margin: 0 0 calc(var(--size) * 0.5);
