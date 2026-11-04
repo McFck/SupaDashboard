@@ -1,8 +1,9 @@
 //! What the session worker publishes, and the rule for when a new reading is worth publishing.
 use serde::Serialize;
 
-/// Position drift beyond this means a seek or a stall, not the clock the renderer extrapolates.
-const DRIFT_MS: i64 = 1500;
+/// Position drift beyond this means a seek or a stall, not the clock the renderer extrapolates. Synced
+/// lyrics show anything coarser as a visibly late line.
+const DRIFT_MS: i64 = 300;
 
 #[derive(Serialize, Clone, Copy, PartialEq, Debug)]
 #[serde(rename_all = "lowercase")]
