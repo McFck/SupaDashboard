@@ -10,7 +10,7 @@ const tile = (variant: Record<string, unknown>) => ({
 describe('settings v17 tile styles', () => {
   it('keeps the default face for older states and the chosen style for newer ones', () => {
     const old = migrate({ version: 15, controls: [tile({})] });
-    expect(old.version).toBe(17);
+    expect(old.version).toBe(18);
     expect(old.controls[0].variants[0].style).toBeUndefined();
     const styled = migrate({
       version: 16,
