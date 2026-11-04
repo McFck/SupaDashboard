@@ -16,7 +16,9 @@ pub(super) async fn execute(client: &mut Client, command: VoiceCommand) -> Resul
             let args = match command {
                 VoiceCommand::ToggleMute => json!({"mute":!muted}),
                 VoiceCommand::ToggleDeaf if deafened => {
-                    json!({"deaf":false,"mute":client.mute_before_deaf.unwrap_or(muted)})
+                    // Like Discord: restore the mute from before deafening. While deafened Discord reports
+                    // muted too, so an unknown earlier state (deafened before we connected) means unmuted.
+                    json!({"deaf":false,"mute":client.mute_before_deaf.unwrap_or(false)})
                 }
                 VoiceCommand::ToggleDeaf => json!({"deaf":true}),
                 _ => return Err("Invalid Discord voice command".into()),
