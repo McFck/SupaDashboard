@@ -42,7 +42,7 @@ export const DEFAULT_PAGE: Page = {
 };
 
 export const DEFAULTS: Settings = {
-  version: 17,
+  version: 18,
   display: {
     monitor: null,
     monitorLabel: null,
@@ -88,7 +88,12 @@ export const DEFAULTS: Settings = {
       name: 'Spotify',
       type: 'button',
       variants: [
-        { label: 'Spotify', icon: 'spotify', color: '#66ce8f', action: { id: 'spotify.open' } },
+        {
+          label: 'Spotify',
+          icon: 'spotify',
+          color: '#66ce8f',
+          action: { id: 'open', args: { url: 'spotify:' } },
+        },
       ],
     }),
   ],
