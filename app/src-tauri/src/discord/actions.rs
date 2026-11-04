@@ -29,8 +29,9 @@ pub(super) async fn execute(client: &mut Client, command: VoiceCommand) -> Resul
             client.voice = client.voice.event("VOICE_SETTINGS_UPDATE", &settings);
         }
         VoiceCommand::Leave => {
+            // Already out of voice: the action's goal is met, so it is not an error.
             if client.voice.channel.is_none() {
-                return Err("Not in a voice channel".into());
+                return Ok(());
             }
             client
                 .request("SELECT_VOICE_CHANNEL", json!({"channel_id":null}))
@@ -44,6 +45,9 @@ pub(super) async fn execute(client: &mut Client, command: VoiceCommand) -> Resul
                 .as_ref()
                 .filter(|channel| channel.kind == "guild" && channel.valid())
                 .ok_or("No channel to rejoin")?;
+            if client.voice.channel.as_ref().map(|current| &current.id) == Some(&channel.id) {
+                return Ok(());
+            }
             client
                 .request(
                     "SELECT_VOICE_CHANNEL",
