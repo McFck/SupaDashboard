@@ -1,14 +1,14 @@
 //! What app commands do to windows: launch, focus, move to a display, minimize, close.
 use super::identity::{Matcher, init_com};
-use super::model::{Command, Hide, Op, Plan, Win, is_app_window, plan_toggle, relocate};
+use super::model::{Command, Hide, Op, Plan, Win, is_app_window, plan_toggle};
+use super::placement::move_to;
 use super::selection::{select, toggle_facts};
-use super::windows::{Monitor, Scan, hwnd, rect};
+use super::windows::{Scan, hwnd};
 use std::mem::size_of;
 use std::time::{Duration, Instant};
 use windows::Win32::Foundation::{
-    CloseHandle, E_ACCESSDENIED, ERROR_INVALID_PARAMETER, HWND, LPARAM, RECT, WAIT_OBJECT_0, WPARAM,
+    CloseHandle, E_ACCESSDENIED, ERROR_INVALID_PARAMETER, HWND, LPARAM, WAIT_OBJECT_0, WPARAM,
 };
-use windows::Win32::Graphics::Gdi::{MONITOR_DEFAULTTONEAREST, MonitorFromWindow};
 use windows::Win32::System::Threading::{
     GetProcessId, OpenProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, TerminateProcess,
     WaitForSingleObject,
@@ -23,9 +23,8 @@ use windows::Win32::UI::Shell::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AllowSetForegroundWindow, GA_ROOTOWNER, GetAncestor, GetForegroundWindow, GetLastActivePopup,
-    GetWindowPlacement, GetWindowRect, IsIconic, IsWindow, IsWindowVisible, IsZoomed, PostMessageW,
-    SW_MINIMIZE, SW_RESTORE, SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_NOZORDER, SetForegroundWindow,
-    SetWindowPlacement, SetWindowPos, ShowWindow, ShowWindowAsync, WINDOWPLACEMENT, WM_CLOSE,
+    IsIconic, IsWindow, IsWindowVisible, PostMessageW, SW_MINIMIZE, SW_RESTORE, SW_SHOWNORMAL,
+    SetForegroundWindow, ShowWindow, ShowWindowAsync, WM_CLOSE,
 };
 use windows::core::{Error, HSTRING, Owned};
 
@@ -148,81 +147,36 @@ fn bring_to_front(win: HWND) -> bool {
     alt_tap() && front()
 }
 
-fn move_to(win: HWND, target: &Monitor) -> Result<(), String> {
-    let source = unsafe { MonitorFromWindow(win, MONITOR_DEFAULTTONEAREST) };
-    if source == target.handle {
-        return Ok(());
-    }
-    let monitors = super::windows::monitors();
-    let Some(source) = monitors.iter().find(|monitor| monitor.handle == source) else {
-        return Ok(());
-    };
-    let mut bounds = RECT::default();
-    unsafe { GetWindowRect(win, &mut bounds) }.map_err(|error| error.message())?;
-    if rect(bounds) == source.rect && !unsafe { IsZoomed(win) }.as_bool() {
-        // Borderless fullscreen covers its monitor: it takes the whole target monitor.
-        let to = target.rect;
-        return unsafe {
-            SetWindowPos(
-                win,
-                None,
-                to.left,
-                to.top,
-                to.width(),
-                to.height(),
-                SWP_NOZORDER | SWP_NOACTIVATE,
-            )
-        }
-        .map_err(|error| error.message());
-    }
-    let mut placement = WINDOWPLACEMENT {
-        length: size_of::<WINDOWPLACEMENT>() as u32,
-        ..Default::default()
-    };
-    unsafe { GetWindowPlacement(win, &mut placement) }.map_err(|error| error.message())?;
-    // Placement uses workspace coordinates: screen coordinates minus the monitor's taskbar offset.
-    let offset = |monitor: &Monitor| {
-        (
-            monitor.work.left - monitor.rect.left,
-            monitor.work.top - monitor.rect.top,
-        )
-    };
-    let (sx, sy) = offset(source);
-    let (tx, ty) = offset(target);
-    let normal = rect(placement.rcNormalPosition);
-    let screen = super::model::Rect {
-        left: normal.left + sx,
-        top: normal.top + sy,
-        right: normal.right + sx,
-        bottom: normal.bottom + sy,
-    };
-    let moved = relocate(screen, source.work, target.work);
-    placement.rcNormalPosition = RECT {
-        left: moved.left - tx,
-        top: moved.top - ty,
-        right: moved.right - tx,
-        bottom: moved.bottom - ty,
-    };
-    unsafe { SetWindowPlacement(win, &placement) }.map_err(|error| error.message())
-}
-
-/// Restores if needed, moves to the display, then takes focus.
-fn reveal(win: &Win, display: Option<&Monitor>, label: &str) -> Result<(), String> {
+/// Show first: tray apps can restore their saved position while taking focus.
+fn reveal(win: &Win, display: Option<&str>, label: &str) -> Result<(), String> {
     let handle = hwnd(win);
-    if let Some(target) = display {
-        move_to(handle, target).map_err(|_| format!("Couldn't move {label}"))?;
+    if !bring_to_front(handle) {
+        return Err(format!("Couldn't bring {label} to front"));
     }
-    if bring_to_front(handle) {
-        Ok(())
-    } else {
-        Err(format!("Couldn't bring {label} to front"))
+    if let Some(path) = display {
+        move_to(handle, path).map_err(|_| format!("Couldn't move {label}"))?;
     }
+    Ok(())
 }
 
-fn reveal_selected(wins: &[Win], display: Option<&Monitor>, label: &str) -> Result<(), String> {
+fn reveal_selected(wins: &[Win], display: Option<&str>, label: &str) -> Result<(), String> {
     // Restore each window through the same path, back to front, so the most recently active window ends up in front.
     for win in wins.iter().rev() {
         reveal(win, display, label)?;
+    }
+    if let Some(path) = display {
+        // Telegram, Discord and Steam may apply saved bounds after their first show.
+        for delay in [250, 750] {
+            std::thread::sleep(Duration::from_millis(delay));
+            for win in wins {
+                let handle = hwnd(win);
+                if unsafe { IsWindowVisible(handle) }.as_bool()
+                    && !unsafe { IsIconic(handle) }.as_bool()
+                {
+                    move_to(handle, path).map_err(|_| format!("Couldn't move {label}"))?;
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -330,17 +284,12 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
     let mut scan = Scan::new(&mut names);
     let wins = scan.windows(matcher);
     let running = !wins.is_empty() || !scan.pids(matcher).is_empty();
-    let display = match &command.display {
-        Some(path) => Some(
-            scan.monitors()
-                .iter()
-                .position(|monitor| &monitor.path == path)
-                .ok_or("The display is not connected")?,
-        ),
-        None => None,
-    };
+    let display = command.display.as_deref().filter(|path| {
+        scan.monitors()
+            .iter()
+            .any(|monitor| monitor.path.eq_ignore_ascii_case(path))
+    });
     let label = matcher.label.as_str();
-    let target = display.map(|index| super::windows::monitors().swap_remove(index));
     let shown = top(&wins);
     let selected = select(&wins, command.windows, &command.title);
     if matches!(command.op, Op::Focus | Op::Toggle | Op::Minimize)
@@ -352,9 +301,9 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
     let reveal_targets = |scan: &mut Scan| {
         if selected.is_empty() {
             let opened = launch_and_wait(scan.names, matcher, command)?;
-            reveal_selected(&opened, target.as_ref(), label)
+            reveal_selected(&opened, display, label)
         } else {
-            reveal_selected(&selected, target.as_ref(), label)
+            reveal_selected(&selected, display, label)
         }
     };
     match command.op {
@@ -362,7 +311,11 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
         Op::Open if running => Ok(()),
         Op::Open => {
             guard_focus()?;
-            launch(matcher)
+            if display.is_some() {
+                reveal_targets(&mut scan)
+            } else {
+                launch(matcher)
+            }
         }
         Op::Focus => {
             guard_focus()?;
@@ -375,7 +328,8 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
                 guard_focus()?;
             }
             match plan {
-                Plan::Launch => launch(matcher),
+                Plan::Launch if display.is_none() => launch(matcher),
+                Plan::Launch => reveal_targets(&mut scan),
                 Plan::Restore | Plan::Raise => reveal_targets(&mut scan),
                 Plan::Hide => match command.hide {
                     Hide::Minimize => minimize(&selected, label),

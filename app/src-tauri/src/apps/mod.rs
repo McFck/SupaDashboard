@@ -6,6 +6,7 @@ mod icons;
 pub mod identity;
 mod list;
 mod model;
+mod placement;
 mod quit;
 #[cfg(test)]
 mod request_tests;
