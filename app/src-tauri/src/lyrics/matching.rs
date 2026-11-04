@@ -108,7 +108,7 @@ pub(super) fn pick(records: Vec<Record>, track: &Track) -> LyricsView {
         .filter(|record| normalized(&record.track_name, &record.artist_name) == identity)
         .filter_map(|record| {
             let distance = (record.duration - track.duration as f64).abs();
-            if !record.duration.is_finite() || distance > 10.0 {
+            if !record.duration.is_finite() || distance > 15.0 {
                 return None;
             }
             let view = record.view(distance);
@@ -211,7 +211,13 @@ mod tests {
         out_of_sync.plain_lyrics = None;
         assert_eq!(pick(vec![out_of_sync], &track), LyricsView::None);
         assert_eq!(
-            pick(vec![record("Song", "Artist", 111.0, false)], &track),
+            pick(vec![record("Song", "Artist", 115.0, false)], &track),
+            LyricsView::Plain {
+                text: "plain".into()
+            }
+        );
+        assert_eq!(
+            pick(vec![record("Song", "Artist", 116.0, false)], &track),
             LyricsView::None
         );
         assert_eq!(

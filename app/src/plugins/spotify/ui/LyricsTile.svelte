@@ -75,7 +75,9 @@
             </p>
           {/each}
         {:else}
-          <p class="plain">{lyrics.view.text}</p>
+          <p class="plain">
+            <span class="mb-2 block text-xs text-zinc-500">[not synced]</span>{lyrics.view.text}
+          </p>
         {/if}
       </div>
     </div>
