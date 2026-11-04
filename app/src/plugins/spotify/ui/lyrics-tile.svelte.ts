@@ -85,7 +85,8 @@ export class LyricsTileController {
       return;
     }
     const { artist, title, album } = session;
-    void getLyrics({ artist, title, album, durationMs }).then((view) => {
+    // The native side takes whole milliseconds.
+    void getLyrics({ artist, title, album, durationMs: Math.round(durationMs) }).then((view) => {
       if (mine === this.#epoch) {
         this.view = view;
       }
