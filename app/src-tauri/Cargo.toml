@@ -24,10 +24,17 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 webview2-com = "0.39.1"
 windows-future = "0.3.2"
+tokio = { version = "1", features = ["net", "io-util", "sync", "time", "macros"] }
 windows = { version = "0.62", features = [
   "Foundation",
   "Media_Control",
   "Storage_Streams",
+  "Security_Cryptography",
+  "Security_Cryptography_Core",
+  "Web_Http",
+  "Web_Http_Filters",
+  "Win32_Security_Cryptography",
+  "Win32_Storage_FileSystem",
   "Win32_Foundation",
   "Win32_Devices_Display",
   "Win32_Graphics_Dwm",

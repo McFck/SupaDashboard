@@ -5,6 +5,7 @@ mod apps;
 mod audio;
 mod content;
 mod dashboard;
+mod discord;
 mod media;
 mod monitors;
 mod panel;
@@ -36,6 +37,7 @@ pub fn run() {
                     .map_err(std::io::Error::other)?,
             );
             app.manage(apps::watch::AppsHub::default());
+            app.manage(discord::DiscordHub::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
@@ -78,6 +80,11 @@ pub fn run() {
             media::media_sessions_subscribe,
             media::media_sessions_unsubscribe,
             media::media_artwork_resolve,
+            discord::discord_subscribe,
+            discord::discord_unsubscribe,
+            discord::discord_authorize,
+            discord::discord_logout,
+            discord::discord_voice,
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
