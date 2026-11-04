@@ -1,6 +1,7 @@
 mod cache;
 mod lrc;
 mod lrclib;
+mod matching;
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -78,7 +79,7 @@ pub async fn lyrics_get(
         entry.key == key
             && now.saturating_sub(entry.at)
                 < match &entry.result {
-                    Ok(LyricsView::None) => 7 * 86400,
+                    Ok(LyricsView::None) => cache::NEGATIVE_TTL,
                     Ok(_) => u64::MAX,
                     Err(_) => 5,
                 }

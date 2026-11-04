@@ -8,6 +8,8 @@ use std::{
 use windows::Security::Cryptography::{Core::HashAlgorithmProvider, CryptographicBuffer};
 use windows::core::HSTRING;
 
+pub(super) const NEGATIVE_TTL: u64 = 300;
+
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Entry {
@@ -42,9 +44,10 @@ pub fn read(dir: &Path, key: &str, now: u64) -> Option<LyricsView> {
         return None;
     }
     let entry: Entry = serde_json::from_reader(file).ok()?;
-    if entry.version != 1
+    if ![1, 2].contains(&entry.version)
         || entry.fetched_at > now
-        || (entry.result == LyricsView::None && now - entry.fetched_at >= 7 * 86400)
+        // v1 misses came from the strict lookup; keep positive entries and retry those misses.
+        || (entry.result == LyricsView::None && (entry.version == 1 || now - entry.fetched_at >= NEGATIVE_TTL))
     {
         return None;
     }
@@ -68,7 +71,7 @@ pub fn write(dir: &Path, key: &str, result: &LyricsView, fetched_at: u64) -> Res
         fs::write(
             &partial,
             serde_json::to_vec(&Entry {
-                version: 1,
+                version: 2,
                 fetched_at,
                 result: result.clone(),
             })?,
@@ -110,10 +113,25 @@ mod tests {
         assert_eq!(read(&dir, "positive", 999_999), Some(plain));
         write(&dir, "negative", &LyricsView::None, 100).unwrap();
         assert_eq!(
-            read(&dir, "negative", 100 + 7 * 86400 - 1),
+            read(&dir, "negative", 100 + NEGATIVE_TTL - 1),
             Some(LyricsView::None)
         );
-        assert_eq!(read(&dir, "negative", 100 + 7 * 86400), None);
+        assert_eq!(read(&dir, "negative", 100 + NEGATIVE_TTL), None);
+        fs::write(
+            dir.join("old-negative.json"),
+            br#"{"version":1,"fetchedAt":100,"result":{"kind":"none"}}"#,
+        )
+        .unwrap();
+        assert_eq!(read(&dir, "old-negative", 100), None);
+        fs::write(
+            dir.join("old-positive.json"),
+            br#"{"version":1,"fetchedAt":100,"result":{"kind":"instrumental"}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read(&dir, "old-positive", 100),
+            Some(LyricsView::Instrumental)
+        );
         fs::write(dir.join("positive.json"), b"broken").unwrap();
         assert_eq!(read(&dir, "positive", 100), None);
         write(&dir, "positive", &LyricsView::Instrumental, 100).unwrap();

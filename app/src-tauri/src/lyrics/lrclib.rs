@@ -1,92 +1,13 @@
-use super::{LyricsView, Track, lrc};
+use super::{
+    LyricsView, Track,
+    matching::{Record, normalized, pick},
+};
 use crate::http;
-use serde::Deserialize;
 use std::time::Duration;
 
 #[derive(Default)]
 pub(super) struct Client {
     retry_at: Option<tokio::time::Instant>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Record {
-    duration: f64,
-    instrumental: bool,
-    plain_lyrics: Option<String>,
-    synced_lyrics: Option<String>,
-}
-
-impl Record {
-    fn view(&self) -> LyricsView {
-        if self.instrumental {
-            return LyricsView::Instrumental;
-        }
-        if let Some(text) = &self.synced_lyrics {
-            let lines = lrc::parse(text);
-            if !lines.is_empty() {
-                return LyricsView::Synced { lines };
-            }
-        }
-        if let Some(text) = &self.plain_lyrics {
-            if !text.trim().is_empty() {
-                return LyricsView::Plain {
-                    text: text.chars().take(100_000).collect(),
-                };
-            }
-        }
-        LyricsView::None
-    }
-}
-
-fn pick(records: Vec<Record>, duration: u64) -> LyricsView {
-    records
-        .into_iter()
-        .filter(|record| {
-            record.duration.is_finite() && (record.duration - duration as f64).abs() <= 2.0
-        })
-        .map(|record| ((record.duration - duration as f64).abs(), record.view()))
-        .filter(|(_, view)| *view != LyricsView::None)
-        .min_by(|(a_distance, a), (b_distance, b)| {
-            let rank = |view: &LyricsView| match view {
-                LyricsView::Synced { .. } | LyricsView::Instrumental => 0,
-                _ => 1,
-            };
-            rank(a)
-                .cmp(&rank(b))
-                .then_with(|| a_distance.total_cmp(b_distance))
-        })
-        .map(|(_, view)| view)
-        .unwrap_or(LyricsView::None)
-}
-
-fn normalized(track: &Track) -> (String, String) {
-    let mut title = track.title.clone();
-    for marker in ["[", "(feat.", "(Feat."] {
-        if let Some(at) = title.find(marker) {
-            let end = if marker == "[" { ']' } else { ')' };
-            if let Some(length) = title[at..].find(end) {
-                title.replace_range(at..at + length + 1, "");
-            }
-        }
-    }
-    if let Some((base, suffix)) = title.rsplit_once(" - ") {
-        let suffix = suffix.to_ascii_lowercase();
-        if suffix.contains("remaster") || suffix.ends_with("version") {
-            title = base.into();
-        }
-    }
-    let artist = track
-        .artist
-        .split([',', ';'])
-        .next()
-        .unwrap_or(&track.artist)
-        .split(" feat.")
-        .next()
-        .unwrap_or(&track.artist)
-        .trim()
-        .into();
-    (title.trim().into(), artist)
 }
 
 impl Client {
@@ -139,90 +60,47 @@ impl Client {
 
     pub(super) async fn fetch(&mut self, track: &Track) -> Result<LyricsView, String> {
         let duration = track.duration.to_string();
-        let (title, artist) = normalized(track);
-        for (title, artist) in [(&track.title, &track.artist), (&title, &artist)] {
-            let response = self
-                .request(
-                    "get",
-                    &[
-                        ("track_name", title),
-                        ("artist_name", artist),
-                        ("album_name", &track.album),
-                        ("duration", &duration),
-                    ],
-                )
-                .await?;
-            if response.status == 404 {
-                continue;
+        let response = self
+            .request(
+                "get",
+                &[
+                    ("track_name", &track.title),
+                    ("artist_name", &track.artist),
+                    ("album_name", &track.album),
+                    ("duration", &duration),
+                ],
+            )
+            .await?;
+        if response.status == 200 {
+            let record: Record =
+                serde_json::from_str(&response.body).map_err(|_| "Invalid lyrics response")?;
+            let view = pick(vec![record], track);
+            if view != LyricsView::None {
+                return Ok(view);
             }
+        } else if response.status != 404 {
+            return Err("Lyrics unavailable".into());
+        }
+        let (title, artist) = normalized(&track.title, &track.artist);
+        let query = format!("{title} {artist}");
+        for fields in [
+            vec![
+                ("track_name", title.as_str()),
+                ("artist_name", artist.as_str()),
+            ],
+            vec![("q", query.as_str())],
+        ] {
+            let response = self.request("search", &fields).await?;
             if response.status != 200 {
                 return Err("Lyrics unavailable".into());
             }
-            let record: Record =
+            let records: Vec<Record> =
                 serde_json::from_str(&response.body).map_err(|_| "Invalid lyrics response")?;
-            if !record.duration.is_finite() || (record.duration - track.duration as f64).abs() > 2.0
-            {
-                return Err("Invalid lyrics duration".into());
+            let view = pick(records, track);
+            if view != LyricsView::None {
+                return Ok(view);
             }
-            return Ok(record.view());
         }
-        let response = self
-            .request(
-                "search",
-                &[("track_name", &title), ("artist_name", &artist)],
-            )
-            .await?;
-        if response.status != 200 {
-            return Err("Lyrics unavailable".into());
-        }
-        let records: Vec<Record> =
-            serde_json::from_str(&response.body).map_err(|_| "Invalid lyrics response")?;
-        Ok(pick(records, track.duration))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn record(duration: f64, synced: bool) -> Record {
-        Record {
-            duration,
-            instrumental: false,
-            plain_lyrics: Some("plain".into()),
-            synced_lyrics: synced.then(|| "[00:01]line".into()),
-        }
-    }
-    #[test]
-    fn search_prefers_synced_within_tolerance_then_closest_and_preserves_instrumentals() {
-        assert_eq!(
-            pick(
-                vec![
-                    record(100.0, false),
-                    record(101.0, true),
-                    record(103.0, true)
-                ],
-                100
-            ),
-            record(101.0, true).view()
-        );
-        assert_eq!(
-            pick(vec![record(99.0, false), record(100.0, false)], 100),
-            record(100.0, false).view()
-        );
-        assert_eq!(pick(vec![record(103.0, true)], 100), LyricsView::None);
-        let mut instrumental = record(100.0, false);
-        instrumental.instrumental = true;
-        assert_eq!(pick(vec![instrumental], 100), LyricsView::Instrumental);
-    }
-    #[test]
-    fn normalizes_common_spotify_suffixes() {
-        let track = Track::new(
-            "Artist, Guest".into(),
-            "Song (feat. Guest) [Deluxe] - Remastered 2024".into(),
-            "".into(),
-            1000,
-        )
-        .unwrap();
-        assert_eq!(normalized(&track), ("Song".into(), "Artist".into()));
+        Ok(LyricsView::None)
     }
 }
