@@ -1,6 +1,5 @@
 mod auth;
 mod client;
-mod crypto;
 mod frame;
 mod model;
 mod rpc;

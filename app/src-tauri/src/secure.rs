@@ -10,7 +10,7 @@ pub fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
         cbData: bytes
             .len()
             .try_into()
-            .map_err(|_| "Discord store too large")?,
+            .map_err(|_| "Credential store too large")?,
         pbData: bytes.as_ptr().cast_mut(),
     };
     let mut output = CRYPT_INTEGER_BLOB::default();
@@ -39,9 +39,9 @@ pub fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
         };
         result.map_err(|_| {
             if encrypt {
-                "Could not protect Discord credentials"
+                "Could not protect credentials"
             } else {
-                "Could not unlock Discord credentials"
+                "Could not unlock credentials"
             }
         })?;
         let bytes = if output.cbData == 0 {
@@ -55,20 +55,19 @@ pub fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
 }
 
 pub fn pkce() -> Result<(String, String), String> {
-    let bytes =
-        CryptographicBuffer::GenerateRandom(32).map_err(|_| "Could not create Discord verifier")?;
+    let bytes = CryptographicBuffer::GenerateRandom(32).map_err(|_| "Could not create verifier")?;
     let verifier = base64url(
         &CryptographicBuffer::EncodeToBase64String(&bytes)
-            .map_err(|_| "Could not encode Discord verifier")?
+            .map_err(|_| "Could not encode verifier")?
             .to_string(),
     );
     let input = CryptographicBuffer::CreateFromByteArray(verifier.as_bytes())
-        .map_err(|_| "Could not hash Discord verifier")?;
+        .map_err(|_| "Could not hash verifier")?;
     let hash = HashAlgorithmProvider::OpenAlgorithm(&HSTRING::from("SHA256"))
         .and_then(|algorithm| algorithm.HashData(&input))
-        .map_err(|_| "Could not hash Discord verifier")?;
+        .map_err(|_| "Could not hash verifier")?;
     let challenge = CryptographicBuffer::EncodeToBase64String(&hash)
-        .map_err(|_| "Could not encode Discord challenge")?;
+        .map_err(|_| "Could not encode challenge")?;
     Ok((verifier, base64url(&challenge.to_string())))
 }
 

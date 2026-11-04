@@ -52,31 +52,6 @@ fn wait<T: RuntimeType + 'static>(
     op.GetResults()
 }
 
-pub fn transport_op(
-    session: &Session,
-    command: &str,
-) -> windows::core::Result<IAsyncOperation<bool>> {
-    match command {
-        "prev" => session.TrySkipPreviousAsync(),
-        "next" => session.TrySkipNextAsync(),
-        // Chromium browsers (Brave, Chrome, Edge) answer true to TryTogglePlayPause but ignore it, so toggle
-        // reads the session's own state and sends an explicit pause or play, which every player honours.
-        "toggle" => match session
-            .GetPlaybackInfo()
-            .and_then(|info| info.PlaybackStatus())
-        {
-            Ok(Status::Playing) => session.TryPauseAsync(),
-            _ => session.TryPlayAsync(),
-        },
-        "play" => session.TryPlayAsync(),
-        "pause" => session.TryPauseAsync(),
-        other => Err(windows::core::Error::new(
-            HRESULT(-1),
-            format!("unknown media command {other}"),
-        )),
-    }
-}
-
 pub enum Message {
     Wake,
     Transport {
@@ -166,7 +141,7 @@ impl Worker {
             .iter()
             .find(|tracked| tracked.id == id)
             .ok_or("media session is gone")?;
-        let result = transport_op(&tracked.session, command)
+        let result = super::transport::operation(&tracked.session, command)
             .and_then(|op| wait(&op, Instant::now() + CALL_DEADLINE));
         result.map_err(|error| error.to_string())
     }
@@ -353,6 +328,19 @@ impl Tracked {
             current: current.is_some_and(|current| same(current, &self.session)),
             timeline: self.timeline(),
             artwork: self.artwork.clone(),
+            shuffle: self
+                .session
+                .GetPlaybackInfo()
+                .and_then(|info| info.IsShuffleActive())
+                .and_then(|value| value.Value())
+                .ok(),
+            repeat: self
+                .session
+                .GetPlaybackInfo()
+                .and_then(|info| info.AutoRepeatMode())
+                .and_then(|value| value.Value())
+                .ok()
+                .and_then(super::transport::repeat_name),
         }
     }
 

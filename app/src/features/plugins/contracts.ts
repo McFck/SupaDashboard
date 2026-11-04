@@ -109,6 +109,8 @@ export type ControlTypeDef = {
   maxSize?: { w: number; h: number };
   /** The only scenario triggers it offers and runs; set, it also has no views or state bindings. */
   triggers?: readonly Trigger[];
+  /** The type's own section of the widget inspector. */
+  editor?: Component<{ control: ControlConfig }>;
   /** Starting configuration when added from the palette. */
   create(): Omit<ControlConfig, 'id' | 'type'>;
 };
@@ -149,6 +151,8 @@ export type NowPlayingSession = {
   timeline?: NowPlayingTimeline;
   /** Handle issued by the native artwork cache; anything else is ignored. */
   artwork?: string;
+  shuffle?: boolean;
+  repeat?: 'off' | 'context' | 'track';
 };
 
 export type NowPlayingSourceState =

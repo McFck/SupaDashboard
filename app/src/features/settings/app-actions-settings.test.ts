@@ -54,3 +54,62 @@ describe('settings v13 app window selection', () => {
     expect(input).toEqual(original);
   });
 });
+
+describe('settings v18 Spotify launch actions', () => {
+  it('keeps legacy, nested, state and event launch actions working without changing other actions', () => {
+    const launch = (id: string) => ({ id, kind: 'action', action: { id: 'spotify.open' } });
+    const other = { id: 'open', args: { url: 'https://example.com' } };
+    const input = {
+      version: 17,
+      controls: [
+        { id: 'legacy', type: 'button', variants: [{ action: { id: 'spotify.open' } }] },
+        {
+          id: 'lyrics',
+          type: 'button',
+          variants: [],
+          scenario: {
+            triggers: {
+              press: {
+                steps: [
+                  launch('plain'),
+                  {
+                    id: 'branch',
+                    kind: 'if',
+                    condition: {},
+                    then: [launch('nested')],
+                    else: [{ id: 'other', kind: 'action', action: other }],
+                  },
+                ],
+                byState: { on: [launch('state')] },
+              },
+            },
+            events: [{ id: 'event', eventId: 'test', list: { steps: [launch('event-step')] } }],
+          },
+        },
+      ],
+    };
+    const original = structuredClone(input);
+    const saved = migrate(input);
+    const actions: unknown[] = [];
+    for (const control of saved.controls) {
+      if (control.scenario) {
+        walkSteps(control.scenario, (step) => {
+          if (step.kind === 'action') {
+            actions.push(step.action);
+          }
+        });
+      }
+    }
+    expect(saved.version).toBe(18);
+    expect(actions).toEqual([
+      { id: 'open', args: { url: 'spotify:' } },
+      { id: 'open', args: { url: 'spotify:' } },
+      { id: 'open', args: { url: 'spotify:' } },
+      other,
+      { id: 'open', args: { url: 'spotify:' } },
+      { id: 'open', args: { url: 'spotify:' } },
+    ]);
+    expect(input).toEqual(original);
+    expect(migrate(saved)).toEqual(saved);
+  });
+});

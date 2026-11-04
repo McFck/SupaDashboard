@@ -10,7 +10,7 @@ import { initVolumeSync } from '../features/media/volume';
 import { followRemovals } from '../features/layout/removal';
 import { appsPlugin } from '../plugins/core-apps';
 import { corePlugin } from '../plugins/core';
-import { spotifyPlugin } from '../plugins/spotify';
+import { spotifyPlugin } from '../plugins/spotify/index';
 import { discordPlugin } from '../plugins/discord';
 import { subwayPlugin } from '../plugins/subway';
 import { uiPlugin } from '../plugins/ui';
