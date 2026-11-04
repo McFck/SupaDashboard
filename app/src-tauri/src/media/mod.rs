@@ -39,7 +39,7 @@ struct Inner {
 pub struct MediaHub {
     inner: Mutex<Inner>,
     artwork: Mutex<ArtworkCache>,
-    commands: tokio::sync::Mutex<()>,
+    pub(crate) commands: tokio::sync::Mutex<()>,
 }
 
 impl MediaHub {
@@ -94,7 +94,7 @@ impl MediaHub {
     }
 
     /// Polls promptly: players answer a transport command a little late.
-    fn wake(&self) {
+    pub(crate) fn wake(&self) {
         if let Some(sender) = self.sender() {
             let _ = sender.send(Message::Wake);
         }
@@ -143,7 +143,9 @@ impl MediaHub {
 
 /// `target` None / "any" = the session the system rules pick (see `target::pick_system`); otherwise an
 /// app id, matched exactly first and by case-insensitive substring second (e.g. "spotify").
-async fn session(target: Option<&str>) -> windows::core::Result<Option<(Session, String)>> {
+pub(crate) async fn session(
+    target: Option<&str>,
+) -> windows::core::Result<Option<(Session, String)>> {
     let manager = Manager::RequestAsync()?.await?;
     let current = manager.GetCurrentSession().ok();
     let sessions: Vec<Session> = manager.GetSessions()?.into_iter().collect();

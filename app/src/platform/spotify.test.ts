@@ -1,8 +1,37 @@
-import { describe, expect, it } from 'vitest';
-import { readSpotifyView } from './spotify';
+import { describe, expect, it, vi } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
+import { readSpotifyView, spotifyTransport } from './spotify';
+import { ActionFailure } from '../features/automation/action-failure';
 import { readSourceState } from '../features/media/now-playing-read';
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), isTauri: () => true }));
 
 describe('Spotify trust boundaries', () => {
+  it('awaits native shuffle completion and propagates failure without trying another toggle', async () => {
+    let finish: (() => void) | undefined;
+    vi.mocked(invoke).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve(undefined);
+        }),
+    );
+    let completed = false;
+    const pending = spotifyTransport('shuffle:toggle').then(() => {
+      completed = true;
+    });
+    await Promise.resolve();
+    expect(completed).toBe(false);
+    finish?.();
+    await pending;
+    expect(completed).toBe(true);
+    for (const mode of ['on', 'off', 'toggle']) {
+      vi.mocked(invoke).mockRejectedValueOnce('native failure');
+      await expect(spotifyTransport(`shuffle:${mode}`)).rejects.toEqual(
+        new ActionFailure('Spotify shuffle failed'),
+      );
+      expect(invoke).toHaveBeenLastCalledWith('spotify_shuffle', { mode });
+    }
+    await expect(spotifyTransport('shuffle:smart')).rejects.toThrow('Invalid Spotify command');
+  });
   const ready = {
     state: 'ready',
     user: 'Listener',
@@ -20,6 +49,7 @@ describe('Spotify trust boundaries', () => {
       { ...ready, user: '\u0000' },
       { ...ready, liked: 1 },
       { ...ready, smartShuffle: 'true' },
+      { ...ready, shuffle: 'true' },
       { ...ready, trackUri: null },
       { ...ready, error: {} },
     ]) {

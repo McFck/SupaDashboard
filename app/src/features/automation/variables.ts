@@ -1,4 +1,5 @@
 import { freezeDeep, isRecord } from './plain-data';
+import { upgradeVariables } from '../settings/upgrade';
 
 export type VariableType = 'boolean' | 'integer' | 'float' | 'string';
 export type VariableValue = boolean | number | string;
@@ -11,12 +12,14 @@ export type VariableDefinition = {
   persistent: boolean;
   readOnly: boolean;
   initialValue: VariableValue;
+  /** Closed set of values for string variables. */
+  options?: string[];
   aliases?: string[];
   available?: boolean;
 };
 export type VariableRecord = { definition: VariableDefinition; value: VariableValue };
 export type VariableEnvelope = {
-  version: 1;
+  version: 2;
   records: { definition: Omit<VariableDefinition, 'available'>; value: VariableValue }[];
 };
 export type VariableSnapshot = {
@@ -30,7 +33,14 @@ function normalizeName(value: string) {
   return name;
 }
 
-function assertValue(type: VariableType, value: unknown): asserts value is VariableValue {
+function assertValue(
+  type: VariableType,
+  value: unknown,
+  options?: string[],
+): asserts value is VariableValue {
+  if (options && (typeof value !== 'string' || !options.includes(value))) {
+    throw new Error('Value is not an allowed option');
+  }
   if (type === 'boolean' && typeof value === 'boolean') return;
   if (type === 'integer' && typeof value === 'number' && Number.isSafeInteger(value)) return;
   if (type === 'float' && typeof value === 'number' && Number.isFinite(value)) return;
@@ -78,10 +88,35 @@ function isDefinition(value: unknown): value is VariableDefinition {
     VARIABLE_TYPES.includes(value.type as VariableType) &&
     typeof value.persistent === 'boolean' &&
     typeof value.readOnly === 'boolean' &&
+    (value.options === undefined ||
+      (value.type === 'string' &&
+        Array.isArray(value.options) &&
+        value.options.length > 0 &&
+        value.options.every((option: unknown) => typeof option === 'string') &&
+        new Set(value.options).size === value.options.length)) &&
     (value.aliases === undefined ||
       (Array.isArray(value.aliases) &&
         value.aliases.every((alias: unknown) => typeof alias === 'string' && !!alias.trim())))
   );
+}
+
+export function validVariableSnapshot(value: unknown): value is VariableSnapshot {
+  if (!isRecord(value) || !Number.isSafeInteger(value.revision) || !isRecord(value.records)) {
+    return false;
+  }
+  return Object.entries(value.records).every(([id, record]) => {
+    if (!isRecord(record) || !isDefinition(record.definition) || record.definition.id !== id) {
+      return false;
+    }
+    try {
+      const { type, initialValue, options } = record.definition;
+      assertValue(type, initialValue, options);
+      assertValue(type, record.value, options);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export class VariableStore {
@@ -94,18 +129,19 @@ export class VariableStore {
     if (envelope === undefined || envelope === null) {
       return;
     }
-    if (!isRecord(envelope) || envelope.version !== 1 || !Array.isArray(envelope.records)) {
+    const saved = upgradeVariables(envelope);
+    if (!saved) {
       this.needsRecovery = true;
       return;
     }
-    for (const raw of envelope.records) {
+    for (const raw of saved.records) {
       try {
         if (!isRecord(raw) || !isDefinition(raw.definition)) {
           throw new Error('Malformed variable record');
         }
         const definition = raw.definition;
-        assertValue(definition.type, definition.initialValue);
-        assertValue(definition.type, raw.value);
+        assertValue(definition.type, definition.initialValue, definition.options);
+        assertValue(definition.type, raw.value, definition.options);
         if (this.records.has(definition.id)) {
           throw new Error('Duplicate variable ID');
         }
@@ -157,12 +193,13 @@ export class VariableStore {
   }
 
   define(definition: Omit<VariableDefinition, 'available'>, actor: string = 'user') {
+    if (!isDefinition(definition)) throw new Error('Malformed variable definition');
     if (!definition.id) throw new Error('Variable ID is required');
     const owner = definition.owner;
     if (actor === 'user' ? owner !== 'user' : owner !== actor)
       throw new Error('Variable owner does not match');
     const name = normalizeName(definition.name);
-    assertValue(definition.type, definition.initialValue);
+    assertValue(definition.type, definition.initialValue, definition.options);
     const current = this.records.get(definition.id);
     if (current && current.definition.owner !== owner)
       throw new Error('Variable ID belongs to another owner');
@@ -175,7 +212,7 @@ export class VariableStore {
       definition: { ...definition, name, available: true },
       value,
     });
-    assertValue(next.definition.type, next.value);
+    assertValue(next.definition.type, next.value, next.definition.options);
     this.records.set(next.definition.id, next);
     this.changed(next.definition.persistent || current?.definition.persistent === true);
     return copyRecord(next);
@@ -225,7 +262,7 @@ export class VariableStore {
   set(id: string, value: unknown, actor: string = 'user') {
     const current = this.mustGet(id);
     this.assertWritable(current, actor);
-    assertValue(current.definition.type, value);
+    assertValue(current.definition.type, value, current.definition.options);
     if (current.value === value) return false;
     this.records.set(id, { ...current, value });
     this.changed(current.definition.persistent);
@@ -234,7 +271,7 @@ export class VariableStore {
 
   serializePersistent(): VariableEnvelope {
     return {
-      version: 1,
+      version: 2,
       records: [...this.records.values()]
         .filter((record) => record.definition.persistent)
         .map((record) => {
@@ -249,6 +286,7 @@ export class VariableStore {
       definition: {
         ...record.definition,
         name: normalizeName(record.definition.name),
+        options: record.definition.options?.slice(),
         aliases: record.definition.aliases?.map(normalizeName),
       },
       value: record.value,

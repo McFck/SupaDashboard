@@ -1,6 +1,7 @@
 mod api;
 mod auth;
 mod client;
+pub(crate) mod shuffle;
 mod store;
 
 use serde::Deserialize;
@@ -24,6 +25,7 @@ enum Operation {
     Authorize(String),
     Logout,
     Command(Command),
+    Shuffle(shuffle::Mode),
 }
 struct Message {
     operation: Operation,

@@ -9,7 +9,8 @@ use tokio::{
 };
 
 const REDIRECT: &str = "http://127.0.0.1:43821/callback";
-const SCOPES: &str = "user-library-read user-library-modify user-read-playback-state";
+const SCOPES: &str =
+    "user-library-read user-library-modify user-read-playback-state user-modify-playback-state";
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,6 +69,8 @@ pub fn parse_tokens(body: &str, previous: Option<&Tokens>) -> Result<Tokens, Str
         || response.scope.is_some_and(|scope| {
             !SCOPES
                 .split_whitespace()
+                // Refresh cannot expand an older grant; keep its read/library features usable.
+                .filter(|required| previous.is_none() || *required != "user-modify-playback-state")
                 .all(|required| scope.split_whitespace().any(|s| s == required))
         })
     {
@@ -289,6 +292,9 @@ mod tests {
             refresh_token: "keep".into(),
             expires_at: 1,
         };
+        let legacy = r#"{"access_token":"new","refresh_token":"keep","expires_in":3600,"token_type":"Bearer","scope":"user-library-read user-library-modify user-read-playback-state"}"#;
+        assert!(parse_tokens(legacy, Some(&old)).is_ok());
+        assert!(parse_tokens(legacy, None).is_err());
         for (body, expected) in [
             (
                 r#"{"access_token":"new","expires_in":3600,"token_type":"Bearer"}"#,

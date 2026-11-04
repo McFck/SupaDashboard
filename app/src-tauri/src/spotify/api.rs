@@ -58,6 +58,7 @@ pub struct Player {
     pub uri: Option<String>,
     pub playing: bool,
     pub smart_shuffle: bool,
+    pub shuffle: bool,
 }
 
 pub fn player(body: &str) -> Result<Player, String> {
@@ -73,6 +74,8 @@ pub fn player(body: &str) -> Result<Player, String> {
         is_playing: bool,
         #[serde(default)]
         smart_shuffle: bool,
+        #[serde(default)]
+        shuffle_state: bool,
     }
     let response: Response = serde_json::from_str(body).map_err(|_| "Invalid Spotify player")?;
     let uri = match response.item {
@@ -88,6 +91,7 @@ pub fn player(body: &str) -> Result<Player, String> {
         uri,
         playing: response.is_playing,
         smart_shuffle: response.smart_shuffle,
+        shuffle: response.shuffle_state,
     })
 }
 
@@ -98,6 +102,17 @@ pub fn contains(body: &str) -> Result<bool, String> {
         return Err("Invalid Spotify library response".into());
     }
     Ok(values[0])
+}
+
+pub fn shuffle(body: &str) -> Result<bool, String> {
+    #[derive(Deserialize)]
+    struct Playback {
+        shuffle_state: bool,
+        #[serde(default)]
+        smart_shuffle: bool,
+    }
+    let playback: Playback = serde_json::from_str(body).map_err(|_| "Invalid Spotify shuffle")?;
+    Ok(playback.shuffle_state || playback.smart_shuffle)
 }
 
 pub fn user(body: &str) -> Result<String, String> {
@@ -120,6 +135,23 @@ pub fn user(body: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rejects_unknown_shuffle_state_and_treats_smart_as_enabled() {
+        for (body, expected) in [
+            (r#"{"shuffle_state":false}"#, false),
+            (r#"{"shuffle_state":true}"#, true),
+            (r#"{"shuffle_state":false,"smart_shuffle":true}"#, true),
+        ] {
+            assert_eq!(shuffle(body).unwrap(), expected);
+        }
+        for body in [
+            "{}",
+            r#"{"shuffle_state":"false"}"#,
+            r#"{"shuffle_state":true,"smart_shuffle":1}"#,
+        ] {
+            assert!(shuffle(body).is_err());
+        }
+    }
     #[test]
     fn rejects_bad_track_uris_and_malformed_library_results() {
         let body = r#"{"item":{"uri":"spotify:track:0123456789ABCDEFGHIJKL","type":"track"},"is_playing":true,"smart_shuffle":true,"unknown":"discard"}"#;

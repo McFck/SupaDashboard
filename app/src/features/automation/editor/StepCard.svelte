@@ -11,7 +11,6 @@
   import { actions } from '../../plugins/registry';
   import { runtimeView } from '../../../app/runtime/state';
   import type { ActionStep } from '../scenario';
-  import type { VariableValue } from '../variables';
   import ConditionEditor from './ConditionEditor.svelte';
   import ParamField from '../../plugins/ui/ParamField.svelte';
   import PluginMark from '../../plugins/ui/PluginMark.svelte';
@@ -46,7 +45,7 @@
     onshift: (direction: -1 | 1) => void;
     onremove: () => void;
     onupdate: (step: ActionStep) => void;
-    onbind: (variableId: string, values?: readonly VariableValue[]) => void;
+    onbind: (variableId: string) => void;
     onpick: (event: MouseEvent) => void;
   } = $props();
 
@@ -75,7 +74,7 @@
 
   function bindSuggestedVariable() {
     if (suggestedVariableId && step.kind === 'action') {
-      onbind(suggestedVariableId, actions.get(step.action.id)?.bindableValues);
+      onbind(suggestedVariableId);
     }
   }
 

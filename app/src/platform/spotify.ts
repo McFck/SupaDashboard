@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { isRecord } from '../features/automation/plain-data';
+import { ActionFailure } from '../features/automation/action-failure';
 
 export type SpotifyView =
   | { state: 'needsAuth' | 'connecting'; error?: string }
@@ -10,6 +11,7 @@ export type SpotifyView =
       trackUri: string | null;
       liked: boolean | null;
       smartShuffle: boolean;
+      shuffle?: boolean;
       error?: string;
     };
 type SpotifyCommand = 'like' | 'unlike' | 'dislike';
@@ -36,6 +38,7 @@ export function readSpotifyView(raw: unknown): SpotifyView | undefined {
         !/^spotify:track:[a-zA-Z0-9]{22}$/.test(raw.trackUri))) ||
     (raw.liked !== null && typeof raw.liked !== 'boolean') ||
     typeof raw.smartShuffle !== 'boolean' ||
+    (raw.shuffle !== undefined && typeof raw.shuffle !== 'boolean') ||
     (raw.trackUri === null && raw.liked !== null)
   ) {
     return undefined;
@@ -46,6 +49,7 @@ export function readSpotifyView(raw: unknown): SpotifyView | undefined {
     trackUri: raw.trackUri,
     liked: raw.liked,
     smartShuffle: raw.smartShuffle,
+    ...(typeof raw.shuffle === 'boolean' ? { shuffle: raw.shuffle } : {}),
     ...error,
   };
 }
@@ -152,6 +156,14 @@ export async function spotifyTransport(command: string) {
   }
   if (!isTauri()) {
     throw new Error('Spotify unavailable');
+  }
+  if (command.startsWith('shuffle:')) {
+    try {
+      await invoke<void>('spotify_shuffle', { mode: command.slice('shuffle:'.length) });
+    } catch {
+      throw new ActionFailure('Spotify shuffle failed');
+    }
+    return;
   }
   const sent = await invoke<boolean>('media_command', { target: 'spotify', command });
   if (!sent) {

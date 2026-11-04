@@ -23,6 +23,28 @@ const control: ControlConfig = {
 };
 
 describe('state configuration', () => {
+  it('flags saved mappings outside a string variable’s declared options', () => {
+    const variables = new VariableStore();
+    variables.define({
+      id: 'mode',
+      name: 'Mode',
+      type: 'string',
+      owner: 'user',
+      initialValue: 'off',
+      persistent: false,
+      readOnly: false,
+      options: ['off', 'shuffle', 'smart'],
+    });
+    const saved = {
+      ...control,
+      stateBindings: [{ variableId: 'mode', cases: [{ value: 'on', stateId: 'on' }] }],
+    };
+    expect(
+      validateStateConfiguration(saved, variables.snapshot()).map((issue) => issue.message),
+    ).toEqual(['State value is not an allowed option']);
+    saved.stateBindings[0].cases[0].value = 'smart';
+    expect(validateStateConfiguration(saved, variables.snapshot())).toEqual([]);
+  });
   it('validates typed case values, duplicate mappings, and stale references', () => {
     const variables = new VariableStore();
     variables.createUser({

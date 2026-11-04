@@ -34,17 +34,19 @@ function followOwner(api: PluginApi) {
       stopSources = () => {};
       let smartShuffle = false;
       let shuffle = false;
+      let webShuffle: boolean | undefined;
       const shuffleValue = () => {
         if (smartShuffle) {
           return 'smart';
         }
-        return shuffle ? 'shuffle' : 'off';
+        return (webShuffle ?? shuffle) ? 'shuffle' : 'off';
       };
       const stopSpotify = subscribeSpotify((view) => {
         if (!currentRuntime()?.isOwner) {
           return;
         }
         smartShuffle = view.state === 'ready' && view.smartShuffle;
+        webShuffle = view.state === 'ready' ? view.shuffle : undefined;
         set({
           connected: view.state === 'ready',
           liked: view.state === 'ready' && view.liked === true,
@@ -179,8 +181,6 @@ export const spotifyPlugin: Plugin = {
         id: `spotify.${op}`,
         title,
         bindableVariable: () => `spotify.${op}`,
-        bindableValues:
-          op === 'shuffle' ? ['off', 'shuffle', 'smart'] : ['off', 'context', 'track'],
         params: [
           {
             key: 'mode',
@@ -207,6 +207,8 @@ export const spotifyPlugin: Plugin = {
         name: `spotify.${field}`,
         type: field === 'repeat' || field === 'shuffle' ? 'string' : 'boolean',
         initialValue: field === 'repeat' || field === 'shuffle' ? 'off' : false,
+        ...(field === 'shuffle' ? { options: ['off', 'shuffle', 'smart'] } : {}),
+        ...(field === 'repeat' ? { options: ['off', 'context', 'track'] } : {}),
         persistent: false,
         readOnly: true,
       });

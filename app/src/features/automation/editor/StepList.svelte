@@ -152,11 +152,12 @@
     };
   }
 
-  function bindVariable(id: string, values?: readonly VariableValue[]) {
+  function bindVariable(id: string) {
     const record = $runtimeView.variables.records[id];
     if (!record) {
       return;
     }
+    const values = record.definition.options;
     const existing = draft.stateBindings ?? [];
     if (existing.some((binding) => binding.variableId === id)) {
       return;

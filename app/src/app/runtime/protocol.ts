@@ -4,6 +4,7 @@ import type { PageChangeReason } from '../../features/layout/page-controller';
 import { readStatus } from '../../features/media/now-playing-read';
 import type { RuntimeSnapshot } from './state';
 import { validTileEffects } from '../../features/effects/effect-runtime';
+import { validVariableSnapshot } from '../../features/automation/variables';
 
 const REQUEST_TYPES = [
   'snapshot',
@@ -115,7 +116,7 @@ export function validSnapshot(value: unknown): value is RuntimeSnapshot {
   return (
     isRecord(value) &&
     typeof value.activePage === 'string' &&
-    isRecord(value.variables) &&
+    validVariableSnapshot(value.variables) &&
     isRecord(value.busy) &&
     (value.effects === undefined || validTileEffects(value.effects)) &&
     readStatus(value.status) !== null

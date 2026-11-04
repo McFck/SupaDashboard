@@ -111,6 +111,7 @@ pub fn run() {
             spotify::spotify_authorize,
             spotify::spotify_logout,
             spotify::spotify_command,
+            spotify::shuffle::spotify_shuffle,
             lyrics::lyrics_get,
         ])
         .run(context)
