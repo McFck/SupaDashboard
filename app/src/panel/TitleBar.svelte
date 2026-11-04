@@ -92,57 +92,67 @@
 <header
   data-tauri-drag-region
   style:padding-left="{layout.lightsInset || 12}px"
-  class="relative isolate flex h-9 shrink-0 select-none items-center justify-between bg-[var(--canvas-surface)] text-xs text-muted-foreground"
+  class="flex h-9 shrink-0 select-none items-center justify-between bg-[var(--canvas-surface)] text-xs text-muted-foreground"
 >
-  <!-- Marks non-release builds; Vite drops the block from release bundles. -->
+  <Wordmark />
+  <!-- Marks non-release builds in the empty middle of the bar; Vite drops the block from release bundles. -->
   {#if import.meta.env.DEV}
     <svg
       data-dev-band
       aria-hidden="true"
-      class="pointer-events-none absolute inset-0 -z-10 size-full"
+      class="pointer-events-none mx-6 h-full min-w-0 flex-1"
     >
       <defs>
         <pattern
           id="dev-band-stripes"
-          width="16"
-          height="16"
+          width="12"
+          height="12"
           patternUnits="userSpaceOnUse"
           patternTransform="rotate(45)"
         >
           <rect
-            width="8"
-            height="16"
+            width="6"
+            height="12"
             fill="#d9a441"
-            fill-opacity="0.07"
+            fill-opacity="0.08"
           />
         </pattern>
-        <pattern
-          id="dev-band-wrenches"
-          width="72"
-          height="36"
-          patternUnits="userSpaceOnUse"
-        >
-          <path
-            transform="translate(28 11) scale(0.58)"
-            fill="#a39a91"
-            fill-opacity="0.16"
-            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"
+        <linearGradient id="dev-band-fade">
+          <stop
+            offset="0"
+            stop-color="white"
+            stop-opacity="0"
           />
-        </pattern>
+          <stop
+            offset="0.2"
+            stop-color="white"
+          />
+          <stop
+            offset="0.8"
+            stop-color="white"
+          />
+          <stop
+            offset="1"
+            stop-color="white"
+            stop-opacity="0"
+          />
+        </linearGradient>
+        <mask id="dev-band-mask">
+          <rect
+            width="100%"
+            height="100%"
+            fill="url(#dev-band-fade)"
+          />
+        </mask>
       </defs>
       <rect
         width="100%"
         height="100%"
         fill="url(#dev-band-stripes)"
-      />
-      <rect
-        width="100%"
-        height="100%"
-        fill="url(#dev-band-wrenches)"
+        mask="url(#dev-band-mask)"
       />
     </svg>
   {/if}
-  <Wordmark />
   {#if layout.buttons}
     <div class="flex h-full">
       <button
