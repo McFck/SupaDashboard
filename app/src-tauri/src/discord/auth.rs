@@ -1,8 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
-use windows::Foundation::Uri;
-use windows::Web::Http::{Filters::HttpBaseProtocolFilter, HttpClient};
-use windows::core::HSTRING;
 
 pub const SCOPES: [&str; 3] = ["rpc", "rpc.voice.read", "rpc.voice.write"];
 const REDIRECT: &str = "http://127.0.0.1";
@@ -98,53 +95,22 @@ pub async fn refresh(client_id: &str, tokens: &Tokens) -> Result<Tokens, String>
 }
 
 async fn request(form: Vec<(String, String)>, previous: Option<&Tokens>) -> Result<Tokens, String> {
-    // Percent-encode codes/tokens; redirects must never forward credentials.
-    let response: windows::core::Result<String> = async {
-        let filter = HttpBaseProtocolFilter::new()?;
-        filter.SetAllowAutoRedirect(false)?;
-        let client = HttpClient::Create(&filter)?;
-        let mut encoded = String::new();
-        for (key, value) in form {
-            if !encoded.is_empty() {
-                encoded.push('&');
-            }
-            encoded.push_str(&key);
-            encoded.push('=');
-            for byte in value.bytes() {
-                if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
-                    encoded.push(byte as char);
-                } else {
-                    use std::fmt::Write;
-                    let _ = write!(encoded, "%{byte:02X}");
-                }
-            }
-        }
-        let content =
-            windows::Web::Http::HttpStringContent::CreateFromStringWithEncodingAndMediaType(
-                &HSTRING::from(encoded),
-                windows::Storage::Streams::UnicodeEncoding::Utf8,
-                &HSTRING::from("application/x-www-form-urlencoded"),
-            )?;
-        let response = client
-            .PostAsync(
-                &Uri::CreateUri(&HSTRING::from("https://discord.com/api/oauth2/token"))?,
-                &content,
-            )?
-            .await?;
-        if !response.IsSuccessStatusCode()? {
-            return Err(windows::core::Error::from_hresult(windows::core::HRESULT(
-                0x80004005u32 as i32,
-            )));
-        }
-        let read = response.Content()?.ReadAsStringAsync()?;
-        Ok(read.await?.to_string())
-    }
-    .await;
-    parse_tokens(
-        &response.map_err(|_| "Discord token exchange failed")?,
-        previous,
-        now(),
+    let fields: Vec<_> = form
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()))
+        .collect();
+    let response = crate::http::send(
+        "POST",
+        "https://discord.com/api/oauth2/token",
+        &[],
+        Some(&crate::http::form(&fields)),
     )
+    .await
+    .map_err(|_| "Discord token exchange failed")?;
+    if !(200..300).contains(&response.status) {
+        return Err("Discord token exchange failed".into());
+    }
+    parse_tokens(&response.body, previous, now())
 }
 
 #[cfg(test)]
