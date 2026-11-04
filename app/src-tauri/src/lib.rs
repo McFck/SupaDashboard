@@ -13,6 +13,8 @@ mod lyrics;
 mod media;
 mod monitors;
 mod panel;
+mod secure;
+mod spotify;
 mod tray;
 
 use tauri::{Manager, WindowEvent};
@@ -50,6 +52,7 @@ pub fn run() {
             );
             app.manage(apps::watch::AppsHub::default());
             app.manage(discord::DiscordHub::default());
+            app.manage(spotify::SpotifyHub::default());
             app.manage(lyrics::LyricsHub::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
@@ -69,6 +72,11 @@ pub fn run() {
                 _ => return,
             }
             content::on_window_event(window, event);
+            if matches!(event, WindowEvent::Destroyed) {
+                window
+                    .state::<spotify::SpotifyHub>()
+                    .unsubscribe(window.label());
+            }
         })
         .invoke_handler(tauri::generate_handler![
             content::content_frames_ready,
@@ -98,6 +106,11 @@ pub fn run() {
             discord::discord_authorize,
             discord::discord_logout,
             discord::discord_voice,
+            spotify::spotify_subscribe,
+            spotify::spotify_unsubscribe,
+            spotify::spotify_authorize,
+            spotify::spotify_logout,
+            spotify::spotify_command,
             lyrics::lyrics_get,
         ])
         .run(context)

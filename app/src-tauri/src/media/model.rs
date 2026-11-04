@@ -39,6 +39,8 @@ pub struct SessionInfo {
     pub timeline: Option<Timeline>,
     /// Handle from the artwork cache, resolved to a file by `media_artwork_resolve`.
     pub artwork: Option<String>,
+    pub shuffle: Option<bool>,
+    pub repeat: Option<&'static str>,
 }
 
 #[derive(Serialize, Clone, PartialEq, Debug)]
@@ -109,6 +111,8 @@ mod tests {
                 sampled_at_ms,
             }),
             artwork: None,
+            shuffle: None,
+            repeat: None,
         }
     }
 
@@ -136,6 +140,10 @@ mod tests {
         let mut paused = session(10_000, 1_000_000);
         paused.state = PlaybackState::Paused;
         assert!(changed(&before, &snapshot(vec![paused])));
+        let mut shuffled = session(10_000, 1_000_000);
+        shuffled.shuffle = Some(true);
+        shuffled.repeat = Some("track");
+        assert!(changed(&before, &snapshot(vec![shuffled])));
         assert!(changed(
             &before,
             &Snapshot {

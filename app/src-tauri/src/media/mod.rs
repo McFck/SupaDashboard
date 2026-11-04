@@ -4,6 +4,7 @@ mod artwork;
 mod model;
 mod sessions;
 mod target;
+mod transport;
 
 use artwork::ArtworkCache;
 use model::Snapshot;
@@ -38,6 +39,7 @@ struct Inner {
 pub struct MediaHub {
     inner: Mutex<Inner>,
     artwork: Mutex<ArtworkCache>,
+    commands: tokio::sync::Mutex<()>,
 }
 
 impl MediaHub {
@@ -52,6 +54,7 @@ impl MediaHub {
         Ok(Self {
             inner: Mutex::default(),
             artwork: Mutex::new(artwork),
+            commands: tokio::sync::Mutex::new(()),
         })
     }
 
@@ -176,6 +179,8 @@ pub async fn media_command(
     session_id: Option<String>,
     hub: State<'_, MediaHub>,
 ) -> Result<bool, String> {
+    // Read/modify commands (shuffle toggle and repeat cycle) must not overlap.
+    let _command = hub.commands.lock().await;
     let result = match session_id {
         Some(id) => hub.transport(id, command).await,
         None => {
@@ -184,7 +189,7 @@ pub async fn media_command(
                     let Some((s, app_id)) = session(target.as_deref()).await? else {
                         return Ok(None);
                     };
-                    let sent = sessions::transport_op(&s, &command)?.await;
+                    let sent = transport::operation(&s, &command)?.await;
                     Ok(Some((app_id, sent)))
                 }
                 .await;
