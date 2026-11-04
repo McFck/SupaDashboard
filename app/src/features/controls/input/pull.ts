@@ -1,5 +1,5 @@
 // Pointer interaction for controls: gesture classification and directional pulls.
-import { selectTriggerSteps, type ActionStep } from '../../automation/scenario';
+import { selectTriggerSteps, type ActionStep, type Trigger } from '../../automation/scenario';
 import type { ControlConfig, SwipeGesture } from '../model';
 import { stateIdAt, variantIndexForState } from '../variants';
 
@@ -60,7 +60,7 @@ const PULL_SLOP = 8;
 export function pullBindingsFor(
   control: ControlConfig,
   current: number,
-  eligible?: readonly SwipeGesture[],
+  eligible?: readonly Trigger[],
 ): PullBindings {
   const result: PullBindings = {};
   const directions: SwipeGesture[] = ['swipeUp', 'swipeDown', 'swipeLeft', 'swipeRight'];

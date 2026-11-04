@@ -8,6 +8,7 @@
   import type { Trigger } from '../../automation/scenario';
   import PressFeedback from './PressFeedback.svelte';
   import { ControlTile } from './control-tile.svelte';
+  import { controlTriggers } from '../../plugins/registry';
 
   let {
     control,
@@ -125,7 +126,8 @@
             onTrigger: trigger,
             captureTrigger: tile.capture,
             enabled: !pressFeedbackDisabled,
-            pullBindings: () => pullBindingsFor(control, tile.current),
+            pullBindings: () =>
+              pullBindingsFor(control, tile.current, controlTriggers(control.type)),
             onStart: beginPull,
             onPull: (value) => {
               if (!settling) pull = value;

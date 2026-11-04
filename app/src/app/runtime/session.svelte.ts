@@ -6,6 +6,7 @@ import { controlById } from '../../features/settings/state.svelte';
 import { EventRegistry } from '../../features/automation/events';
 import {
   runAction,
+  runsTrigger,
   setRegistryRuntime,
   applets as registeredApplets,
   statusSources,
@@ -262,7 +263,7 @@ export class RuntimeSession {
   }
 
   dispatch(packet: TriggerPacket): Promise<RunResult> {
-    if (!this.isOwner) {
+    if (!this.isOwner || !runsTrigger(packet)) {
       return Promise.resolve({ status: 'rejected' });
     }
     return this.execution.dispatch(packet);

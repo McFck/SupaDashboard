@@ -17,8 +17,9 @@ import type {
   ValueDef,
   ValueRef,
 } from './contracts';
-import { settings } from '../settings/state.svelte';
+import { controlById, settings } from '../settings/state.svelte';
 import type { VariableRecord, VariableStore } from '../automation/variables';
+import { TRIGGERS, type Trigger } from '../automation/scenario';
 import { normalizePluginState, type PluginState } from './plugin-store';
 import { validateAppletDefinition, withQuickActionSettings } from '../applets/definition';
 import { type AppletDef as AppletDefinition } from '../applets/contracts';
@@ -26,6 +27,20 @@ import { type AppletDef as AppletDefinition } from '../applets/contracts';
 export const actions = new Map<string, ActionDef>();
 export const values = new Map<string, ValueDef>();
 export const controlTypes = new Map<string, ControlTypeDef>();
+/** Triggers a control type offers and runs; saved lists for any other trigger stay inert. */
+export const controlTriggers = (type: string): readonly Trigger[] =>
+  controlTypes.get(type)?.triggers ?? TRIGGERS;
+/** False for a saved list of a trigger its control's type does not offer: it never runs. */
+export function runsTrigger({
+  controlId,
+  trigger,
+}: {
+  controlId: string;
+  trigger: Trigger | 'event';
+}) {
+  const type = controlById(controlId)?.type;
+  return trigger === 'event' || !type || controlTriggers(type).includes(trigger);
+}
 export const applets = new Map<string, AppletDefinition>();
 export const mediaSources = new Map<string, MediaSource>();
 export const statusSources = new Map<string, StatusSourceDef>();

@@ -3,6 +3,7 @@
 import type { Component } from 'svelte';
 import type { ControlConfig, ControlFaceProps } from '../controls/model';
 import type { AppletDef } from '../applets/contracts';
+import type { Trigger } from '../automation/scenario';
 import type { VariableDefinition, VariableRecord, VariableValue } from '../automation/variables';
 
 /** A reference to an action plus its arguments, as stored in settings. */
@@ -106,6 +107,8 @@ export type ControlTypeDef = {
   size: { w: number; h: number };
   minSize?: { w: number; h: number };
   maxSize?: { w: number; h: number };
+  /** The only scenario triggers it offers and runs; set, it also has no views or state bindings. */
+  triggers?: readonly Trigger[];
   /** Starting configuration when added from the palette. */
   create(): Omit<ControlConfig, 'id' | 'type'>;
 };

@@ -4,7 +4,7 @@
   import { DropdownMenu } from 'bits-ui';
   import { Button } from '$lib/components/ui/button';
   import { Badge } from '$lib/components/ui/badge';
-  import { listStepCount, TRIGGER_LABELS, TRIGGERS, type Trigger } from '../scenario';
+  import { listStepCount, TRIGGER_LABELS, type Trigger } from '../scenario';
   import PluginMark, { pluginTitle } from '../../plugins/ui/PluginMark.svelte';
   import type { ScenarioDraftEditor } from './scenario-draft.svelte';
   import EffectPicker from '../../effects/EffectPicker.svelte';
@@ -29,7 +29,7 @@
   aria-label="Scenario triggers"
   class="flex min-h-0 min-w-0 flex-col gap-2 overflow-y-auto bg-sidebar p-3 [scrollbar-gutter:stable]"
 >
-  {#each TRIGGERS as trigger (trigger)}
+  {#each editor.triggers as trigger (trigger)}
     {@const label = TRIGGER_LABELS[trigger]}
     {@const steps = listStepCount(draft.scenario.triggers[trigger])}
     {@const selected = editor.selectedKey === `trigger:${trigger}`}

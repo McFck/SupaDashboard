@@ -1,11 +1,31 @@
 <script lang="ts">
+  import HeadphoneOff from '@lucide/svelte/icons/headphone-off';
+  import MicOff from '@lucide/svelte/icons/mic-off';
   import { onDestroy } from 'svelte';
+  import ContentTile from '../../../features/controls/ui/ContentTile.svelte';
   import Icon from '../../../features/controls/ui/Icon.svelte';
+  import type { ControlConfig } from '../../../features/controls/model';
   import type { VoiceMember } from '../../../platform/discord';
   import { pack } from '../pack';
   import { VoiceTileController } from './voice-tile.svelte';
 
-  let { pixelWidth = 0, pixelHeight = 0 }: { pixelWidth?: number; pixelHeight?: number } = $props();
+  let {
+    control,
+    pageId,
+    pageVisible = true,
+    itemId,
+    pressFeedbackDisabled = false,
+    pixelWidth = 0,
+    pixelHeight = 0,
+  }: {
+    control: ControlConfig;
+    pageId?: string;
+    pageVisible?: boolean;
+    itemId?: string;
+    pressFeedbackDisabled?: boolean;
+    pixelWidth?: number;
+    pixelHeight?: number;
+  } = $props();
   const voice = new VoiceTileController();
   onDestroy(() => voice.destroy());
 
@@ -18,7 +38,7 @@
   const status = $derived.by(() => {
     switch (voice.view.state) {
       case 'absent':
-        return 'Discord not running';
+        return 'Not running';
       case 'connecting':
         return 'Connecting';
       case 'idle':
@@ -30,6 +50,9 @@
     }
   });
 
+  // Avatars smaller than this (px) get no status badge: it would be an unreadable dot. The name still says it.
+  const BADGE_MIN = 34;
+
   const describe = (member: VoiceMember) =>
     [
       member.name,
@@ -40,75 +63,88 @@
       .join(', ');
 </script>
 
-<div
-  data-dashboard-tile
-  data-voice-tile
-  class="tile-content grid h-full w-full place-items-center"
+<ContentTile
+  {control}
+  {pageId}
+  {pageVisible}
+  {itemId}
+  {pressFeedbackDisabled}
 >
-  {#if status}
-    {@const compact = pixelWidth < 150}
+  {#snippet children()}
     <div
-      class="flex flex-col items-center gap-2 text-zinc-500"
-      role={compact ? 'img' : undefined}
-      aria-label={compact ? status : undefined}
+      data-voice-tile
+      class="grid h-full w-full place-items-center"
     >
-      <span class="opacity-60">
-        <Icon
-          name="discord-voice"
-          size={Math.round(Math.min(36, Math.max(22, short * 0.22)))}
-        />
-      </span>
-      {#if !compact}
-        <span class="text-xs">{status}</span>
-      {/if}
-    </div>
-  {:else}
-    <div
-      role="group"
-      aria-label={voice.view.state === 'inVoice' ? voice.view.channel.name : undefined}
-      class="flex flex-wrap content-center justify-center"
-      style:width="{grid.cols * grid.size + (grid.cols - 1) * gap}px"
-      style:gap="{gap}px"
-      style:--size="{grid.size}px"
-    >
-      {#each shown as member (member.id)}
-        {@const src = voice.src(member)}
-        <div
-          role="img"
-          aria-label={describe(member)}
-          data-member={member.id}
-          class="avatar"
-          class:speaking={member.speaking}
-          class:quiet={member.muted || member.deafened}
-        >
-          <span
-            class="ring"
-            aria-hidden="true"
-          ></span>
-          {#if src}
-            <img
-              {src}
-              alt=""
-              draggable="false"
-              onerror={() => voice.fail(src)}
+      {#if status}
+        <div class="flex flex-col items-center gap-1.5 text-zinc-500">
+          <span class="opacity-60">
+            <Icon
+              name="discord-voice"
+              size={Math.round(Math.min(36, Math.max(22, short * 0.22)))}
             />
-          {:else}
-            <span class="face initial">{[...member.name][0]?.toUpperCase()}</span>
+          </span>
+          <span class="text-xs whitespace-nowrap">{status}</span>
+        </div>
+      {:else}
+        <div
+          role="group"
+          aria-label={voice.view.state === 'inVoice' ? voice.view.channel.name : undefined}
+          class="flex flex-wrap content-center justify-center"
+          style:width="{grid.cols * grid.size + (grid.cols - 1) * gap}px"
+          style:gap="{gap}px"
+          style:--size="{grid.size}px"
+        >
+          {#each shown as member (member.id)}
+            {@const src = voice.src(member)}
+            <div
+              role="img"
+              aria-label={describe(member)}
+              data-member={member.id}
+              class="avatar"
+              class:speaking={member.speaking}
+            >
+              <span
+                class="ring"
+                aria-hidden="true"
+              ></span>
+              {#if src}
+                <img
+                  {src}
+                  alt=""
+                  draggable="false"
+                  onerror={() => voice.fail(src)}
+                />
+              {:else}
+                <span class="face initial">{[...member.name][0]?.toUpperCase()}</span>
+              {/if}
+              {#if (member.muted || member.deafened) && grid.size >= BADGE_MIN}
+                <span
+                  class="badge"
+                  aria-hidden="true"
+                >
+                  {#if member.deafened}
+                    <HeadphoneOff />
+                  {:else}
+                    <MicOff />
+                  {/if}
+                </span>
+              {/if}
+            </div>
+          {/each}
+          {#if grid.overflow}
+            <div
+              role="img"
+              aria-label="{grid.overflow} more"
+              class="avatar"
+            >
+              <span class="face more">+{grid.overflow}</span>
+            </div>
           {/if}
         </div>
-      {/each}
-      {#if grid.overflow}
-        <div
-          role="img"
-          aria-label="{grid.overflow} more"
-          class="avatar"
-        >
-          <span class="face more">+{grid.overflow}</span>
-        </div>
       {/if}
     </div>
-  {/if}
-</div>
+  {/snippet}
+</ContentTile>
 
 <style>
   .avatar {
@@ -142,9 +178,6 @@
     box-shadow:
       0 0 0 1px rgb(255 255 255 / 0.06),
       0 1px 3px rgb(0 0 0 / 0.35);
-    transition:
-      opacity 160ms ease-out,
-      filter 160ms ease-out;
   }
   img {
     width: calc(100% - 2 * var(--inset));
@@ -167,15 +200,27 @@
     color: #a1a4ad;
     font-size: calc(var(--size) * 0.3);
   }
-  .quiet img,
-  .quiet .face {
-    opacity: 0.4;
-    filter: saturate(0.4);
+  /* Discord's muted/deafened mark: red on a dark disc cut out of the avatar's corner, above the ring. */
+  .badge {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    place-items: center;
+    width: calc(var(--size) * 0.36);
+    height: calc(var(--size) * 0.36);
+    border-radius: 9999px;
+    background: #232428;
+    box-shadow: 0 0 0 max(1.5px, calc(var(--size) * 0.03)) var(--tile-surface, #14161b);
+    color: #f23f43;
+  }
+  .badge :global(svg) {
+    width: 64%;
+    height: 64%;
+    stroke-width: 2.6;
   }
   @media (prefers-reduced-motion: reduce) {
-    .ring,
-    img,
-    .face {
+    .ring {
       transition: none;
     }
   }
