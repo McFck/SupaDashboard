@@ -1,9 +1,11 @@
 import { toast } from 'svelte-sonner';
 import { currentRuntime } from '../../app/runtime/session.svelte';
 import { runtimeView } from '../../app/runtime/state';
+import { emptyScenario } from '../../features/automation/scenario';
 import type { Plugin, PluginApi } from '../../features/plugins/contracts';
 import { subscribeVoice, voiceCommand, type VoiceView } from '../../platform/discord';
 import ConnectionSection from './ui/ConnectionSection.svelte';
+import VoiceTile from './ui/VoiceTile.svelte';
 
 function followOwner(api: PluginApi) {
   let stopVoice: (() => void) | undefined;
@@ -59,6 +61,20 @@ export const discordPlugin: Plugin = {
       'M8 4 5 5C3 8 2 12 2 16l4 2 1-2m10 0 1 2 4-2c0-4-1-8-3-11l-3-1-1 2H9L8 4M9 11v2m6-2v2M7 16c3 1 7 1 10 0',
     );
     api.registerAppIcon('discord', 'discord-voice');
+    api.registerControl({
+      type: 'discordVoice',
+      title: 'Voice channel',
+      icon: 'discord-voice',
+      component: VoiceTile,
+      size: { w: 2, h: 2 },
+      minSize: { w: 1, h: 1 },
+      maxSize: { w: 8, h: 6 },
+      create: () => ({
+        name: 'Voice channel',
+        scenario: emptyScenario(),
+        variants: [{ id: 'state-1', label: '' }],
+      }),
+    });
     for (const [command, title] of [
       ['toggleMute', 'Toggle mute'],
       ['toggleDeaf', 'Toggle deafen'],
