@@ -1,12 +1,10 @@
 <script lang="ts">
-  import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
   import { onDestroy } from 'svelte';
-  import { Slider } from '$lib/components/ui/slider';
   import Icon from '../../../features/controls/ui/Icon.svelte';
   import type { ControlConfig } from '../../../features/controls/model';
-  import { SONG_OFFSET_LIMIT_MS } from '../../../platform/lyrics';
   import { offsetOf } from '../lyric-clock';
   import { LyricsTileController } from './lyrics-tile.svelte';
+  import OffsetRuler from './OffsetRuler.svelte';
 
   let {
     control,
@@ -40,10 +38,6 @@
         return '';
     }
   });
-
-  const songOffset = $derived(
-    `${lyrics.offset.value > 0 ? '+' : ''}${(lyrics.offset.value / 1000).toFixed(1)} s`,
-  );
 
   $effect(() => {
     void [pixelWidth, pixelHeight];
@@ -89,34 +83,7 @@
       </div>
     </div>
     {#if lyrics.offset.open && lyrics.view.kind === 'synced'}
-      <div
-        use:lyrics.offset.panel
-        role="group"
-        aria-label="Song sync offset"
-        class="adjust"
-      >
-        <Slider
-          type="single"
-          class="min-w-0 flex-1"
-          aria-label="Song sync offset"
-          value={lyrics.offset.value}
-          min={-SONG_OFFSET_LIMIT_MS}
-          max={SONG_OFFSET_LIMIT_MS}
-          step={100}
-          onValueChange={(value) => lyrics.offset.preview(value)}
-          onValueCommit={(value) => lyrics.offset.save(value)}
-        />
-        <span class="value">{songOffset}</span>
-        <button
-          type="button"
-          class="reset"
-          aria-label="Reset song sync offset"
-          disabled={lyrics.offset.value === 0}
-          onclick={() => lyrics.offset.save(0)}
-        >
-          <RotateCcw size={14} />
-        </button>
-      </div>
+      <OffsetRuler offset={lyrics.offset} />
     {/if}
   {:else if lyrics.view.kind === 'loading'}
     <div
@@ -209,60 +176,6 @@
     line-height: 1.45;
     white-space: pre-line;
     overflow-wrap: anywhere;
-  }
-  .adjust {
-    position: absolute;
-    inset-inline: 8px;
-    bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 6px 8px 14px;
-    border-radius: 9999px;
-    background: rgb(24 24 27 / 0.82);
-    box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / 0.08),
-      0 8px 24px rgb(0 0 0 / 0.4);
-    backdrop-filter: blur(16px);
-    animation: appear 160ms ease both;
-  }
-  /* A centred scale: the fill from the left end means nothing here, a tick marks 0 instead. */
-  .adjust :global([data-slot='slider-range']) {
-    display: none;
-  }
-  .adjust :global([data-slot='slider-track']) {
-    background:
-      linear-gradient(rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.55)) center / 2px 100% no-repeat,
-      rgb(255 255 255 / 0.14);
-  }
-  .adjust :global([data-slot='slider-thumb']) {
-    border-color: transparent;
-    box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
-  }
-  .value {
-    min-width: 4.2em;
-    color: rgb(255 255 255 / 0.85);
-    font-size: 12px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-  .reset {
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 9999px;
-    color: rgb(255 255 255 / 0.75);
-    transition:
-      background-color 150ms ease,
-      opacity 150ms ease;
-  }
-  .reset:hover {
-    background: rgb(255 255 255 / 0.08);
-  }
-  .reset:disabled {
-    opacity: 0.3;
   }
   .loading {
     display: grid;
