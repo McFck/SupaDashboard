@@ -1,9 +1,10 @@
 // One lyrics tile: Spotify's session, its lyrics, the sung line and the follow scroll that keeps it in view.
+import { untrack } from 'svelte';
 import { prefersReducedMotion } from 'svelte/motion';
 import type { NowPlayingSession } from '../../../features/plugins/contracts';
 import { nativeSessions } from '../../../platform/media';
 import { getLyrics, type LyricsView } from '../../../platform/lyrics';
-import { lineAt, positionAt } from '../lyric-clock';
+import { lineAt, positionAt, untilNextLine } from '../lyric-clock';
 import { KineticScroll } from './kinetic-scroll';
 
 export type TileView = { kind: 'idle' } | { kind: 'loading' } | LyricsView;
@@ -28,8 +29,7 @@ export class LyricsTileController {
   #session = $state<NowPlayingSession>();
   #key = '';
   #epoch = 0;
-  #frame = 0;
-  #loop = false;
+  #lineTimer: ReturnType<typeof setTimeout> | undefined;
   #held = false;
   #holdTimer: ReturnType<typeof setTimeout> | undefined;
   /** The next scroll lands without animation: new lyrics, or a resize. */
@@ -42,18 +42,30 @@ export class LyricsTileController {
     this.#stop = nativeSessions('spotify')((state) => {
       this.#show(state.state === 'ready' ? pick(state.sessions) : undefined);
     }, this.#abort.signal);
+    // The sung line changes a few times a minute, so a timer wakes for each change instead of a frame loop.
     $effect(() => {
       const session = this.#session;
-      this.#host.offsetMs();
-      if (this.view.kind !== 'synced' || !session || !this.#host.visible()) {
+      const offset = this.#host.offsetMs();
+      const view = this.view;
+      if (view.kind !== 'synced' || !session || !this.#host.visible()) {
         return;
       }
-      this.#loop = session.state === 'playing';
-      this.#frame = requestAnimationFrame(this.#tick);
-      return () => {
-        this.#loop = false;
-        cancelAnimationFrame(this.#frame);
+      const rate = session.state === 'playing' ? (session.timeline?.rate ?? 1) : 0;
+      const tick = () => {
+        const position = positionAt(session, Date.now(), offset);
+        const index = position === null ? -1 : lineAt(view.lines, position);
+        if (index !== this.active) {
+          this.active = index;
+          this.#follow();
+        }
+        const wait = position === null ? null : untilNextLine(view.lines, index, position);
+        if (wait !== null && rate > 0) {
+          this.#lineTimer = setTimeout(tick, wait / rate + 1);
+        }
       };
+      // Deferred, so this effect does not depend on `active`, which the tick writes.
+      this.#lineTimer = setTimeout(tick);
+      return () => clearTimeout(this.#lineTimer);
     });
   }
 
@@ -95,25 +107,15 @@ export class LyricsTileController {
     });
   }
 
-  #tick = () => {
-    const session = this.#session;
-    if (session && this.view.kind === 'synced') {
-      const position = positionAt(session, Date.now(), this.#host.offsetMs());
-      const index = position === null ? -1 : lineAt(this.view.lines, position);
-      if (index !== this.active) {
-        this.active = index;
-        this.#follow();
-      }
-    }
-    if (this.#loop) {
-      this.#frame = requestAnimationFrame(this.#tick);
-    }
-  };
-
-  /** Scrolls the sung line to its resting height unless the user holds the scroll. */
+  /** Scrolls the sung line to its resting height unless the user holds the scroll. Plain lyrics never move. */
   #follow() {
     const line = this.#content?.children[Math.max(0, this.active)];
-    if (!this.#scroll || this.#held || !(line instanceof HTMLElement)) {
+    if (
+      this.view.kind !== 'synced' ||
+      !this.#scroll ||
+      this.#held ||
+      !(line instanceof HTMLElement)
+    ) {
       return;
     }
     const top = line.offsetTop + line.offsetHeight / 2 - this.#scroll.height * ANCHOR;
@@ -158,14 +160,14 @@ export class LyricsTileController {
   /** The tile changed size: put the sung line back at once. */
   recenter() {
     this.#jump = true;
-    this.#follow();
+    // Untracked: the caller's size effect must not rerun, and jump, whenever the sung line changes.
+    untrack(() => this.#follow());
   }
 
   destroy() {
     this.#abort.abort();
     this.#stop();
-    this.#loop = false;
-    cancelAnimationFrame(this.#frame);
+    clearTimeout(this.#lineTimer);
     clearTimeout(this.#holdTimer);
     this.#epoch++;
   }

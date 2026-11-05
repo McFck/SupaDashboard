@@ -13,6 +13,7 @@ type Motion =
   | { kind: 'idle' }
   | { kind: 'drag'; pointerId: number; fromY: number; fromPointer: number; samples: Sample[] }
   | { kind: 'decay'; y0: number; v0: number; t0: number }
+  | { kind: 'wheel'; target: number; x0: number; t0: number }
   | {
       kind: 'spring';
       target: number;
@@ -30,12 +31,13 @@ const LN_DECAY = Math.log(DECAY);
 const REST_SPEED = 0.02;
 /** Release velocity is measured over this much of the drag's end (ms). */
 const SAMPLE_MS = 80;
-/** Spring stiffness (1/ms) of critically damped glides: settle back from the band, follow a wheel, follow a line. */
+/** Spring stiffness (1/ms) of critically damped glides: settle back from the band, follow a line. */
 const BOUNCE_W = 0.022;
-const WHEEL_W = 0.02;
 const GLIDE_W = 0.011;
-/** Px per wheel "line" in line mode. */
-const LINE_PX = 16;
+/** Time constant (ms) of the wheel's ease-out: a third of a notch lands on the next frame, all of it in ~200 ms. */
+const WHEEL_TAU = 40;
+/** Px per wheel "line" in line mode, as Chromium scrolls on Windows. */
+const LINE_PX = 40;
 
 /** iOS's rubber band: overshoot `distance` past an end shows as this, never more than `size`. */
 const rubber = (distance: number, size: number) => size * (1 - 1 / ((distance * 0.55) / size + 1));
@@ -143,8 +145,8 @@ export class KineticScroll {
     while (motion.samples.length > 2 && now - motion.samples[0].t > SAMPLE_MS) {
       motion.samples.shift();
     }
-    cancelAnimationFrame(this.#frame);
-    this.#frame = requestAnimationFrame(() => this.#paint(y));
+    // Painted right away: pointer events already arrive once per frame, so this lands on the next one.
+    this.#paint(y);
   };
 
   #up = (event: PointerEvent) => {
@@ -177,9 +179,16 @@ export class KineticScroll {
     event.preventDefault();
     const scale = event.deltaMode === 1 ? LINE_PX : event.deltaMode === 2 ? this.#height : 1;
     const motion = this.#motion;
-    const from = motion.kind === 'spring' && motion.user ? motion.target : this.#y;
+    const from = motion.kind === 'wheel' ? motion.target : this.#y;
+    const target = this.#clamp(from + event.deltaY * scale);
     this.#host.onInput();
-    this.#spring(this.#clamp(from + event.deltaY * scale), WHEEL_W, true);
+    // An ease-out, not a spring: it moves at full speed on the first frame, as native smooth scrolling does. It
+    // starts at the last frame's time, so the next frame shows a full frame of progress.
+    const frame = document.timeline.currentTime;
+    const t0 = typeof frame === 'number' ? frame : performance.now();
+    this.#motion = { kind: 'wheel', target, x0: this.#y - target, t0 };
+    cancelAnimationFrame(this.#frame);
+    this.#frame = requestAnimationFrame(this.#step);
   };
 
   /** Starts a critically damped spring from the current pose, keeping its speed unless one is given. */
@@ -206,6 +215,9 @@ export class KineticScroll {
     if (motion.kind === 'spring') {
       const { x0, v0, w } = motion;
       return (v0 - w * (v0 + w * x0) * t) * Math.exp(-w * t);
+    }
+    if (motion.kind === 'wheel') {
+      return (-motion.x0 / WHEEL_TAU) * Math.exp(-t / WHEEL_TAU);
     }
     return 0;
   }
@@ -238,6 +250,14 @@ export class KineticScroll {
         this.#rest(motion.user);
         return;
       }
+    } else if (motion.kind === 'wheel') {
+      const x = motion.x0 * Math.exp(-t / WHEEL_TAU);
+      if (Math.abs(x) < 0.5) {
+        this.#paint(motion.target);
+        this.#rest(true);
+        return;
+      }
+      this.#paint(motion.target + x);
     } else {
       return;
     }

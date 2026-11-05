@@ -26,6 +26,12 @@ export function positionAt(session: NowPlayingSession, nowMs: number, offsetMs: 
     : progress * (timeline.endMs - timeline.startMs) + offsetMs;
 }
 
+/** Track ms from `positionMs` until the line after `index` lights, or null after the last line. */
+export function untilNextLine(lines: readonly LyricLine[], index: number, positionMs: number) {
+  const next = lines[index + 1];
+  return next ? Math.max(0, next.atMs - LEAD_MS - positionMs) : null;
+}
+
 /** Index of the line sung at `positionMs` (sorted lines), or -1 before the first one. */
 export function lineAt(lines: readonly LyricLine[], positionMs: number) {
   const at = positionMs + LEAD_MS;

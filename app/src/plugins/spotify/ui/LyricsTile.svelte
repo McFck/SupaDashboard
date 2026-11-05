@@ -140,9 +140,11 @@
     position: relative;
     will-change: transform;
   }
+  /* Opacity and transform, not colour: both animate on the compositor, while a colour change repaints all lines. */
   .line {
     margin: 0 0 calc(var(--size) * 0.5);
-    color: rgb(255 255 255 / 0.26);
+    color: #fff;
+    opacity: 0.26;
     font-size: var(--size);
     font-weight: 700;
     line-height: 1.22;
@@ -151,14 +153,14 @@
     transform: scale(0.965);
     transform-origin: left center;
     transition:
-      color 360ms ease,
+      opacity 360ms ease,
       transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1);
   }
   .past {
-    color: rgb(255 255 255 / 0.4);
+    opacity: 0.4;
   }
   .active {
-    color: #fff;
+    opacity: 1;
     transform: none;
   }
   .plain {
