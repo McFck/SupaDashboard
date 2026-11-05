@@ -71,11 +71,14 @@ impl Client {
                 ],
             )
             .await?;
+        // Every candidate is kept, so a plain or farther match never hides a synced one found later.
+        let mut records = Vec::new();
         if response.status == 200 {
-            let record: Record =
-                serde_json::from_str(&response.body).map_err(|_| "Invalid lyrics response")?;
-            let view = pick(vec![record], track);
-            if view != LyricsView::None {
+            records.push(
+                serde_json::from_str::<Record>(&response.body)
+                    .map_err(|_| "Invalid lyrics response")?,
+            );
+            if let view @ LyricsView::Synced { .. } = pick(&records, track) {
                 return Ok(view);
             }
         } else if response.status != 404 {
@@ -94,13 +97,14 @@ impl Client {
             if response.status != 200 {
                 return Err("Lyrics unavailable".into());
             }
-            let records: Vec<Record> =
-                serde_json::from_str(&response.body).map_err(|_| "Invalid lyrics response")?;
-            let view = pick(records, track);
-            if view != LyricsView::None {
+            records.extend(
+                serde_json::from_str::<Vec<Record>>(&response.body)
+                    .map_err(|_| "Invalid lyrics response")?,
+            );
+            if let view @ LyricsView::Synced { .. } = pick(&records, track) {
                 return Ok(view);
             }
         }
-        Ok(LyricsView::None)
+        Ok(pick(&records, track))
     }
 }

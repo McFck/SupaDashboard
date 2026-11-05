@@ -12,32 +12,47 @@ pub(super) struct Record {
     synced_lyrics: Option<String>,
 }
 
+/// With an exact title and artist, a duration this far off (s) is still the song, in a cut with other
+/// leading or trailing silence (a remaster, a re-upload).
+const MAX_DISTANCE: f64 = 20.0;
+/// Within this (ms) the recordings are taken as the same and the timestamps are used as they are.
+const SAME_RECORDING_MS: i64 = 2000;
+
 impl Record {
-    fn view(&self, distance: f64) -> LyricsView {
-        if distance <= 3.0 {
-            if self.instrumental {
-                return LyricsView::Instrumental;
-            }
-            if let Some(text) = &self.synced_lyrics {
-                let lines = lrc::parse(text);
-                if !lines.is_empty() {
-                    return LyricsView::Synced { lines };
-                }
-            }
+    fn view(&self, duration_ms: u64) -> LyricsView {
+        if self.instrumental {
+            return LyricsView::Instrumental;
         }
-        // Exact metadata can identify plain lyrics across slightly different releases. Unlike
-        // synchronized lyrics, this text does not claim that its timestamps fit this recording.
-        if !self.instrumental
-            && let Some(text) = &self.plain_lyrics
-        {
-            if !text.trim().is_empty() {
-                return LyricsView::Plain {
-                    text: text.chars().take(100_000).collect(),
+        if let Some(text) = &self.synced_lyrics {
+            let lines = lrc::parse(text);
+            if !lines.is_empty() {
+                // Seconds to ms; the duration is finite and within MAX_DISTANCE of a valid track here.
+                let shift = duration_ms as i64 - (self.duration * 1000.0).round() as i64;
+                return LyricsView::Synced {
+                    lines: aligned(lines, shift),
                 };
             }
         }
+        if let Some(text) = &self.plain_lyrics
+            && !text.trim().is_empty()
+        {
+            return LyricsView::Plain {
+                text: text.chars().take(100_000).collect(),
+            };
+        }
         LyricsView::None
     }
+}
+
+/// Puts the whole duration difference into the leading silence, the usual difference between cuts.
+/// What is left over, the user's sync offset corrects.
+fn aligned(mut lines: Vec<lrc::Line>, shift_ms: i64) -> Vec<lrc::Line> {
+    if shift_ms.abs() > SAME_RECORDING_MS {
+        for line in &mut lines {
+            line.at_ms = line.at_ms.saturating_add_signed(shift_ms);
+        }
+    }
+    lines
 }
 
 fn unbracketed(value: &str) -> String {
@@ -98,20 +113,21 @@ pub(super) fn normalized(title: &str, artist: &str) -> (String, String) {
     (words(&title), words(artist))
 }
 
-pub(super) fn pick(records: Vec<Record>, track: &Track) -> LyricsView {
+/// The best of all candidates: synced over instrumental over plain, then the closest duration.
+pub(super) fn pick(records: &[Record], track: &Track) -> LyricsView {
     let identity = normalized(&track.title, &track.artist);
     if identity.0.is_empty() || identity.1.is_empty() {
         return LyricsView::None;
     }
     records
-        .into_iter()
+        .iter()
         .filter(|record| normalized(&record.track_name, &record.artist_name) == identity)
         .filter_map(|record| {
-            let distance = (record.duration - track.duration as f64).abs();
-            if !record.duration.is_finite() || distance > 15.0 {
+            let distance = (record.duration - track.duration_ms as f64 / 1000.0).abs();
+            if !record.duration.is_finite() || distance > MAX_DISTANCE {
                 return None;
             }
-            let view = record.view(distance);
+            let view = record.view(track.duration_ms);
             let rank = match view {
                 LyricsView::Synced { .. } => 0,
                 LyricsView::Instrumental => 1,
@@ -139,11 +155,17 @@ mod tests {
             duration,
             instrumental: false,
             plain_lyrics: Some("plain".into()),
-            synced_lyrics: synced.then(|| "[00:01]line".into()),
+            synced_lyrics: synced.then(|| "[00:10.00]line".into()),
+        }
+    }
+    fn first_line_ms(view: LyricsView) -> Option<u64> {
+        match view {
+            LyricsView::Synced { lines } => Some(lines[0].at_ms),
+            _ => None,
         }
     }
     #[test]
-    fn finds_sizor_plain_lyrics_despite_the_real_spotify_duration_mismatch() {
+    fn takes_the_closest_synced_cut_of_the_real_sizor_mismatch_and_aligns_it_to_the_start() {
         let track = Track::new(
             "Sizor".into(),
             "Холодные стены".into(),
@@ -151,14 +173,16 @@ mod tests {
             195_863,
         )
         .unwrap();
+        let records = [
+            record("Холодные стены", "Sizor", 188.0, true),
+            record("Холодные стены", "Sizor", 196.0, false),
+            record("Холодные стены", "Sizor", 201.0, true),
+        ];
+        // LRCLIB's 201 s cut is 5.137 s longer, so its lines come that much earlier.
+        assert_eq!(first_line_ms(pick(&records, &track)), Some(4_863));
+        assert_eq!(first_line_ms(pick(&records[..2], &track)), Some(17_863));
         assert_eq!(
-            pick(
-                vec![
-                    record("Холодные стены", "Sizor", 201.0, false),
-                    record("Холодные стены", "Sizor", 188.0, false)
-                ],
-                &track
-            ),
+            pick(&records[1..2], &track),
             LyricsView::Plain {
                 text: "plain".into()
             }
@@ -183,7 +207,7 @@ mod tests {
         );
         assert!(matches!(
             pick(
-                vec![
+                &[
                     record("Другие стены", "Sizor", 196.0, true),
                     record("Холодные стены", "Другой", 196.0, true),
                     record("Холодные стены", "Sizor", 199.0, true),
@@ -195,7 +219,7 @@ mod tests {
         ));
         assert_eq!(
             pick(
-                vec![
+                &[
                     record("Другие стены", "Sizor", 196.0, true),
                     record("Холодные стены", "Другой", 196.0, true)
                 ],
@@ -205,27 +229,27 @@ mod tests {
         );
     }
     #[test]
-    fn rejects_wrong_recording_timestamps_and_bounds_plain_fallback() {
+    fn keeps_timestamps_of_the_same_recording_and_bounds_other_cuts() {
         let track = Track::new("Artist".into(), "Song".into(), "".into(), 100_000).unwrap();
-        let mut out_of_sync = record("Song", "Artist", 104.0, true);
-        out_of_sync.plain_lyrics = None;
-        assert_eq!(pick(vec![out_of_sync], &track), LyricsView::None);
+        let same = [record("Song", "Artist", 101.5, true)];
+        assert_eq!(first_line_ms(pick(&same, &track)), Some(10_000));
+        let early = [record("Song", "Artist", 115.0, true)];
+        assert_eq!(first_line_ms(pick(&early, &track)), Some(0));
+        let mut far = record("Song", "Artist", 120.5, true);
+        far.plain_lyrics = None;
+        assert_eq!(pick(&[far], &track), LyricsView::None);
         assert_eq!(
-            pick(vec![record("Song", "Artist", 115.0, false)], &track),
+            pick(&[record("Song", "Artist", 80.0, false)], &track),
             LyricsView::Plain {
                 text: "plain".into()
             }
         );
         assert_eq!(
-            pick(vec![record("Song", "Artist", 116.0, false)], &track),
-            LyricsView::None
-        );
-        assert_eq!(
-            pick(vec![record("Song", "Artist", f64::NAN, false)], &track),
+            pick(&[record("Song", "Artist", f64::NAN, true)], &track),
             LyricsView::None
         );
         let mut instrumental = record("Song", "Artist", 100.0, false);
         instrumental.instrumental = true;
-        assert_eq!(pick(vec![instrumental], &track), LyricsView::Instrumental);
+        assert_eq!(pick(&[instrumental], &track), LyricsView::Instrumental);
     }
 }

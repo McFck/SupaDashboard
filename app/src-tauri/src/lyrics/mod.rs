@@ -21,7 +21,9 @@ struct Track {
     artist: String,
     title: String,
     album: String,
+    /// Whole seconds, as LRCLIB takes them.
     duration: u64,
+    duration_ms: u64,
 }
 
 impl Track {
@@ -31,6 +33,7 @@ impl Track {
             title: title.trim().into(),
             album: album.trim().into(),
             duration: duration_ms.saturating_add(500) / 1000,
+            duration_ms,
         };
         if !(1000..=3_600_000).contains(&duration_ms)
             || track.artist.is_empty()
