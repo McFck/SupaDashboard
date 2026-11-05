@@ -5,12 +5,13 @@ import type { NowPlayingSession } from '../../../features/plugins/contracts';
 import { nativeSessions } from '../../../platform/media';
 import { getLyrics, getSongOffset, type LyricsView } from '../../../platform/lyrics';
 import { lineAt, positionAt, untilNextLine } from '../lyric-clock';
+import { KineticScroll } from './kinetic-scroll';
 import { SongOffset } from './song-offset.svelte';
 
 export type TileView = { kind: 'idle' } | { kind: 'loading' } | LyricsView;
 type Host = { visible(): boolean; offsetMs(): number };
 
-/** Follow waits this long (ms) after the user's last touch, wheel or scroll, then glides back to the sung line. */
+/** Follow waits this long (ms) after the user's scrolling comes to rest, then glides back to the sung line. */
 const HOLD_MS = 4000;
 /** Height fraction where the sung line rests. */
 const ANCHOR = 0.4;
@@ -32,7 +33,8 @@ export class LyricsTileController {
       this.#follow();
     },
   });
-  #node: HTMLElement | undefined;
+  #scroll: KineticScroll | undefined;
+  #content: HTMLElement | undefined;
   readonly #host: Host;
   #session = $state<NowPlayingSession>();
   #key = '';
@@ -120,45 +122,38 @@ export class LyricsTileController {
 
   /** Scrolls the sung line to its resting height unless the user holds the scroll. Plain lyrics never move. */
   #follow() {
-    const node = this.#node;
-    const line = node?.firstElementChild?.children[Math.max(0, this.active)];
-    if (this.view.kind !== 'synced' || !node || this.#held || !(line instanceof HTMLElement)) {
+    const line = this.#content?.children[Math.max(0, this.active)];
+    if (
+      this.view.kind !== 'synced' ||
+      !this.#scroll ||
+      this.#held ||
+      !(line instanceof HTMLElement)
+    ) {
       return;
     }
-    const top = line.offsetTop + line.offsetHeight / 2 - node.clientHeight * ANCHOR;
+    const top = line.offsetTop + line.offsetHeight / 2 - this.#scroll.height * ANCHOR;
     const smooth = !this.#jump && !prefersReducedMotion.current;
     this.#jump = false;
-    node.scrollTo({ top, behavior: smooth ? 'smooth' : 'instant' });
+    this.#scroll.scrollTo(top, smooth);
   }
 
-  /**
-   * Action for the native scroller, which the compositor scrolls with the platform's own inertia. Listeners are
-   * passive, so they never delay a scroll; a press or wheel holds follow, and scrolling keeps it held until it
-   * has been still for HOLD_MS.
-   */
+  /** Action for the scroller, whose first child is the content it moves. */
   scroller = (node: HTMLElement) => {
-    const listeners = new AbortController();
-    const options = { passive: true, signal: listeners.signal };
-    node.addEventListener('pointerdown', this.#hold, options);
-    node.addEventListener('wheel', this.#hold, options);
-    // Follow's own glides scroll too, but only while not held, so they never hold themselves.
-    node.addEventListener(
-      'scroll',
-      () => {
-        if (this.#held) {
-          this.#hold();
-        }
-      },
-      options,
-    );
+    const content = node.firstElementChild;
+    if (!(content instanceof HTMLElement)) {
+      return;
+    }
+    const scroll = new KineticScroll(node, content, { onInput: this.#hold, onRest: this.#release });
     const taps = this.offset.taps(node);
-    this.#node = node;
+    this.#scroll = scroll;
+    this.#content = content;
     return {
       destroy: () => {
-        listeners.abort();
+        scroll.destroy();
         taps.destroy();
-        if (this.#node === node) {
-          this.#node = undefined;
+        if (this.#scroll === scroll) {
+          this.#scroll = undefined;
+          this.#content = undefined;
         }
       },
     };
@@ -166,6 +161,10 @@ export class LyricsTileController {
 
   #hold = () => {
     this.#held = true;
+    clearTimeout(this.#holdTimer);
+  };
+
+  #release = () => {
     clearTimeout(this.#holdTimer);
     this.#holdTimer = setTimeout(() => {
       this.#held = false;

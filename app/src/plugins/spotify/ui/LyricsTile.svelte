@@ -66,7 +66,10 @@
       aria-label="Lyrics"
       class="scroller"
     >
-      <div class:synced={lyrics.view.kind === 'synced'}>
+      <div
+        class="content"
+        class:synced={lyrics.view.kind === 'synced'}
+      >
         {#if lyrics.view.kind === 'synced'}
           {#each lyrics.view.lines as line, index (index)}
             <p
@@ -141,22 +144,12 @@
 </div>
 
 <style>
-  /* A rounded clip around a scroller makes Chromium scroll it on the main thread. The edge fade already hides the
-     corners, so the tile does not clip. */
-  [data-lyrics-tile] {
-    overflow: visible;
-  }
   .scroller {
     position: absolute;
     inset: 0;
-    /* Native scrolling runs on the compositor with the platform's inertia, even while the page's script is busy.
-       will-change keeps it there: at 1x scale Chromium scrolls a transparent box of subpixel text on the main thread. */
-    will-change: scroll-position;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    touch-action: pan-y;
-    scrollbar-width: none;
+    overflow: hidden;
+    /* KineticScroll owns every drag, so neither the browser nor the page pager pans. */
+    touch-action: none;
     user-select: none;
     padding-inline: max(14px, calc(var(--size) * 0.85));
     /* Lines fade in and out at the edges instead of being cut. */
@@ -179,6 +172,10 @@
   }
   .synced::after {
     height: calc(var(--height) * 0.6);
+  }
+  .content {
+    position: relative;
+    will-change: transform;
   }
   /* Opacity and transform, not colour: both animate on the compositor, while a colour change repaints all lines. */
   .line {
