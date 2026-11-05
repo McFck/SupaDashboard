@@ -48,7 +48,7 @@ describe('canonical scenario migration', () => {
       kind: 'action',
       action: { id: 'plugin.other', args: { token: 'kept' } },
     });
-    expect(control.scenario?.triggers.doubleTap?.steps).toEqual([]);
+    expect(control.scenario?.triggers.doubleTap).toBeUndefined();
     expect(control.scenario?.triggers.swipeUp?.steps[0]).toMatchObject({
       kind: 'action',
       action: { id: 'button.variant', args: { target: 'self', variant: 'next' } },
@@ -58,6 +58,20 @@ describe('canonical scenario migration', () => {
       action: { id: 'button.variant', args: { target: 'self', variant: 'state-2' } },
     });
     expect(normalizeControl(control)).toEqual(control);
+  });
+
+  it('drops empty trigger lists so a removed gesture stops delaying presses', () => {
+    const control = normalizeControl({
+      id: 'c',
+      name: 'Button',
+      type: 'button',
+      variants: [{ label: 'A' }],
+      scenario: {
+        triggers: { doubleTap: { steps: [] }, press: { steps: [], effect: 'ripple' } },
+        events: [],
+      },
+    });
+    expect(control.scenario?.triggers.doubleTap).toBeUndefined();
   });
 
   it('stores identical variant action lists once in the common list', () => {

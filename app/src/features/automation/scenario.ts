@@ -141,6 +141,11 @@ export function listStepCount(list: TriggerList | undefined) {
   return count;
 }
 
+/** A trigger list with no steps, no per-state override and no effect does nothing, so it counts as absent. */
+export function isEmptyList(list: TriggerList | undefined) {
+  return !list || (!list.effect && !list.steps.length && !Object.keys(list.byState ?? {}).length);
+}
+
 /** All steps of a scenario, the quantity MAX_SCENARIO_NODES bounds. */
 export function scenarioNodeCount(scenario: Scenario) {
   let count = 0;

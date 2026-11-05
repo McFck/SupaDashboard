@@ -2,6 +2,7 @@ import type { EventAncestry } from '../plugins/contracts';
 import type { ControlConfig } from '../controls/model';
 import {
   TRIGGERS,
+  isEmptyList,
   selectTriggerSteps,
   type EventList,
   type Trigger,
@@ -88,7 +89,7 @@ export function captureTrigger(
   capturedAt = Date.now(),
 ): TriggerPacket | undefined {
   const list = control.scenario?.triggers[trigger];
-  return list
+  return list && !isEmptyList(list)
     ? packet({
         controlId: control.id,
         itemId,

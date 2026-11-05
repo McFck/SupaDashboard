@@ -2,8 +2,10 @@
 // settings change with one undo step; a change made elsewhere meanwhile is reported as a conflict.
 import { fromStore } from 'svelte/store';
 import {
+  isEmptyList,
   MAX_SCENARIO_NODES,
   newId,
+  TRIGGERS,
   scenarioNodeCount,
   type EventList,
   type ScenarioIssue,
@@ -176,6 +178,11 @@ export class ScenarioDraftEditor {
     commit('Edit scenario');
     const replacement = structuredClone($state.snapshot(latest)) as ControlConfig;
     replacement.scenario = clonePlain(draft.scenario);
+    for (const trigger of TRIGGERS) {
+      if (isEmptyList(replacement.scenario.triggers[trigger])) {
+        delete replacement.scenario.triggers[trigger];
+      }
+    }
     replacement.variants = clonePlain(draft.variants);
     if (draft.stateBindings?.length) {
       replacement.stateBindings = clonePlain(draft.stateBindings);

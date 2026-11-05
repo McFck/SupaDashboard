@@ -154,7 +154,7 @@ export function migrateLegacy(
       isRecord(binding) && 'variant' in binding
         ? legacyVariantAction(binding, input.variants ?? [], trigger, makeId)
         : stepsFromAction(binding, trigger, makeId);
-    triggers[trigger] = { steps };
+    if (steps.length) triggers[trigger] = { steps };
   }
   return { triggers, events: [] };
 }

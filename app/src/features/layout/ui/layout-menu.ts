@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { runtimeView } from '../../../app/runtime/state';
-import { TRIGGER_LABELS, TRIGGERS, type Trigger } from '../../automation/scenario';
+import { isEmptyList, TRIGGER_LABELS, TRIGGERS, type Trigger } from '../../automation/scenario';
 import { registeredEvents } from '../../plugins/registry';
 import { controlById, settings } from '../../settings/state.svelte';
 import type { Selection } from '../grid';
@@ -51,7 +51,7 @@ export function layoutMenuActions(
 
   const eventTitles = new Map(registeredEvents().map((event) => [event.id, event.title]));
   const configured = TRIGGERS.filter(
-    (trigger) => control.scenario?.triggers[trigger] !== undefined,
+    (trigger) => !isEmptyList(control.scenario?.triggers[trigger]),
   );
   const running = (get(runtimeView).busy[control.id] ?? 0) > 0;
   const actions: MenuAction[] = [

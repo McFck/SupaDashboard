@@ -5,6 +5,7 @@ import { isEffectId } from '../effects/catalogue';
 import { normalizeEffects } from '../effects/scenario-effects';
 import {
   TRIGGERS,
+  isEmptyList,
   type ActionStep,
   type Scenario,
   type Trigger,
@@ -102,11 +103,15 @@ function normalizeScenario(input: unknown, makeId: (base: string) => string): Sc
     if (isRecord(list.byState))
       for (const [stateId, steps] of Object.entries(list.byState))
         byState[stateId] = normalizeSteps(steps, `${trigger}-${stateId}`, makeId);
-    triggers[trigger] = {
+    const normalized: TriggerList = {
       ...(isEffectId(list.effect) ? { effect: list.effect } : {}),
       steps: normalizeSteps(list.steps, trigger, makeId),
       ...(isRecord(list.byState) ? { byState } : {}),
     };
+    // Removing a gesture used to leave an empty list behind, which still made the press wait for it.
+    if (!isEmptyList(normalized)) {
+      triggers[trigger] = normalized;
+    }
   }
   const events = Array.isArray(raw.events)
     ? raw.events.map((event, i) => {

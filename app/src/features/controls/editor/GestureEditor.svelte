@@ -6,14 +6,19 @@
   import { Button } from '$lib/components/ui/button';
   import { Hint } from '$lib/components/ui/tooltip';
   import type { ControlConfig } from '../model';
-  import { scenarioStepCount, TRIGGER_LABELS, type Trigger } from '../../automation/scenario';
+  import {
+    isEmptyList,
+    scenarioStepCount,
+    TRIGGER_LABELS,
+    type Trigger,
+  } from '../../automation/scenario';
   import { controlTriggers } from '../../plugins/registry';
 
   let { control, onedit }: { control: ControlConfig; onedit: (trigger?: Trigger) => void } =
     $props();
   const configured = $derived(
     controlTriggers(control.type).filter(
-      (trigger) => control.scenario?.triggers[trigger] !== undefined,
+      (trigger) => !isEmptyList(control.scenario?.triggers[trigger]),
     ),
   );
   const stepCount = (trigger: Trigger) => {

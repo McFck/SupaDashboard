@@ -1,5 +1,10 @@
 // Pointer interaction for controls: gesture classification and directional pulls.
-import { selectTriggerSteps, type ActionStep, type Trigger } from '../../automation/scenario';
+import {
+  isEmptyList,
+  selectTriggerSteps,
+  type ActionStep,
+  type Trigger,
+} from '../../automation/scenario';
 import type { ControlConfig, SwipeGesture } from '../model';
 import { stateIdAt, variantIndexForState } from '../variants';
 
@@ -68,7 +73,7 @@ export function pullBindingsFor(
   for (const direction of directions) {
     if (eligible && !eligible.includes(direction)) continue;
     const list = control.scenario?.triggers[direction];
-    if (!list) continue;
+    if (!list || isEmptyList(list)) continue;
     const steps = selectTriggerSteps(list, stateId);
     const preview = simpleSelfVariant(control, current, steps);
     if (preview !== undefined) {
