@@ -13,6 +13,7 @@ import type { TriggerPacket } from '../../automation/scenario-runner';
 import { settings } from '../../settings/state.svelte';
 import type { GestureEffectHandlers } from '../input/gestures';
 import { releasePullEffects } from '../../effects/effect-runtime';
+import { notifyTrigger } from '../../plugins/registry';
 
 type Host = { control(): ControlConfig; itemId?(): string | undefined };
 /** PullContent: settles a released pull and commits the action at the right moment. */
@@ -79,6 +80,9 @@ export class ControlTile {
       original && original === this.heldPacket && original.trigger.startsWith('swipe')
         ? releasePullEffects(original)
         : original;
+    if (original && original.trigger !== 'event') {
+      notifyTrigger(original.trigger);
+    }
     if (snapshot) {
       void content?.release(snapshot, () => {
         void this.#commands.dispatchRuntimePacket(packet);

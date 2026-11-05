@@ -184,6 +184,10 @@ export type PluginApi = {
   registerIcon(name: string, path: string): void;
   /** Icon shown for an app in the volume mixer, keyed by process name ("spotify"). */
   registerAppIcon(app: string, icon: string): void;
+  /** Runs another plugin's action by id; nothing happens when it is not installed. */
+  runAction(id: string, args?: Record<string, unknown>): void;
+  /** Called when a control on this screen runs a trigger. Returns the unsubscribe. */
+  onTrigger(listener: (trigger: Trigger) => void): () => void;
 };
 
 export type Plugin = {

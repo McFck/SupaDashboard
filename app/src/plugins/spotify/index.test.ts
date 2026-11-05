@@ -45,6 +45,8 @@ it('keeps smart shuffle across media updates and falls back to media when Web AP
     registerStatusSource: () => {},
     registerIcon: () => {},
     registerAppIcon: () => {},
+    runAction: () => {},
+    onTrigger: () => () => {},
     registerVariable: (definition) => {
       variables.define({ ...definition, owner: 'spotify' }, 'spotify');
     },

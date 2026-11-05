@@ -12,6 +12,7 @@ import { appsPlugin } from '../plugins/core-apps';
 import { corePlugin } from '../plugins/core';
 import { spotifyPlugin } from '../plugins/spotify/index';
 import { discordPlugin } from '../plugins/discord';
+import { hapticsPlugin } from '../plugins/haptics';
 import { subwayPlugin } from '../plugins/subway';
 import { uiPlugin } from '../plugins/ui';
 
@@ -26,6 +27,7 @@ const BUNDLED_PLUGINS = [
   uiPlugin,
   spotifyPlugin,
   discordPlugin,
+  hapticsPlugin,
   subwayPlugin,
 ];
 

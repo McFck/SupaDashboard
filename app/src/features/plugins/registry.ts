@@ -213,6 +213,14 @@ function registerStatusSource(owner: string, d: StatusSourceDef) {
   statusSources.set(d.id, { ...d, plugin: owner });
 }
 
+const triggerListeners = new Set<(trigger: Trigger) => void>();
+
+export function notifyTrigger(trigger: Trigger) {
+  for (const listener of triggerListeners) {
+    listener(trigger);
+  }
+}
+
 function createApi(owner: string): PluginApi {
   return {
     registerAction: (d) => void actions.set(d.id, { ...d, plugin: owner }),
@@ -240,6 +248,14 @@ function createApi(owner: string): PluginApi {
     setVariable: async (id, value) => {
       if (!registryRuntime) throw new Error('Variable runtime is unavailable');
       return registryRuntime.variables.set(id, value, owner);
+    },
+    runAction: (id, args = {}) => {
+      // Best effort: the target plugin may be uninstalled, and its failure must not break the caller.
+      void Promise.resolve(actions.get(id)?.run(args)).catch(() => {});
+    },
+    onTrigger: (listener) => {
+      triggerListeners.add(listener);
+      return () => void triggerListeners.delete(listener);
     },
     registerIcon: (name, path) => void customIcons.set(name, path),
     registerAppIcon: (app, icon) => {
