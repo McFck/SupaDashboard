@@ -1,11 +1,19 @@
 // Drag, flick and wheel scrolling for one viewport, painted as a transform: momentum after a flick, a rubber
 // band past the ends and spring glides. Native overflow scrolling felt dead on the dashboard's touch screen.
+// `y` below is the position along the scroll axis, which is horizontal for the lyrics offset ruler.
 
 type Host = {
   /** The user grabbed, flicked or wheeled the content. */
   onInput(): void;
   /** Motion the user started has come to rest. */
   onRest(): void;
+  /** A new position was painted. */
+  onMove?(position: number): void;
+};
+type Options = {
+  axis?: 'x' | 'y';
+  /** Px the content rests on a multiple of; each wheel notch moves one. 0 rests anywhere. */
+  snap?: number;
 };
 type Sample = { t: number; y: number };
 /** Analytical motions, so every frame is one transform write and no layout read. */
@@ -47,13 +55,17 @@ export class KineticScroll {
   readonly #content: HTMLElement;
   readonly #host: Host;
   readonly #observer: ResizeObserver;
+  readonly #horizontal: boolean;
+  readonly #snap: number;
   #motion: Motion = { kind: 'idle' };
   #y = 0;
   #max = 0;
   #height = 0;
   #frame = 0;
 
-  constructor(viewport: HTMLElement, content: HTMLElement, host: Host) {
+  constructor(viewport: HTMLElement, content: HTMLElement, host: Host, options: Options = {}) {
+    this.#horizontal = options.axis === 'x';
+    this.#snap = options.snap ?? 0;
     this.#viewport = viewport;
     this.#content = content;
     this.#host = host;
@@ -68,8 +80,8 @@ export class KineticScroll {
     viewport.addEventListener('wheel', this.#wheel, { passive: false });
   }
 
-  /** Viewport height in px, as last measured. */
-  get height() {
+  /** Viewport length along the axis in px, as last measured. */
+  get size() {
     return this.#height;
   }
 
@@ -95,14 +107,19 @@ export class KineticScroll {
   }
 
   #measure = () => {
-    this.#height = this.#viewport.clientHeight;
-    this.#max = Math.max(0, this.#content.offsetHeight - this.#height);
+    this.#height = this.#horizontal ? this.#viewport.clientWidth : this.#viewport.clientHeight;
+    const length = this.#horizontal ? this.#content.offsetWidth : this.#content.offsetHeight;
+    this.#max = Math.max(0, length - this.#height);
     if (this.#motion.kind === 'idle' && this.#clamp(this.#y) !== this.#y) {
       this.#paint(this.#clamp(this.#y));
     }
   };
 
   #clamp = (y: number) => Math.min(this.#max, Math.max(0, y));
+
+  #snapped = (y: number) => (this.#snap ? Math.round(y / this.#snap) * this.#snap : y);
+
+  #pointer = (event: PointerEvent) => (this.#horizontal ? event.clientX : event.clientY);
 
   #band(y: number) {
     if (y < 0) {
@@ -113,7 +130,10 @@ export class KineticScroll {
 
   #paint(y: number) {
     this.#y = y;
-    this.#content.style.transform = `translate3d(0, ${-y}px, 0)`;
+    this.#content.style.transform = this.#horizontal
+      ? `translate3d(${-y}px, 0, 0)`
+      : `translate3d(0, ${-y}px, 0)`;
+    this.#host.onMove?.(y);
   }
 
   #down = (event: PointerEvent) => {
@@ -128,7 +148,7 @@ export class KineticScroll {
       kind: 'drag',
       pointerId: event.pointerId,
       fromY: this.#y,
-      fromPointer: event.clientY,
+      fromPointer: this.#pointer(event),
       samples: [{ t: now, y: this.#y }],
     };
     this.#host.onInput();
@@ -139,7 +159,7 @@ export class KineticScroll {
     if (motion.kind !== 'drag' || motion.pointerId !== event.pointerId) {
       return;
     }
-    const y = this.#band(motion.fromY + motion.fromPointer - event.clientY);
+    const y = this.#band(motion.fromY + motion.fromPointer - this.#pointer(event));
     const now = performance.now();
     motion.samples.push({ t: now, y });
     while (motion.samples.length > 2 && now - motion.samples[0].t > SAMPLE_MS) {
@@ -166,6 +186,8 @@ export class KineticScroll {
     } else if (Math.abs(v) > REST_SPEED) {
       this.#motion = { kind: 'decay', y0: last.y, v0: v, t0: now };
       this.#frame = requestAnimationFrame(this.#step);
+    } else if (this.#snapped(last.y) !== last.y) {
+      this.#spring(this.#snapped(last.y), BOUNCE_W, true, 0);
     } else {
       this.#motion = { kind: 'idle' };
       this.#host.onRest();
@@ -180,7 +202,11 @@ export class KineticScroll {
     const scale = event.deltaMode === 1 ? LINE_PX : event.deltaMode === 2 ? this.#height : 1;
     const motion = this.#motion;
     const from = motion.kind === 'wheel' ? motion.target : this.#y;
-    const target = this.#clamp(from + event.deltaY * scale);
+    const delta = (this.#horizontal && event.deltaX) || event.deltaY;
+    // A snapping scale moves one step per notch however far the notch scrolls, so a wheel is a fine control.
+    const target = this.#clamp(
+      this.#snap ? this.#snapped(from) + Math.sign(delta) * this.#snap : from + delta * scale,
+    );
     this.#host.onInput();
     // An ease-out, not a spring: it moves at full speed on the first frame, as native smooth scrolling does. It
     // starts at the last frame's time, so the next frame shows a full frame of progress.
@@ -236,7 +262,12 @@ export class KineticScroll {
         return;
       }
       if (Math.abs(v) < REST_SPEED) {
-        this.#rest(true);
+        // What is left of the flick (y - v / ln DECAY) glides onto the nearest step.
+        if (this.#snap) {
+          this.#spring(this.#snapped(y - v / LN_DECAY), BOUNCE_W, true, v);
+        } else {
+          this.#rest(true);
+        }
         return;
       }
     } else if (motion.kind === 'spring') {

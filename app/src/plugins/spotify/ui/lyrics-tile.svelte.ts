@@ -131,7 +131,7 @@ export class LyricsTileController {
     ) {
       return;
     }
-    const top = line.offsetTop + line.offsetHeight / 2 - this.#scroll.height * ANCHOR;
+    const top = line.offsetTop + line.offsetHeight / 2 - this.#scroll.size * ANCHOR;
     const smooth = !this.#jump && !prefersReducedMotion.current;
     this.#jump = false;
     this.#scroll.scrollTo(top, smooth);
