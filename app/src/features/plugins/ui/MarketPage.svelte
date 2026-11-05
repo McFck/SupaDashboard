@@ -10,7 +10,7 @@
   let remote = $state<CatalogEntry[]>([]);
   let installing = $state<string | null>(null);
   const local: CatalogEntry[] = bundledPlugins
-    .filter((p) => !p.builtin)
+    .filter((p) => !p.builtin && !p.private)
     .map((p) => ({
       id: p.id,
       title: p.title,
