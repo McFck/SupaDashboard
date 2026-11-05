@@ -270,6 +270,15 @@ describe('app conditions', () => {
     expect(watchedKeys(settings.controls, settings.apps)).toContain('exe:C:/a/Chat.exe');
   });
 
+  it('keeps non-ASCII executable conditions aligned with native state ids', () => {
+    const slug = appSlug('exe:C:/Apps/Контур.Коннект.exe');
+    expect(slug).toBe('u_d0bad0bed0bdd182d183d1802ed0bad0bed0bdd0bdd0b5d0bad182');
+    expect(appSlug('exe:C:/Apps/КОНТУР.КОННЕКТ.EXE')).toBe(slug);
+    expect(appSlug('exe:C:/Apps/Толк.exe')).not.toBe(slug);
+    expect(parseAppVariable(`app.${slug}.running`)).toEqual({ slug, field: 'running' });
+    expect(parseWatched([state({ slug })])).toHaveLength(1);
+  });
+
   it.each(['running', 'focused', 'minimized', 'visible'])(
     'keeps "if app is not %s then open, else minimize" a valid scenario',
     (field) => {

@@ -60,11 +60,15 @@ export function appSlug(key: string): string | undefined {
   if (row) {
     return row.slug;
   }
-  return key.startsWith('exe:')
-    ? appLabel(key)
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/g, '')
-    : undefined;
+  if (!key.startsWith('exe:')) {
+    return undefined;
+  }
+  const name = appLabel(key).toLowerCase();
+  const ascii = name.replace(/[^a-z0-9_-]/g, '');
+  return (
+    ascii ||
+    `u_${Array.from(new TextEncoder().encode(name), (byte) => byte.toString(16).padStart(2, '0')).join('')}`
+  );
 }
 
 function manualKeys() {

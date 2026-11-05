@@ -129,15 +129,23 @@ pub fn parse_request(request: Request) -> Result<Command, String> {
     })
 }
 
-/// The variable slug: lowercase, `[a-z0-9_-]` only, the same convention as the audio mixer's app names.
+/// Keep existing variable ids; names with no ASCII slug use their lowercase UTF-8 bytes.
 pub fn slug(name: &str) -> String {
     let lower = name.to_lowercase();
-    lower
-        .strip_suffix(".exe")
-        .unwrap_or(&lower)
+    let name = lower.strip_suffix(".exe").unwrap_or(&lower);
+    let ascii: String = name
         .chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
-        .collect()
+        .collect();
+    if !ascii.is_empty() {
+        return ascii;
+    }
+    let encoded: String = name
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    format!("u_{encoded}")
 }
 
 /// What the window enumeration knows about one top-level window.
@@ -472,5 +480,16 @@ mod tests {
         assert_eq!(slug("Discord.exe"), "discord");
         assert_eq!(slug("Notepad++"), "notepad");
         assert_eq!(slug("my app_2"), "myapp_2");
+    }
+
+    #[test]
+    fn non_ascii_apps_have_distinct_usable_state_ids() {
+        assert_eq!(
+            slug("Контур.Коннект.exe"),
+            "u_d0bad0bed0bdd182d183d1802ed0bad0bed0bdd0bdd0b5d0bad182"
+        );
+        assert_eq!(slug("КОНТУР.КОННЕКТ.EXE"), slug("Контур.Коннект.exe"));
+        assert_ne!(slug("Контур.Коннект.exe"), slug("Толк.exe"));
+        assert_eq!(slug("Контур2.exe"), "2");
     }
 }
