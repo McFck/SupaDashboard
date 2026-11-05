@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { readLyricsView } from './lyrics';
+import { readLyricsView, readSongOffset } from './lyrics';
 
 const synced = (lines: unknown) => ({ kind: 'synced', lines });
 
@@ -35,5 +35,12 @@ it('rejects payloads that would break line sync or flood the tile', () => {
     { kind: 'plain', text: 'x'.repeat(100_001) },
   ]) {
     expect(readLyricsView(raw)).toBeNull();
+  }
+});
+
+it('reads a saved song offset only when the native store could have written it', () => {
+  expect(readSongOffset(-10_000)).toBe(-10_000);
+  for (const raw of [10_001, 1.5, Number.NaN, '100', null]) {
+    expect(readSongOffset(raw)).toBe(0);
   }
 });

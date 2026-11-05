@@ -51,6 +51,7 @@ pub fn run() {
             app.manage(discord::DiscordHub::default());
             app.manage(spotify::SpotifyHub::default());
             app.manage(lyrics::LyricsHub::default());
+            app.manage(lyrics::offsets::LyricsOffsets::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
@@ -113,6 +114,8 @@ pub fn run() {
             spotify::spotify_command,
             spotify::shuffle::spotify_shuffle,
             lyrics::lyrics_get,
+            lyrics::offsets::lyrics_offset_get,
+            lyrics::offsets::lyrics_offset_set,
         ])
         .run(context)
         .expect("error while building tauri application");

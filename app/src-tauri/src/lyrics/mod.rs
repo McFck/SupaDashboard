@@ -2,6 +2,7 @@ mod cache;
 mod lrc;
 mod lrclib;
 mod matching;
+pub mod offsets;
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
