@@ -30,7 +30,12 @@ export class DragGaps {
   ) {
     this.resizeObserver = new ResizeObserver(() => this.schedule());
     this.resizeObserver.observe(shell);
-    this.mutationObserver = new MutationObserver(() => {
+    this.mutationObserver = new MutationObserver((mutations) => {
+      // Style written inside a tile (a scroller's transform, a progress bar) never moves the tile's own box, and
+      // re-measuring on it cost a forced layout of the whole page on every animation frame.
+      if (mutations.every(insideTileStyle)) {
+        return;
+      }
       this.observeNodes();
       this.schedule();
     });
@@ -150,6 +155,14 @@ function visibleRect(node: Element, appletRoot: HTMLElement, surface: DOMRect): 
     width: bounds.width,
     height: bounds.height,
   };
+}
+
+function insideTileStyle(mutation: MutationRecord) {
+  return (
+    mutation.attributeName === 'style' &&
+    mutation.target instanceof Element &&
+    !!mutation.target.parentElement?.closest('[data-dashboard-tile]')
+  );
 }
 
 function contains(outer: Geometry, inner: Geometry) {
