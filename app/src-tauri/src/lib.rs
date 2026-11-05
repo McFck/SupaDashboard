@@ -23,10 +23,7 @@ pub fn run() {
     let context = tauri::generate_context!();
     #[cfg(debug_assertions)]
     let context = dev_data::context(context);
-    let builder = tauri::Builder::default();
-    #[cfg(debug_assertions)]
-    let builder = builder.plugin(dev_data::plugin());
-    builder
+    tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -79,6 +76,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            // Debug builds only: the release app has no dev data to copy.
+            #[cfg(debug_assertions)]
+            dev_data::copy_settings_to_release,
             content::content_frames_ready,
             panel::panel_bootstrap,
             panel::panel_ready,

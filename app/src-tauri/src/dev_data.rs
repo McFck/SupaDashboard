@@ -27,7 +27,7 @@ pub fn seed(app: &AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn copy_settings_to_release(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+pub async fn copy_settings_to_release(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
     crate::panel::require_panel(&window)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = COPYING.try_lock().map_err(|_| "Copy already in progress")?;
@@ -57,10 +57,4 @@ async fn copy_settings_to_release(window: WebviewWindow, app: AppHandle) -> Resu
     })
     .await
     .map_err(|e| e.to_string())?
-}
-
-pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
-    tauri::plugin::Builder::new("dev-data")
-        .invoke_handler(tauri::generate_handler![copy_settings_to_release])
-        .build()
 }
