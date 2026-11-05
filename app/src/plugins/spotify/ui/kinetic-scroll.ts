@@ -19,7 +19,15 @@ type Sample = { t: number; y: number };
 /** Analytical motions, so every frame is one transform write and no layout read. */
 type Motion =
   | { kind: 'idle' }
-  | { kind: 'drag'; pointerId: number; fromY: number; fromPointer: number; samples: Sample[] }
+  | {
+      kind: 'drag';
+      pointerId: number;
+      fromY: number;
+      fromPointer: number;
+      /** The last pointer position taken, along the axis. */
+      pointer: number;
+      samples: Sample[];
+    }
   | { kind: 'decay'; y0: number; v0: number; t0: number }
   | { kind: 'wheel'; target: number; x0: number; t0: number }
   | {
@@ -39,6 +47,11 @@ const LN_DECAY = Math.log(DECAY);
 const REST_SPEED = 0.02;
 /** Release velocity is measured over this much of the drag's end (ms). */
 const SAMPLE_MS = 80;
+/** A pointer step longer than this share of the viewport, within GLITCH_MS of the last one, is dropped. */
+const GLITCH_SHARE = 1 / 3;
+const GLITCH_MS = 50;
+/** Fastest fling (px/ms); real flicks stay below it, a bad sample must not throw the content to an end. */
+const MAX_SPEED = 6;
 /** Spring stiffness (1/ms) of critically damped glides: settle back from the band, follow a line. */
 const BOUNCE_W = 0.022;
 const GLIDE_W = 0.011;
@@ -76,7 +89,8 @@ export class KineticScroll {
     viewport.addEventListener('pointerdown', this.#down);
     viewport.addEventListener('pointermove', this.#move);
     viewport.addEventListener('pointerup', this.#up);
-    viewport.addEventListener('pointercancel', this.#up);
+    viewport.addEventListener('pointercancel', this.#cancel);
+    viewport.addEventListener('lostpointercapture', this.#cancel);
     viewport.addEventListener('wheel', this.#wheel, { passive: false });
   }
 
@@ -102,7 +116,8 @@ export class KineticScroll {
     this.#viewport.removeEventListener('pointerdown', this.#down);
     this.#viewport.removeEventListener('pointermove', this.#move);
     this.#viewport.removeEventListener('pointerup', this.#up);
-    this.#viewport.removeEventListener('pointercancel', this.#up);
+    this.#viewport.removeEventListener('pointercancel', this.#cancel);
+    this.#viewport.removeEventListener('lostpointercapture', this.#cancel);
     this.#viewport.removeEventListener('wheel', this.#wheel);
   }
 
@@ -137,7 +152,12 @@ export class KineticScroll {
   }
 
   #down = (event: PointerEvent) => {
+    const motion = this.#motion;
     if (!event.isPrimary || event.button !== 0) {
+      return;
+    }
+    // Injected touch (spacedesk) can report a second finger mid-drag; the one still held keeps the scroll.
+    if (motion.kind === 'drag' && this.#viewport.hasPointerCapture(motion.pointerId)) {
       return;
     }
     // A touch on moving content catches it where it is, as native scrolling does.
@@ -149,6 +169,7 @@ export class KineticScroll {
       pointerId: event.pointerId,
       fromY: this.#y,
       fromPointer: this.#pointer(event),
+      pointer: this.#pointer(event),
       samples: [{ t: now, y: this.#y }],
     };
     this.#host.onInput();
@@ -159,8 +180,18 @@ export class KineticScroll {
     if (motion.kind !== 'drag' || motion.pointerId !== event.pointerId) {
       return;
     }
-    const y = this.#band(motion.fromY + motion.fromPointer - this.#pointer(event));
+    const pointer = this.#pointer(event);
     const now = performance.now();
+    const last = motion.samples[motion.samples.length - 1];
+    // A stray far-off report: no finger crosses a third of the view that fast. A real jump is taken once it holds.
+    if (
+      Math.abs(pointer - motion.pointer) > this.#height * GLITCH_SHARE &&
+      now - last.t < GLITCH_MS
+    ) {
+      return;
+    }
+    motion.pointer = pointer;
+    const y = this.#band(motion.fromY + motion.fromPointer - pointer);
     motion.samples.push({ t: now, y });
     while (motion.samples.length > 2 && now - motion.samples[0].t > SAMPLE_MS) {
       motion.samples.shift();
@@ -169,7 +200,12 @@ export class KineticScroll {
     this.#paint(y);
   };
 
-  #up = (event: PointerEvent) => {
+  #up = (event: PointerEvent) => this.#release(event, true);
+
+  /** A cancelled or stolen pointer settles where it is; flinging on it threw the lyrics to an end. */
+  #cancel = (event: PointerEvent) => this.#release(event, false);
+
+  #release(event: PointerEvent, fling: boolean) {
     const motion = this.#motion;
     if (motion.kind !== 'drag' || motion.pointerId !== event.pointerId) {
       return;
@@ -178,7 +214,11 @@ export class KineticScroll {
     const first = motion.samples[0];
     const now = performance.now();
     // A finger that stopped before lifting throws nothing.
-    const v = now - last.t > 50 || last.t === first.t ? 0 : (last.y - first.y) / (last.t - first.t);
+    const thrown =
+      !fling || now - last.t > 50 || last.t === first.t
+        ? 0
+        : (last.y - first.y) / (last.t - first.t);
+    const v = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, thrown));
     cancelAnimationFrame(this.#frame);
     this.#paint(last.y);
     if (this.#clamp(last.y) !== last.y) {
@@ -192,7 +232,7 @@ export class KineticScroll {
       this.#motion = { kind: 'idle' };
       this.#host.onRest();
     }
-  };
+  }
 
   #wheel = (event: WheelEvent) => {
     if (event.ctrlKey || this.#max === 0) {
