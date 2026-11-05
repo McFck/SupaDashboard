@@ -10,6 +10,7 @@ mod dev_data;
 mod discord;
 mod haptics;
 mod http;
+mod work;
 mod lyrics;
 mod media;
 mod monitors;
@@ -51,6 +52,7 @@ pub fn run() {
             app.manage(haptics::Haptics::default());
             app.manage(apps::watch::AppsHub::default());
             app.manage(discord::DiscordHub::default());
+            app.manage(work::Work::default());
             app.manage(spotify::SpotifyHub::default());
             app.manage(lyrics::LyricsHub::default());
             app.manage(lyrics::offsets::LyricsOffsets::default());
@@ -111,6 +113,13 @@ pub fn run() {
             discord::discord_authorize,
             discord::discord_logout,
             discord::discord_voice,
+            work::work_meetings,
+            work::work_session,
+            work::work_sign_in,
+            work::work_sign_out,
+            work::work_call_state,
+            work::work_call,
+            work::work_join,
             spotify::spotify_subscribe,
             spotify::spotify_unsubscribe,
             spotify::spotify_authorize,

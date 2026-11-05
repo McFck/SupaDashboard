@@ -22,7 +22,7 @@ pub fn form(fields: &[(&str, &str)]) -> String {
         .join("&")
 }
 
-fn encode(value: &str) -> String {
+pub fn encode(value: &str) -> String {
     let mut encoded = String::new();
     for byte in value.bytes() {
         if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
