@@ -71,3 +71,27 @@ export async function getLyrics(track: LyricsTrack): Promise<LyricsView> {
     return { kind: 'none' };
   }
 }
+
+/** The per-song offset's range either way (ms), as the native store bounds it. */
+export const SONG_OFFSET_LIMIT_MS = 10_000;
+
+/** A saved per-song offset in ms (positive shows lines earlier), or 0 when the payload is not one. */
+export function readSongOffset(raw: unknown) {
+  return typeof raw === 'number' && Number.isInteger(raw) && Math.abs(raw) <= SONG_OFFSET_LIMIT_MS
+    ? raw
+    : 0;
+}
+
+/** The offset the user saved for this song. */
+export async function getSongOffset(track: LyricsTrack) {
+  try {
+    return readSongOffset(await invoke<unknown>('lyrics_offset_get', track));
+  } catch {
+    // An unreadable store only leaves the lines unshifted; the native side keeps the file it could not read.
+    return 0;
+  }
+}
+
+/** Saves this song's offset; 0 forgets it. */
+export const setSongOffset = (track: LyricsTrack, offsetMs: number) =>
+  invoke<void>('lyrics_offset_set', { ...track, offsetMs });

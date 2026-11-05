@@ -3,9 +3,10 @@ import { untrack } from 'svelte';
 import { prefersReducedMotion } from 'svelte/motion';
 import type { NowPlayingSession } from '../../../features/plugins/contracts';
 import { nativeSessions } from '../../../platform/media';
-import { getLyrics, type LyricsView } from '../../../platform/lyrics';
+import { getLyrics, getSongOffset, type LyricsView } from '../../../platform/lyrics';
 import { lineAt, positionAt, untilNextLine } from '../lyric-clock';
 import { KineticScroll } from './kinetic-scroll';
+import { SongOffset } from './song-offset.svelte';
 
 export type TileView = { kind: 'idle' } | { kind: 'loading' } | LyricsView;
 type Host = { visible(): boolean; offsetMs(): number };
@@ -23,6 +24,15 @@ const pick = (sessions: readonly NowPlayingSession[]) =>
 export class LyricsTileController {
   view = $state<TileView>({ kind: 'idle' });
   active = $state(-1);
+  readonly offset = new SongOffset({
+    canAdjust: () => this.view.kind === 'synced',
+    // Follow resumes at once, so the preview shows the sung line moving.
+    opened: () => {
+      clearTimeout(this.#holdTimer);
+      this.#held = false;
+      this.#follow();
+    },
+  });
   #scroll: KineticScroll | undefined;
   #content: HTMLElement | undefined;
   readonly #host: Host;
@@ -45,7 +55,7 @@ export class LyricsTileController {
     // The sung line changes a few times a minute, so a timer wakes for each change instead of a frame loop.
     $effect(() => {
       const session = this.#session;
-      const offset = this.#host.offsetMs();
+      const offset = this.#host.offsetMs() + this.offset.value;
       const view = this.view;
       if (view.kind !== 'synced' || !session || !this.#host.visible()) {
         return;
@@ -89,6 +99,7 @@ export class LyricsTileController {
     const mine = ++this.#epoch;
     this.active = -1;
     this.#jump = true;
+    this.offset.use(undefined);
     if (!present) {
       this.view = { kind: 'idle' };
       return;
@@ -100,8 +111,10 @@ export class LyricsTileController {
     }
     const { artist, title, album } = session;
     // The native side takes whole milliseconds.
-    void getLyrics({ artist, title, album, durationMs: Math.round(durationMs) }).then((view) => {
+    const track = { artist, title, album, durationMs: Math.round(durationMs) };
+    void Promise.all([getLyrics(track), getSongOffset(track)]).then(([view, offsetMs]) => {
       if (mine === this.#epoch) {
+        this.offset.use(track, offsetMs);
         this.view = view;
       }
     });
@@ -131,11 +144,13 @@ export class LyricsTileController {
       return;
     }
     const scroll = new KineticScroll(node, content, { onInput: this.#hold, onRest: this.#release });
+    const taps = this.offset.taps(node);
     this.#scroll = scroll;
     this.#content = content;
     return {
       destroy: () => {
         scroll.destroy();
+        taps.destroy();
         if (this.#scroll === scroll) {
           this.#scroll = undefined;
           this.#content = undefined;
@@ -169,6 +184,7 @@ export class LyricsTileController {
     this.#stop();
     clearTimeout(this.#lineTimer);
     clearTimeout(this.#holdTimer);
+    this.offset.destroy();
     this.#epoch++;
   }
 }
