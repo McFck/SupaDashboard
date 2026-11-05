@@ -151,7 +151,8 @@ pub(super) fn pick(records: &[Record], track: &Track) -> LyricsView {
                 LyricsView::Plain { .. } => 2,
                 LyricsView::None => return None,
             };
-            Some(((tier, inexact, rank), distance, view))
+            // Synced lyrics win over plain ones from a closer cut: the per-song offset fixes the remaining shift.
+            Some(((rank, tier, inexact), distance, view))
         })
         .min_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.total_cmp(&b.1)))
         .map(|(_, _, view)| view)
@@ -179,7 +180,7 @@ mod tests {
         }
     }
     #[test]
-    fn ranks_the_same_recording_first_then_the_exact_album_then_synced_and_aligns_other_cuts() {
+    fn prefers_synced_lyrics_then_the_closest_cut_and_exact_album_and_aligns_other_cuts() {
         let track = Track::new(
             "Sizor".into(),
             "Холодные стены".into(),
@@ -204,13 +205,8 @@ mod tests {
             Some(4_863)
         );
         assert_eq!(first_line_ms(pick(&records[..1], &track)), Some(17_863));
-        // The same recording wins over another cut even when only its plain lyrics exist.
-        assert_eq!(
-            pick(&records, &track),
-            LyricsView::Plain {
-                text: "plain".into()
-            }
-        );
+        // Synced lyrics from another cut win over plain lyrics from the same recording.
+        assert_eq!(first_line_ms(pick(&records, &track)), Some(4_863));
         let mut album = record("Холодные стены", "Sizor", 196.5, true);
         album.synced_lyrics = Some("[00:01.00]album".into());
         album.album_name = Some("холодные стены".into());
