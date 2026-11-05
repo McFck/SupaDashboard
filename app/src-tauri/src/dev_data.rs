@@ -1,7 +1,6 @@
 //! Debug-only data isolation and the panel's explicit release export.
 mod copy;
 mod processes;
-mod publish;
 
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};

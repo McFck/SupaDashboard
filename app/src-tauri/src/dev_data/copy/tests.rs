@@ -36,7 +36,15 @@ fn plan_limits_export_and_keeps_backup_inside_release() {
     let plan = plan(release, "20261104120300").unwrap();
     assert_eq!(
         plan.entries,
-        ["settings.json", "variables.json", "plugins.json", "icons"]
+        [
+            "settings.json",
+            "variables.json",
+            "plugins.json",
+            "discord.json",
+            "spotify.json",
+            "icons",
+            "lyrics"
+        ]
     );
     assert_eq!(plan.backup, release.join("backups/20261104120300"));
     for stamp in ["", "../escape", "C:\\escape", "12/34"] {
@@ -103,7 +111,7 @@ fn export_backs_up_release_and_replaces_only_the_dev_data_set() {
     );
     export(&dev, &release, "124", || Ok(())).unwrap();
     assert!(release.join("backups/123/settings.json").is_file());
-    assert!(!release.join("backups/124/backups").exists());
+    assert!(!release.join("backups/124/window-state.json").exists());
 }
 
 #[test]
@@ -125,24 +133,28 @@ fn invalid_dev_data_or_a_running_release_never_changes_release() {
 }
 
 #[test]
-fn failed_publication_restores_the_whole_release_directory() {
+fn export_ignores_locked_webview_files_and_keeps_other_release_data() {
+    use std::os::windows::fs::OpenOptionsExt;
     let fixture = Fixture::new();
     let dev = fixture.dir("dev");
     let release = fixture.dir("release");
-    fs::write(release.join("settings.json"), "original").unwrap();
     fs::write(dev.join("settings.json"), "{}").unwrap();
-    // Lose staging after preparation so the second transactional rename fails.
-    assert!(
-        export(&dev, &release, "125", || {
-            fs::remove_dir_all(release.with_extension("copy-125")).unwrap();
-            Ok(())
-        })
-        .is_err()
-    );
-    assert_eq!(
-        fs::read_to_string(release.join("settings.json")).unwrap(),
-        "original"
-    );
+    fs::write(dev.join("discord.json"), r#"{"token":"dev"}"#).unwrap();
+    fs::create_dir(dev.join("EBWebView")).unwrap();
+    let locked = dev.join("EBWebView/Cookies");
+    let _lock = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .share_mode(0)
+        .open(&locked)
+        .unwrap();
+    fs::create_dir(release.join("lyrics")).unwrap();
+    fs::write(release.join("lyrics/a.json"), "old").unwrap();
+    export(&dev, &release, "125", || Ok(())).unwrap();
+    assert!(release.join("discord.json").is_file());
+    assert!(!release.join("EBWebView").exists());
+    assert!(!release.join("lyrics").exists());
+    assert!(release.join("backups/125/lyrics/a.json").is_file());
     assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), 2);
 }
 

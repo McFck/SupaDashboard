@@ -2,10 +2,19 @@ use std::fs;
 use std::io::{self, Error, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
-const ENTRIES: [&str; 4] = ["settings.json", "variables.json", "plugins.json", "icons"];
+// Only app data: webview profile, caches, logs and window state stay out.
+const ENTRIES: [&str; 7] = [
+    "settings.json",
+    "variables.json",
+    "plugins.json",
+    "discord.json",
+    "spotify.json",
+    "icons",
+    "lyrics",
+];
 
 struct Plan {
-    entries: [&'static str; 4],
+    entries: [&'static str; 7],
     backup: PathBuf,
 }
 
@@ -78,8 +87,8 @@ fn copy_data(
         } else {
             None
         };
-        if name == "icons" && source_meta.is_some_and(|meta| !meta.is_dir()) {
-            return Err(Error::other("Invalid icons cache"));
+        if matches!(name, "icons" | "lyrics") && source_meta.is_some_and(|meta| !meta.is_dir()) {
+            return Err(Error::other("Invalid cache folder"));
         }
         if required && name == "settings.json" && !exists {
             return Err(Error::other("No saved dev settings"));
@@ -121,6 +130,22 @@ pub(super) fn seed(release: &Path, dev: &Path) -> io::Result<()> {
     result
 }
 
+// A same-volume rename replaces a file atomically; a folder is swapped by removing the old one first.
+fn replace_entry(stage: &Path, release: &Path, name: &str) -> io::Result<()> {
+    let from = stage.join(name);
+    let to = release.join(name);
+    if metadata(&to)?.is_some_and(|meta| meta.is_dir()) {
+        fs::remove_dir_all(&to)?;
+    }
+    if metadata(&from)?.is_some() {
+        fs::rename(&from, &to)
+    } else if metadata(&to)?.is_some() {
+        fs::remove_file(&to)
+    } else {
+        Ok(())
+    }
+}
+
 pub(super) fn export(
     dev: &Path,
     release: &Path,
@@ -129,30 +154,16 @@ pub(super) fn export(
 ) -> io::Result<()> {
     let plan = plan(release, stamp)?;
     let stage = release.with_extension(format!("copy-{stamp}"));
-    let old = release.with_extension(format!("previous-{stamp}"));
     fs::create_dir(&stage)?;
     let result = (|| {
-        copy_tree(release, &stage)?;
-        let backup = stage.join(plan.backup.strip_prefix(release).map_err(Error::other)?);
-        fs::create_dir_all(stage.join("backups"))?;
-        fs::create_dir(&backup)?;
-        if metadata(release)?.is_some() {
-            for entry in fs::read_dir(release)? {
-                let entry = entry?;
-                if entry.file_name() != "backups" {
-                    copy_tree(&entry.path(), &backup.join(entry.file_name()))?;
-                }
-            }
-        }
         copy_data(dev, &stage, &plan.entries, true)?;
         stopped().map_err(Error::other)?;
-        let had_release = metadata(release)?.is_some();
-        super::publish::publish(&stage, release, &old, had_release)?;
-        if had_release {
-            // The published backup already owns these bytes; leftover staging data is harmless.
-            if let Err(error) = fs::remove_dir_all(&old) {
-                log::warn!("Could not remove {}: {error}", old.display());
-            }
+        fs::create_dir_all(&plan.backup)?;
+        for name in plan.entries {
+            copy_tree(&release.join(name), &plan.backup.join(name))?;
+        }
+        for name in plan.entries {
+            replace_entry(&stage, release, name)?;
         }
         Ok(())
     })();

@@ -100,7 +100,7 @@
       await invoke('plugin:dev-data|copy_settings_to_release');
       toast.success('Settings copied to release app');
     } catch (error) {
-      toast.error(error === 'Close the release app first' ? error : 'Could not copy settings');
+      toast.error(typeof error === 'string' ? error.slice(0, 120) : 'Could not copy settings');
     } finally {
       copying = false;
     }
