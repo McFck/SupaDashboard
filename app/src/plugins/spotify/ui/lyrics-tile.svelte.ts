@@ -5,7 +5,7 @@ import type { NowPlayingSession } from '../../../features/plugins/contracts';
 import { nativeSessions } from '../../../platform/media';
 import { getLyrics, getSongOffset, type LyricsView } from '../../../platform/lyrics';
 import { lineAt, positionAt, untilNextLine } from '../lyric-clock';
-import { KineticScroll } from './kinetic-scroll';
+import { KineticScroll } from '$lib/kinetic-scroll';
 import { SongOffset } from './song-offset.svelte';
 
 export type TileView = { kind: 'idle' } | { kind: 'loading' } | LyricsView;

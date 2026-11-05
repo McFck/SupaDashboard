@@ -1,7 +1,7 @@
 // The song offset's ruler: the scale scrolls under a fixed needle with the lyrics' own kinetic scroll, snapping to
 // 0.1 s. Values only change when a step is crossed, so a frame does one transform write and nothing reactive.
 import { SONG_OFFSET_LIMIT_MS } from '../../../platform/lyrics';
-import { KineticScroll } from './kinetic-scroll';
+import { KineticScroll } from '$lib/kinetic-scroll';
 
 type Host = {
   readonly value: number;
