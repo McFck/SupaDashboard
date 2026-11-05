@@ -24,6 +24,12 @@ const KEY_STEPS: Record<string, number> = {
   End: STEPS,
 };
 
+let stepFeedback = () => {};
+/** Set by the plugin: extra feedback (a vibration) for each step crossed. */
+export const setStepFeedback = (feedback: () => void) => {
+  stepFeedback = feedback;
+};
+
 const positionOf = (offsetMs: number) => ((offsetMs + SONG_OFFSET_LIMIT_MS) / STEP_MS) * STEP_PX;
 const offsetAt = (position: number) => {
   const step = Math.min(STEPS, Math.max(0, Math.round(position / STEP_PX)));
@@ -94,7 +100,8 @@ export class OffsetRuler {
     }
     this.#shown = offsetMs;
     this.#host.preview(offsetMs);
-    // The tablet cannot vibrate, so each step crossed brightens the needle instead.
+    stepFeedback();
+    // Each step crossed also brightens the needle, for screens that cannot vibrate.
     this.#needle?.animate([{ opacity: 1, transform: 'scaleY(1.12)' }, {}], {
       duration: 220,
       easing: 'ease-out',

@@ -1,3 +1,4 @@
+import { setStepFeedback } from './ui/offset-ruler';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'svelte-sonner';
 import { currentRuntime } from '../../app/runtime/session.svelte';
@@ -104,6 +105,7 @@ export const spotifyPlugin: Plugin = {
       'M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20zM7 9.5c3.5-1 7.5-.6 10.5 1M7.5 12.6c3-.8 6.3-.4 8.8 1M8 15.6c2.5-.6 5-.3 7 .8',
     );
     api.registerAppIcon('spotify', 'spotify');
+    setStepFeedback(() => api.runAction('haptics.pulse', { kind: 'tick' }));
     api.registerMediaSource({
       id: 'spotify',
       title: 'Spotify',
