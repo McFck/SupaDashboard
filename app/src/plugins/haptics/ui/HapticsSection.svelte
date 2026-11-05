@@ -3,7 +3,8 @@
   import { toast } from 'svelte-sonner';
   import { Input } from '$lib/components/ui/input';
   import { Switch } from '$lib/components/ui/switch';
-  import { configureHaptics } from '../../../platform/haptics';
+  import { configureHaptics, STRENGTHS } from '../../../platform/haptics';
+  import Choice from '../../../features/plugins/ui/Choice.svelte';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
   import {
@@ -17,6 +18,18 @@
 
   let settings = $state<HapticsSettings>({ ...DEFAULTS });
   let loaded = $state(false);
+  const strengthOptions = STRENGTHS.map((value) => ({
+    value,
+    label: value[0].toUpperCase() + value.slice(1),
+  }));
+
+  function chooseStrength(value: string) {
+    const strength = STRENGTHS.find((option) => option === value);
+    // Choice has no disabled state; saving before the file was read would overwrite it with defaults.
+    if (loaded && strength) {
+      void apply({ strength });
+    }
+  }
 
   onMount(() => {
     loadSettings()
@@ -52,6 +65,18 @@
       disabled={!loaded}
       checked={settings.enabled}
       onCheckedChange={(enabled) => apply({ enabled })}
+    /></Row
+  >
+  <Row
+    label="Strength"
+    for="haptics-strength"
+    ><Choice
+      id="haptics-strength"
+      class="w-40"
+      value={settings.strength}
+      options={strengthOptions}
+      onchange={chooseStrength}
+      showPluginMark={false}
     /></Row
   >
   <Row

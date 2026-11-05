@@ -18,6 +18,10 @@ export const hapticsPlugin: Plugin = {
   source: 'bundled',
   settingsSection: HapticsSection,
   setup(api) {
+    api.registerIcon(
+      'vibrate',
+      'M12 5h3a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h3M2 8l2 2-2 2 2 2-2 2M22 8l-2 2 2 2-2 2 2 2',
+    );
     api.registerAction({
       id: 'haptics.pulse',
       title: 'Vibrate',

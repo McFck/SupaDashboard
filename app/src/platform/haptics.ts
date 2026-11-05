@@ -3,7 +3,16 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 export const PULSE_KINDS = ['tick', 'tap', 'confirm'] as const;
 export type PulseKind = (typeof PULSE_KINDS)[number];
 
-export type HapticsConfig = { enabled: boolean; adbPath?: string; serial?: string };
+/** Scales pulse lengths natively; the tablet's motor has no amplitude control. */
+export const STRENGTHS = ['light', 'medium', 'strong'] as const;
+export type Strength = (typeof STRENGTHS)[number];
+
+export type HapticsConfig = {
+  enabled: boolean;
+  adbPath?: string;
+  serial?: string;
+  strength: Strength;
+};
 
 /** Applies the settings natively; true when a tablet is connected. */
 export async function configureHaptics(config: HapticsConfig) {

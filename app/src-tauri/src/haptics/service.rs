@@ -7,9 +7,9 @@ use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{MissedTickBehavior, interval, timeout};
 
-use super::Config;
 use super::adb::{Device, adb_path, parse_devices, pick_device};
 use super::limiter::Limiter;
+use super::{Config, Kind};
 
 const RECONNECT: Duration = Duration::from_secs(5);
 const ADB_TIMEOUT: Duration = Duration::from_secs(5);
@@ -17,7 +17,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 enum Message {
     Configure(Config, oneshot::Sender<bool>),
-    Pulse(u64),
+    Pulse(Kind),
 }
 
 struct Shell {
@@ -47,8 +47,8 @@ impl Haptics {
         connected.await.unwrap_or(false)
     }
 
-    pub fn pulse(&self, ms: u64) {
-        let _ = self.tx.send(Message::Pulse(ms));
+    pub fn pulse(&self, kind: Kind) {
+        let _ = self.tx.send(Message::Pulse(kind));
     }
 }
 
@@ -98,8 +98,7 @@ async fn run(mut rx: mpsc::UnboundedReceiver<Message>) {
             message = rx.recv() => match message {
                 None => return,
                 Some(Message::Configure(next, reply)) => {
-                    let changed = config.as_ref() != Some(&next);
-                    if changed {
+                    if !config.as_ref().is_some_and(|c| c.same_device(&next)) {
                         shell = None;
                     }
                     config = Some(next);
@@ -110,8 +109,9 @@ async fn run(mut rx: mpsc::UnboundedReceiver<Message>) {
                     }
                     let _ = reply.send(shell.is_some());
                 }
-                Some(Message::Pulse(ms)) => {
+                Some(Message::Pulse(kind)) => {
                     let Some(active) = shell.as_mut() else { continue };
+                    let ms = kind.millis(config.as_ref().map(|c| c.strength).unwrap_or_default());
                     if !limiter.admit(Instant::now(), ms) {
                         continue;
                     }

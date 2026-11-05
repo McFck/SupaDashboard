@@ -1,13 +1,14 @@
 // The plugin's own settings: a store file of its own, so settings.json is untouched.
 import { load, type Store } from '@tauri-apps/plugin-store';
 import { storeIsReadable } from '$lib/store';
-import type { HapticsConfig } from '../../platform/haptics';
+import { STRENGTHS, type HapticsConfig, type Strength } from '../../platform/haptics';
 
 export type HapticsSettings = {
   enabled: boolean;
   pressPulse: boolean;
   adbPath: string;
   serial: string;
+  strength: Strength;
 };
 
 const KEY = 'settings';
@@ -16,6 +17,7 @@ export const DEFAULTS: HapticsSettings = {
   pressPulse: true,
   adbPath: '',
   serial: '',
+  strength: 'medium',
 };
 
 export function normalizeSettings(raw: unknown): HapticsSettings {
@@ -26,6 +28,8 @@ export function normalizeSettings(raw: unknown): HapticsSettings {
     pressPulse: value.pressPulse !== false,
     adbPath: text(value.adbPath),
     serial: text(value.serial),
+    // Files saved before strength existed read as the default.
+    strength: STRENGTHS.find((strength) => strength === value.strength) ?? DEFAULTS.strength,
   };
 }
 
@@ -33,6 +37,7 @@ export const toConfig = (s: HapticsSettings): HapticsConfig => ({
   enabled: s.enabled,
   adbPath: s.adbPath || undefined,
   serial: s.serial || undefined,
+  strength: s.strength,
 });
 
 async function openStore(): Promise<Store> {
