@@ -7,15 +7,12 @@ mod content;
 mod dashboard;
 #[cfg(debug_assertions)]
 mod dev_data;
-mod work;
 mod media;
 mod monitors;
 mod panel;
 mod plugin_host;
 mod tray;
 
-// The in-app Work module still uses the http helper that moved into the plugin SDK.
-use plugin_sdk::http;
 use tauri::{Manager, WindowEvent};
 
 pub fn run() {
@@ -50,7 +47,6 @@ pub fn run() {
                 plugin_host::PluginHost::discover(app.handle()).map_err(std::io::Error::other)?,
             );
             app.manage(apps::watch::AppsHub::default());
-            app.manage(work::Work::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
@@ -103,14 +99,6 @@ pub fn run() {
             media::media_sessions_subscribe,
             media::media_sessions_unsubscribe,
             media::media_artwork_resolve,
-            work::work_meetings,
-            work::work_photos,
-            work::work_session,
-            work::work_sign_in,
-            work::work_sign_out,
-            work::work_call_state,
-            work::work_call,
-            work::work_join,
         ])
         .run(context)
         .expect("error while building tauri application");

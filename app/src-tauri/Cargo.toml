@@ -16,7 +16,7 @@ tauri-build = { version = "2.7.4", features = [] }
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
-plugin-sdk = { path = "../plugin-sdk", features = ["http"] }
+plugin-sdk = { path = "../plugin-sdk" }
 log = "0.4"
 tauri = { version = "2.12.5", features = ["tray-icon", "protocol-asset"] }
 tauri-plugin-log = "2"
@@ -45,7 +45,6 @@ windows = { version = "0.62", features = [
   "Win32_Media_Audio",
   "Win32_Media_Audio_Endpoints",
   "Win32_System_Com",
-  "Win32_System_Variant",
   "Win32_System_JobObjects",
   "Win32_System_LibraryLoader",
   "Win32_System_Threading",
