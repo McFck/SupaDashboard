@@ -114,6 +114,7 @@ pub fn run() {
             discord::discord_logout,
             discord::discord_voice,
             work::work_meetings,
+            work::work_photos,
             work::work_session,
             work::work_sign_in,
             work::work_sign_out,
