@@ -7,7 +7,7 @@ use std::cell::Cell;
 use std::mem::size_of;
 use std::rc::Rc;
 use std::sync::OnceLock;
-use windows::Win32::Foundation::{GetLastError, HWND, LPARAM, LRESULT, RECT, WPARAM};
+use windows::Win32::Foundation::{GetLastError, HANDLE, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::Graphics::Dwm::{
     DWM_THUMBNAIL_PROPERTIES, DWM_TNP_RECTDESTINATION, DWM_TNP_RECTSOURCE,
     DWM_TNP_SOURCECLIENTAREAONLY, DWM_TNP_VISIBLE, DwmRegisterThumbnail, DwmUnregisterThumbnail,
@@ -21,8 +21,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     HTTRANSPARENT, IsIconic, IsWindow, IsWindowVisible, MA_NOACTIVATE, RegisterClassExW,
     RegisterWindowMessageW, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SMTO_ABORTIFHUNG, SMTO_BLOCK,
     SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER,
-    SWP_SHOWWINDOW, SendMessageTimeoutW, SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOWPOS,
-    WM_DISPLAYCHANGE, WM_MOUSEACTIVATE, WM_NCHITTEST, WM_WINDOWPOSCHANGING, WNDCLASSEXW,
+    SWP_SHOWWINDOW, SendMessageTimeoutW, SetPropW, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    WINDOWPOS, WM_DISPLAYCHANGE, WM_MOUSEACTIVATE, WM_NCHITTEST, WM_WINDOWPOSCHANGING, WNDCLASSEXW,
     WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
     WS_EX_TRANSPARENT, WS_POPUP,
 };
@@ -393,7 +393,7 @@ fn create_window() -> Result<HWND, String> {
                 GetLastError()
             ));
         }
-        CreateWindowExW(
+        let hwnd = CreateWindowExW(
             WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_NOREDIRECTIONBITMAP,
             CLASS,
             None,
@@ -407,7 +407,16 @@ fn create_window() -> Result<HWND, String> {
             Some(instance),
             None,
         )
-        .map_err(|error| format!("could not create the backdrop window: {error}"))
+        .map_err(|error| format!("could not create the backdrop window: {error}"))?;
+        // It covers the dashboard's monitor whenever the dashboard is fullscreen; like the dashboard (policy.rs),
+        // it opts out of the shell's fullscreen detection, which would otherwise turn on Do not disturb.
+        if let Err(error) = SetPropW(hwnd, w!("NonRudeHWND"), Some(HANDLE(1usize as _))) {
+            let _ = DestroyWindow(hwnd);
+            return Err(format!(
+                "could not disable backdrop fullscreen detection: {error}"
+            ));
+        }
+        Ok(hwnd)
     }
 }
 
