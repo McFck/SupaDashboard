@@ -1,4 +1,5 @@
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { isTauri } from '@tauri-apps/api/core';
+import { callPlugin } from './plugin-host';
 
 export const PULSE_KINDS = ['tick', 'tap', 'confirm'] as const;
 export type PulseKind = (typeof PULSE_KINDS)[number];
@@ -16,12 +17,12 @@ export type HapticsConfig = {
 
 /** Applies the settings natively; true when a tablet is connected. */
 export async function configureHaptics(config: HapticsConfig) {
-  return isTauri() && (await invoke<boolean>('haptics_configure', { config }));
+  return isTauri() && (await callPlugin<boolean>('haptics', 'configure', config));
 }
 
 export function pulse(kind: PulseKind) {
   if (isTauri()) {
     // Best effort: a missed buzz is not worth a toast.
-    invoke('haptics_pulse', { kind }).catch(() => {});
+    callPlugin('haptics', 'pulse', { kind }).catch(() => {});
   }
 }

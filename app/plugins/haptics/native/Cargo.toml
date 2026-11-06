@@ -1,0 +1,17 @@
+[package]
+name = "plugin-haptics"
+version = "1.0.0"
+description = "SupaDashboard Haptics plugin host: vibrates a USB tablet over adb"
+license = "GPL-3.0-or-later"
+edition = "2024"
+rust-version = "1.90"
+
+[[bin]]
+name = "haptics"
+path = "src/main.rs"
+
+[dependencies]
+plugin-sdk = { path = "../../../plugin-sdk" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "macros", "io-util", "process", "sync", "time"] }

@@ -26,19 +26,18 @@ struct Shell {
     stdin: ChildStdin,
 }
 
+#[derive(Clone)]
 pub struct Haptics {
     tx: mpsc::UnboundedSender<Message>,
 }
 
-impl Default for Haptics {
-    fn default() -> Self {
+impl Haptics {
+    pub fn start() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
-        tauri::async_runtime::spawn(run(rx));
+        tokio::spawn(run(rx));
         Self { tx }
     }
-}
 
-impl Haptics {
     pub async fn configure(&self, config: Config) -> bool {
         let (reply, connected) = oneshot::channel();
         if self.tx.send(Message::Configure(config, reply)).is_err() {

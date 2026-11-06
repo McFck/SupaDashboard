@@ -1,6 +1,8 @@
 // Host registry: the registered extension points, plugin installation and persistence.
 import { get, writable } from 'svelte/store';
+import { isTauri } from '@tauri-apps/api/core';
 import { load } from '@tauri-apps/plugin-store';
+import { setPluginProcessEnabled } from '../../platform/plugin-host';
 import type {
   ActionContext,
   ActionDef,
@@ -347,6 +349,9 @@ export async function setPluginEnabled(id: string, enabled: boolean) {
   state.uninstalled = state.uninstalled.filter((entry) => entry !== id);
   if (!enabled) state.uninstalled.push(id);
   state.installed[id] ??= new Date().toISOString();
+  if (isTauri()) {
+    await setPluginProcessEnabled(id, enabled);
+  }
   await persistPlugins(state);
   location.reload();
 }

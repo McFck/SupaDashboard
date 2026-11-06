@@ -1,0 +1,3 @@
+[workspace]
+members = ["src-tauri", "plugin-sdk", "plugins/*/native"]
+resolver = "3"

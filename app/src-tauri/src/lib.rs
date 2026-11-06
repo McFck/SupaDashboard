@@ -8,13 +8,13 @@ mod dashboard;
 #[cfg(debug_assertions)]
 mod dev_data;
 mod discord;
-mod haptics;
 mod http;
 mod work;
 mod lyrics;
 mod media;
 mod monitors;
 mod panel;
+mod plugin_host;
 mod secure;
 mod spotify;
 mod tray;
@@ -49,7 +49,9 @@ pub fn run() {
                 audio::service::AudioService::start(app.handle().clone())
                     .map_err(std::io::Error::other)?,
             );
-            app.manage(haptics::Haptics::default());
+            app.manage(
+                plugin_host::PluginHost::discover(app.handle()).map_err(std::io::Error::other)?,
+            );
             app.manage(apps::watch::AppsHub::default());
             app.manage(discord::DiscordHub::default());
             app.manage(work::Work::default());
@@ -96,8 +98,8 @@ pub fn run() {
             dashboard::commands::dashboard_set_shown,
             audio::service::audio_snapshot,
             audio::service::audio_update,
-            haptics::haptics_configure,
-            haptics::haptics_pulse,
+            plugin_host::plugin_call,
+            plugin_host::plugin_set_enabled,
             apps::apps_list,
             apps::apps_icon,
             apps::app_command,

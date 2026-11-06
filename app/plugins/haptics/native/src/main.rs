@@ -1,12 +1,14 @@
-//! Tablet haptics over adb: one persistent `adb shell` fed vibrate commands.
+//! Haptics plugin host: tablet haptics over adb, one persistent `adb shell` fed vibrate commands.
+// No console window: the app talks to this process over pipes only.
+#![windows_subsystem = "windows"]
 mod adb;
 mod limiter;
 mod service;
 
 use serde::Deserialize;
-use tauri::State;
+use serde_json::Value;
 
-pub use service::Haptics;
+use service::Haptics;
 
 #[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,19 +70,33 @@ impl Config {
     }
 }
 
-/// Applies the settings and reports whether a device is connected (false is silent when disabled).
-#[tauri::command]
-pub async fn haptics_configure(
-    haptics: State<'_, Haptics>,
-    config: Config,
-) -> Result<bool, String> {
-    if !config.valid() {
-        return Err("Invalid haptics settings".into());
-    }
-    Ok(haptics.configure(config).await)
+#[derive(Deserialize)]
+struct Pulse {
+    kind: Kind,
 }
 
-#[tauri::command]
-pub fn haptics_pulse(haptics: State<'_, Haptics>, kind: Kind) {
-    haptics.pulse(kind);
+/// `configure` applies the settings and answers whether a device is connected (false is silent when
+/// disabled); `pulse` vibrates once.
+async fn handle(haptics: Haptics, method: String, params: Value) -> Result<Value, String> {
+    match method.as_str() {
+        "configure" => {
+            let config: Config = serde_json::from_value(params)
+                .ok()
+                .filter(Config::valid)
+                .ok_or("Invalid haptics settings")?;
+            Ok(haptics.configure(config).await.into())
+        }
+        "pulse" => {
+            let Pulse { kind } = serde_json::from_value(params).map_err(|_| "Unknown vibration")?;
+            haptics.pulse(kind);
+            Ok(Value::Null)
+        }
+        _ => Err(format!("Unknown method {method}")),
+    }
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let haptics = Haptics::start();
+    plugin_sdk::serve(|method, params| handle(haptics.clone(), method, params)).await;
 }

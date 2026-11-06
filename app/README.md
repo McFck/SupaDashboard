@@ -7,9 +7,9 @@ Tauri 2 (Rust) + Svelte 5 + TypeScript + shadcn-svelte. A customizable dashboard
 pnpm install
 pnpm tauri dev      # run the app
 pnpm check          # svelte-check + tsc
-pnpm test           # logic tests;  cd src-tauri && cargo test  (read-only audio checks)
+pnpm test           # logic tests;  cargo test --workspace  (read-only audio checks)
 pnpm format:check   # Prettier (pnpm format to apply)
-pnpm tauri build    # installer in src-tauri/target/release/bundle
+pnpm tauri build    # installer in target/release/bundle
 ```
 
 ## Source layout
@@ -162,3 +162,9 @@ Add it to `install(...)` in `src/main.ts`. Declared `params` give the action an 
 Actions receive an `ActionContext` with the control/item, trigger, abort signal, state and variable access, and event
 emission. Plugins may also register typed variables and events, provide parameter suggestions, and mark an action's
 variable argument as bindable. Loading plugins from a folder at runtime comes later.
+
+A plugin's native part is its own process: a crate in `plugins/<id>/native` built on `plugin-sdk` (newline-delimited
+JSON over stdio) and a `plugins/<id>/plugin.json` naming its executable and the methods and windows allowed to call
+it. The app starts it on the first `plugin_call`, restarts it after a crash (`plugin://<id>/restarted`) and stops
+it when the plugin is disabled. `scripts/build-plugins.mjs` builds and stages the bundled plugin folders; `pnpm tauri
+dev` and `build` run it. Plugin folders in `<app data>/plugins` load the same way.

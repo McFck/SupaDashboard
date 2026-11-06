@@ -2,6 +2,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { currentRuntime } from '../../app/runtime/session.svelte';
 import type { Plugin } from '../../features/plugins/contracts';
 import { configureHaptics, pulse, PULSE_KINDS, type PulseKind } from '../../platform/haptics';
+import { onPluginEvent } from '../../platform/plugin-host';
 import HapticsSection from './ui/HapticsSection.svelte';
 import { DEFAULTS, loadSettings, toConfig, watchSettings, type HapticsSettings } from './settings';
 
@@ -55,6 +56,13 @@ export const hapticsPlugin: Plugin = {
         current = saved;
         return saved.enabled ? configureHaptics(toConfig(saved)) : undefined;
       })
+      .catch((error) => console.warn('haptics', error));
+    onPluginEvent('haptics', 'restarted', () => {
+      if (current.enabled) {
+        configureHaptics(toConfig(current)).catch((error) => console.warn('haptics', error));
+      }
+    })
+      .then((stop) => stops.push(stop))
       .catch((error) => console.warn('haptics', error));
     watchSettings((saved) => (current = saved))
       .then((stop) => stops.push(stop))
