@@ -2567,6 +2567,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "plugin-discord"
+version = "1.0.0"
+dependencies = [
+ "plugin-sdk",
+ "serde",
+ "serde_json",
+ "tokio",
+ "windows",
+]
+
+[[package]]
 name = "plugin-haptics"
 version = "1.0.0"
 dependencies = [
@@ -2583,6 +2594,19 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "windows",
+ "windows-future",
+]
+
+[[package]]
+name = "plugin-spotify"
+version = "1.0.0"
+dependencies = [
+ "plugin-sdk",
+ "serde",
+ "serde_json",
+ "tokio",
+ "windows",
 ]
 
 [[package]]

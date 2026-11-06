@@ -1,0 +1,9 @@
+{
+  "id": "spotify",
+  "version": "1.0.0",
+  "protocol": 1,
+  "exe": "supadashboard-spotify.exe",
+  "windows": ["main", "panel"],
+  "methods": ["lyrics-get", "lyrics-offset-get", "lyrics-offset-set"],
+  "migrate": ["lyrics", "lyrics-offsets.json"]
+}

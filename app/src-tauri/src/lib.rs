@@ -8,17 +8,16 @@ mod dashboard;
 #[cfg(debug_assertions)]
 mod dev_data;
 mod discord;
-mod http;
 mod work;
-mod lyrics;
 mod media;
 mod monitors;
 mod panel;
 mod plugin_host;
-mod secure;
 mod spotify;
 mod tray;
 
+// The in-app plugins still use the helpers that moved into the plugin SDK until they become plugin processes.
+use plugin_sdk::{http, secure};
 use tauri::{Manager, WindowEvent};
 
 pub fn run() {
@@ -56,8 +55,6 @@ pub fn run() {
             app.manage(discord::DiscordHub::default());
             app.manage(work::Work::default());
             app.manage(spotify::SpotifyHub::default());
-            app.manage(lyrics::LyricsHub::default());
-            app.manage(lyrics::offsets::LyricsOffsets::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
@@ -77,6 +74,9 @@ pub fn run() {
             }
             content::on_window_event(window, event);
             if matches!(event, WindowEvent::Destroyed) {
+                window
+                    .state::<plugin_host::PluginHost>()
+                    .window_closed(window.label());
                 window
                     .state::<spotify::SpotifyHub>()
                     .unsubscribe(window.label());
@@ -129,9 +129,6 @@ pub fn run() {
             spotify::spotify_logout,
             spotify::spotify_command,
             spotify::shuffle::spotify_shuffle,
-            lyrics::lyrics_get,
-            lyrics::offsets::lyrics_offset_get,
-            lyrics::offsets::lyrics_offset_set,
         ])
         .run(context)
         .expect("error while building tauri application");

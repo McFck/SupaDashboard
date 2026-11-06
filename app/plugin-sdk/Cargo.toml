@@ -1,15 +1,23 @@
 [package]
 name = "plugin-sdk"
 version = "0.1.0"
-description = "Protocol and stdio loop shared by SupaDashboard plugin host processes"
+description = "Protocol, stdio loop and Windows helpers shared by SupaDashboard plugin host processes"
 license = "GPL-3.0-or-later"
 edition = "2024"
 rust-version = "1.90"
 
+[features]
+# HTTPS through WinRT's HttpClient, bounded and without redirects.
+http = ["dep:windows", "dep:windows-future", "tokio/time", "windows/Foundation", "windows/Storage_Streams", "windows/Web_Http", "windows/Web_Http_Headers", "windows/Web_Http_Filters"]
+# DPAPI for credential stores and the PKCE verifier for OAuth sign-ins.
+secure = ["dep:windows", "windows/Security_Cryptography", "windows/Security_Cryptography_Core", "windows/Win32_Foundation", "windows/Win32_Security_Cryptography"]
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["io-std", "io-util"] }
+tokio = { version = "1", features = ["io-std", "io-util", "rt", "sync"] }
+windows = { version = "0.62", optional = true }
+windows-future = { version = "0.3.2", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }

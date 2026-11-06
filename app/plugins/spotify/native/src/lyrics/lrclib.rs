@@ -2,7 +2,7 @@ use super::{
     LyricsView, Track,
     matching::{Record, normalized, pick},
 };
-use crate::http;
+use plugin_sdk::http;
 use std::time::Duration;
 
 #[derive(Default)]

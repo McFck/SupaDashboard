@@ -1,15 +1,23 @@
 //! The plugin host protocol: newline-delimited JSON messages over the plugin process's stdin and stdout.
 //! The app sends requests, the plugin answers each one and may emit events; stderr is the plugin's log.
-use std::future::Future;
-
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+use serde_json::Value;
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt};
+
+#[cfg(feature = "http")]
+pub mod http;
+#[cfg(feature = "secure")]
+pub mod secure;
+mod serve;
+
+pub use serve::{Call, DATA_DIR_VAR, Events, answer, data_dir, serve};
 
 /// Bumped on any incompatible change; the app refuses a plugin that answers the handshake with another.
 pub const PROTOCOL: u32 = 1;
 /// The first request of every process; plugins never see it as a method call.
 pub const HELLO: &str = "hello";
+/// Sent by the app when one of its windows closes, with `window` set, so subscriptions it held end.
+pub const WINDOW_CLOSED: &str = "window-closed";
 /// Longest accepted message line in bytes, without the newline.
 pub const MAX_FRAME: usize = 1 << 20;
 
@@ -21,6 +29,9 @@ pub enum Message {
         method: String,
         #[serde(default)]
         params: Value,
+        /// The window that called; set by the app, never by the frontend.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        window: Option<String>,
     },
     /// `error` set means the call failed; otherwise `result` (absent reads as null) is the answer.
     Response {
@@ -100,35 +111,6 @@ pub async fn read_frame<R: AsyncBufRead + Unpin>(
         return Err(std::io::Error::other("Message too long"));
     }
     Ok(Some(frame))
-}
-
-/// The plugin side: answers requests from stdin one at a time until the app closes stdin.
-pub async fn serve<F, Fut>(mut handle: F)
-where
-    F: FnMut(String, Value) -> Fut,
-    Fut: Future<Output = Result<Value, String>>,
-{
-    let mut input = tokio::io::BufReader::new(tokio::io::stdin());
-    let mut output = tokio::io::stdout();
-    while let Ok(Some(frame)) = read_frame(&mut input).await {
-        let (id, outcome) = match decode(&frame) {
-            Ok(Message::Request { id, method, .. }) if method == HELLO => {
-                (id, Ok(json!({ "protocol": PROTOCOL })))
-            }
-            Ok(Message::Request { id, method, params }) => (id, handle(method, params).await),
-            Ok(_) => continue,
-            Err(error) => {
-                eprintln!("Ignored a malformed request: {error}");
-                continue;
-            }
-        };
-        let line = encode(&Message::response(id, outcome))
-            .or_else(|| encode(&Message::response(id, Err("Answer too long".into()))));
-        let Some(line) = line else { continue };
-        if output.write_all(line.as_bytes()).await.is_err() || output.flush().await.is_err() {
-            return;
-        }
-    }
 }
 
 #[cfg(test)]

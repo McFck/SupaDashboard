@@ -2,12 +2,13 @@
 //! The frontend reaches it only through `plugin_call`; its events arrive as `plugin://<id>/<event>`.
 mod job;
 mod manifest;
+mod migrate;
 mod process;
 mod restarts;
 mod supervisor;
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde_json::Value;
@@ -17,15 +18,25 @@ use job::Job;
 use manifest::Manifest;
 use supervisor::Supervisor;
 
+pub struct Plugin {
+    manifest: Manifest,
+    exe: PathBuf,
+    /// The plugin's own data folder, `<app data>/plugin-data/<id>`.
+    data: PathBuf,
+    /// The app data root, where the in-app version kept the files listed in `migrate`.
+    legacy: PathBuf,
+}
+
 pub struct PluginHost {
-    plugins: HashMap<String, (Manifest, Supervisor)>,
+    plugins: HashMap<String, (Arc<Plugin>, Supervisor)>,
 }
 
 impl PluginHost {
     /// Bundled plugins first, then the user's; a user folder cannot replace a bundled plugin.
     pub fn discover(app: &AppHandle) -> Result<Self, String> {
         let job = Arc::new(Job::new().map_err(|error| error.to_string())?);
-        let roots = [app.path().resource_dir(), app.path().app_data_dir()];
+        let legacy = app.path().app_data_dir().map_err(|e| e.to_string())?;
+        let roots = [app.path().resource_dir(), Ok(legacy.clone())];
         let mut plugins = HashMap::new();
         for root in roots.into_iter().flatten() {
             let Ok(entries) = std::fs::read_dir(root.join("plugins")) else {
@@ -40,16 +51,27 @@ impl PluginHost {
                         log::warn!("Plugin {} is installed twice", manifest.id);
                     }
                     Ok(manifest) => {
-                        let exe = folder.join(&manifest.exe);
-                        let supervisor =
-                            Supervisor::new(manifest.id.clone(), exe, job.clone(), app.clone());
-                        plugins.insert(manifest.id.clone(), (manifest, supervisor));
+                        let plugin = Arc::new(Plugin {
+                            exe: folder.join(&manifest.exe),
+                            data: legacy.join("plugin-data").join(&manifest.id),
+                            legacy: legacy.clone(),
+                            manifest,
+                        });
+                        let supervisor = Supervisor::new(plugin.clone(), job.clone(), app.clone());
+                        plugins.insert(plugin.manifest.id.clone(), (plugin, supervisor));
                     }
                     Err(error) => log::warn!("Skipped plugin {}: {error}", folder.display()),
                 }
             }
         }
         Ok(Self { plugins })
+    }
+
+    /// Ends what running plugins hold for a closed window (subscriptions).
+    pub fn window_closed(&self, window: &str) {
+        for (_, supervisor) in self.plugins.values() {
+            supervisor.window_closed(window);
+        }
     }
 }
 
@@ -74,11 +96,12 @@ pub async fn plugin_call(
     method: String,
     params: Value,
 ) -> Result<Value, String> {
-    let (manifest, supervisor) = host.plugins.get(&plugin).ok_or("Plugin is not installed")?;
-    if !manifest.allows(window.label(), &method) {
+    let (entry, supervisor) = host.plugins.get(&plugin).ok_or("Plugin is not installed")?;
+    let label = window.label();
+    if !entry.manifest.allows(label, &method) {
         return Err(format!("Plugin {plugin} does not allow {method}"));
     }
-    supervisor.call(method, params).await
+    supervisor.call(method, params, label.into()).await
 }
 
 #[tauri::command]

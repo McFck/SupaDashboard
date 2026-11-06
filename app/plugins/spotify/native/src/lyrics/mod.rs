@@ -1,12 +1,14 @@
+//! Song lyrics from LRCLIB, cached on disk, and the per-song sync offsets.
 mod cache;
 mod lrc;
 mod lrclib;
 mod matching;
-pub mod offsets;
+mod offsets;
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use tauri::Manager;
+
+pub use offsets::LyricsOffsets;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -18,7 +20,7 @@ pub enum LyricsView {
 }
 
 #[derive(Debug)]
-struct Track {
+pub struct Track {
     artist: String,
     title: String,
     album: String,
@@ -28,7 +30,12 @@ struct Track {
 }
 
 impl Track {
-    fn new(artist: String, title: String, album: String, duration_ms: u64) -> Result<Self, String> {
+    pub fn new(
+        artist: String,
+        title: String,
+        album: String,
+        duration_ms: u64,
+    ) -> Result<Self, String> {
         let track = Self {
             artist: artist.trim().into(),
             title: title.trim().into(),
@@ -64,59 +71,48 @@ struct State {
 #[derive(Default)]
 pub struct LyricsHub(tokio::sync::Mutex<State>);
 
-#[tauri::command]
-pub async fn lyrics_get(
-    app: tauri::AppHandle,
-    hub: tauri::State<'_, LyricsHub>,
-    artist: String,
-    title: String,
-    album: String,
-    duration_ms: u64,
-) -> Result<LyricsView, String> {
-    let track = Track::new(artist, title, album, duration_ms)?;
-    let key = cache::key(&track)?;
-    // One queue serves both webviews. Completed results also deduplicate failed requests and
-    // requests whose optional disk cache could not be written.
-    let mut state = hub.0.lock().await;
-    let now = cache::now();
-    if let Some(entry) = state.entries.iter().find(|entry| {
-        entry.key == key
-            && now.saturating_sub(entry.at)
-                < match &entry.result {
-                    Ok(LyricsView::None) => cache::NEGATIVE_TTL,
-                    Ok(_) => u64::MAX,
-                    Err(_) => 5,
-                }
-    }) {
-        return entry.result.clone();
-    }
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|_| "Lyrics cache unavailable")?
-        .join("lyrics");
-    let result = if let Some(view) = cache::read(&dir, &key, now) {
-        Ok(view)
-    } else {
-        let result = state.client.fetch(&track).await;
-        if let Ok(view) = &result {
-            if let Err(error) = cache::write(&dir, &key, view, now) {
-                // Lyrics remain usable when this disposable cache cannot be written.
-                log::warn!("Could not cache lyrics: {error}");
-            }
+impl LyricsHub {
+    pub async fn get(&self, track: Track) -> Result<LyricsView, String> {
+        let key = cache::key(&track)?;
+        // One queue serves both webviews. Completed results also deduplicate failed requests and
+        // requests whose optional disk cache could not be written.
+        let mut state = self.0.lock().await;
+        let now = cache::now();
+        if let Some(entry) = state.entries.iter().find(|entry| {
+            entry.key == key
+                && now.saturating_sub(entry.at)
+                    < match &entry.result {
+                        Ok(LyricsView::None) => cache::NEGATIVE_TTL,
+                        Ok(_) => u64::MAX,
+                        Err(_) => 5,
+                    }
+        }) {
+            return entry.result.clone();
         }
+        let dir = plugin_sdk::data_dir()?.join("lyrics");
+        let result = if let Some(view) = cache::read(&dir, &key, now) {
+            Ok(view)
+        } else {
+            let result = state.client.fetch(&track).await;
+            if let Ok(view) = &result {
+                if let Err(error) = cache::write(&dir, &key, view, now) {
+                    // Lyrics remain usable when this disposable cache cannot be written.
+                    eprintln!("Could not cache lyrics: {error}");
+                }
+            }
+            result
+        };
+        state.entries.retain(|entry| entry.key != key);
+        if state.entries.len() == 32 {
+            state.entries.pop_front();
+        }
+        state.entries.push_back(Entry {
+            key,
+            at: now,
+            result: result.clone(),
+        });
         result
-    };
-    state.entries.retain(|entry| entry.key != key);
-    if state.entries.len() == 32 {
-        state.entries.pop_front();
     }
-    state.entries.push_back(Entry {
-        key,
-        at: now,
-        result: result.clone(),
-    });
-    result
 }
 
 #[cfg(test)]

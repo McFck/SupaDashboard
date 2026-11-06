@@ -1,6 +1,5 @@
 //! Owns one plugin's process: starts it on the first call, restarts it with backoff after it dies, stops it on
 //! disable. Every state change happens on one task, so a call never races a restart.
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,12 +8,17 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{sleep, timeout};
 
+use super::Plugin;
 use super::job::Job;
+use super::migrate::migrate;
+use plugin_sdk::WINDOW_CLOSED;
+
 use super::process::{Process, Reply, STOPPED};
 use super::restarts::Restarts;
 
-/// A call that takes longer means the plugin hangs; it is killed and restarted.
-const CALL_TIMEOUT: Duration = Duration::from_secs(15);
+/// A call that takes longer means the plugin hangs; it is killed and restarted. Sign-ins wait for the user for
+/// up to about five minutes inside the plugin, so this only catches a plugin that stopped answering at all.
+const CALL_TIMEOUT: Duration = Duration::from_secs(360);
 
 type Started = Result<(u64, oneshot::Receiver<Reply>), String>;
 
@@ -22,8 +26,10 @@ enum Msg {
     Call {
         method: String,
         params: Value,
+        window: String,
         reply: oneshot::Sender<Started>,
     },
+    WindowClosed(String),
     SetEnabled(bool, oneshot::Sender<()>),
     Exited(u64),
     Restart(u64),
@@ -42,11 +48,10 @@ pub struct Supervisor {
 }
 
 impl Supervisor {
-    pub fn new(id: String, exe: PathBuf, job: Arc<Job>, app: AppHandle) -> Self {
+    pub fn new(plugin: Arc<Plugin>, job: Arc<Job>, app: AppHandle) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         let owner = Owner {
-            id,
-            exe,
+            plugin,
             job,
             app,
             tx: tx.clone(),
@@ -59,11 +64,12 @@ impl Supervisor {
         Self { tx }
     }
 
-    pub async fn call(&self, method: String, params: Value) -> Reply {
+    pub async fn call(&self, method: String, params: Value, window: String) -> Reply {
         let (reply, started) = oneshot::channel();
         let message = Msg::Call {
             method,
             params,
+            window,
             reply,
         };
         self.tx.send(message).map_err(|_| STOPPED)?;
@@ -77,6 +83,11 @@ impl Supervisor {
         }
     }
 
+    /// Tells a running plugin that `window` closed; starts nothing.
+    pub fn window_closed(&self, window: &str) {
+        let _ = self.tx.send(Msg::WindowClosed(window.into()));
+    }
+
     /// Disabling stops the process and refuses calls until enabled again; enabling starts nothing by itself.
     pub async fn set_enabled(&self, enabled: bool) {
         let (done, stopped) = oneshot::channel();
@@ -87,8 +98,7 @@ impl Supervisor {
 }
 
 struct Owner {
-    id: String,
-    exe: PathBuf,
+    plugin: Arc<Plugin>,
     job: Arc<Job>,
     app: AppHandle,
     tx: mpsc::UnboundedSender<Msg>,
@@ -105,9 +115,16 @@ impl Owner {
                 Msg::Call {
                     method,
                     params,
+                    window,
                     reply,
                 } => {
-                    let _ = reply.send(self.call(&method, params).await);
+                    let _ = reply.send(self.call(&method, params, window).await);
+                }
+                Msg::WindowClosed(window) => {
+                    if let State::Running(_, process) = &mut self.state {
+                        // No one waits for the answer; a plugin without subscriptions ignores it.
+                        drop(process.call(WINDOW_CLOSED, Value::Null, Some(window)));
+                    }
                 }
                 Msg::SetEnabled(enabled, done) => {
                     self.enabled = enabled;
@@ -127,7 +144,7 @@ impl Owner {
                     let waiting = matches!(self.state, State::Waiting(g) if g == generation);
                     if self.enabled && waiting && self.start().await.is_ok() {
                         // The new process has none of the old one's state; the frontend applies it again.
-                        let event = format!("plugin://{}/restarted", self.id);
+                        let event = format!("plugin://{}/restarted", self.plugin.manifest.id);
                         let _ = self.app.emit(&event, ());
                     }
                 }
@@ -135,7 +152,7 @@ impl Owner {
         }
     }
 
-    async fn call(&mut self, method: &str, params: Value) -> Started {
+    async fn call(&mut self, method: &str, params: Value, window: String) -> Started {
         if !self.enabled {
             return Err("Plugin is disabled".into());
         }
@@ -143,7 +160,9 @@ impl Owner {
             self.start().await?;
         }
         match &mut self.state {
-            State::Running(generation, process) => Ok((*generation, process.call(method, params))),
+            State::Running(generation, process) => {
+                Ok((*generation, process.call(method, params, Some(window))))
+            }
             _ => Err("Plugin is restarting".into()),
         }
     }
@@ -155,7 +174,7 @@ impl Owner {
         let on_exit = move || {
             let _ = tx.send(Msg::Exited(generation));
         };
-        match Process::start(&self.id, &self.exe, &self.job, &self.app, on_exit).await {
+        match self.launch(on_exit).await {
             Ok(process) => {
                 self.state = State::Running(generation, process);
                 Ok(())
@@ -168,6 +187,20 @@ impl Owner {
         }
     }
 
+    async fn launch(&self, on_exit: impl FnOnce() + Send + 'static) -> Result<Process, String> {
+        let plugin = self.plugin.clone();
+        let id = plugin.manifest.id.clone();
+        // The plugin never runs on half-moved data: a failed move fails the start and is retried with it.
+        tauri::async_runtime::spawn_blocking(move || {
+            migrate(&plugin.legacy, &plugin.data, &plugin.manifest.migrate)
+        })
+        .await
+        .map_err(|error| error.to_string())
+        .and_then(|moved| moved.map_err(|error| error.to_string()))
+        .map_err(|error| format!("Plugin {id} data could not be moved: {error}"))?;
+        Process::start(&self.plugin, &self.job, &self.app, on_exit).await
+    }
+
     /// Replacing the state drops the process, which kills it if it is still running.
     fn exited(&mut self, generation: u64, how: &str) {
         let State::Running(current, process) = &self.state else {
@@ -177,7 +210,7 @@ impl Owner {
             return;
         }
         let uptime = process.started.elapsed();
-        log::warn!("Plugin {} {how}", self.id);
+        log::warn!("Plugin {} {how}", self.plugin.manifest.id);
         self.retry(generation, uptime);
     }
 

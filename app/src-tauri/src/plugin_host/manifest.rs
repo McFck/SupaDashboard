@@ -1,6 +1,6 @@
 //! `plugin.json`: what a plugin folder declares. Read from a folder anyone could drop into the plugins
 //! directory, so everything that reaches a path, an event name or a permission is checked here.
-use plugin_sdk::{HELLO, PROTOCOL, valid_name};
+use plugin_sdk::{HELLO, PROTOCOL, WINDOW_CLOSED, valid_name};
 use serde::Deserialize;
 
 const WINDOWS: [&str; 2] = ["main", "panel"];
@@ -17,6 +17,9 @@ pub struct Manifest {
     pub windows: Vec<String>,
     /// Methods the frontend may call.
     pub methods: Vec<String>,
+    /// Files and folders the in-app version kept in the app data root, moved once into the plugin's data folder.
+    #[serde(default)]
+    pub migrate: Vec<String>,
 }
 
 fn valid_id(id: &str) -> bool {
@@ -27,14 +30,18 @@ fn valid_id(id: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
-fn valid_exe(exe: &str) -> bool {
-    exe.len() <= 64
-        && exe.ends_with(".exe")
-        && exe.len() > 4
-        && !exe.starts_with('.')
-        && exe
+/// A bare file or folder name: no separators, no `..`, no drive.
+fn valid_file_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && !name.starts_with('.')
+        && name
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+}
+
+fn valid_exe(exe: &str) -> bool {
+    valid_file_name(exe) && exe.len() > 4 && exe.ends_with(".exe")
 }
 
 impl Manifest {
@@ -66,7 +73,14 @@ impl Manifest {
         {
             return Err("Unknown window in plugin permissions".into());
         }
-        if !manifest.methods.iter().all(|m| valid_name(m) && m != HELLO) {
+        if !manifest.migrate.iter().all(|name| valid_file_name(name)) {
+            return Err("Invalid migrated file name".into());
+        }
+        if !manifest
+            .methods
+            .iter()
+            .all(|m| valid_name(m) && m != HELLO && m != WINDOW_CLOSED)
+        {
             return Err("Invalid method in plugin permissions".into());
         }
         Ok(manifest)
@@ -108,6 +122,8 @@ mod tests {
         }
         assert!(Manifest::parse(&manifest("haptics.exe", ""), "other").is_err());
         assert!(Manifest::parse(&manifest("haptics.exe", r#","extra":1"#), "haptics").is_err());
+        let escape = manifest("haptics.exe", r#","migrate":["../settings.json"]"#);
+        assert!(Manifest::parse(&escape, "haptics").is_err());
         let hello = manifest("haptics.exe", "").replace(r#"["pulse"]"#, r#"["hello"]"#);
         assert!(Manifest::parse(&hello, "haptics").is_err());
         let old = manifest("haptics.exe", "").replace(r#""protocol":1"#, r#""protocol":0"#);

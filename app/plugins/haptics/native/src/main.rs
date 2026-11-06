@@ -5,6 +5,7 @@ mod adb;
 mod limiter;
 mod service;
 
+use plugin_sdk::{Call, Events};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -77,7 +78,7 @@ struct Pulse {
 
 /// `configure` applies the settings and answers whether a device is connected (false is silent when
 /// disabled); `pulse` vibrates once.
-async fn handle(haptics: Haptics, method: String, params: Value) -> Result<Value, String> {
+async fn handle(haptics: Haptics, Call { method, params, .. }: Call) -> Result<Value, String> {
     match method.as_str() {
         "configure" => {
             let config: Config = serde_json::from_value(params)
@@ -98,5 +99,5 @@ async fn handle(haptics: Haptics, method: String, params: Value) -> Result<Value
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let haptics = Haptics::start();
-    plugin_sdk::serve(|method, params| handle(haptics.clone(), method, params)).await;
+    plugin_sdk::serve(&Events::connect(), |call| handle(haptics.clone(), call)).await;
 }

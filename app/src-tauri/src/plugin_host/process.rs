@@ -1,11 +1,10 @@
 //! One running plugin process: spawn, version handshake, answers matched to requests, events forwarded.
 use std::collections::HashMap;
-use std::path::Path;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
-use plugin_sdk::{HELLO, Message, PROTOCOL, decode, encode, read_frame};
+use plugin_sdk::{DATA_DIR_VAR, HELLO, Message, PROTOCOL, decode, encode, read_frame};
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncWriteExt, BufReader};
@@ -14,6 +13,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::timeout;
 use windows::Win32::Foundation::HANDLE;
 
+use super::Plugin;
 use super::job::Job;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -43,20 +43,21 @@ pub struct Process {
 }
 
 impl Process {
-    /// Spawns `exe` inside the job and completes the handshake. `on_exit` runs once the process's output ends.
+    /// Spawns the plugin inside the job and completes the handshake. `on_exit` runs once its output ends.
     pub async fn start(
-        id: &str,
-        exe: &Path,
+        plugin: &Arc<Plugin>,
         job: &Job,
         app: &AppHandle,
         on_exit: impl FnOnce() + Send + 'static,
     ) -> Result<Self, String> {
+        let id = &plugin.manifest.id;
         let failed = |error: &dyn std::fmt::Display| format!("Plugin {id} did not start: {error}");
-        let mut command = Command::new(exe);
-        if let Some(folder) = exe.parent() {
+        let mut command = Command::new(&plugin.exe);
+        if let Some(folder) = plugin.exe.parent() {
             command.current_dir(folder);
         }
         let mut child = command
+            .env(DATA_DIR_VAR, &plugin.data)
             .creation_flags(CREATE_NO_WINDOW)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -73,7 +74,13 @@ impl Process {
             return Err(failed(&"no pipes"));
         };
         let pending = Pending(Arc::new(Mutex::new(Some(HashMap::new()))));
-        read_answers(id, stdout, pending.clone(), app.clone(), on_exit);
+        read_answers(
+            plugin.clone(),
+            stdout,
+            pending.clone(),
+            app.clone(),
+            on_exit,
+        );
         read_log(id, stderr);
         let mut process = Self {
             child,
@@ -82,14 +89,19 @@ impl Process {
             next_id: 0,
             started: Instant::now(),
         };
-        let hello = process.call(HELLO, json!({ "protocol": PROTOCOL }));
+        let hello = process.call(HELLO, json!({ "protocol": PROTOCOL }), None);
         match timeout(HANDSHAKE, hello).await {
             Ok(Ok(Ok(answer))) if answer["protocol"] == PROTOCOL => Ok(process),
             _ => Err(failed(&"no handshake for this protocol version")),
         }
     }
 
-    pub fn call(&mut self, method: &str, params: Value) -> oneshot::Receiver<Reply> {
+    pub fn call(
+        &mut self,
+        method: &str,
+        params: Value,
+        window: Option<String>,
+    ) -> oneshot::Receiver<Reply> {
         let (reply, answer) = oneshot::channel();
         self.next_id += 1;
         let id = self.next_id;
@@ -97,6 +109,7 @@ impl Process {
             id,
             method: method.into(),
             params,
+            window,
         };
         let Some(line) = encode(&request) else {
             let _ = reply.send(Err("Request too long".into()));
@@ -138,14 +151,14 @@ fn write_requests(mut stdin: ChildStdin) -> mpsc::UnboundedSender<String> {
 }
 
 fn read_answers(
-    id: &str,
+    plugin: Arc<Plugin>,
     stdout: ChildStdout,
     pending: Pending,
     app: AppHandle,
     on_exit: impl FnOnce() + Send + 'static,
 ) {
-    let id = id.to_owned();
     tauri::async_runtime::spawn(async move {
+        let id = &plugin.manifest.id;
         let mut output = BufReader::new(stdout);
         // An oversized line ends the process like end of output: its stream cannot be trusted any more.
         while let Ok(Some(frame)) = read_frame(&mut output).await {
@@ -164,7 +177,11 @@ fn read_answers(
                     }
                 }
                 Ok(Message::Event { name, data }) => {
-                    let _ = app.emit(&format!("plugin://{id}/{name}"), data);
+                    // Only the windows the plugin serves; never embedded content webviews.
+                    let event = format!("plugin://{id}/{name}");
+                    for window in &plugin.manifest.windows {
+                        let _ = app.emit_to(window.as_str(), &event, &data);
+                    }
                 }
                 Ok(Message::Request { .. }) | Err(_) => {
                     log::warn!("Plugin {id} sent an invalid message");

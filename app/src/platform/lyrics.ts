@@ -1,5 +1,5 @@
 // Song lyrics from the native LRCLIB client and its disk cache, validated where they enter the webview.
-import { invoke } from '@tauri-apps/api/core';
+import { callPlugin } from './plugin-host';
 import { isRecord } from '../features/automation/plain-data';
 
 export type LyricLine = { atMs: number; text: string };
@@ -65,7 +65,9 @@ export function readLyricsView(raw: unknown): LyricsView | null {
 /** Lyrics for a track; a failed lookup or a payload that does not validate means none. */
 export async function getLyrics(track: LyricsTrack): Promise<LyricsView> {
   try {
-    return readLyricsView(await invoke<unknown>('lyrics_get', track)) ?? { kind: 'none' };
+    return (
+      readLyricsView(await callPlugin<unknown>('spotify', 'lyrics-get', track)) ?? { kind: 'none' }
+    );
   } catch {
     // LRCLIB being down or the network being gone only means no lyrics this time; nothing is lost.
     return { kind: 'none' };
@@ -85,7 +87,7 @@ export function readSongOffset(raw: unknown) {
 /** The offset the user saved for this song. */
 export async function getSongOffset(track: LyricsTrack) {
   try {
-    return readSongOffset(await invoke<unknown>('lyrics_offset_get', track));
+    return readSongOffset(await callPlugin<unknown>('spotify', 'lyrics-offset-get', track));
   } catch {
     // An unreadable store only leaves the lines unshifted; the native side keeps the file it could not read.
     return 0;
@@ -94,4 +96,4 @@ export async function getSongOffset(track: LyricsTrack) {
 
 /** Saves this song's offset; 0 forgets it. */
 export const setSongOffset = (track: LyricsTrack, offsetMs: number) =>
-  invoke<void>('lyrics_offset_set', { ...track, offsetMs });
+  callPlugin<void>('spotify', 'lyrics-offset-set', { ...track, offsetMs });

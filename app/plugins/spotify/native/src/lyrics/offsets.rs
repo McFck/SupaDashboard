@@ -2,7 +2,6 @@
 use super::{Track, cache};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path, sync::Mutex};
-use tauri::Manager;
 
 /// Largest offset either way (ms), the tile slider's range.
 const LIMIT_MS: i64 = 10_000;
@@ -87,64 +86,44 @@ fn save(path: &Path, entries: &Entries) -> Result<(), String> {
     write().map_err(|error| error.to_string())
 }
 
-/// Runs `job` on the loaded offsets, loading them on first use.
-fn locked<T>(
-    app: &tauri::AppHandle,
-    offsets: &LyricsOffsets,
-    job: impl FnOnce(&Path, &mut Entries) -> Result<T, String>,
-) -> Result<T, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|_| "Lyrics offsets unavailable")?;
-    let path = dir.join(FILE);
-    let mut guard = offsets.0.lock().map_err(|_| "Lyrics offsets unavailable")?;
-    if guard.is_none() {
-        *guard = Some(load(&path)?);
+impl LyricsOffsets {
+    /// Runs `job` on the loaded offsets, loading them on first use.
+    fn locked<T>(
+        &self,
+        job: impl FnOnce(&Path, &mut Entries) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let path = plugin_sdk::data_dir()?.join(FILE);
+        let mut guard = self.0.lock().map_err(|_| "Lyrics offsets unavailable")?;
+        if guard.is_none() {
+            *guard = Some(load(&path)?);
+        }
+        let entries = guard.as_mut().ok_or("Lyrics offsets unavailable")?;
+        job(&path, entries)
     }
-    let entries = guard.as_mut().ok_or("Lyrics offsets unavailable")?;
-    job(&path, entries)
-}
 
-#[tauri::command]
-pub async fn lyrics_offset_get(
-    app: tauri::AppHandle,
-    offsets: tauri::State<'_, LyricsOffsets>,
-    artist: String,
-    title: String,
-    album: String,
-    duration_ms: u64,
-) -> Result<i64, String> {
-    let key = cache::key(&Track::new(artist, title, album, duration_ms)?)?;
-    locked(&app, &offsets, |_, entries| {
-        Ok(entries
-            .iter()
-            .find(|(other, _)| *other == key)
-            .map_or(0, |(_, offset_ms)| *offset_ms))
-    })
-}
-
-#[tauri::command]
-pub async fn lyrics_offset_set(
-    app: tauri::AppHandle,
-    offsets: tauri::State<'_, LyricsOffsets>,
-    artist: String,
-    title: String,
-    album: String,
-    duration_ms: u64,
-    offset_ms: i64,
-) -> Result<(), String> {
-    let key = cache::key(&Track::new(artist, title, album, duration_ms)?)?;
-    if offset_ms.abs() > LIMIT_MS {
-        return Err("Invalid lyrics offset".into());
+    pub fn get(&self, track: &Track) -> Result<i64, String> {
+        let key = cache::key(track)?;
+        self.locked(|_, entries| {
+            Ok(entries
+                .iter()
+                .find(|(other, _)| *other == key)
+                .map_or(0, |(_, offset_ms)| *offset_ms))
+        })
     }
-    locked(&app, &offsets, |path, entries| {
-        let next = with(entries, &key, offset_ms);
-        save(path, &next)?;
-        // Only a saved change is kept, so memory never claims what the file does not hold.
-        *entries = next;
-        Ok(())
-    })
+
+    pub fn set(&self, track: &Track, offset_ms: i64) -> Result<(), String> {
+        let key = cache::key(track)?;
+        if offset_ms.abs() > LIMIT_MS {
+            return Err("Invalid lyrics offset".into());
+        }
+        self.locked(|path, entries| {
+            let next = with(entries, &key, offset_ms);
+            save(path, &next)?;
+            // Only a saved change is kept, so memory never claims what the file does not hold.
+            *entries = next;
+            Ok(())
+        })
+    }
 }
 
 #[cfg(test)]
