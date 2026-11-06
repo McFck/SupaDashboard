@@ -99,11 +99,11 @@ async fn request(form: Vec<(String, String)>, previous: Option<&Tokens>) -> Resu
         .iter()
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
-    let response = crate::http::send(
+    let response = plugin_sdk::http::send(
         "POST",
         "https://discord.com/api/oauth2/token",
         &[],
-        Some(&crate::http::form(&fields)),
+        Some(&plugin_sdk::http::form(&fields)),
     )
     .await
     .map_err(|_| "Discord token exchange failed")?;

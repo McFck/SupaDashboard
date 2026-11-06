@@ -7,7 +7,6 @@ mod content;
 mod dashboard;
 #[cfg(debug_assertions)]
 mod dev_data;
-mod discord;
 mod work;
 mod media;
 mod monitors;
@@ -52,7 +51,6 @@ pub fn run() {
                 plugin_host::PluginHost::discover(app.handle()).map_err(std::io::Error::other)?,
             );
             app.manage(apps::watch::AppsHub::default());
-            app.manage(discord::DiscordHub::default());
             app.manage(work::Work::default());
             app.manage(spotify::SpotifyHub::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
@@ -110,11 +108,6 @@ pub fn run() {
             media::media_sessions_subscribe,
             media::media_sessions_unsubscribe,
             media::media_artwork_resolve,
-            discord::discord_subscribe,
-            discord::discord_unsubscribe,
-            discord::discord_authorize,
-            discord::discord_logout,
-            discord::discord_voice,
             work::work_meetings,
             work::work_photos,
             work::work_session,

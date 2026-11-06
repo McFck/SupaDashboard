@@ -5,8 +5,7 @@ use super::{
     voice::{self, VoiceState},
 };
 use serde_json::{Value, json};
-use std::{path::PathBuf, time::Duration};
-use tauri::{AppHandle, Manager};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::{
     sync::mpsc::Receiver,
     time::{Instant, timeout},
@@ -23,7 +22,7 @@ enum Phase {
 }
 
 struct Client {
-    app: AppHandle,
+    hub: Arc<DiscordHub>,
     generation: u64,
     store: Store,
     voice: VoiceState,
@@ -36,12 +35,16 @@ struct Client {
     subscribed_channel: Option<model::Channel>,
 }
 
-pub async fn run(app: AppHandle, generation: u64, path: PathBuf, mut messages: Receiver<Message>) {
+pub async fn run(
+    hub: Arc<DiscordHub>,
+    generation: u64,
+    path: PathBuf,
+    mut messages: Receiver<Message>,
+) {
     let store = match Store::open(path) {
         Ok(store) => store,
         Err(error) => {
-            app.state::<DiscordHub>()
-                .publish(&app, generation, json!({"state":"needsAuth"}));
+            hub.publish(generation, json!({"state":"needsAuth"}));
             while let Some(message) = messages.recv().await {
                 let _ = message.reply.send(Err(error.clone()));
             }
@@ -49,7 +52,7 @@ pub async fn run(app: AppHandle, generation: u64, path: PathBuf, mut messages: R
         }
     };
     let mut client = Client {
-        app,
+        hub,
         generation,
         voice: VoiceState {
             last_channel: store
@@ -107,7 +110,7 @@ pub async fn run(app: AppHandle, generation: u64, path: PathBuf, mut messages: R
                 }
                 if client.phase == Phase::Ready && client.store.credentials.as_ref().is_some_and(|c| c.tokens.needs_refresh(auth::now())) {
                     if let Err(error) = client.refresh().await {
-                        log::error!("Discord refresh failed: {error}");
+                        eprintln!("Discord refresh failed: {error}");
                         client.phase = Phase::NeedsAuth;
                     }
                     else { client.phase = Phase::Absent; client.next_retry = Instant::now(); }
@@ -130,7 +133,7 @@ pub async fn run(app: AppHandle, generation: u64, path: PathBuf, mut messages: R
 impl Client {
     fn failed_event(&mut self, error: &str) {
         // Fixed internal errors contain no RPC bodies or credentials.
-        log::error!("Discord state update failed: {error}");
+        eprintln!("Discord state update failed: {error}");
         self.disconnected();
     }
     fn publish(&mut self) {
@@ -142,9 +145,7 @@ impl Client {
             Phase::Ready => self.voice.view(),
         };
         if view != self.last_view {
-            self.app
-                .state::<DiscordHub>()
-                .publish(&self.app, self.generation, view.clone());
+            self.hub.publish(self.generation, view.clone());
             self.last_view = view;
         }
     }

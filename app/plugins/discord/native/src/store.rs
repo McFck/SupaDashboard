@@ -2,7 +2,7 @@ use super::{
     auth::Tokens,
     model::{Channel, valid_id},
 };
-use crate::secure as crypto;
+use plugin_sdk::secure as crypto;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,

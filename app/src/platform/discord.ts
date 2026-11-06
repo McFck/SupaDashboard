@@ -1,5 +1,5 @@
-import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { isTauri } from '@tauri-apps/api/core';
+import { callPlugin, onPluginEvent } from './plugin-host';
 import { isRecord } from '../features/automation/plain-data';
 
 type VoiceUser = { id: string; name: string };
@@ -181,13 +181,22 @@ function startHub() {
     }
     unlisten?.();
     let receivedEvent = false;
-    unlisten = await listen<unknown>('discord-state', (event) => {
-      if (mine === epoch) {
-        receivedEvent = true;
-        deliver(event.payload);
-      }
-    });
-    const snapshot = await invoke<unknown>('discord_subscribe');
+    const stops = [
+      await onPluginEvent<unknown>('discord', 'state', (payload) => {
+        if (mine === epoch) {
+          receivedEvent = true;
+          deliver(payload);
+        }
+      }),
+      // A restarted plugin process has no subscribers; subscribe again.
+      await onPluginEvent('discord', 'restarted', () => {
+        if (mine === epoch) {
+          startHub();
+        }
+      }),
+    ];
+    unlisten = () => stops.forEach((stop) => stop());
+    const snapshot = await callPlugin<unknown>('discord', 'subscribe');
     // Events can arrive while invoke is returning an older snapshot.
     if (mine === epoch && !receivedEvent) {
       deliver(snapshot);
@@ -221,14 +230,14 @@ export function subscribeVoice(listener: (view: VoiceView) => void): () => void 
     enqueue(async () => {
       unlisten?.();
       unlisten = undefined;
-      await invoke('discord_unsubscribe');
+      await callPlugin('discord', 'unsubscribe');
     }).catch(() => {
       // Native also releases the subscriber when its window closes.
     });
   };
 }
 
-async function command(name: string, args?: Record<string, unknown>) {
+async function command(method: string, params?: Record<string, unknown>) {
   if (!isTauri()) {
     throw new Error("Discord isn't running");
   }
@@ -236,7 +245,7 @@ async function command(name: string, args?: Record<string, unknown>) {
   if (!listeners.size) {
     throw new Error('Connect Discord first');
   }
-  await invoke<void>(name, args);
+  await callPlugin<void>('discord', method, params);
 }
 
 export async function authorize(clientId: string) {
@@ -244,10 +253,10 @@ export async function authorize(clientId: string) {
   if (!validId(id)) {
     throw new Error('Invalid Discord client ID');
   }
-  await command('discord_authorize', { clientId: id });
+  await command('authorize', { clientId: id });
 }
 
-export const logout = () => command('discord_logout');
+export const logout = () => command('logout');
 
 export async function voiceCommand(voice: VoiceCommand) {
   await queue;
@@ -264,5 +273,5 @@ export async function voiceCommand(voice: VoiceCommand) {
   if (voice === 'rejoin' && !latest.lastChannel) {
     throw new Error('No channel to rejoin');
   }
-  await command('discord_voice', { command: voice });
+  await command('voice', { command: voice });
 }

@@ -1,6 +1,6 @@
 use super::{Client, Phase};
-use crate::discord::{auth, model, rpc::Rpc, store::Credentials};
-use crate::secure as crypto;
+use crate::{auth, model, rpc::Rpc, store::Credentials};
+use plugin_sdk::secure as crypto;
 use serde_json::json;
 use std::time::Duration;
 use tokio::time::timeout;

@@ -1,5 +1,5 @@
 use super::Client;
-use crate::discord::VoiceCommand;
+use crate::VoiceCommand;
 use serde_json::json;
 
 pub(super) async fn execute(client: &mut Client, command: VoiceCommand) -> Result<(), String> {

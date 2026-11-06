@@ -3,7 +3,7 @@ import { avatarUrl, readVoiceView, subscribeVoice, type VoiceView } from './disc
 
 const native = vi.hoisted(() => ({
   invoke: vi.fn(),
-  handler: undefined as undefined | ((event: { payload: unknown }) => void),
+  handlers: {} as Record<string, (event: { payload: unknown }) => void>,
   unlisten: vi.fn(),
 }));
 vi.mock('@tauri-apps/api/core', () => ({
@@ -11,8 +11,8 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => native.invoke(...args),
 }));
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: async (_event: string, handler: typeof native.handler) => {
-    native.handler = handler;
+  listen: async (event: string, handler: (event: { payload: unknown }) => void) => {
+    native.handlers[event] = handler;
     return native.unlisten;
   },
 }));
@@ -105,8 +105,8 @@ it('builds only Discord CDN URLs from valid ids, hashes and default-avatar indic
 
 it('shares the native worker and keeps newer events over a delayed subscribe reply', async () => {
   let resolve: ((value: unknown) => void) | undefined;
-  native.invoke.mockImplementation((command: string) =>
-    command === 'discord_subscribe'
+  native.invoke.mockImplementation((command: string, args?: { method?: string }) =>
+    command === 'plugin_call' && args?.method === 'subscribe'
       ? new Promise((done) => {
           resolve = done;
         })
@@ -117,20 +117,25 @@ it('shares the native worker and keeps newer events over a delayed subscribe rep
   const stopFirst = subscribeVoice((view) => first.push(view));
   const stopSecond = subscribeVoice((view) => second.push(view));
   await flush();
-  native.handler?.({ payload: snapshot });
+  native.handlers['plugin://discord/state']?.({ payload: snapshot });
   resolve?.({ state: 'needsAuth' });
   await flush();
   expect(first.at(-1)).toEqual(snapshot);
   expect(second.at(-1)).toEqual(snapshot);
-  expect(native.invoke.mock.calls.filter(([name]) => name === 'discord_subscribe')).toHaveLength(1);
+  const subscribes = native.invoke.mock.calls.filter(([, args]) => args?.method === 'subscribe');
+  expect(subscribes).toHaveLength(1);
   stopFirst();
   await flush();
   expect(native.unlisten).not.toHaveBeenCalled();
-  const late = native.handler;
+  const late = native.handlers['plugin://discord/state'];
   stopSecond();
   late?.({ payload: { state: 'connecting' } });
   await flush();
   expect(second.at(-1)).toEqual(snapshot);
-  expect(native.unlisten).toHaveBeenCalledOnce();
-  expect(native.invoke).toHaveBeenCalledWith('discord_unsubscribe');
+  expect(native.unlisten).toHaveBeenCalled();
+  expect(native.invoke).toHaveBeenCalledWith('plugin_call', {
+    plugin: 'discord',
+    method: 'unsubscribe',
+    params: null,
+  });
 });

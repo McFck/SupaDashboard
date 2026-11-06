@@ -1,3 +1,7 @@
+//! Discord plugin host: voice state over Discord's local RPC pipe, published as `plugin://discord/state` while
+//! a window subscribes, and the voice controls.
+// No console window: the app talks to this process over pipes only.
+#![windows_subsystem = "windows"]
 mod auth;
 mod client;
 mod frame;
@@ -6,6 +10,7 @@ mod rpc;
 mod store;
 mod voice;
 
+use plugin_sdk::{Call, Events, WINDOW_CLOSED, answer};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -13,7 +18,6 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tauri::{AppHandle, Emitter, Manager, State, Webview};
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone, Copy, Deserialize)]
@@ -36,7 +40,7 @@ struct Message {
 }
 struct Running {
     sender: mpsc::Sender<Message>,
-    task: tauri::async_runtime::JoinHandle<()>,
+    task: tokio::task::JoinHandle<()>,
 }
 
 #[derive(Default)]
@@ -47,34 +51,29 @@ struct Inner {
     latest: Option<Value>,
 }
 
-#[derive(Default)]
 pub struct DiscordHub {
     inner: Mutex<Inner>,
     worker: Arc<tokio::sync::Mutex<()>>,
+    events: Events,
 }
 
 impl DiscordHub {
-    fn subscribe(&self, app: &AppHandle, label: &str) -> Result<Value, String> {
-        allowed_window(label)?;
+    fn subscribe(self: &Arc<Self>, label: &str) -> Result<Value, String> {
         let mut inner = self.inner.lock().map_err(|_| "Discord hub unavailable")?;
         if inner.running.is_none() {
-            let path = app
-                .path()
-                .app_data_dir()
-                .map_err(|_| "Discord data directory unavailable")?
-                .join("discord.json");
+            let path = plugin_sdk::data_dir()?.join("discord.json");
             inner.generation = inner
                 .generation
                 .checked_add(1)
                 .ok_or("Discord generation exhausted")?;
             let (sender, receiver) = mpsc::channel(32);
             let worker = self.worker.clone();
-            let app = app.clone();
+            let hub = self.clone();
             let generation = inner.generation;
-            let task = tauri::async_runtime::spawn(async move {
+            let task = tokio::spawn(async move {
                 // Abort releases the old pipe before a replacement worker can open another.
                 let _lease = worker.lock().await;
-                client::run(app, generation, path, receiver).await;
+                client::run(hub, generation, path, receiver).await;
             });
             inner.running = Some(Running { sender, task });
         }
@@ -98,18 +97,14 @@ impl DiscordHub {
         }
     }
 
-    fn publish(&self, app: &AppHandle, generation: u64, view: Value) {
+    fn publish(&self, generation: u64, view: Value) {
         let Ok(mut inner) = self.inner.lock() else {
             return;
         };
         if inner.running.is_some() && inner.generation == generation {
-            inner.latest = Some(view.clone());
-            // Never expose account/channel state to embedded content webviews.
-            for label in &inner.subscribers {
-                if let Err(error) = app.emit_to(label, "discord-state", &view) {
-                    log::warn!("Could not publish Discord state: {error}");
-                }
-            }
+            // The app delivers it to the dashboard and panel only, never to embedded content webviews.
+            self.events.emit("state", &view);
+            inner.latest = Some(view);
         }
     }
 
@@ -133,60 +128,66 @@ impl DiscordHub {
     }
 }
 
-fn allowed_window(label: &str) -> Result<(), String> {
-    if matches!(label, "main" | "panel") {
+/// The calling window is set by the app; each operation keeps the window it was limited to in-app.
+fn only(window: &str, allowed: &str) -> Result<(), String> {
+    if window == allowed {
         Ok(())
     } else {
         Err("Discord access denied".into())
     }
 }
 
-#[tauri::command]
-pub fn discord_subscribe(
-    app: AppHandle,
-    webview: Webview,
-    hub: State<'_, DiscordHub>,
-) -> Result<Value, String> {
-    hub.subscribe(&app, webview.label())
-}
-
-#[tauri::command]
-pub fn discord_unsubscribe(webview: Webview, hub: State<'_, DiscordHub>) {
-    hub.unsubscribe(webview.label());
-}
-
-#[tauri::command]
-pub async fn discord_authorize(
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Authorize {
     client_id: String,
-    webview: Webview,
-    hub: State<'_, DiscordHub>,
-) -> Result<(), String> {
-    if webview.label() != "panel" {
-        return Err("Discord access denied".into());
-    }
-    let client_id = client_id.trim();
-    if !model::valid_id(client_id) {
-        return Err("Invalid Discord client ID".into());
-    }
-    hub.operation(Operation::Authorize(client_id.into())).await
 }
 
-#[tauri::command]
-pub async fn discord_logout(webview: Webview, hub: State<'_, DiscordHub>) -> Result<(), String> {
-    if webview.label() != "panel" {
-        return Err("Discord access denied".into());
-    }
-    hub.operation(Operation::Logout).await
-}
-
-#[tauri::command]
-pub async fn discord_voice(
+#[derive(Deserialize)]
+struct Voice {
     command: VoiceCommand,
-    webview: Webview,
-    hub: State<'_, DiscordHub>,
-) -> Result<(), String> {
-    if webview.label() != "main" {
-        return Err("Discord access denied".into());
+}
+
+async fn handle(hub: Arc<DiscordHub>, call: Call) -> Result<Value, String> {
+    let window = call.window.as_deref().unwrap_or_default();
+    let params = call.params;
+    match call.method.as_str() {
+        "subscribe" => hub.subscribe(window),
+        "unsubscribe" | WINDOW_CLOSED => {
+            hub.unsubscribe(window);
+            Ok(Value::Null)
+        }
+        "authorize" => {
+            only(window, "panel")?;
+            let Authorize { client_id } =
+                serde_json::from_value(params).map_err(|_| "Invalid Discord client ID")?;
+            let client_id = client_id.trim();
+            if !model::valid_id(client_id) {
+                return Err("Invalid Discord client ID".into());
+            }
+            answer(hub.operation(Operation::Authorize(client_id.into())).await)
+        }
+        "logout" => {
+            only(window, "panel")?;
+            answer(hub.operation(Operation::Logout).await)
+        }
+        "voice" => {
+            only(window, "main")?;
+            let Voice { command } =
+                serde_json::from_value(params).map_err(|_| "Unknown Discord command")?;
+            answer(hub.operation(Operation::Voice(command)).await)
+        }
+        method => Err(format!("Unknown method {method}")),
     }
-    hub.operation(Operation::Voice(command)).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let events = Events::connect();
+    let hub = Arc::new(DiscordHub {
+        inner: Mutex::default(),
+        worker: Arc::default(),
+        events: events.clone(),
+    });
+    plugin_sdk::serve(&events, |call| handle(hub.clone(), call)).await;
 }
