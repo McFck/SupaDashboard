@@ -13,6 +13,8 @@ export type HapticsConfig = {
   adbPath?: string;
   serial?: string;
   strength: Strength;
+  /** Turns the tablet's screen off when the PC sleeps or shuts down. */
+  lockWithPc: boolean;
 };
 
 /** Applies the settings natively; true when a tablet is connected. */

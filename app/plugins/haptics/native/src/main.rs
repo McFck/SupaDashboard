@@ -1,8 +1,10 @@
-//! Haptics plugin host: tablet haptics over adb, one persistent `adb shell` fed vibrate commands.
+//! Android compatibility plugin host: tablet haptics over one persistent `adb shell`, and the tablet's screen
+//! turned off when the PC sleeps or shuts down.
 // No console window: the app talks to this process over pipes only.
 #![windows_subsystem = "windows"]
 mod adb;
 mod limiter;
+mod power;
 mod service;
 
 use plugin_sdk::{Call, Host};
@@ -53,6 +55,8 @@ pub struct Config {
     pub serial: Option<String>,
     #[serde(default)]
     pub strength: Strength,
+    #[serde(default)]
+    pub lock_with_pc: bool,
 }
 
 impl Config {
@@ -63,7 +67,7 @@ impl Config {
             && self.serial.as_deref().is_none_or(adb::valid_serial)
     }
 
-    /// False when `other` needs a new shell; a strength change alone keeps the connection.
+    /// False when `other` needs a new shell; strength and lock changes keep the connection.
     fn same_device(&self, other: &Config) -> bool {
         self.enabled == other.enabled
             && self.adb_path == other.adb_path
@@ -99,5 +103,7 @@ async fn handle(haptics: Haptics, Call { method, params, .. }: Call) -> Result<V
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let haptics = Haptics::start();
+    let locker = haptics.clone();
+    power::watch(move || locker.lock_blocking());
     plugin_sdk::serve(&Host::connect(), |call| handle(haptics.clone(), call)).await;
 }

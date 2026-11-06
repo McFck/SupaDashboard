@@ -11,6 +11,7 @@ describe('haptics settings', () => {
         adbPath: 5,
         serial: {},
         strength: 'loud',
+        lockWithPc: 'yes',
       }),
     ).toEqual(DEFAULTS);
   });

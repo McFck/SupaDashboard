@@ -3,6 +3,7 @@ compile_error!("SupaDashboard builds for Windows only");
 
 mod apps;
 mod audio;
+mod autostart;
 mod content;
 mod dashboard;
 #[cfg(debug_assertions)]
@@ -80,6 +81,8 @@ pub fn run() {
             panel::panel_ready,
             panel::snap::panel_snap_button,
             monitors::monitor_names,
+            autostart::autostart_get,
+            autostart::autostart_set,
             dashboard::commands::dashboard_set_bounds,
             dashboard::commands::dashboard_interaction_mode,
             dashboard::commands::dashboard_touch_window_action,

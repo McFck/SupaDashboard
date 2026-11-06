@@ -10,11 +10,11 @@ const isKind = (value: unknown): value is PulseKind => PULSE_KINDS.includes(valu
 
 export const hapticsPlugin: Plugin = {
   id: 'haptics',
-  title: 'Haptics',
-  description: 'Vibrates a USB-connected Android tablet over adb.',
+  title: 'Android compatibility',
+  description: 'Haptics and screen lock for a USB-connected Android tablet, over adb.',
   icon: 'vibrate',
   author: 'SupaDashboard',
-  version: '1.0.0',
+  version: '1.1.0',
   updated: '2026-11-06',
   source: 'bundled',
   settingsSection: HapticsSection,

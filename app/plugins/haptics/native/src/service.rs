@@ -1,4 +1,5 @@
-//! The owner task: holds the persistent adb shell, reconnects while haptics are enabled, rate-limits pulses.
+//! The owner task: holds the persistent adb shell, reconnects while the tablet is enabled, rate-limits pulses and
+//! locks the tablet on request.
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
@@ -14,16 +15,23 @@ use super::{Config, Kind};
 const RECONNECT: Duration = Duration::from_secs(5);
 const ADB_TIMEOUT: Duration = Duration::from_secs(5);
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+/// Windows gives a sleeping or ending session about two seconds; the lock must finish inside that.
+const LOCK_WAIT: Duration = Duration::from_millis(1500);
+/// Android's KEYCODE_SLEEP: screen off, and locked when the tablet has a lock screen.
+const SLEEP_KEY: &str = "223";
 
 enum Message {
     Configure(Config, oneshot::Sender<bool>),
     Pulse(Kind),
+    /// Answered (or dropped) once the tablet ran the sleep key, or when there is nothing to lock.
+    Lock(std::sync::mpsc::Sender<()>),
 }
 
 struct Shell {
     // Dropping the child kills the shell (kill_on_drop).
     child: Child,
     stdin: ChildStdin,
+    serial: String,
 }
 
 #[derive(Clone)]
@@ -48,6 +56,14 @@ impl Haptics {
 
     pub fn pulse(&self, kind: Kind) {
         let _ = self.tx.send(Message::Pulse(kind));
+    }
+
+    /// Locks the tablet when that is enabled, blocking the calling thread (the power window) until it is done.
+    pub fn lock_blocking(&self) {
+        let (done, wait) = std::sync::mpsc::channel();
+        if self.tx.send(Message::Lock(done)).is_ok() {
+            let _ = wait.recv_timeout(LOCK_WAIT);
+        }
     }
 }
 
@@ -78,7 +94,11 @@ async fn connect(config: &Config) -> Option<Shell> {
         .spawn()
         .ok()?;
     let stdin = child.stdin.take()?;
-    Some(Shell { child, stdin })
+    Some(Shell {
+        child,
+        stdin,
+        serial,
+    })
 }
 
 /// False once the shell has exited (device unplugged).
@@ -118,6 +138,21 @@ async fn run(mut rx: mpsc::UnboundedReceiver<Message>) {
                     if active.stdin.write_all(line.as_bytes()).await.is_err() {
                         shell = None;
                     }
+                }
+                Some(Message::Lock(done)) => {
+                    let (Some(active), Some(settings)) = (shell.as_ref(), config.as_ref()) else { continue };
+                    if !settings.lock_with_pc {
+                        continue;
+                    }
+                    // Its own adb call, not the shell: it returns only once the tablet ran the key.
+                    let adb = adb_path(settings.adb_path.as_deref());
+                    let lock = command(&adb)
+                        .args(["-s", &active.serial, "shell", "input", "keyevent", SLEEP_KEY])
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .status();
+                    let _ = timeout(LOCK_WAIT, lock).await;
+                    let _ = done.send(());
                 }
             },
             _ = poll.tick() => {

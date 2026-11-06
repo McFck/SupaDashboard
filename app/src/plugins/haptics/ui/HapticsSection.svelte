@@ -37,7 +37,7 @@
         settings = saved;
         loaded = true;
       })
-      .catch(() => toast.error('Haptics settings unavailable'));
+      .catch(() => toast.error('Android settings unavailable'));
   });
 
   async function apply(change: Partial<HapticsSettings>) {
@@ -51,14 +51,14 @@
       }
     } catch (error) {
       console.error(error);
-      toast.error('Could not save haptics');
+      toast.error('Could not save Android settings');
     }
   }
 </script>
 
-<Section title="Haptics">
+<Section title="Android">
   <Row
-    label="Haptics"
+    label="Tablet"
     for="haptics-enabled"
     ><Switch
       id="haptics-enabled"
@@ -68,7 +68,17 @@
     /></Row
   >
   <Row
-    label="Strength"
+    label="Lock with PC"
+    for="android-lock"
+    ><Switch
+      id="android-lock"
+      disabled={!loaded}
+      checked={settings.lockWithPc}
+      onCheckedChange={(lockWithPc) => apply({ lockWithPc })}
+    /></Row
+  >
+  <Row
+    label="Vibration strength"
     for="haptics-strength"
     ><Choice
       id="haptics-strength"
@@ -80,7 +90,7 @@
     /></Row
   >
   <Row
-    label="Tile press"
+    label="Vibrate on press"
     for="haptics-press"
     ><Switch
       id="haptics-press"

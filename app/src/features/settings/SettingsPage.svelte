@@ -24,6 +24,8 @@
   let nativeNames = $state<unknown[]>([]);
   let primaryScreen = $state<Monitor | null>(null);
   let resetting = $state(false);
+  /** Read from the Run key; stays undefined (switch disabled) where there is no native side. */
+  let autostart = $state<boolean>();
   let copying = $state(false);
   let alive = false;
   let refreshGeneration = 0;
@@ -73,9 +75,23 @@
     primaryScreen = primaryResult.status === 'fulfilled' ? primaryResult.value : null;
   }
 
+  async function setAutostart(enabled: boolean) {
+    autostart = enabled;
+    try {
+      await invoke('autostart_set', { enabled });
+    } catch (error) {
+      console.error(error);
+      autostart = !enabled;
+      toast.error('Could not change start with Windows');
+    }
+  }
+
   onMount(() => {
     alive = true;
     void refreshMonitors();
+    invoke<boolean>('autostart_get')
+      .then((enabled) => (autostart = enabled))
+      .catch((error) => console.warn('autostart', error));
     return () => {
       alive = false;
       refreshGeneration++;
@@ -156,6 +172,16 @@
       ><Switch
         id="always-on-top"
         bind:checked={settings.display.alwaysOnTop}
+      /></Row
+    >
+    <Row
+      label="Start with Windows"
+      for="autostart"
+      ><Switch
+        id="autostart"
+        disabled={autostart === undefined}
+        checked={autostart ?? false}
+        onCheckedChange={setAutostart}
       /></Row
     >
   </Section>

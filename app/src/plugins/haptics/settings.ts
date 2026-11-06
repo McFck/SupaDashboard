@@ -9,6 +9,7 @@ export type HapticsSettings = {
   adbPath: string;
   serial: string;
   strength: Strength;
+  lockWithPc: boolean;
 };
 
 const KEY = 'settings';
@@ -18,6 +19,7 @@ export const DEFAULTS: HapticsSettings = {
   adbPath: '',
   serial: '',
   strength: 'medium',
+  lockWithPc: false,
 };
 
 export function normalizeSettings(raw: unknown): HapticsSettings {
@@ -30,6 +32,7 @@ export function normalizeSettings(raw: unknown): HapticsSettings {
     serial: text(value.serial),
     // Files saved before strength existed read as the default.
     strength: STRENGTHS.find((strength) => strength === value.strength) ?? DEFAULTS.strength,
+    lockWithPc: value.lockWithPc === true,
   };
 }
 
@@ -38,6 +41,7 @@ export const toConfig = (s: HapticsSettings): HapticsConfig => ({
   adbPath: s.adbPath || undefined,
   serial: s.serial || undefined,
   strength: s.strength,
+  lockWithPc: s.lockWithPc,
 });
 
 async function openStore(): Promise<Store> {
