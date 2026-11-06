@@ -117,7 +117,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 19) {
+  if (typeof saved.version === 'number' && saved.version > 20) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -198,11 +198,13 @@ export function upgrade(input: Record<string, unknown>) {
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
   if (
-    ![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(saved.version as number)
+    ![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(
+      saved.version as number,
+    )
   ) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(saved.version as number)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(saved.version as number)) {
     saved = toV8(saved);
   }
   if (saved.version === 8) {
@@ -331,11 +333,36 @@ export function upgrade(input: Record<string, unknown>) {
     }
     saved = { ...saved, version: 19 };
   }
+  if (saved.version === 19) {
+    // v20: the Meet call variables moved from `work.*` to `meet.*`; bindings, conditions and labels follow.
+    for (const control of rawControls) {
+      Object.assign(control, renameMeetVariables(control));
+    }
+    saved = { ...saved, version: 20 };
+  }
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {
     throw new Error('Monitor label must be text');
   }
 
   return { saved, rawControls };
+}
+
+const MEET_VARIABLE = /\bwork\.(inCall|micOn|cameraOn)\b/g;
+
+/** v20: every string in a control that names an old Meet variable, wherever it sits (binding, operand, expression). */
+function renameMeetVariables(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value.replace(MEET_VARIABLE, 'meet.$1');
+  }
+  if (Array.isArray(value)) {
+    return value.map(renameMeetVariables);
+  }
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, renameMeetVariables(entry)]),
+    );
+  }
+  return value;
 }
 
 /** v8: the global `skin` became `Page.applet`, and applet settings gained a shared/per-page scope. */
