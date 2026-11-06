@@ -168,3 +168,6 @@ JSON over stdio) and a `plugins/<id>/plugin.json` naming its executable and the 
 it. The app starts it on the first `plugin_call`, restarts it after a crash (`plugin://<id>/restarted`) and stops
 it when the plugin is disabled. `scripts/build-plugins.mjs` builds and stages the bundled plugin folders; `pnpm tauri
 dev` and `build` run it. Plugin folders in `<app data>/plugins` load the same way.
+Each plugin keeps its files in `<app data>/plugin-data/<id>`; `migrate` in the manifest lists files the in-app version
+kept in the app data root, copied there once (originals stay). Its events reach only the windows it lists, and
+`media` grants it transport commands for one media session app through the app (`Host::call("media-command")`).
