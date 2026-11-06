@@ -118,15 +118,18 @@
   }
 </script>
 
+<!-- The header is as wide as the sections; with the side index beside them, as wide as both. -->
 <div class="@container">
-  <div class="mx-auto grid max-w-[940px] gap-8 px-6 py-9">
+  <div
+    class="mx-auto grid gap-8 px-6 py-9 {sections.length >= 3 ? 'max-w-[940px]' : 'max-w-[740px]'}"
+  >
     <Button
       variant="ghost"
       size="sm"
       class="w-fit"
       onclick={onback}><ArrowLeft />Plugins</Button
     >
-    <div class="grid gap-3">
+    <div class="grid max-w-[740px] gap-3 {sections.length >= 3 ? '@[900px]:max-w-none' : ''}">
       <div class="flex items-center gap-4">
         <span class="grid size-16 shrink-0 place-items-center rounded-2xl border bg-accent"
           ><Icon
