@@ -1,5 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { callPlugin, onPluginEvent } from './plugin-host';
 import { isRecord } from '../features/automation/plain-data';
 import { ActionFailure } from '../features/automation/action-failure';
 
@@ -82,13 +82,22 @@ function startHub() {
     }
     unlisten?.();
     let receivedEvent = false;
-    unlisten = await listen<unknown>('spotify-state', (event) => {
-      if (mine === epoch) {
-        receivedEvent = true;
-        deliver(event.payload);
-      }
-    });
-    const snapshot = await invoke<unknown>('spotify_subscribe');
+    const stops = [
+      await onPluginEvent<unknown>('spotify', 'state', (payload) => {
+        if (mine === epoch) {
+          receivedEvent = true;
+          deliver(payload);
+        }
+      }),
+      // A restarted plugin process has no subscribers; subscribe again.
+      await onPluginEvent('spotify', 'restarted', () => {
+        if (mine === epoch) {
+          startHub();
+        }
+      }),
+    ];
+    unlisten = () => stops.forEach((stop) => stop());
+    const snapshot = await callPlugin<unknown>('spotify', 'subscribe');
     if (mine === epoch && !receivedEvent) {
       deliver(snapshot);
     }
@@ -121,14 +130,14 @@ export function subscribeSpotify(listener: (view: SpotifyView) => void): () => v
     enqueue(async () => {
       unlisten?.();
       unlisten = undefined;
-      await invoke('spotify_unsubscribe');
+      await callPlugin('spotify', 'unsubscribe');
     }).catch(() => {
       // Native also releases the subscriber when its window closes.
     });
   };
 }
 
-async function command(name: string, args?: Record<string, unknown>) {
+async function command(method: string, params?: Record<string, unknown>) {
   if (!isTauri()) {
     throw new Error('Spotify unavailable');
   }
@@ -136,7 +145,7 @@ async function command(name: string, args?: Record<string, unknown>) {
   if (!listeners.size) {
     throw new Error('Connect Spotify first');
   }
-  await invoke<void>(name, args);
+  await callPlugin<void>('spotify', method, params);
 }
 
 export async function spotifyAuthorize(clientId: string) {
@@ -144,11 +153,11 @@ export async function spotifyAuthorize(clientId: string) {
   if (!validId(id)) {
     throw new Error('Invalid Spotify client ID');
   }
-  await command('spotify_authorize', { clientId: id });
+  await command('authorize', { clientId: id });
 }
 
-export const spotifyLogout = () => command('spotify_logout');
-export const spotifyCommand = (op: SpotifyCommand) => command('spotify_command', { op });
+export const spotifyLogout = () => command('logout');
+export const spotifyCommand = (op: SpotifyCommand) => command('command', { op });
 
 export async function spotifyTransport(command: string) {
   if (!/^(shuffle:(on|off|toggle)|repeat:(off|context|track|cycle))$/.test(command)) {
@@ -159,7 +168,7 @@ export async function spotifyTransport(command: string) {
   }
   if (command.startsWith('shuffle:')) {
     try {
-      await invoke<void>('spotify_shuffle', { mode: command.slice('shuffle:'.length) });
+      await callPlugin<void>('spotify', 'shuffle', { mode: command.slice('shuffle:'.length) });
     } catch (error) {
       const title =
         typeof error === 'string' && error.length <= 80 && validText(error)

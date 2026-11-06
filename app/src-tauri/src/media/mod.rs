@@ -39,7 +39,7 @@ struct Inner {
 pub struct MediaHub {
     inner: Mutex<Inner>,
     artwork: Mutex<ArtworkCache>,
-    pub(crate) commands: tokio::sync::Mutex<()>,
+    commands: tokio::sync::Mutex<()>,
 }
 
 impl MediaHub {
@@ -94,7 +94,7 @@ impl MediaHub {
     }
 
     /// Polls promptly: players answer a transport command a little late.
-    pub(crate) fn wake(&self) {
+    fn wake(&self) {
         if let Some(sender) = self.sender() {
             let _ = sender.send(Message::Wake);
         }
@@ -181,6 +181,16 @@ pub async fn media_command(
     session_id: Option<String>,
     hub: State<'_, MediaHub>,
 ) -> Result<bool, String> {
+    run_command(&hub, target.as_deref(), command, session_id).await
+}
+
+/// Shared by the frontend command and plugin processes granted a media target.
+pub(crate) async fn run_command(
+    hub: &MediaHub,
+    target: Option<&str>,
+    command: String,
+    session_id: Option<String>,
+) -> Result<bool, String> {
     // Read/modify commands (shuffle toggle and repeat cycle) must not overlap.
     let _command = hub.commands.lock().await;
     let result = match session_id {
@@ -188,7 +198,7 @@ pub async fn media_command(
         None => {
             let result: windows::core::Result<Option<(String, windows::core::Result<bool>)>> =
                 async {
-                    let Some((s, app_id)) = session(target.as_deref()).await? else {
+                    let Some((s, app_id)) = session(target).await? else {
                         return Ok(None);
                     };
                     let sent = transport::operation(&s, &command)?.await;

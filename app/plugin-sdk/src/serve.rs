@@ -1,11 +1,15 @@
-//! The plugin side of the protocol: requests answered concurrently, events, all written through one stdout task.
+//! The plugin side of the protocol: requests answered concurrently, events and calls into the app, all written
+//! through one stdout task.
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use serde::Serialize;
 use serde_json::{Value, json};
 use tokio::io::AsyncWriteExt;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{HELLO, Message, PROTOCOL, decode, encode, read_frame};
 
@@ -30,11 +34,17 @@ pub struct Call {
     pub window: Option<String>,
 }
 
-/// The plugin's output: events and answers share one writer so lines never interleave.
-#[derive(Clone)]
-pub struct Events(mpsc::UnboundedSender<String>);
+type Waiting = Arc<Mutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>;
 
-impl Events {
+/// The plugin's link to the app: events, calls into the app and answers share one writer so lines never interleave.
+#[derive(Clone)]
+pub struct Host {
+    lines: mpsc::UnboundedSender<String>,
+    waiting: Waiting,
+    next_id: Arc<AtomicU64>,
+}
+
+impl Host {
     /// Starts the stdout writer; needs a running tokio runtime.
     pub fn connect() -> Self {
         let (lines, mut queue) = mpsc::unbounded_channel::<String>();
@@ -47,7 +57,11 @@ impl Events {
                 }
             }
         });
-        Self(lines)
+        Self {
+            lines,
+            waiting: Waiting::default(),
+            next_id: Arc::default(),
+        }
     }
 
     /// Reaches the frontend as `plugin://<id>/<name>`. `name` must pass `valid_name`, or the app drops it.
@@ -60,7 +74,37 @@ impl Events {
             data,
         };
         if let Some(line) = encode(&event) {
-            let _ = self.0.send(line);
+            let _ = self.lines.send(line);
+        }
+    }
+
+    /// Asks the app for a service its manifest grants the plugin (`media-command`, `media-shuffle`).
+    pub async fn call(&self, method: &str, params: Value) -> Result<Value, String> {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let request = Message::Request {
+            id,
+            method: method.into(),
+            params,
+            window: None,
+        };
+        let line = encode(&request).ok_or("Request too long")?;
+        let (reply, answer) = oneshot::channel();
+        self.waiting
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id, reply);
+        self.lines.send(line).map_err(|_| "App connection closed")?;
+        answer.await.map_err(|_| "App connection closed")?
+    }
+
+    fn answered(&self, id: u64, outcome: Result<Value, String>) {
+        let waiter = self
+            .waiting
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&id);
+        if let Some(waiter) = waiter {
+            let _ = waiter.send(outcome);
         }
     }
 
@@ -68,14 +112,14 @@ impl Events {
         let line = encode(&Message::response(id, outcome))
             .or_else(|| encode(&Message::response(id, Err("Answer too long".into()))));
         if let Some(line) = line {
-            let _ = self.0.send(line);
+            let _ = self.lines.send(line);
         }
     }
 }
 
 /// Answers requests until the app closes stdin. Each runs as its own task, so a slow one (a sign-in waiting for
 /// the user) holds up no other.
-pub async fn serve<F, Fut>(events: &Events, mut handle: F)
+pub async fn serve<F, Fut>(host: &Host, mut handle: F)
 where
     F: FnMut(Call) -> Fut,
     Fut: Future<Output = Result<Value, String>> + Send + 'static,
@@ -84,7 +128,7 @@ where
     while let Ok(Some(frame)) = read_frame(&mut input).await {
         match decode(&frame) {
             Ok(Message::Request { id, method, .. }) if method == HELLO => {
-                events.answer(id, Ok(json!({ "protocol": PROTOCOL })));
+                host.answer(id, Ok(json!({ "protocol": PROTOCOL })));
             }
             Ok(Message::Request {
                 id,
@@ -97,10 +141,17 @@ where
                     params,
                     window,
                 });
-                let events = events.clone();
-                tokio::spawn(async move { events.answer(id, answer.await) });
+                let host = host.clone();
+                tokio::spawn(async move { host.answer(id, answer.await) });
             }
-            Ok(_) => {}
+            Ok(Message::Response { id, result, error }) => host.answered(
+                id,
+                match error {
+                    Some(error) => Err(error),
+                    None => Ok(result.unwrap_or(Value::Null)),
+                },
+            ),
+            Ok(Message::Event { .. }) => {}
             Err(error) => eprintln!("Ignored a malformed request: {error}"),
         }
     }

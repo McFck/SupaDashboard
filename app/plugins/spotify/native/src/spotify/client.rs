@@ -2,17 +2,17 @@ use super::{
     Command, Message, Operation, SpotifyHub, api, auth, shuffle,
     store::{Credentials, Store},
 };
-use crate::http;
+use plugin_sdk::http;
 use serde_json::{Value, json};
+use std::sync::Arc;
 use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
-use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
 struct Client {
-    app: AppHandle,
+    hub: Arc<SpotifyHub>,
     generation: u64,
     store: Store,
     player: api::Player,
@@ -21,7 +21,7 @@ struct Client {
 }
 
 pub(super) async fn run(
-    app: AppHandle,
+    hub: Arc<SpotifyHub>,
     generation: u64,
     path: PathBuf,
     mut receiver: mpsc::Receiver<Message>,
@@ -29,11 +29,7 @@ pub(super) async fn run(
     let store = match Store::open(path) {
         Ok(store) => store,
         Err(error) => {
-            app.state::<SpotifyHub>().publish(
-                &app,
-                generation,
-                json!({"state":"needsAuth", "error":error}),
-            );
+            hub.publish(generation, json!({"state":"needsAuth", "error":error}));
             while let Some(message) = receiver.recv().await {
                 let _ = message
                     .reply
@@ -43,7 +39,7 @@ pub(super) async fn run(
         }
     };
     let mut client = Client {
-        app,
+        hub,
         generation,
         store,
         player: api::Player::default(),
@@ -73,9 +69,7 @@ impl Client {
         } else {
             json!({"state":"needsAuth", "error":error})
         };
-        self.app
-            .state::<SpotifyHub>()
-            .publish(&self.app, self.generation, view);
+        self.hub.publish(self.generation, view);
     }
 
     async fn refresh(&mut self) -> Result<(), String> {
@@ -194,12 +188,9 @@ impl Client {
     async fn operation(&mut self, operation: Operation) -> Result<(), String> {
         match operation {
             Operation::Authorize(id) => {
-                self.app.state::<SpotifyHub>().publish(
-                    &self.app,
-                    self.generation,
-                    json!({"state":"connecting"}),
-                );
-                let tokens = auth::authorize(&self.app, &id).await?;
+                self.hub
+                    .publish(self.generation, json!({"state":"connecting"}));
+                let tokens = auth::authorize(&id).await?;
                 let response = http::send(
                     "GET",
                     "https://api.spotify.com/v1/me",
@@ -227,7 +218,7 @@ impl Client {
             Operation::Shuffle(mode) => {
                 let result = self.shuffle(mode).await;
                 if let Err(error) = &result {
-                    log::warn!("Spotify shuffle failed: {error}");
+                    eprintln!("Spotify shuffle failed: {error}");
                 }
                 result
             }
@@ -236,7 +227,7 @@ impl Client {
 
     async fn shuffle(&mut self, mode: shuffle::Mode) -> Result<(), String> {
         if self.store.credentials.tokens.is_none() {
-            return shuffle::native(mode, &self.app.state()).await;
+            return self.player_command(mode.media_command()).await;
         }
         let current = self.read_player().await?.ok_or("Spotify isn't playing")?;
         let enabled = mode.enabled(current);
@@ -257,13 +248,13 @@ impl Client {
         } else {
             shuffle::Mode::Off
         };
-        match shuffle::native(explicit, &self.app.state()).await {
+        match self.player_command(explicit.media_command()).await {
             Ok(()) => match self.confirm_shuffle(enabled).await {
                 Ok(()) => return Ok(()),
-                Err(error) => log::warn!("{error}; using Spotify Web API shuffle"),
+                Err(error) => eprintln!("{error}; using Spotify Web API shuffle"),
             },
             Err(error) => {
-                log::warn!("{error}; using Spotify Web API shuffle");
+                eprintln!("{error}; using Spotify Web API shuffle");
             }
         }
         // An HTTP success only acknowledges the command; publish observations, never its target.
@@ -284,6 +275,19 @@ impl Client {
         }
     }
 
+    /// A transport command for the Spotify session through the app, which owns the Windows media sessions.
+    async fn player_command(&self, command: &str) -> Result<(), String> {
+        let sent = self
+            .hub
+            .host
+            .call("media-command", json!({ "command": command }))
+            .await?;
+        if sent != Value::Bool(true) {
+            return Err("Spotify isn't playing".into());
+        }
+        Ok(())
+    }
+
     async fn command(&mut self, command: Command) -> Result<(), String> {
         let response = self.request("GET", "/me/player/currently-playing").await?;
         if response.status == 204 {
@@ -302,16 +306,7 @@ impl Client {
         self.player.uri = Some(uri);
         self.liked = Some(matches!(command, Command::Like));
         if matches!(command, Command::Dislike) {
-            let sent = crate::media::media_command(
-                Some("spotify".into()),
-                "next".into(),
-                None,
-                self.app.state(),
-            )
-            .await?;
-            if !sent {
-                return Err("Spotify isn't playing".into());
-            }
+            self.player_command("next").await?;
         }
         Ok(())
     }

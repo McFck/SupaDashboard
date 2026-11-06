@@ -20,6 +20,9 @@ pub struct Manifest {
     /// Files and folders the in-app version kept in the app data root, moved once into the plugin's data folder.
     #[serde(default)]
     pub migrate: Vec<String>,
+    /// The media session app the plugin may send transport commands to (matched like a media target).
+    #[serde(default)]
+    pub media: Option<String>,
 }
 
 fn valid_id(id: &str) -> bool {
@@ -72,6 +75,13 @@ impl Manifest {
             .all(|w| WINDOWS.contains(&w.as_str()))
         {
             return Err("Unknown window in plugin permissions".into());
+        }
+        if manifest
+            .media
+            .as_deref()
+            .is_some_and(|target| !valid_id(target))
+        {
+            return Err("Invalid media target".into());
         }
         if !manifest.migrate.iter().all(|name| valid_file_name(name)) {
             return Err("Invalid migrated file name".into());

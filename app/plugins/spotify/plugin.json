@@ -4,6 +4,17 @@
   "protocol": 1,
   "exe": "supadashboard-spotify.exe",
   "windows": ["main", "panel"],
-  "methods": ["lyrics-get", "lyrics-offset-get", "lyrics-offset-set"],
-  "migrate": ["lyrics", "lyrics-offsets.json"]
+  "methods": [
+    "subscribe",
+    "unsubscribe",
+    "authorize",
+    "logout",
+    "command",
+    "shuffle",
+    "lyrics-get",
+    "lyrics-offset-get",
+    "lyrics-offset-set"
+  ],
+  "migrate": ["spotify.json", "lyrics", "lyrics-offsets.json"],
+  "media": "spotify"
 }

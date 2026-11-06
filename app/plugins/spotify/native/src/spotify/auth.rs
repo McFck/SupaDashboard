@@ -1,8 +1,6 @@
-use crate::{http, secure};
+use plugin_sdk::{http, secure};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tauri::AppHandle;
-use tauri_plugin_opener::OpenerExt;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -173,7 +171,7 @@ pub fn callback(request: &str, state: &str) -> Result<String, String> {
         .ok_or("Invalid Spotify authorization code".into())
 }
 
-pub async fn authorize(app: &AppHandle, id: &str) -> Result<Tokens, String> {
+pub async fn authorize(id: &str) -> Result<Tokens, String> {
     let listener = TcpListener::bind("127.0.0.1:43821")
         .await
         .map_err(|_| "Spotify callback port is busy")?;
@@ -191,9 +189,7 @@ pub async fn authorize(app: &AppHandle, id: &str) -> Result<Tokens, String> {
             ("scope", SCOPES)
         ])
     );
-    app.opener()
-        .open_url(url, None::<&str>)
-        .map_err(|_| "Could not open Spotify consent")?;
+    plugin_sdk::open(&url).map_err(|_| "Could not open Spotify consent")?;
     tokio::time::timeout(Duration::from_secs(300), async {
         let code = receive_callback(listener, &state).await?;
         exchange(

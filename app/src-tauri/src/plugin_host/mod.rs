@@ -1,5 +1,6 @@
 //! Plugin host: each plugin's native part runs as its own process, started while the plugin is enabled.
 //! The frontend reaches it only through `plugin_call`; its events arrive as `plugin://<id>/<event>`.
+mod host_api;
 mod job;
 mod manifest;
 mod migrate;

@@ -12,11 +12,10 @@ mod media;
 mod monitors;
 mod panel;
 mod plugin_host;
-mod spotify;
 mod tray;
 
-// The in-app plugins still use the helpers that moved into the plugin SDK until they become plugin processes.
-use plugin_sdk::{http, secure};
+// The in-app Work module still uses the http helper that moved into the plugin SDK.
+use plugin_sdk::http;
 use tauri::{Manager, WindowEvent};
 
 pub fn run() {
@@ -52,7 +51,6 @@ pub fn run() {
             );
             app.manage(apps::watch::AppsHub::default());
             app.manage(work::Work::default());
-            app.manage(spotify::SpotifyHub::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
@@ -75,9 +73,6 @@ pub fn run() {
                 window
                     .state::<plugin_host::PluginHost>()
                     .window_closed(window.label());
-                window
-                    .state::<spotify::SpotifyHub>()
-                    .unsubscribe(window.label());
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -116,12 +111,6 @@ pub fn run() {
             work::work_call_state,
             work::work_call,
             work::work_join,
-            spotify::spotify_subscribe,
-            spotify::spotify_unsubscribe,
-            spotify::spotify_authorize,
-            spotify::spotify_logout,
-            spotify::spotify_command,
-            spotify::shuffle::spotify_shuffle,
         ])
         .run(context)
         .expect("error while building tauri application");

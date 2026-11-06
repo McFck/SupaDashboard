@@ -1,5 +1,5 @@
 use super::auth::{Tokens, valid_id, valid_tokens};
-use crate::secure;
+use plugin_sdk::secure;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,

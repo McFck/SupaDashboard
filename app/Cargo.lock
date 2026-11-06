@@ -2588,6 +2588,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "plugin-work"
+version = "1.0.0"
+dependencies = [
+ "plugin-sdk",
+ "serde",
+ "serde_json",
+ "tao",
+ "tokio",
+ "url",
+ "windows",
+ "wry",
+]
+
+[[package]]
 name = "plugin-sdk"
 version = "0.1.0"
 dependencies = [

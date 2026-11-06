@@ -9,6 +9,8 @@ rust-version = "1.90"
 [features]
 # HTTPS through WinRT's HttpClient, bounded and without redirects.
 http = ["dep:windows", "dep:windows-future", "tokio/time", "windows/Foundation", "windows/Storage_Streams", "windows/Web_Http", "windows/Web_Http_Headers", "windows/Web_Http_Filters"]
+# ShellExecute for consent pages and app links.
+open = ["dep:windows", "windows/Win32_UI_Shell", "windows/Win32_UI_WindowsAndMessaging"]
 # DPAPI for credential stores and the PKCE verifier for OAuth sign-ins.
 secure = ["dep:windows", "windows/Security_Cryptography", "windows/Security_Cryptography_Core", "windows/Win32_Foundation", "windows/Win32_Security_Cryptography"]
 

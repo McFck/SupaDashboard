@@ -10,7 +10,7 @@ mod rpc;
 mod store;
 mod voice;
 
-use plugin_sdk::{Call, Events, WINDOW_CLOSED, answer};
+use plugin_sdk::{Call, Host, WINDOW_CLOSED, answer};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -54,7 +54,7 @@ struct Inner {
 pub struct DiscordHub {
     inner: Mutex<Inner>,
     worker: Arc<tokio::sync::Mutex<()>>,
-    events: Events,
+    host: Host,
 }
 
 impl DiscordHub {
@@ -103,7 +103,7 @@ impl DiscordHub {
         };
         if inner.running.is_some() && inner.generation == generation {
             // The app delivers it to the dashboard and panel only, never to embedded content webviews.
-            self.events.emit("state", &view);
+            self.host.emit("state", &view);
             inner.latest = Some(view);
         }
     }
@@ -183,11 +183,11 @@ async fn handle(hub: Arc<DiscordHub>, call: Call) -> Result<Value, String> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let events = Events::connect();
+    let host = Host::connect();
     let hub = Arc::new(DiscordHub {
         inner: Mutex::default(),
         worker: Arc::default(),
-        events: events.clone(),
+        host: host.clone(),
     });
-    plugin_sdk::serve(&events, |call| handle(hub.clone(), call)).await;
+    plugin_sdk::serve(&host, |call| handle(hub.clone(), call)).await;
 }

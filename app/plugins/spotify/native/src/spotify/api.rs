@@ -1,4 +1,4 @@
-use crate::http;
+use plugin_sdk::http;
 use serde::Deserialize;
 
 #[derive(Debug, PartialEq)]

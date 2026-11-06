@@ -1,18 +1,21 @@
-//! Spotify plugin host. Holds the song lyrics: LRCLIB lookups, their cache and the per-song sync offsets.
+//! Spotify plugin host: the Web API connection (sign-in, liked state, like/dislike, shuffle) and the song lyrics
+//! (LRCLIB lookups, their cache and the per-song sync offsets).
 // No console window: the app talks to this process over pipes only.
 #![windows_subsystem = "windows"]
 mod lyrics;
+mod spotify;
 
 use std::sync::Arc;
 
-use plugin_sdk::{Call, Events, answer};
+use plugin_sdk::{Call, Host, answer};
 use serde::Deserialize;
 use serde_json::Value;
 
 use lyrics::{LyricsHub, LyricsOffsets, Track};
+use spotify::SpotifyHub;
 
-#[derive(Default)]
 struct Plugin {
+    spotify: Arc<SpotifyHub>,
     lyrics: LyricsHub,
     offsets: LyricsOffsets,
 }
@@ -36,7 +39,12 @@ fn track(params: Value) -> Result<(Track, i64), String> {
     ))
 }
 
-async fn handle(plugin: Arc<Plugin>, Call { method, params, .. }: Call) -> Result<Value, String> {
+async fn handle(plugin: Arc<Plugin>, call: Call) -> Result<Value, String> {
+    let Call {
+        method,
+        params,
+        window,
+    } = call;
     match method.as_str() {
         "lyrics-get" => answer(plugin.lyrics.get(track(params)?.0).await),
         "lyrics-offset-get" => answer(plugin.offsets.get(&track(params)?.0)),
@@ -44,12 +52,22 @@ async fn handle(plugin: Arc<Plugin>, Call { method, params, .. }: Call) -> Resul
             let (track, offset_ms) = track(params)?;
             answer(plugin.offsets.set(&track, offset_ms))
         }
-        _ => Err(format!("Unknown method {method}")),
+        _ => {
+            let window = window.as_deref().unwrap_or_default();
+            spotify::handle(&plugin.spotify, &method, params, window)
+                .await
+                .unwrap_or_else(|| Err(format!("Unknown method {method}")))
+        }
     }
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let plugin = Arc::new(Plugin::default());
-    plugin_sdk::serve(&Events::connect(), |call| handle(plugin.clone(), call)).await;
+    let host = Host::connect();
+    let plugin = Arc::new(Plugin {
+        spotify: Arc::new(SpotifyHub::new(host.clone())),
+        lyrics: LyricsHub::default(),
+        offsets: LyricsOffsets::default(),
+    });
+    plugin_sdk::serve(&host, |call| handle(plugin.clone(), call)).await;
 }

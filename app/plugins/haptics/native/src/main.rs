@@ -5,7 +5,7 @@ mod adb;
 mod limiter;
 mod service;
 
-use plugin_sdk::{Call, Events};
+use plugin_sdk::{Call, Host};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -99,5 +99,5 @@ async fn handle(haptics: Haptics, Call { method, params, .. }: Call) -> Result<V
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let haptics = Haptics::start();
-    plugin_sdk::serve(&Events::connect(), |call| handle(haptics.clone(), call)).await;
+    plugin_sdk::serve(&Host::connect(), |call| handle(haptics.clone(), call)).await;
 }

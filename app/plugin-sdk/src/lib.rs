@@ -6,11 +6,15 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt};
 
 #[cfg(feature = "http")]
 pub mod http;
+#[cfg(feature = "open")]
+mod open;
 #[cfg(feature = "secure")]
 pub mod secure;
 mod serve;
 
-pub use serve::{Call, DATA_DIR_VAR, Events, answer, data_dir, serve};
+#[cfg(feature = "open")]
+pub use open::open;
+pub use serve::{Call, DATA_DIR_VAR, Host, answer, data_dir, serve};
 
 /// Bumped on any incompatible change; the app refuses a plugin that answers the handshake with another.
 pub const PROTOCOL: u32 = 1;

@@ -28,7 +28,11 @@ describe('Spotify trust boundaries', () => {
       await expect(spotifyTransport(`shuffle:${mode}`)).rejects.toEqual(
         new ActionFailure('native failure'),
       );
-      expect(invoke).toHaveBeenLastCalledWith('spotify_shuffle', { mode });
+      expect(invoke).toHaveBeenLastCalledWith('plugin_call', {
+        plugin: 'spotify',
+        method: 'shuffle',
+        params: { mode },
+      });
     }
     vi.mocked(invoke).mockRejectedValueOnce('Turn off smart shuffle in Spotify');
     await expect(spotifyTransport('shuffle:toggle')).rejects.toEqual(

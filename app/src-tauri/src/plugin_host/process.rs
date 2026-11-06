@@ -13,8 +13,8 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::timeout;
 use windows::Win32::Foundation::HANDLE;
 
-use super::Plugin;
 use super::job::Job;
+use super::{Plugin, host_api};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const HANDSHAKE: Duration = Duration::from_secs(5);
@@ -74,9 +74,11 @@ impl Process {
             return Err(failed(&"no pipes"));
         };
         let pending = Pending(Arc::new(Mutex::new(Some(HashMap::new()))));
+        let input = write_requests(stdin);
         read_answers(
             plugin.clone(),
             stdout,
+            &input,
             pending.clone(),
             app.clone(),
             on_exit,
@@ -84,7 +86,7 @@ impl Process {
         read_log(id, stderr);
         let mut process = Self {
             child,
-            input: write_requests(stdin),
+            input,
             pending,
             next_id: 0,
             started: Instant::now(),
@@ -153,10 +155,12 @@ fn write_requests(mut stdin: ChildStdin) -> mpsc::UnboundedSender<String> {
 fn read_answers(
     plugin: Arc<Plugin>,
     stdout: ChildStdout,
+    input: &mpsc::UnboundedSender<String>,
     pending: Pending,
     app: AppHandle,
     on_exit: impl FnOnce() + Send + 'static,
 ) {
+    let input = input.clone();
     tauri::async_runtime::spawn(async move {
         let id = &plugin.manifest.id;
         let mut output = BufReader::new(stdout);
@@ -183,7 +187,21 @@ fn read_answers(
                         let _ = app.emit_to(window.as_str(), &event, &data);
                     }
                 }
-                Ok(Message::Request { .. }) | Err(_) => {
+                Ok(Message::Request {
+                    id: request,
+                    method,
+                    params,
+                    ..
+                }) => {
+                    let (plugin, app, input) = (plugin.clone(), app.clone(), input.clone());
+                    tauri::async_runtime::spawn(async move {
+                        let outcome = host_api::handle(&app, &plugin, &method, params).await;
+                        if let Some(line) = encode(&Message::response(request, outcome)) {
+                            let _ = input.send(line);
+                        }
+                    });
+                }
+                Err(_) => {
                     log::warn!("Plugin {id} sent an invalid message");
                 }
             }
