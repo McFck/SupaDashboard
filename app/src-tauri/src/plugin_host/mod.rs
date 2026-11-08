@@ -5,6 +5,7 @@ mod job;
 mod manifest;
 mod migrate;
 mod process;
+pub mod protocol;
 mod restarts;
 mod supervisor;
 
@@ -17,6 +18,7 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 use job::Job;
 use manifest::Manifest;
+use protocol::Ui;
 use supervisor::Supervisor;
 
 pub struct Plugin {
@@ -26,6 +28,7 @@ pub struct Plugin {
     data: PathBuf,
     /// The app data root, where the in-app version kept the files listed in `migrate`.
     legacy: PathBuf,
+    ui: Option<Ui>,
 }
 
 pub struct PluginHost {
@@ -48,14 +51,15 @@ impl PluginHost {
                     continue;
                 }
                 match load(&folder) {
-                    Ok(manifest) if plugins.contains_key(&manifest.id) => {
+                    Ok((manifest, _)) if plugins.contains_key(&manifest.id) => {
                         log::warn!("Plugin {} is installed twice", manifest.id);
                     }
-                    Ok(manifest) => {
+                    Ok((manifest, ui)) => {
                         let plugin = Arc::new(Plugin {
                             exe: folder.join(&manifest.exe),
                             data: legacy.join("plugin-data").join(&manifest.id),
                             legacy: legacy.clone(),
+                            ui,
                             manifest,
                         });
                         let supervisor = Supervisor::new(plugin.clone(), job.clone(), app.clone());
@@ -74,9 +78,13 @@ impl PluginHost {
             supervisor.window_closed(window);
         }
     }
+
+    fn ui(&self, id: &str) -> Option<&Ui> {
+        self.plugins.get(id)?.0.ui.as_ref()
+    }
 }
 
-fn load(folder: &Path) -> Result<Manifest, String> {
+fn load(folder: &Path) -> Result<(Manifest, Option<Ui>), String> {
     let name = folder
         .file_name()
         .and_then(|name| name.to_str())
@@ -86,7 +94,28 @@ fn load(folder: &Path) -> Result<Manifest, String> {
     if !folder.join(&manifest.exe).is_file() {
         return Err(format!("{} is missing", manifest.exe));
     }
-    Ok(manifest)
+    let ui = manifest.api.map(|_| Ui::read(folder)).transpose()?;
+    Ok((manifest, ui))
+}
+
+#[derive(serde::Serialize)]
+pub struct Listed {
+    id: String,
+    api: u32,
+}
+
+/// The plugins with a UI for the frontend to load; `load` read the UI of every plugin that declares an API.
+#[tauri::command]
+pub fn plugin_list(host: State<'_, PluginHost>) -> Vec<Listed> {
+    host.plugins
+        .values()
+        .filter_map(|(plugin, _)| {
+            Some(Listed {
+                id: plugin.manifest.id.clone(),
+                api: plugin.manifest.api?,
+            })
+        })
+        .collect()
 }
 
 #[tauri::command]

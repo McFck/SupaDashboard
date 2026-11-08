@@ -24,6 +24,9 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .register_uri_scheme_protocol("plugin", |context, request| {
+            plugin_host::protocol::serve(context.app_handle(), &request)
+        })
         .setup(|app| {
             #[cfg(debug_assertions)]
             dev_data::seed(app.handle()).map_err(std::io::Error::other)?;
@@ -91,6 +94,7 @@ pub fn run() {
             audio::service::audio_snapshot,
             audio::service::audio_update,
             plugin_host::plugin_call,
+            plugin_host::plugin_list,
             plugin_host::plugin_set_enabled,
             apps::apps_list,
             apps::apps_icon,

@@ -23,6 +23,9 @@ pub struct Manifest {
     /// The media session app the plugin may send transport commands to (matched like a media target).
     #[serde(default)]
     pub media: Option<String>,
+    /// The plugin UI API (`PLUGIN_API` in plugin-kit.ts) of `ui/index.js` and `ui/index.css`; none without a UI.
+    #[serde(default)]
+    pub api: Option<u32>,
 }
 
 fn valid_id(id: &str) -> bool {

@@ -3,6 +3,7 @@ import { mount, tick } from 'svelte';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { install, installEnabled } from '../features/plugins/registry';
+import { loadExternalPlugins } from '../features/plugins/external/load';
 import { redo, startHistory, undo } from '../features/layout/history.svelte';
 import { loadSettings } from '../features/settings/persistence.svelte';
 import { startAppIcons } from '../features/apps/icons.svelte';
@@ -68,11 +69,15 @@ async function panelGeneration() {
 }
 
 async function installPlugins() {
+  const external = await loadExternalPlugins().catch((error) => {
+    console.warn('external plugins', error);
+    return [];
+  });
   try {
-    await installEnabled(...BUNDLED_PLUGINS);
+    await installEnabled(...BUNDLED_PLUGINS, ...external);
   } catch (error) {
     console.warn('plugins', error);
-    install(...BUNDLED_PLUGINS);
+    install(...BUNDLED_PLUGINS, ...external);
   }
 }
 

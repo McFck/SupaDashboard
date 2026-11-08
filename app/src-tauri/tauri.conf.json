@@ -33,7 +33,8 @@
       "csp": {
         "frame-src": "https: http://localhost:*",
         "img-src": "'self' http://asset.localhost https: http: data:",
-        "media-src": "'self' http://asset.localhost https: http:"
+        "media-src": "'self' http://asset.localhost https: http:",
+        "script-src": "'self' http://plugin.localhost"
       }
     }
   },

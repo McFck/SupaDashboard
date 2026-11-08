@@ -1,0 +1,4 @@
+/* Tailwind for a plugin UI: utilities against the app's theme, without preflight or theme variables, which the app
+   already provides. A plugin's stylesheet starts with `@import '<this file>';`. */
+@reference '../src/app.css';
+@import 'tailwindcss/utilities.css' layer(utilities);
