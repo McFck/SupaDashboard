@@ -334,10 +334,7 @@ export function upgrade(input: Record<string, unknown>) {
     saved = { ...saved, version: 19 };
   }
   if (saved.version === 19) {
-    // v20: the Meet call variables moved from `work.*` to `meet.*`; bindings, conditions and labels follow.
-    for (const control of rawControls) {
-      Object.assign(control, renameMeetVariables(control));
-    }
+    // v20 renamed variables of a plugin that is no longer part of the app; its users' settings are past v20.
     saved = { ...saved, version: 20 };
   }
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {
@@ -345,24 +342,6 @@ export function upgrade(input: Record<string, unknown>) {
   }
 
   return { saved, rawControls };
-}
-
-const MEET_VARIABLE = /\bwork\.(inCall|micOn|cameraOn)\b/g;
-
-/** v20: every string in a control that names an old Meet variable, wherever it sits (binding, operand, expression). */
-function renameMeetVariables(value: unknown): unknown {
-  if (typeof value === 'string') {
-    return value.replace(MEET_VARIABLE, 'meet.$1');
-  }
-  if (Array.isArray(value)) {
-    return value.map(renameMeetVariables);
-  }
-  if (isRecord(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, renameMeetVariables(entry)]),
-    );
-  }
-  return value;
 }
 
 /** v8: the global `skin` became `Page.applet`, and applet settings gained a shared/per-page scope. */

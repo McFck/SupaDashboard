@@ -1,4 +1,4 @@
-//! Opens a URL with the user's default handler (browser, or the app registered for a scheme like `meet:`).
+//! Opens a URL with the user's default handler (browser, or the app registered for a scheme like `mailto:`).
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows::core::{HSTRING, w};
