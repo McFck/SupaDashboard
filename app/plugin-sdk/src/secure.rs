@@ -9,7 +9,10 @@ use windows::Security::Cryptography::{Core::HashAlgorithmProvider, Cryptographic
 use windows::Storage::Streams::IBuffer;
 use windows::Win32::Foundation::{HLOCAL, LocalFree};
 use windows::Win32::Security::Cryptography::{
-    CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData,
+    BCRYPT_ECCPUBLIC_BLOB, BCRYPT_ECDSA_P256_ALG_HANDLE, BCRYPT_ECDSA_PUBLIC_P256_MAGIC,
+    BCRYPT_FLAGS, BCRYPT_KEY_HANDLE, BCRYPT_SHA256_ALG_HANDLE, BCryptDestroyKey, BCryptHash,
+    BCryptImportKeyPair, BCryptVerifySignature, CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN,
+    CryptProtectData, CryptUnprotectData,
 };
 use windows::Win32::Storage::FileSystem::{
     MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
@@ -194,6 +197,53 @@ pub fn sha256_hex(bytes: &[u8]) -> Result<String, String> {
         .and_then(|hash| CryptographicBuffer::EncodeToHexString(&hash))
         .map(|hex| hex.to_string())
         .map_err(|_| "Could not hash".into())
+}
+
+/// ECDSA P-256 with SHA-256 through CNG. `public` is the uncompressed point (0x04, X, Y); `signature` is base64 of
+/// the 64-byte r || s form (Node's `dsaEncoding: 'ieee-p1363'`), surrounding whitespace allowed. Anything
+/// malformed is simply not a valid signature.
+pub fn verify_p256(public: &[u8; 65], message: &[u8], signature: &[u8]) -> bool {
+    let Some(signature) = std::str::from_utf8(signature)
+        .ok()
+        .and_then(|text| {
+            CryptographicBuffer::DecodeFromBase64String(&HSTRING::from(text.trim())).ok()
+        })
+        .and_then(|buffer| {
+            let mut bytes = windows::core::Array::new();
+            CryptographicBuffer::CopyToByteArray(&buffer, &mut bytes).ok()?;
+            Some(bytes.to_vec())
+        })
+    else {
+        return false;
+    };
+    if signature.len() != 64 || public[0] != 4 {
+        return false;
+    }
+    let mut blob = Vec::with_capacity(72);
+    blob.extend(BCRYPT_ECDSA_PUBLIC_P256_MAGIC.to_le_bytes());
+    blob.extend(32u32.to_le_bytes());
+    blob.extend(&public[1..]);
+    let mut hash = [0u8; 32];
+    let mut key = BCRYPT_KEY_HANDLE::default();
+    // SAFETY: every buffer outlives its call; the key handle is destroyed once imported.
+    unsafe {
+        if BCryptHash(BCRYPT_SHA256_ALG_HANDLE, None, message, &mut hash).is_err()
+            || BCryptImportKeyPair(
+                BCRYPT_ECDSA_P256_ALG_HANDLE,
+                None,
+                BCRYPT_ECCPUBLIC_BLOB,
+                &mut key,
+                &blob,
+                0,
+            )
+            .is_err()
+        {
+            return false;
+        }
+        let valid = BCryptVerifySignature(key, None, &hash, &signature, BCRYPT_FLAGS(0)).is_ok();
+        let _ = BCryptDestroyKey(key);
+        valid
+    }
 }
 
 pub fn pkce() -> Result<(String, String), String> {

@@ -23,17 +23,31 @@ declare global {
 const ORIGIN = 'http://plugin.localhost';
 const ID = /^[a-z0-9-]{1,64}$/;
 
-/** `plugin_list` entries: plugins with a UI, by folder id. */
-export function listedPlugins(raw: unknown): { id: string; api: number }[] {
+/** A discovered plugin: `api` is null without a UI bundle, `size` in bytes, `updated` in Unix milliseconds. */
+interface NativePlugin {
+  id: string;
+  version: string;
+  api: number | null;
+  trust: 'verified' | 'unverified';
+  size: number;
+  updated: number;
+}
+
+/** `plugin_list` entries, by folder id. */
+export function listedPlugins(raw: unknown): NativePlugin[] {
   if (!Array.isArray(raw)) {
     throw new Error('Invalid plugin list');
   }
   return raw.filter(
-    (entry): entry is { id: string; api: number } =>
+    (entry): entry is NativePlugin =>
       isRecord(entry) &&
       typeof entry.id === 'string' &&
       ID.test(entry.id) &&
-      Number.isSafeInteger(entry.api),
+      typeof entry.version === 'string' &&
+      (entry.api === null || Number.isSafeInteger(entry.api)) &&
+      (entry.trust === 'verified' || entry.trust === 'unverified') &&
+      Number.isSafeInteger(entry.size) &&
+      Number.isSafeInteger(entry.updated),
   );
 }
 
@@ -97,6 +111,9 @@ export async function loadExternalPlugins() {
   };
   const loaded: Plugin[] = [];
   for (const { id, api } of listedPlugins(await invoke('plugin_list'))) {
+    if (api === null) {
+      continue;
+    }
     if (api !== kit.PLUGIN_API) {
       console.warn(`Plugin ${id} needs plugin API ${api}`);
       continue;

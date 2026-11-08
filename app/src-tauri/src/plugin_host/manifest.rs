@@ -11,8 +11,9 @@ pub struct Manifest {
     pub id: String,
     pub version: String,
     pub protocol: u32,
-    /// File name of the plugin host executable inside the plugin folder.
-    pub exe: String,
+    /// File name of the plugin host executable inside the plugin folder; none for a plugin with only a UI.
+    #[serde(default)]
+    pub exe: Option<String>,
     /// Windows allowed to call the plugin; stateful plugins list only the dashboard owner, `main`.
     pub windows: Vec<String>,
     /// Methods the frontend may call.
@@ -28,7 +29,7 @@ pub struct Manifest {
     pub api: Option<u32>,
 }
 
-fn valid_id(id: &str) -> bool {
+pub(super) fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
         && id
@@ -37,7 +38,7 @@ fn valid_id(id: &str) -> bool {
 }
 
 /// A bare file or folder name: no separators, no `..`, no drive.
-fn valid_file_name(name: &str) -> bool {
+pub(super) fn valid_file_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 64
         && !name.starts_with('.')
@@ -48,6 +49,11 @@ fn valid_file_name(name: &str) -> bool {
 
 fn valid_exe(exe: &str) -> bool {
     valid_file_name(exe) && exe.len() > 4 && exe.ends_with(".exe")
+}
+
+/// A file a plugin folder may hold: a bare name or `ui/<bare name>`.
+pub(super) fn valid_path(path: &str) -> bool {
+    valid_file_name(path.strip_prefix("ui/").unwrap_or(path))
 }
 
 impl Manifest {
@@ -66,8 +72,11 @@ impl Manifest {
                 manifest.protocol
             ));
         }
-        if !valid_exe(&manifest.exe) {
+        if manifest.exe.as_deref().is_some_and(|exe| !valid_exe(exe)) {
             return Err(format!("Invalid plugin executable {:?}", manifest.exe));
+        }
+        if manifest.exe.is_none() && manifest.api.is_none() {
+            return Err("Plugin has neither an executable nor a UI".into());
         }
         if manifest.version.is_empty() || manifest.version.len() > 32 {
             return Err("Invalid plugin version".into());
@@ -141,5 +150,9 @@ mod tests {
         assert!(Manifest::parse(&hello, "haptics").is_err());
         let old = manifest("haptics.exe", "").replace(r#""protocol":1"#, r#""protocol":0"#);
         assert!(Manifest::parse(&old, "haptics").is_err());
+        let bare = manifest("haptics.exe", "").replace(r#""exe":"haptics.exe","#, "");
+        assert!(Manifest::parse(&bare, "haptics").is_err());
+        let ui_only = Manifest::parse(&bare.replace('}', r#","api":1}"#), "haptics").unwrap();
+        assert_eq!(ui_only.exe, None);
     }
 }

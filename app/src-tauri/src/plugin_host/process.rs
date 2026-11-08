@@ -52,11 +52,11 @@ impl Process {
     ) -> Result<Self, String> {
         let id = &plugin.manifest.id;
         let failed = |error: &dyn std::fmt::Display| format!("Plugin {id} did not start: {error}");
-        let mut command = Command::new(&plugin.exe);
-        if let Some(folder) = plugin.exe.parent() {
-            command.current_dir(folder);
-        }
-        let mut child = command
+        let Some(exe) = &plugin.manifest.exe else {
+            return Err(failed(&"no executable"));
+        };
+        let mut child = Command::new(plugin.folder.join(exe))
+            .current_dir(&plugin.folder)
             .env(DATA_DIR_VAR, &plugin.data)
             .creation_flags(CREATE_NO_WINDOW)
             .stdin(Stdio::piped())

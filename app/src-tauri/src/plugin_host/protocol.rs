@@ -23,25 +23,31 @@ impl Ui {
             style: read("index.css")?,
         })
     }
+
+    /// The bytes served for `path`; the release check hashes these, so what runs is what was checked.
+    pub fn file(&self, path: &str) -> Option<&[u8]> {
+        match path {
+            "ui/index.js" => Some(&self.script),
+            "ui/index.css" => Some(&self.style),
+            _ => None,
+        }
+    }
 }
 
 pub fn serve(app: &AppHandle, request: &Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
     let mut parts = request.uri().path().trim_start_matches('/').splitn(2, '/');
     let (id, file) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
-    let host = app.try_state::<PluginHost>();
-    let found = host
-        .as_ref()
-        .and_then(|host| host.ui(id))
-        .and_then(|ui| match file {
-            "ui/index.js" => Some((&ui.script, "text/javascript")),
-            "ui/index.css" => Some((&ui.style, "text/css")),
-            _ => None,
-        });
+    let found = app
+        .try_state::<PluginHost>()
+        .and_then(|host| host.ui_file(id, file));
+    let kind = if file.ends_with(".js") {
+        "text/javascript"
+    } else {
+        "text/css"
+    };
     let response = Response::builder();
     match found {
-        Some((bytes, kind)) => response
-            .header(CONTENT_TYPE, kind)
-            .body(bytes.clone().into()),
+        Some(bytes) => response.header(CONTENT_TYPE, kind).body(bytes.into()),
         None => response
             .status(StatusCode::NOT_FOUND)
             .body(Cow::Borrowed(&[][..])),

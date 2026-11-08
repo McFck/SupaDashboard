@@ -17,16 +17,21 @@ describe('external plugin boundary', () => {
     }
   });
 
-  it('never builds a plugin URL from a malformed native entry', () => {
+  it('never builds a plugin URL or a trust badge from a malformed native entry', () => {
+    const spike = { id: 'spike', version: '1.0.0', api: 1, trust: 'verified', size: 3, updated: 0 };
+    const native = { ...spike, id: 'haptics', api: null, trust: 'unverified' };
     expect(() => listedPlugins({})).toThrow();
     expect(
       listedPlugins([
-        { id: 'spike', api: 1 },
-        { id: '../x', api: 1 },
-        { id: 'a/b', api: 1 },
-        { id: 'ok', api: '1' },
+        spike,
+        native,
+        { ...spike, id: '../x' },
+        { ...spike, id: 'a/b' },
+        { ...spike, api: '1' },
+        { ...spike, trust: 'tampered' },
+        { ...spike, version: undefined },
         null,
       ]),
-    ).toEqual([{ id: 'spike', api: 1 }]);
+    ).toEqual([spike, native]);
   });
 });

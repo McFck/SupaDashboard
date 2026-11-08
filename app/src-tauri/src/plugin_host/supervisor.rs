@@ -34,6 +34,7 @@ enum Msg {
     Exited(u64),
     Restart(u64),
     Hung(u64),
+    Shutdown(oneshot::Sender<()>),
 }
 
 /// Processes are numbered so a late notice about an old one never touches its successor.
@@ -43,6 +44,7 @@ enum State {
     Waiting(u64),
 }
 
+#[derive(Clone)]
 pub struct Supervisor {
     tx: mpsc::UnboundedSender<Msg>,
 }
@@ -86,6 +88,14 @@ impl Supervisor {
     /// Tells a running plugin that `window` closed; starts nothing.
     pub fn window_closed(&self, window: &str) {
         let _ = self.tx.send(Msg::WindowClosed(window.into()));
+    }
+
+    /// Stops the process for good, before its folder is replaced or removed; later calls fail.
+    pub async fn shutdown(&self) {
+        let (done, stopped) = oneshot::channel();
+        if self.tx.send(Msg::Shutdown(done)).is_ok() {
+            let _ = stopped.await;
+        }
     }
 
     /// Disabling stops the process and refuses calls until enabled again; enabling starts nothing by itself.
@@ -135,6 +145,15 @@ impl Owner {
                         process.stop().await;
                     }
                     let _ = done.send(());
+                }
+                Msg::Shutdown(done) => {
+                    if let State::Running(_, process) =
+                        std::mem::replace(&mut self.state, State::Idle)
+                    {
+                        process.stop().await;
+                    }
+                    let _ = done.send(());
+                    return;
                 }
                 Msg::Exited(generation) => self.exited(generation, "exited"),
                 Msg::Hung(generation) => self.exited(generation, "stopped answering"),
