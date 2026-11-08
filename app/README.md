@@ -1,7 +1,7 @@
 # SupaDashboard app
 
 Tauri 2 (Rust) + Svelte 5 + TypeScript + shadcn-svelte. A customizable dashboard for a second screen
-(e.g. a spacedesk tablet). Applets change the whole look; the subway display is one optional applet.
+(e.g. a spacedesk tablet). Each page can use an applet that changes its whole look; the Subway display is one of them.
 
 ```
 pnpm install
@@ -16,39 +16,37 @@ pnpm tauri build    # installer in target/release/bundle
 
 ```text
 src/
-  main.ts          mount and start-up for both windows
-  app/             Root, the dashboard-owned runtime and its cross-window sync
+  main.ts          entry for both windows
+  app/             start-up, root view, the dashboard-owned runtime and its cross-window sync
   panel/           control-panel shell: navigation, panes, shared panel widgets
   features/
+    applets/       applet definition, scene, input, host and slots
+    apps/          app picker and window actions
     automation/    scenarios, runner, events, variables, expressions; editor/
     controls/      control model, interaction, geometry; ui/ renderers, editor/
     dashboard/     dashboard view and page swipe
     display/       monitor and window geometry
+    effects/       tile effects
     layout/        grid, pages, applet placements, undo; ui/ deck grid and layout page
     media/         content options, visibility, caches, volume
     plugins/       contracts, registry, plugin store; ui/ plugin pages and option pickers
     settings/      schema, migration, reactive state; settings page
-    applets/         applet definition, scene, input, host and slots
-  plugins/         bundled plugins: core, ui, spotify, subway/
+  platform/        Tauri adapters
+  plugins/         bundled plugins: core, ui, spotify, discord, haptics, subway/
   lib/             feature-independent helpers and UI primitives ($lib)
-tests/
-  browser/         executable CDP checks (own Vite + own headless Chrome, never 9223/9224)
-  harnesses/       browser entry pages and fixtures for those checks
 ```
 
-Dependency rules: `features/plugins/contracts.ts` is type-only, so plugins and models import it without starting
-the registry. `lib/` imports no feature code; features import it as `$lib/...`. Unit tests sit beside the code they
-test. The application runtime lives in `app/runtime/`; see the local `docs/architecture.md` for the module map, the
-runtime and window model, and the persistence guarantees.
+`features/plugins/contracts.ts` is type-only, so plugins and models import it without starting the registry.
+`lib/` imports no feature code; features import it as `$lib/...`. Unit tests sit beside the code they test.
 
 ## Windows
 
 - **Dashboard** (`main`): transparent and frameless, only the widgets are drawn. Closing hides it to the tray.
-- **Control panel** (`panel`): opened from the tray icon (left click or menu). Layout editor, strips, applet & display,
-  plugins. Every change is written to the shared settings store and appears on the dashboard instantly.
+- **Control panel** (`panel`): opened from the tray icon (left click or menu), with Layout, Settings, Plugins and
+  Market. Every change is written to the shared settings store and appears on the dashboard at once.
 - **Tray menu**: open control panel, show / hide dashboard, quit.
 
-One frontend bundle serves both; `src/main.ts` picks the view from the window label (`?view=panel` in a plain browser).
+One frontend bundle serves both; the window label picks the view (`?view=panel` in a plain browser).
 
 ## Layout editor
 
@@ -57,30 +55,27 @@ corner handle to resize, and tap an empty spot to add a widget or place an exist
 editor shows that applet's frozen scene and its visible slots as drop zones. Page tabs select stored layouts; the local
 applet view preview does not change the dashboard's active page or view.
 
-Placements are stored per applet and page. Deck's `main` slot uses the existing `deck.pages[pageId].items` array;
-other applet slots use `skinLayouts[appletId][pageId][slotId]`. Slot rules filter widget kinds and sizes before adding or
-moving a placement. Widgets keep the shared control behavior, with optional applet-specific face renderers.
+Placements are stored per applet and page. Deck's `main` slot uses the `deck.pages[pageId].items` array; other applet
+slots use `appletLayouts[appletId][pageId][slotId]`. Slot rules filter widget kinds and sizes before adding or moving a
+placement. Widgets keep the shared control behavior, with optional applet-specific face renderers.
 
-### Applets
-
-Plugins can register applet views, slots, control faces, settings, owner-scoped state and events, quick actions, and page
-navigation. Swipe is the default page navigation; a applet can own it and use the host's `page.prev()` and
-`page.next()` methods for its own controls. The dashboard remains a non-activating surface; native foreground and
-hide/resume behavior needs an isolated Tauri check and is not established by browser validation.
+Plugins can register applets with views, slots, control faces, settings, state, events and quick actions.
 
 ## Pieces
 
 | Piece         | Where                              | What it is                                                                                                                                                                                                                            |
 | ------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Widgets       | `src/features/controls/ui/`        | `button`, `slider` (pill; tall = vertical), `mixer` (several pills: master + apps)                                                                                                                                                    |
-| Layout        | `src/features/layout/grid.ts`      | deck items with x/y/w/h, collision, drop/swap (tested)                                                                                                                                                                                |
+| Widgets       | `src/features/controls/ui/`        | `button`, `slider` (pill; tall = vertical), `mixer` (several pills: master + apps), `media`, `nowPlaying`, `web`                                                                                                                      |
+| Layout        | `src/features/layout/grid.ts`      | deck items with x/y/w/h, collision, drop/swap                                                                                                                                                                                         |
 | Actions       | `src/features/plugins/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, and `open` |
 | Media sources | same                               | where media commands go: core `system` (current Windows player); plugins add more                                                                                                                                                     |
 | Values        | same                               | what a slider controls: `volume {target: "system" \| process name}`                                                                                                                                                                   |
-| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets + applets), `spotify` (media source, icon, mixer icon, `spotify.open`)                                                                                                                                 |
-| Native        | `src-tauri/src/`                   | `audio/` (volume, mixer, media sessions), `dashboard/`, `panel/`, `content/`, `tray.rs`, `monitors.rs`                                                                                                                                |
+| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets), `spotify`, `discord`, `haptics` (Android tablet), `subway`                                                                                                                                           |
+| Native        | `src-tauri/src/`                   | `audio/` (volume, mixer), `media/`, `apps/`, `dashboard/`, `panel/`, `content/`, `plugin_host/`, `tray.rs`, `monitors.rs`                                                                                                             |
 
-Deck settings: `%APPDATA%\dev.supadashboard.app\settings.json` (version 5; older versions migrate on load). Pages share controls and scenario definitions; page selection is runtime state for the current dashboard launch. Persistent variables are stored separately in `variables.json`.
+Deck settings: `%APPDATA%\dev.supadashboard.app\settings.json` (versioned; older versions migrate on load). Pages
+share controls and scenario definitions; page selection is runtime state for the current dashboard launch. Persistent
+variables are stored separately in `variables.json`.
 
 ### Pages
 
@@ -102,14 +97,14 @@ off by default, so tile gestures remain available; turn it on to use the embedde
 scripts, forms, and popups sandboxed and does not allow top-level navigation. `web.reload` can target this or another
 placed Web widget. Failed or blocked frames show `Unavailable`; page-hidden refresh timers pause.
 
-### Subway skin
+### Subway applet
 
-The Subway skin displays the Yamanote, Hibiya, and Sakaisuji line information screens, a route overview, and a
+The Subway applet displays the Yamanote, Hibiya, and Sakaisuji line information screens, a route overview, and a
 deterministic simulated run. Immersion audio uses the bundled motion profiles and compatible sound-pack cues; it
-creates audio only in the visible dashboard owner. The shared mixer exposes it as **Subway**, independently of
-Windows app channels. Mixer gain and mute persist as `subway.mixVolume` and `subway.mixMuted`; the applet's
+creates audio only in the visible dashboard owner. The shared mixer exposes it as **Subway**, separate from Windows
+app channels. Mixer gain and mute persist as `subway.mixVolume` and `subway.mixMuted`; the applet's
 announcement-volume setting affects voice cues only. The Sakaisuji motion profile is generic Osaka Metro sound,
-not a Hankyu recording. The content and timing limits are in the local `docs/subway-assets.md`.
+not a Hankyu recording.
 
 ### Gestures
 
@@ -123,13 +118,13 @@ after it arms.
 
 Select a button and choose **Edit scenario** to edit each trigger in one draft. Lists can contain registered actions,
 Wait steps, and nested If/Else branches. Each trigger may also have a state-specific override. Save commits the draft
-as one settings change; Cancel discards it. Existing legacy action bindings migrate into editable scenario steps.
+as one settings change; Cancel discards it. Older action bindings migrate into editable scenario steps.
 
 The Views tab edits each variant's label, icon, text/icon colour, and background, with preview faces rendered by the
 dashboard's button renderer. Optional Off/On roles can bind a Boolean, integer, float, or text variable to state IDs;
-the existing manual variant selection remains the fallback. Labels interpolate bounded `{variable}` tokens, and
-double braces escape a literal brace. If/Else conditions support variable and button-state checks and bounded
-Boolean/comparison expressions; they do not run JavaScript or Cottle.
+manual variant selection remains the fallback. Labels interpolate bounded `{variable}` tokens, and double braces
+escape a literal brace. If/Else conditions support variable and button-state checks and bounded Boolean/comparison
+expressions; they do not run JavaScript or Cottle.
 
 The Variables panel manages typed user values and persistence. Core also publishes read-only `clock.time`,
 `clock.date`, and `clock.day`; `variables.changed` is available to scenario listeners. Variables are authoritative in
@@ -158,16 +153,16 @@ export const myPlugin: Plugin = {
 };
 ```
 
-Add it to `install(...)` in `src/main.ts`. Declared `params` give the action an editor form automatically.
+Add it to `BUNDLED_PLUGINS` in `src/app/startup.ts`. Declared `params` give the action an editor form automatically.
 Actions receive an `ActionContext` with the control/item, trigger, abort signal, state and variable access, and event
 emission. Plugins may also register typed variables and events, provide parameter suggestions, and mark an action's
-variable argument as bindable. Loading plugins from a folder at runtime comes later.
+variable argument as bindable.
 
 A plugin's native part is its own process: a crate in `plugins/<id>/native` built on `plugin-sdk` (newline-delimited
 JSON over stdio) and a `plugins/<id>/plugin.json` naming its executable and the methods and windows allowed to call
 it. The app starts it on the first `plugin_call`, restarts it after a crash (`plugin://<id>/restarted`) and stops
 it when the plugin is disabled. `scripts/build-plugins.mjs` builds and stages the bundled plugin folders; `pnpm tauri
-dev` and `build` run it. Plugin folders in `<app data>/plugins` load the same way.
+dev` and `build` run it. Native plugin folders in `<app data>/plugins` load the same way.
 Each plugin keeps its files in `<app data>/plugin-data/<id>`; `migrate` in the manifest lists files the in-app version
 kept in the app data root, copied there once (originals stay). Its events reach only the windows it lists, and
 `media` grants it transport commands for one media session app through the app (`Host::call("media-command")`).

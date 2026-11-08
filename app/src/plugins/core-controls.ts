@@ -1,6 +1,20 @@
-import type { PluginApi, Param } from '../features/plugins/contracts';
+import type { ActionContext, PluginApi, Param } from '../features/plugins/contracts';
 import { stateIdAt } from '../features/controls/variants';
 import { settings } from '../features/settings/state.svelte';
+
+/** The target argument ('self' is the running control) and the Off / On roles of the control it names. */
+function rolesOf(args: Record<string, unknown>, context: ActionContext | undefined) {
+  if (!context) {
+    throw new Error('Button state runtime is unavailable');
+  }
+  const target = String(args.target ?? 'self');
+  const id = target === 'self' ? context.controlId : target;
+  return {
+    runtime: context,
+    target,
+    roles: settings.controls.find((control) => control.id === id)?.stateRoles,
+  };
+}
 
 export function registerCoreControls(api: PluginApi) {
   const controlParam: Param = {
@@ -35,23 +49,12 @@ export function registerCoreControls(api: PluginApi) {
     },
   };
   const setStateRole =
-    (role: 'off' | 'on') =>
-    async (
-      args: Record<string, unknown>,
-      context?: import('../features/plugins/contracts').ActionContext,
-    ) => {
-      if (!context) {
-        throw new Error('Button state runtime is unavailable');
-      }
-      const target = String(args.target ?? 'self');
-      const controlId = target === 'self' ? context.controlId : target;
-      const stateId = settings.controls.find((control) => control.id === controlId)?.stateRoles?.[
-        role
-      ];
-      if (!stateId) {
+    (role: 'off' | 'on') => async (args: Record<string, unknown>, context?: ActionContext) => {
+      const { runtime, target, roles } = rolesOf(args, context);
+      if (!roles?.[role]) {
         throw new Error(`This control has no ${role} state`);
       }
-      await context.setVariant(target, stateId);
+      await runtime.setVariant(target, roles[role]);
     };
   api.registerAction({
     id: 'button.variant',
@@ -81,17 +84,14 @@ export function registerCoreControls(api: PluginApi) {
     title: 'Toggle button Off / On',
     params: [controlParam],
     run: async (args, context) => {
-      if (!context) {
-        throw new Error('Button state runtime is unavailable');
-      }
-      const target = String(args.target ?? 'self'),
-        id = target === 'self' ? context.controlId : target;
-      const roles = settings.controls.find((control) => control.id === id)?.stateRoles;
+      const { runtime, target, roles } = rolesOf(args, context);
       if (!roles) {
         throw new Error('This control has no Off / On states');
       }
-      const current = context.getVariant(target);
-      await context.setVariant(target, current === roles.on ? roles.off : roles.on);
+      await runtime.setVariant(
+        target,
+        runtime.getVariant(target) === roles.on ? roles.off : roles.on,
+      );
     },
   });
 }

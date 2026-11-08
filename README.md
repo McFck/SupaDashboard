@@ -1,14 +1,14 @@
 # SupaDashboard
 
 A customizable second-screen dashboard for Windows, built with Tauri 2 and Svelte 5. Widgets run actions,
-switch states with gestures, control media and per-app volume, and show media or web content. Skins change
-the whole look; the optional Subway skin recreates Japanese train information screens with its own sound pack.
+switch states with gestures, control media and per-app volume, and show media or web content. Applets change
+a page's whole look; the optional Subway applet recreates Japanese train information screens with its own sound pack.
 
 ## Repository
 
 | Path                          | Contents                                                                       |
 | ----------------------------- | ------------------------------------------------------------------------------ |
-| [`app/`](app/README.md)       | The application: Svelte frontend, Tauri/Rust backend, tests and browser checks |
+| [`app/`](app/README.md)       | The application: Svelte frontend and Tauri/Rust backend                        |
 | [`assets/`](assets/README.md) | Subway sound pack: line manifests, audio clips, motion data and source credits |
 
 The sound pack is built with local scripts that are not tracked here.
@@ -19,16 +19,6 @@ The sound pack is built with local scripts that are not tracked here.
 cd app
 pnpm install
 pnpm tauri dev
-```
-
-## Contributing
-
-Read [AGENTS.md](AGENTS.md) first: it holds the tooling, commit and testing rules. Enable the commit hook and
-skip formatter-only commits in blame once per clone:
-
-```powershell
-git config core.hooksPath .githooks
-git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
 ## License

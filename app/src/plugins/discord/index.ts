@@ -1,17 +1,15 @@
 import { toast } from 'svelte-sonner';
 import { currentRuntime } from '../../app/runtime/session.svelte';
-import { runtimeView } from '../../app/runtime/state';
 import { emptyScenario } from '../../features/automation/scenario';
 import type { Plugin, PluginApi } from '../../features/plugins/contracts';
-import { subscribeVoice, voiceCommand, type VoiceView } from '../../platform/discord';
+import { subscribeVoice, voiceCommand } from '../../platform/discord';
+import { ownerAction, whileOwner } from '../owner';
 import ConnectionSection from './ui/ConnectionSection.svelte';
 import VoiceTile from './ui/VoiceTile.svelte';
 import guide from './guide.md?raw';
 
-function followOwner(api: PluginApi) {
-  let stopVoice: (() => void) | undefined;
-  let stopped = false;
-  const update = (view: VoiceView) => {
+function followVoice(api: PluginApi) {
+  return subscribeVoice((view) => {
     if (!currentRuntime()?.isOwner) {
       return;
     }
@@ -21,30 +19,7 @@ function followOwner(api: PluginApi) {
       api.setVariable('discord.deafened', connected && view.deafened),
       api.setVariable('discord.inChannel', view.state === 'inVoice'),
     ]).catch(() => toast.error('Discord state unavailable'));
-  };
-  const stopRuntime = runtimeView.subscribe(() => {
-    if (stopped) {
-      return;
-    }
-    if (currentRuntime()?.isOwner) {
-      // Assign before subscribing: a synchronous variable update publishes another runtime snapshot.
-      if (!stopVoice) {
-        stopVoice = () => {};
-        stopVoice = subscribeVoice(update);
-      }
-    } else {
-      stopVoice?.();
-      stopVoice = undefined;
-    }
   });
-  const dispose = () => {
-    stopped = true;
-    stopRuntime();
-    stopVoice?.();
-    window.removeEventListener('pagehide', dispose);
-  };
-  window.addEventListener('pagehide', dispose, { once: true });
-  import.meta.hot?.dispose(dispose);
 }
 
 export const discordPlugin: Plugin = {
@@ -88,15 +63,7 @@ export const discordPlugin: Plugin = {
       api.registerAction({
         id: `discord.${command}`,
         title,
-        run: async (_args, context) => {
-          if (context?.signal.aborted) {
-            return;
-          }
-          if (!currentRuntime()?.isOwner) {
-            throw new Error('Discord runtime is unavailable');
-          }
-          await voiceCommand(command);
-        },
+        run: ownerAction('Discord', () => voiceCommand(command)),
       });
     }
     for (const field of ['muted', 'deafened', 'inChannel'] as const) {
@@ -109,6 +76,7 @@ export const discordPlugin: Plugin = {
         readOnly: true,
       });
     }
-    followOwner(api);
+    const stop = whileOwner(() => followVoice(api));
+    import.meta.hot?.dispose(stop);
   },
 };

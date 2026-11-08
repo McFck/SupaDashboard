@@ -9,6 +9,12 @@ const LEAD_MS = 150;
 export const OFFSET_LIMIT_MS = 2000;
 export const OFFSET_STEP_MS = 50;
 
+/** Spotify's session to follow: the one Windows calls current, else a playing one, else any. */
+export const playingSession = (sessions: readonly NowPlayingSession[]) =>
+  sessions.find((session) => session.current) ??
+  sessions.find((session) => session.state === 'playing') ??
+  sessions[0];
+
 /** The tile's sync offset in ms; positive shows lines earlier. Anything unusable reads as 0. */
 export function offsetOf(options: unknown) {
   const value = isRecord(options) ? options.offsetMs : undefined;

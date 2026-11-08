@@ -1,20 +1,20 @@
-import { setStepFeedback } from './ui/offset-ruler';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'svelte-sonner';
 import { currentRuntime } from '../../app/runtime/session.svelte';
-import { runtimeView } from '../../app/runtime/state';
 import { emptyScenario } from '../../features/automation/scenario';
 import type { Plugin, PluginApi } from '../../features/plugins/contracts';
 import { nativeSessions } from '../../platform/media';
 import { spotifyCommand, spotifyTransport, subscribeSpotify } from '../../platform/spotify';
+import { ownerAction, whileOwner } from '../owner';
+import { playingSession } from './lyric-clock';
+import { setStepFeedback } from './ui/offset-ruler';
 import ConnectionSection from './ui/ConnectionSection.svelte';
 import LyricsEditor from './ui/LyricsEditor.svelte';
 import LyricsTile from './ui/LyricsTile.svelte';
 import guide from './guide.md?raw';
 
-function followOwner(api: PluginApi) {
-  let stopSources: (() => void) | undefined;
-  let stopped = false;
+/** Mirrors the Web API and the media session into variables; the last error toast is kept across owners. */
+function followSpotify(api: PluginApi) {
   let lastError: string | undefined;
   const set = (values: Record<string, boolean | string>) => {
     if (!currentRuntime()?.isOwner) {
@@ -24,69 +24,44 @@ function followOwner(api: PluginApi) {
       Object.entries(values).map(([field, value]) => api.setVariable(`spotify.${field}`, value)),
     ).catch(() => toast.error('Spotify state unavailable'));
   };
-  const stopRuntime = runtimeView.subscribe(() => {
-    if (stopped) {
-      return;
-    }
-    if (currentRuntime()?.isOwner) {
-      if (stopSources) {
+  return () => {
+    let smartShuffle = false;
+    let shuffle = false;
+    let webShuffle: boolean | undefined;
+    const shuffleValue = () => {
+      if (smartShuffle) {
+        return 'smart';
+      }
+      return (webShuffle ?? shuffle) ? 'shuffle' : 'off';
+    };
+    const stopSpotify = subscribeSpotify((view) => {
+      if (!currentRuntime()?.isOwner) {
         return;
       }
-      // Set before subscribing: variable writes can synchronously publish another runtime snapshot.
-      stopSources = () => {};
-      let smartShuffle = false;
-      let shuffle = false;
-      let webShuffle: boolean | undefined;
-      const shuffleValue = () => {
-        if (smartShuffle) {
-          return 'smart';
-        }
-        return (webShuffle ?? shuffle) ? 'shuffle' : 'off';
-      };
-      const stopSpotify = subscribeSpotify((view) => {
-        if (!currentRuntime()?.isOwner) {
-          return;
-        }
-        smartShuffle = view.state === 'ready' && view.smartShuffle;
-        webShuffle = view.state === 'ready' ? view.shuffle : undefined;
-        set({
-          connected: view.state === 'ready',
-          liked: view.state === 'ready' && view.liked === true,
-          shuffle: shuffleValue(),
-        });
-        if (view.error && view.error !== lastError) {
-          toast.error(view.error);
-        }
-        lastError = view.error;
+      smartShuffle = view.state === 'ready' && view.smartShuffle;
+      webShuffle = view.state === 'ready' ? view.shuffle : undefined;
+      set({
+        connected: view.state === 'ready',
+        liked: view.state === 'ready' && view.liked === true,
+        shuffle: shuffleValue(),
       });
-      const controller = new AbortController();
-      const stopMedia = nativeSessions('spotify')((state) => {
-        const sessions = state.state === 'ready' ? state.sessions : [];
-        const session =
-          sessions.find((s) => s.current) ??
-          sessions.find((s) => s.state === 'playing') ??
-          sessions[0];
-        shuffle = session?.shuffle === true;
-        set({ shuffle: shuffleValue(), repeat: session?.repeat ?? 'off' });
-      }, controller.signal);
-      stopSources = () => {
-        stopSpotify();
-        controller.abort();
-        stopMedia();
-      };
-    } else {
-      stopSources?.();
-      stopSources = undefined;
-    }
-  });
-  const dispose = () => {
-    stopped = true;
-    stopRuntime();
-    stopSources?.();
-    window.removeEventListener('pagehide', dispose);
+      if (view.error && view.error !== lastError) {
+        toast.error(view.error);
+      }
+      lastError = view.error;
+    });
+    const controller = new AbortController();
+    const stopMedia = nativeSessions('spotify')((state) => {
+      const session = playingSession(state.state === 'ready' ? state.sessions : []);
+      shuffle = session?.shuffle === true;
+      set({ shuffle: shuffleValue(), repeat: session?.repeat ?? 'off' });
+    }, controller.signal);
+    return () => {
+      stopSpotify();
+      controller.abort();
+      stopMedia();
+    };
   };
-  window.addEventListener('pagehide', dispose, { once: true });
-  import.meta.hot?.dispose(dispose);
 }
 
 export const spotifyPlugin: Plugin = {
@@ -147,15 +122,7 @@ export const spotifyPlugin: Plugin = {
         id: `spotify.${op}`,
         title,
         bindableVariable: () => 'spotify.liked',
-        run: async (_args, context) => {
-          if (context?.signal.aborted) {
-            return;
-          }
-          if (!currentRuntime()?.isOwner) {
-            throw new Error('Spotify runtime is unavailable');
-          }
-          await spotifyCommand(op);
-        },
+        run: ownerAction('Spotify', () => spotifyCommand(op)),
       });
     }
     for (const [op, title, modes, initial] of [
@@ -194,15 +161,9 @@ export const spotifyPlugin: Plugin = {
             suggestions: modes.map(([value, label]) => ({ value, label })),
           },
         ],
-        run: async (args, context) => {
-          if (context?.signal.aborted) {
-            return;
-          }
-          if (!currentRuntime()?.isOwner) {
-            throw new Error('Spotify runtime is unavailable');
-          }
-          await spotifyTransport(`${op}:${String(args.mode ?? initial)}`);
-        },
+        run: ownerAction('Spotify', (args) =>
+          spotifyTransport(`${op}:${String(args.mode ?? initial)}`),
+        ),
       });
     }
     for (const field of ['liked', 'shuffle', 'connected', 'repeat'] as const) {
@@ -217,6 +178,7 @@ export const spotifyPlugin: Plugin = {
         readOnly: true,
       });
     }
-    followOwner(api);
+    const stop = whileOwner(followSpotify(api));
+    import.meta.hot?.dispose(stop);
   },
 };

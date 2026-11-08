@@ -6,7 +6,7 @@ import { settings } from '../features/settings/state.svelte';
 import { currentRuntime } from '../app/runtime/session.svelte';
 import { appOwners, mediaSources } from '../features/plugins/registry';
 import { contentTargets } from '../features/plugins/content-targets';
-import type { Option, PluginApi, Param } from '../features/plugins/contracts';
+import type { ActionContext, Option, PluginApi, Param } from '../features/plugins/contracts';
 import { nativeSessions } from '../platform/media';
 
 const APP_PREFIX = 'app:';
@@ -110,11 +110,7 @@ async function nowPlayingCommand(controlId: string, command: 'prev' | 'next') {
   return delivered(await source.command(command, target.sessionId));
 }
 const mediaOrSlide =
-  (command: 'prev' | 'next') =>
-  async (
-    args: Record<string, unknown>,
-    context?: import('../features/plugins/contracts').ActionContext,
-  ) => {
+  (command: 'prev' | 'next') => async (args: Record<string, unknown>, context?: ActionContext) => {
     if (typeof args.target === 'string') {
       if (!context) {
         throw new Error('Media action context is unavailable');

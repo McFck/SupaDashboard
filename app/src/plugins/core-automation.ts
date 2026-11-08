@@ -67,14 +67,11 @@ export function registerCoreAutomation(api: PluginApi) {
     title: 'Go to page',
     params: [pageParam],
     run: (args, context) => {
-      if (!context || context.signal.aborted) {
-        throw new Error('Page navigation runtime is unavailable');
-      }
+      const runtime = pageRuntime(context);
       const pageId = args.page;
       if (typeof pageId !== 'string' || !settings.deck.pages.some((page) => page.id === pageId)) {
         throw new Error('Page is unavailable');
       }
-      const runtime = pageRuntime(context);
       runtime.changePage(pageId, 'action', context?.eventAncestry);
     },
   });
@@ -149,11 +146,14 @@ export function registerCoreAutomation(api: PluginApi) {
       await context.emitEvent(id, String(args.parameter ?? '') || undefined);
     },
   });
-  for (const [id, name, type, initialValue] of [
-    ['clock.time', 'clock.time', 'string', ''],
-    ['clock.date', 'clock.date', 'string', ''],
-    ['clock.day', 'clock.day', 'string', ''],
-  ] as const) {
-    api.registerVariable({ id, name, type, initialValue, persistent: false, readOnly: true });
+  for (const id of ['clock.time', 'clock.date', 'clock.day']) {
+    api.registerVariable({
+      id,
+      name: id,
+      type: 'string',
+      initialValue: '',
+      persistent: false,
+      readOnly: true,
+    });
   }
 }

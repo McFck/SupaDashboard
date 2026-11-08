@@ -4,7 +4,7 @@ import { prefersReducedMotion } from 'svelte/motion';
 import type { NowPlayingSession } from '../../../features/plugins/contracts';
 import { nativeSessions } from '../../../platform/media';
 import { getLyrics, getSongOffset, type LyricsView } from '../../../platform/lyrics';
-import { lineAt, positionAt, untilNextLine } from '../lyric-clock';
+import { lineAt, playingSession, positionAt, untilNextLine } from '../lyric-clock';
 import { KineticScroll } from '$lib/kinetic-scroll';
 import { SongOffset } from './song-offset.svelte';
 
@@ -15,11 +15,6 @@ type Host = { visible(): boolean; offsetMs(): number };
 const HOLD_MS = 4000;
 /** Height fraction where the sung line rests. */
 const ANCHOR = 0.4;
-
-const pick = (sessions: readonly NowPlayingSession[]) =>
-  sessions.find((session) => session.current) ??
-  sessions.find((session) => session.state === 'playing') ??
-  sessions[0];
 
 export class LyricsTileController {
   view = $state<TileView>({ kind: 'idle' });
@@ -50,7 +45,7 @@ export class LyricsTileController {
   constructor(host: Host) {
     this.#host = host;
     this.#stop = nativeSessions('spotify')((state) => {
-      this.#show(state.state === 'ready' ? pick(state.sessions) : undefined);
+      this.#show(state.state === 'ready' ? playingSession(state.sessions) : undefined);
     }, this.#abort.signal);
     // The sung line changes a few times a minute, so a timer wakes for each change instead of a frame loop.
     $effect(() => {

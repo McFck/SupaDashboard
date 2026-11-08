@@ -14,9 +14,8 @@ import {
   type Channel,
 } from '../features/media/volume';
 
-/** Apps with an audio session right now (process names without .exe). */
+/** Apps with an audio session right now, without master volume; targets are process names without .exe. */
 let liveChannels: Channel[] = [];
-/** Every app with an audio session, excluding master volume. */
 const stopVolumeTargets = volumeChannels.subscribe((list) => {
   liveChannels = list.filter((c) => c.target !== 'system');
 });

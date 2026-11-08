@@ -1,6 +1,6 @@
 # Movement sound
 
-Motor, rolling, track, brake and cabin sound for the Subway skin's immersion audio. `motion.json` describes one
+Motor, rolling, track, brake and cabin sound for the Subway applet's immersion audio. `motion.json` describes one
 train per line (E235 on the Yamanote, Tokyo Metro 13000 on the Hibiya, Hankyu 1300 on the Sakaisuji) and lists
 every clip under `clips/` with its SHA-256; the app validates it at load (`audio/motion/manifest.ts`) and the
 staging script refuses a clip whose bytes no longer match. The engine lives in `app/src/plugins/subway/audio/motion/`.
@@ -10,18 +10,18 @@ Credits and licences for every clip are in `../sources.json` (`movement`). New m
 
 ## Layers
 
-| Layer             | Source                                                       | Behaviour                                                                                 |
-| ----------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Standing cabin    | `shared/standing` (stopped car interior)                     | Always on, slow drift                                                                     |
-| HVAC              | `shared/hvac`                                                | Compressor cycles on and off every few minutes, scheduled hours ahead on the audio clock  |
-| Rolling           | per train and section (`open`, `tunnel`)                     | Level, pitch (narrow band) and lowpass follow speed; crossfades at portals                |
-| Body rumble       | synthesised noise                                            | Rises with speed squared                                                                  |
-| Motor             | 13000: 21854F's BVE layers and tables; others: synthesised   | Follows speed and the slewed power/brake effort; the cruise alternates notching and coasting |
-| Joints and points | `shared/joint-*` pool                                        | Every axle of the car and the neighbours' near bogies, from a seeded per-segment layout   |
-| Squeal            | synthesised                                                  | Curve stretches (per segment) and below 8 km/h under braking (chance per stop)            |
-| Events            | `shared/release-*`, `shared/rattle-*`, 13000 `air-release`   | Release on the brake-to-zero edge, stop jolt, creaks on effort changes, rare rattles      |
-| Platform air      | `platform/*` (one station kind loaded at a time)             | Fades in while the doors are open                                                         |
-| Space             | native EQ and a short slapback delay                         | Tunnel: more low end, duller top, slapback on transients                                  |
+| Layer             | Source                                                     | Behaviour                                                                                    |
+| ----------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Standing cabin    | `shared/standing` (stopped car interior)                   | Always on, slow drift                                                                        |
+| HVAC              | `shared/hvac`                                              | Compressor cycles on and off every few minutes, scheduled hours ahead on the audio clock     |
+| Rolling           | per train and section (`open`, `tunnel`)                   | Level, pitch (narrow band) and lowpass follow speed; crossfades at portals                   |
+| Body rumble       | synthesised noise                                          | Rises with speed squared                                                                     |
+| Motor             | 13000: 21854F's BVE layers and tables; others: synthesised | Follows speed and the slewed power/brake effort; the cruise alternates notching and coasting |
+| Joints and points | `shared/joint-*` pool                                      | Every axle of the car and the neighbours' near bogies, from a seeded per-segment layout      |
+| Squeal            | synthesised                                                | Curve stretches (per segment) and below 8 km/h under braking (chance per stop)               |
+| Events            | `shared/release-*`, `shared/rattle-*`, 13000 `air-release` | Release on the brake-to-zero edge, stop jolt, creaks on effort changes, rare rattles         |
+| Platform air      | `platform/*` (one station kind loaded at a time)           | Fades in while the doors are open                                                            |
+| Space             | native EQ and a short slapback delay                       | Tunnel: more low end, duller top, slapback on transients                                     |
 
 Beds play through a region shuffler (random regions with 3 s equal-power crossfades, never the same region twice
 in a row); one-shots come from pools that never repeat the last two picks and get rate, gain and timing jitter.
@@ -34,8 +34,8 @@ new state and plays no event for the skipped time.
 
 ## Sources of the kept 13000 pack
 
-| Material                                                                   | Creator / original source                                                                                     |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Material                                                                        | Creator / original source                                                                           |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Metro 13000 motor samples and curves, brake rub (first 8 s), full brake release | 21854F / @F21854, [TM13000Sound.zip v0.4](https://uu.getuploader.com/Tob21854F_BVEdate/download/15) |
 
 The motor layers are converted losslessly to FLAC (stereo, as recorded); the release is peak-normalised. The
