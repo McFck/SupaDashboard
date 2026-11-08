@@ -3,4 +3,15 @@ assets/lines/*/raw/
 assets/preview/
 tools/
 app/docs/
-.claude/settings.local.json
+
+# Local-only dev tooling: agent rules, hooks, browser checks, quality gates and release script.
+AGENTS.md
+CLAUDE.md
+.claude/
+.githooks/
+.git-blame-ignore-revs
+app/.vscode/
+app/tests/
+app/scripts/check-size.mjs
+app/scripts/check-unused.mjs
+app/scripts/run-release.ps1
