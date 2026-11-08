@@ -3,7 +3,7 @@ import { toast } from 'svelte-sonner';
 import { appletById } from '../../applets/deck';
 import { settings } from '../../settings/state.svelte';
 import { layoutFor, type LayoutTarget } from '../applet-layouts';
-import { moveToSlot } from '../slot-edits';
+import { moveToSlot, NO_ROOM } from '../slot-edits';
 import { moveOptions as buildMoveOptions, type MoveMode } from '../move-options';
 import type { LayoutEditorState } from './editor-state.svelte';
 
@@ -13,8 +13,6 @@ type MoveRequest = {
   itemId: string;
   destinationKey: string;
 };
-
-const NO_ROOM = 'No free space for this widget';
 
 export class WidgetMove {
   request = $state<MoveRequest | null>(null);
@@ -48,11 +46,7 @@ export class WidgetMove {
     }
   }
 
-  destroy() {
-    this.closeMoveDialog();
-  }
-
-  optionsFor(mode: MoveMode, sourceTarget: LayoutTarget, itemId: string) {
+  private optionsFor(mode: MoveMode, sourceTarget: LayoutTarget, itemId: string) {
     const applet = appletById(sourceTarget.appletId);
     return buildMoveOptions(settings, applet, mode, sourceTarget, itemId);
   }
@@ -95,7 +89,7 @@ export class WidgetMove {
     this.editor.select({ item: moved.id }, destination);
   }
 
-  moveSourceStillShown(request: MoveRequest) {
+  private moveSourceStillShown(request: MoveRequest) {
     const { appletId, pageId, slotId } = request.sourceTarget;
     const source = layoutFor(settings, appletId, pageId, slotId);
     return (

@@ -3,12 +3,11 @@
 import type { Item } from './grid';
 import type { Page, Settings } from '../settings/schema';
 import type { LayoutTarget } from './applet-layouts';
+import { clonePlain } from '../automation/plain-data';
 
 type AppletLayouts = Settings['appletLayouts'];
 type PlacementSource = { deck: { pages: readonly Page[] }; appletLayouts?: AppletLayouts };
 export type StoredPlacement = LayoutTarget & { item: Item };
-
-const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 /** Deck pages first, then applet slots. A stale `appletLayouts.deck` alias is ignored: deck placements live on pages. */
 export function storedPlacements(source: PlacementSource): StoredPlacement[] {
@@ -75,7 +74,7 @@ export function removePlacement(
       continue;
     }
     const found = slots[slotId].find((candidate) => candidate.id === itemId)!;
-    const nextLayouts = cloneJson(layouts);
+    const nextLayouts = clonePlain(layouts);
     delete nextLayouts.deck;
     nextLayouts[appletId][pageId][slotId] = slots[slotId].filter(
       (candidate) => candidate.id !== itemId,

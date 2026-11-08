@@ -1,6 +1,7 @@
 import type { Item } from './grid';
 import type { ControlConfig } from '../controls/model';
 import type { Page, Settings } from '../settings/schema';
+import { clonePlain } from '../automation/plain-data';
 import { pageItems } from './placements';
 
 export const MAX_PAGES = 10;
@@ -10,7 +11,6 @@ export type PageDeckChange = PageChange & {
   variants: Settings['variants'];
   appletLayouts: Settings['appletLayouts'];
 };
-const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 function nextPageName(pages: readonly Page[]) {
   const used = new Set(pages.map((page) => page.name));
@@ -102,7 +102,7 @@ export function duplicatePage(
       const controlId = newGlobalId(control.id, ids),
         itemId = newGlobalId('item', ids);
       if (!controlId || !itemId) return undefined;
-      copiedControls.push({ ...cloneJson(control), id: controlId });
+      copiedControls.push({ ...clonePlain(control), id: controlId });
       copied.push({ ...item, id: itemId, control: controlId });
     }
     return copied;
@@ -110,7 +110,7 @@ export function duplicatePage(
   const deckItems = copyItems(source.items);
   if (!deckItems) return undefined;
   copiedItems.push(...deckItems);
-  const nextAppletLayouts = cloneJson(appletLayouts);
+  const nextAppletLayouts = clonePlain(appletLayouts);
   delete nextAppletLayouts.deck;
   for (const [appletId, byPage] of Object.entries(appletLayouts)) {
     if (appletId === 'deck') continue;
@@ -124,7 +124,7 @@ export function duplicatePage(
     }
     nextAppletLayouts[appletId][id] = copiedSlots;
   }
-  const page: Page = { ...cloneJson(source), id, name: `${source.name} copy`, items: copiedItems };
+  const page: Page = { ...clonePlain(source), id, name: `${source.name} copy`, items: copiedItems };
   return {
     pages: [...pages, page],
     page,
@@ -157,7 +157,7 @@ export function deletePage(
 ) {
   if (pages.length <= 1 || !pages.some((page) => page.id === pageId)) return undefined;
   const next = pages.filter((page) => page.id !== pageId);
-  const nextAppletLayouts = cloneJson(appletLayouts);
+  const nextAppletLayouts = clonePlain(appletLayouts);
   delete nextAppletLayouts.deck;
   for (const byPage of Object.values(nextAppletLayouts)) delete byPage[pageId];
   const usedControls = new Set(pageItems(next, nextAppletLayouts).map((item) => item.control));

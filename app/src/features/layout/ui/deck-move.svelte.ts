@@ -105,10 +105,6 @@ export class DeckMove {
     this.worker = null;
   }
 
-  destroy() {
-    this.clear();
-  }
-
   sample(drag: MoveDrag, clientX: number, clientY: number) {
     const metrics = this.host.metrics();
     const localX = (clientX - drag.originX) / drag.scale;

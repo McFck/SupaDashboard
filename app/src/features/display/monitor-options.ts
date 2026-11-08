@@ -1,5 +1,5 @@
 import { isRecord } from '../automation/plain-data';
-import { sameGeometry, type Geometry } from './geometry';
+import { monitorRect, sameGeometry } from './geometry';
 
 export const CURRENT_POSITION = '__current_position__';
 
@@ -49,13 +49,6 @@ function validNamedMetadata(rows: readonly unknown[]): Map<string, MonitorNameMe
   return byName;
 }
 
-const rectangle = (monitor: DisplayMonitor): Geometry => ({
-  x: monitor.position.x,
-  y: monitor.position.y,
-  width: monitor.size.width,
-  height: monitor.size.height,
-});
-
 export function buildMonitorOptions(
   monitors: readonly DisplayMonitor[],
   metadata: readonly unknown[] = [],
@@ -71,7 +64,8 @@ export function buildMonitorOptions(
       fallbackPrimaryIndex = monitors.findIndex((monitor) => monitor.name === primaryMonitor.name);
     } else {
       fallbackPrimaryIndex = monitors.findIndex(
-        (monitor) => !monitor.name && sameGeometry(rectangle(monitor), rectangle(primaryMonitor)),
+        (monitor) =>
+          !monitor.name && sameGeometry(monitorRect(monitor), monitorRect(primaryMonitor)),
       );
     }
   }

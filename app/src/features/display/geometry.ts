@@ -198,7 +198,7 @@ export function startupPlacement(
 export const sameGeometry = (a: Geometry, b: Geometry) =>
   a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 
-export const monitorRect = (monitor: MonitorGeometry): Geometry => ({
+export const monitorRect = (monitor: Pick<MonitorGeometry, 'position' | 'size'>): Geometry => ({
   x: monitor.position.x,
   y: monitor.position.y,
   width: monitor.size.width,

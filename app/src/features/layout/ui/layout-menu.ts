@@ -9,7 +9,7 @@ import { appletById } from '../../applets/deck';
 import { layoutFor, type LayoutTarget } from '../applet-layouts';
 import { duplicateInSlot } from '../slot-edits';
 import { clipboard } from '../widget-clipboard.svelte';
-import { cloneControl } from '../widget-insert';
+import { clonePlain } from '../../automation/plain-data';
 import type { MenuAction } from '../../../panel/ui/ContextMenu.svelte';
 import type { LayoutEditorState } from './editor-state.svelte';
 
@@ -73,7 +73,7 @@ export function layoutMenuActions(
     {
       label: 'Copy',
       run: () => {
-        clipboard.value = { control: cloneControl(control), w: item.w, h: item.h };
+        clipboard.value = { control: clonePlain(control), w: item.w, h: item.h };
         void navigator.clipboard?.writeText(JSON.stringify(clipboard.value)).catch(() => {});
       },
     },

@@ -17,7 +17,7 @@
   import type { Item, Selection } from '../grid';
   import { effectiveSize, layoutFor, type LayoutTarget } from '../applet-layouts';
   import { settings } from '../../settings/state.svelte';
-  import { duplicateInSlot, removeWithDust, resizeInSlot } from '../slot-edits';
+  import { duplicateInSlot, NO_ROOM, removeWithDust, resizeInSlot } from '../slot-edits';
   import VariantList from './VariantList.svelte';
   import EffectMark from '../../effects/EffectMark.svelte';
   import { hasEffects } from '../../effects/scenario-effects';
@@ -63,7 +63,7 @@
   function duplicate() {
     const id = duplicateInSlot(layoutTarget, item.id);
     if (!id) {
-      toast.error('No free space for this widget');
+      toast.error(NO_ROOM);
       return;
     }
     onselect({ item: id }, layoutTarget);

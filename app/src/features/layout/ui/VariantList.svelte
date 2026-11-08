@@ -32,8 +32,8 @@
     }
   }
 
-  function reorder(from: number, to: number, label = 'Reorder variants') {
-    commit(label);
+  function reorder(from: number, to: number) {
+    commit('Reorder variants');
     settings.variants[control.id] = moveVariant(
       control,
       settings.variants[control.id] ?? 0,

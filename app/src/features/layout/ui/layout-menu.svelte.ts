@@ -6,7 +6,7 @@ import { settings } from '../../settings/state.svelte';
 import type { Selection } from '../grid';
 import type { MoveMode } from '../move-options';
 import { layoutFor, type LayoutTarget } from '../applet-layouts';
-import { pasteInSlot, removeWithDust } from '../slot-edits';
+import { NO_ROOM, pasteInSlot, removeWithDust } from '../slot-edits';
 import { clipboard } from '../widget-clipboard.svelte';
 import { planInsertion, type WidgetCopy } from '../widget-insert';
 import type { MenuAction } from '../../../panel/ui/ContextMenu.svelte';
@@ -23,8 +23,6 @@ type MenuState = {
   actions: MenuAction[];
   generation: number;
 };
-
-const NO_ROOM = 'No free space for this widget';
 
 export class LayoutMenu {
   context = $state<MenuState | null>(null);
@@ -55,18 +53,14 @@ export class LayoutMenu {
     });
   }
 
-  destroy() {
-    this.closeCurrentMenu();
-  }
-
   private pasteClipboard(target: Target, pageId: string, slot: LayoutTarget) {
     const latest = clipboard.value;
     if (latest) {
-      void this.paste(structuredClone($state.snapshot(latest)), target, pageId, slot);
+      void this.paste($state.snapshot(latest), target, pageId, slot);
     }
   }
 
-  targetExists(payload: MenuState) {
+  private targetExists(payload: MenuState) {
     const { appletId, pageId, slotId } = payload.layoutTarget;
     const slot = layoutFor(settings, appletId, pageId, slotId);
     if (!settings.deck.pages.some((candidate) => candidate.id === payload.pageId) || !slot) {
@@ -107,7 +101,7 @@ export class LayoutMenu {
         stop: (controlId) => {
           void this.runtime.stopRuntimeControl(controlId);
         },
-      }).map((action) => ({ ...action })),
+      }),
       generation: ++this.generation,
     };
     this.open = true;

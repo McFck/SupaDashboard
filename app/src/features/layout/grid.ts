@@ -1,4 +1,3 @@
-// Deck grid placement: pure functions, unit-tested.
 export type Item = { id: string; control: string; x: number; y: number; w: number; h: number };
 export type Grid = { rows: number; cols: number };
 export type DeckSizing = 'auto' | 'manual';

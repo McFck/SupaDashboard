@@ -211,7 +211,6 @@ export class DeckDrag {
     if (session) {
       releaseCapture(session);
     }
-    this.move.destroy();
     this.resize.destroy();
   }
 

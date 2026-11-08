@@ -14,13 +14,10 @@ import {
   setLayoutItems,
   type LayoutTarget,
 } from './applet-layouts';
-import {
-  cloneControl,
-  insertWidget,
-  planInsertion,
-  type InsertTarget,
-  type WidgetCopy,
-} from './widget-insert';
+import { insertWidget, planInsertion, type InsertTarget, type WidgetCopy } from './widget-insert';
+import { clonePlain } from '../automation/plain-data';
+
+export const NO_ROOM = 'No free space for this widget';
 
 type Cell = { x: number; y: number };
 type Size = { w: number; h: number };
@@ -140,7 +137,7 @@ export function duplicateInSlot(target: LayoutTarget, itemId: string) {
     return undefined;
   }
   const copy = {
-    ...cloneControl(control),
+    ...clonePlain(control),
     id: newControlId(control.name),
     name: `${control.name} copy`,
   };
@@ -155,7 +152,7 @@ export function pasteInSlot(
   label: string,
 ) {
   // The plan and the insertion use one plain snapshot: the insertion writes into the slot maps it is given.
-  const source = JSON.parse(JSON.stringify(settings));
+  const source = clonePlain(settings);
   const plan = planInsertion(source, copy, at, target);
   const result = plan && insertWidget(source, copy, plan, target);
   if (!result) {

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
   import { Button } from '$lib/components/ui/button';
   import type { Trigger } from '../../automation/scenario';
   import { settings } from '../../settings/state.svelte';
@@ -95,11 +94,6 @@
     menu.closeCurrentMenu();
     scenarioOpen = false;
     move.closeMoveDialog();
-  });
-
-  onDestroy(() => {
-    menu.destroy();
-    move.destroy();
   });
 
   function openDeckSettings() {

@@ -3,15 +3,13 @@
 import type { ControlConfig } from '../controls/model';
 import type { Settings } from '../settings/schema';
 import { newId } from '../settings/state.svelte';
+import { clonePlain } from '../automation/plain-data';
 import { fits } from './grid';
 import { pageItems, removePlacement } from './placements';
 import { effectiveSize, layoutFor, setLayoutItems, type LayoutTarget } from './applet-layouts';
 
 export type WidgetCopy = { control: ControlConfig; w: number; h: number };
 export type InsertTarget = { item: string } | { cell: { x: number; y: number } };
-
-export const cloneControl = (control: ControlConfig): ControlConfig =>
-  JSON.parse(JSON.stringify(control));
 
 /** Where `copy` lands in `slot`: on `target.cell`, or over `target.item`, which it replaces. */
 export function planInsertion(
@@ -62,7 +60,7 @@ export function insertWidget(
   slot: LayoutTarget,
 ) {
   const control = {
-    ...cloneControl(copy.control),
+    ...clonePlain(copy.control),
     id: newId(
       copy.control.id,
       source.controls.map((entry) => entry.id),

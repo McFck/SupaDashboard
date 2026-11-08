@@ -10,13 +10,10 @@
   import PluginMark, { pluginTitle } from '../../plugins/ui/PluginMark.svelte';
   import { settings } from '../../settings/state.svelte';
   import { buildExistingControlRows, searchExistingControls } from '../existing-controls';
-  import { cloneControl } from '../widget-insert';
   import { pageItems } from '../placements';
   import { effectiveSize, layoutFor, type LayoutTarget } from '../applet-layouts';
-  import { findSlotPlacement, newControlId, placeControl } from '../slot-edits';
+  import { findSlotPlacement, newControlId, NO_ROOM, placeControl } from '../slot-edits';
   import type { Selection } from '../grid';
-
-  const NO_ROOM = 'No free space for this widget';
 
   let {
     cell,
@@ -73,23 +70,13 @@
     if (!existing || !controlTypes.has(existing.type)) {
       return;
     }
-    const copy = {
-      ...cloneControl($state.snapshot(existing) as ControlConfig),
-      id: newControlId(existing.id),
-    };
-    place(copy, 'Add widget');
+    place({ ...$state.snapshot(existing), id: newControlId(existing.id) }, 'Add widget');
   }
 
-  function rowLabel(
-    row: (typeof filteredRows)[number],
-    providerTitle: string | undefined,
-    fits: boolean,
-  ) {
+  function rowLabel(row: (typeof filteredRows)[number], providerTitle: string | undefined) {
     const plugin = providerTitle ? `, Plugin: ${providerTitle}` : '';
     const uses = `${row.uses} ${row.uses === 1 ? 'use' : 'uses'}`;
-    const unavailable = row.available ? '' : ', unavailable';
-    const room = fits ? '' : ', no free space';
-    return `${row.name}, ${row.typeTitle}${plugin}, ${uses}${unavailable}${room}`;
+    return `${row.name}, ${row.typeTitle}${plugin}, ${uses}`;
   }
 </script>
 
@@ -151,15 +138,11 @@
         <div class="grid gap-1">
           {#each filteredRows as row (row.id)}
             {@const type = controlTypes.get(row.typeId)}
-            {@const fit = type ? fitFor(row.typeId) : null}
             <button
               type="button"
-              disabled={!row.available}
-              aria-disabled={!fit || !row.available}
-              aria-label={rowLabel(row, pluginTitle(type?.plugin), !!fit)}
+              aria-label={rowLabel(row, pluginTitle(type?.plugin))}
               onclick={() => placeExisting(row.id)}
-              class:opacity-45={!fit}
-              class="flex min-w-0 items-center gap-3 rounded-lg border border-transparent px-2 py-2 text-left outline-none transition-colors hover:border-white/10 hover:bg-white/[.04] focus-visible:border-white/20 focus-visible:bg-white/[.05] disabled:pointer-events-none disabled:opacity-45"
+              class="flex min-w-0 items-center gap-3 rounded-lg border border-transparent px-2 py-2 text-left outline-none transition-colors hover:border-white/10 hover:bg-white/[.04] focus-visible:border-white/20 focus-visible:bg-white/[.05]"
             >
               <span class="grid size-8 shrink-0 place-items-center rounded-md bg-white/5">
                 <Icon

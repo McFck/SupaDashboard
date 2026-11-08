@@ -6,7 +6,6 @@ export type ExistingControlRow = {
   typeId: string;
   typeTitle: string;
   icon: string;
-  available: boolean;
   uses: number;
 };
 
@@ -42,7 +41,6 @@ export function buildExistingControlRows(
         typeId: control.type,
         typeTitle: type?.title ?? control.type,
         icon: type?.icon ?? 'Puzzle',
-        available: !!type,
         uses: uses.get(control.id) ?? 0,
       };
     })

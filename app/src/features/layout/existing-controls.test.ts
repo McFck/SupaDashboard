@@ -8,7 +8,7 @@ const types = new Map([
 ]);
 
 describe('existing controls', () => {
-  it('counts shared placements and includes unplaced and unavailable controls', () => {
+  it('counts shared placements and includes unplaced and unregistered controls', () => {
     const controls = [
       { id: 'b', name: 'Beta', type: 'button' },
       { id: 'a', name: 'Alpha', type: 'button' },
@@ -27,7 +27,6 @@ describe('existing controls', () => {
     expect(rows[2]).toMatchObject({
       typeTitle: 'plugin.unknown',
       icon: 'Puzzle',
-      available: false,
     });
   });
 

@@ -159,7 +159,8 @@ export class LayoutEditorState {
     if (this.selectionTarget.appletId !== applet.id) {
       this.selectionTarget = defaultTarget(applet, this.page.id);
     }
-    this.clearTransient();
+    this.selection = null;
+    this.host.leave();
     saveLayoutPreview();
   }
 
@@ -176,10 +177,5 @@ export class LayoutEditorState {
     ) {
       this.selection = null;
     }
-  }
-
-  private clearTransient() {
-    this.selection = null;
-    this.host.leave();
   }
 }

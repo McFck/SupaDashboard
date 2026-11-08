@@ -154,7 +154,6 @@ export class DeckResize {
 
   destroy() {
     this.frameGeneration++;
-    this.current = null;
   }
 
   sample(drag: ResizeDrag) {
@@ -220,7 +219,7 @@ export class DeckResize {
     }
   }
 
-  settleResize(id: string, from: Box, target: Box, distance: number, radius: number) {
+  private settleResize(id: string, from: Box, target: Box, distance: number, radius: number) {
     const token = ++this.frameGeneration;
     if (prefersReducedMotion.current) {
       this.settlingFrame = null;

@@ -133,15 +133,7 @@ if (typeof self !== 'undefined' && typeof document === 'undefined' && 'postMessa
     postMessage(message: DropReply): void;
   };
   scope.addEventListener('message', (event) => {
-    const { requestId, generation, revision, id, x, y, items, grid } = event.data;
-    scope.postMessage({
-      requestId,
-      generation,
-      revision,
-      id,
-      x,
-      y,
-      preview: previewDrop(items, id, x, y, grid),
-    });
+    const { items, grid, ...reply } = event.data;
+    scope.postMessage({ ...reply, preview: previewDrop(items, reply.id, reply.x, reply.y, grid) });
   });
 }

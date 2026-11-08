@@ -23,7 +23,7 @@ export function registerRemovalNode(node: HTMLElement, id: string, hooks: Remova
   };
 }
 
-function dustParticles(width: number, height: number, colors: string[], random = Math.random) {
+function dustParticles(width: number, height: number, colors: string[]) {
   const step = Math.max(6, Math.sqrt((width * height) / 900));
   const particles = [];
   for (let y = step / 2; y < height; y += step)
@@ -31,11 +31,11 @@ function dustParticles(width: number, height: number, colors: string[], random =
       particles.push({
         x,
         y,
-        vx: 15 + random() * 65,
-        vy: -12 - random() * 50,
-        size: 1 + random() * 2.5,
+        vx: 15 + Math.random() * 65,
+        vy: -12 - Math.random() * 50,
+        size: 1 + Math.random() * 2.5,
         delay: (x / Math.max(1, width)) * 0.15,
-        color: colors[Math.floor(random() * colors.length)] ?? '#8ea8f0',
+        color: colors[Math.floor(Math.random() * colors.length)] ?? '#8ea8f0',
       });
     }
   return particles;

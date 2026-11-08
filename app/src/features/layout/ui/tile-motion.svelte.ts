@@ -53,16 +53,12 @@ export class TileMotion {
     this.elevated[id] = false;
   }
 
-  stopAll() {
-    for (const id of [...this.animations.keys()]) {
-      this.stop(id);
-    }
-  }
-
   /** Cancels pending layout animations, e.g. when the grid unmounts. */
   invalidate() {
     this.revision++;
-    this.stopAll();
+    for (const id of [...this.animations.keys()]) {
+      this.stop(id);
+    }
   }
 
   /** Springs a released tile from where the pointer left it back to its slot. */

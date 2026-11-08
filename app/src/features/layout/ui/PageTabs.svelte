@@ -10,7 +10,7 @@
   import { sortable } from '$lib/sortable/sortable';
   import type { Page } from '../../settings/schema';
 
-  type StripPan = { pointerId: number; startX: number; startScroll: number; moved: boolean };
+  type StripPan = { pointerId: number; startX: number; startScroll: number };
 
   let {
     pages,
@@ -98,7 +98,6 @@
       pointerId: event.pointerId,
       startX: event.clientX,
       startScroll: list.scrollLeft,
-      moved: false,
     };
     list.setPointerCapture(event.pointerId);
   }
@@ -106,9 +105,7 @@
   function moveStripPan(event: PointerEvent) {
     const current = stripPan;
     if (!current || current.pointerId !== event.pointerId || !list) return;
-    const delta = event.clientX - current.startX;
-    current.moved ||= Math.abs(delta) >= 4;
-    list.scrollLeft = current.startScroll - delta;
+    list.scrollLeft = current.startScroll - (event.clientX - current.startX);
     updateScrollFade();
   }
 
