@@ -15,3 +15,6 @@ app/tests/
 app/scripts/check-size.mjs
 app/scripts/check-unused.mjs
 app/scripts/run-release.ps1
+
+# Plugin signing private key: never commit. The public key in keys/ is tracked.
+*-key.pem
