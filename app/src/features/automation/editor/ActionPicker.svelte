@@ -46,7 +46,7 @@
   }
 </script>
 
-{#snippet pickerBody()}
+<div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <div class="flex min-h-0 min-w-0 flex-col gap-3">
     <div class="relative min-w-0">
       <Input
@@ -121,6 +121,4 @@
       {/each}
     </div>
   </div>
-{/snippet}
-
-<div class="flex min-h-0 min-w-0 flex-1 flex-col">{@render pickerBody()}</div>
+</div>

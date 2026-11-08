@@ -16,13 +16,13 @@
   import StepCard from './StepCard.svelte';
   import EffectPicker from '../../effects/EffectPicker.svelte';
   import { setScenarioEffect } from '../../effects/scenario-effects';
-  import { listOf } from './scenario-edit';
   import StepList from './StepList.svelte';
   import StepPicker from './StepPicker.svelte';
   import { stepDrop, stepDropTarget } from './step-drop';
   import { scrollParent, StepLayoutMotion } from './step-layout';
   import {
     insertScenarioStep,
+    listOf,
     moveScenarioStep,
     moveScenarioStepTo,
     removeScenarioStep,
@@ -278,8 +278,7 @@
     }}
     role="list"
     aria-label="Scenario steps"
-    class="grid min-w-0 gap-9 {steps.length ? 'pt-8' : depth === 0 ? 'watermark h-40' : ''}"
-    data-kana="ステップ"
+    class="grid min-w-0 gap-9 {steps.length ? 'pt-8' : ''}"
   >
     {#each steps as step, index (step.id)}
       {#snippet stepEffect()}

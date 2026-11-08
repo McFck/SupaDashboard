@@ -68,10 +68,6 @@ export function parseVariableText(type: VariableType, text: string): VariableVal
   return parsed;
 }
 
-function copyRecord(record: VariableRecord): VariableRecord {
-  return structuredClone(record);
-}
-
 function nameKey(name: string) {
   return normalizeName(name).toLocaleLowerCase();
 }
@@ -163,7 +159,7 @@ export class VariableStore {
 
   snapshot(): VariableSnapshot {
     const records = Object.fromEntries(
-      [...this.records].map(([id, record]) => [id, copyRecord(record)]),
+      [...this.records].map(([id, record]) => [id, structuredClone(record)]),
     );
     return freezeDeep({ revision: this.revision, records });
   }
@@ -175,7 +171,7 @@ export class VariableStore {
 
   get(id: string) {
     const record = this.records.get(id);
-    return record ? copyRecord(record) : undefined;
+    return record ? structuredClone(record) : undefined;
   }
 
   getValue(id: string) {
@@ -189,12 +185,11 @@ export class VariableStore {
         (alias) => nameKey(alias) === key,
       ),
     );
-    return record ? copyRecord(record) : undefined;
+    return record ? structuredClone(record) : undefined;
   }
 
   define(definition: Omit<VariableDefinition, 'available'>, actor: string = 'user') {
     if (!isDefinition(definition)) throw new Error('Malformed variable definition');
-    if (!definition.id) throw new Error('Variable ID is required');
     const owner = definition.owner;
     if (actor === 'user' ? owner !== 'user' : owner !== actor)
       throw new Error('Variable owner does not match');
@@ -215,7 +210,7 @@ export class VariableStore {
     assertValue(next.definition.type, next.value, next.definition.options);
     this.records.set(next.definition.id, next);
     this.changed(next.definition.persistent || current?.definition.persistent === true);
-    return copyRecord(next);
+    return structuredClone(next);
   }
 
   createUser(input: {

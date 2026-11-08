@@ -1,5 +1,5 @@
 import type { ActionContext, ActionRef, EventAncestry } from '../plugins/contracts';
-import type { ActionStep, Predicate, Trigger } from './scenario';
+import type { ActionStep, Trigger } from './scenario';
 import { isValidDelay, MAX_SCENARIO_DEPTH, MAX_SCENARIO_NODES } from './scenario';
 import { validateScenario } from './validate';
 import { ActionFailure } from './action-failure';
@@ -168,7 +168,7 @@ export class ScenarioRunner {
         findVariable: (name) => this.services.findVariable(name),
         getState: (id) => this.services.getState(id === 'self' ? state.packet.controlId : id),
       };
-      const branch = evaluatePredicate(step.condition as Predicate, env) ? step.then : step.else;
+      const branch = evaluatePredicate(step.condition, env) ? step.then : step.else;
       await this.runList(branch, state, depth + 1);
       return;
     }

@@ -114,42 +114,38 @@
 </script>
 
 {#snippet tabPanel(tab: ScenarioEditorTab)}
+  {@const draft = editor.draft!}
   <div
     id={`${editorId}-${tab}-panel`}
     role="tabpanel"
     aria-labelledby={`${editorId}-${tab}-tab`}
     class={panelClass(tab)}
   >
-    {@render panelContent(tab)}
+    {#if tab === 'scenario'}
+      <ScenarioStepsPanel {editor} />
+    {:else if tab === 'views'}
+      <StateViewEditor
+        variants={draft.variants}
+        roles={draft.stateRoles}
+        aspectRatio={previewAspect}
+        onvariant={(index, variant) => editor.replaceVariant(index, variant)}
+        onroles={(roles) => editor.updateRoles(roles)}
+        ontoggleroles={() => editor.toggleRoles()}
+        onadd={() => editor.addState()}
+        onremove={(index) => editor.deleteState(index)}
+        onmove={(from, to) => editor.moveState(from, to)}
+      />
+    {:else if tab === 'binding'}
+      <StateBindingEditor
+        bindings={draft.stateBindings ?? []}
+        variants={draft.variants}
+        roles={draft.stateRoles}
+        onchange={(bindings) => editor.updateBindings(bindings)}
+      />
+    {:else}
+      <VariablesEditor />
+    {/if}
   </div>
-{/snippet}
-
-{#snippet panelContent(tab: ScenarioEditorTab)}
-  {@const draft = editor.draft!}
-  {#if tab === 'scenario'}
-    <ScenarioStepsPanel {editor} />
-  {:else if tab === 'views'}
-    <StateViewEditor
-      variants={draft.variants}
-      roles={draft.stateRoles}
-      aspectRatio={previewAspect}
-      onvariant={(index, variant) => editor.replaceVariant(index, variant)}
-      onroles={(roles) => editor.updateRoles(roles)}
-      ontoggleroles={() => editor.toggleRoles()}
-      onadd={() => editor.addState()}
-      onremove={(index) => editor.deleteState(index)}
-      onmove={(from, to) => editor.moveState(from, to)}
-    />
-  {:else if tab === 'binding'}
-    <StateBindingEditor
-      bindings={draft.stateBindings ?? []}
-      variants={draft.variants}
-      roles={draft.stateRoles}
-      onchange={(bindings) => editor.updateBindings(bindings)}
-    />
-  {:else}
-    <VariablesEditor />
-  {/if}
 {/snippet}
 
 <Dialog.Root bind:open>

@@ -1,4 +1,3 @@
-import type { ControlConfig } from '../controls/model';
 import { normalizeControl } from '../automation/normalize-control';
 import type { Settings } from './schema';
 import { DEFAULTS, ICON_SCALE, LABEL_SCALE } from './defaults';
@@ -50,7 +49,7 @@ export function migrate(input: unknown): Settings {
     variants[id] = index;
   }
   const seen = new Set<string>(),
-    globalIds = new Set([...pageIds, ...itemIds, ...controls.map((c: ControlConfig) => c.id)]);
+    globalIds = new Set([...pageIds, ...itemIds, ...controls.map((c) => c.id)]);
   const placementLists = [
     ...pages.map((page) => page.items),
     ...Object.values(appletLayouts).flatMap((applet) =>
@@ -64,7 +63,7 @@ export function migrate(input: unknown): Settings {
         seen.add(item.control);
         continue;
       }
-      const source = controls.find((c: ControlConfig) => c.id === item.control);
+      const source = controls.find((c) => c.id === item.control);
       if (!source) {
         continue;
       }

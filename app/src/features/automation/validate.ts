@@ -140,17 +140,14 @@ class ScenarioWalk {
     }
   }
 
-  /** Counts one node against the scenario limits; returns whether it is nested too deep. */
   private countNode(path: string, depth: number) {
     this.count++;
     if (this.count > MAX_SCENARIO_NODES) {
       this.add(path, 'Scenario exceeds 1000 steps');
     }
-    const tooDeep = depth > MAX_SCENARIO_DEPTH;
-    if (tooDeep) {
+    if (depth > MAX_SCENARIO_DEPTH) {
       this.add(path, 'Scenario exceeds 16 levels');
     }
-    return tooDeep;
   }
 
   private add(path: string, message: string) {

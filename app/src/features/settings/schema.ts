@@ -1,4 +1,4 @@
-// Persisted settings shape (v10).
+// Persisted settings shape.
 import type { ControlConfig } from '../controls/model';
 import type { DeckSizing, Item } from '../layout/grid';
 
@@ -32,8 +32,7 @@ export type Settings = {
     monitorLabel: string | null;
     fullscreen: boolean;
     alwaysOnTop: boolean;
-    /** Glyph size on action tiles, for every page and applet. */
-    /** Action icon size as a multiple of the default glyph. */
+    /** Action icon size as a multiple of the default glyph, for every page and applet. */
     iconScale: number;
     labelScale: number;
     /** Backdrop behind the widgets on the transparent dashboard window: the colour, or the live desktop wallpaper. */

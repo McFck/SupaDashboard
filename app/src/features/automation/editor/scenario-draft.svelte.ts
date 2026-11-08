@@ -104,7 +104,7 @@ export class ScenarioDraftEditor {
     if (!this.owner) {
       return undefined;
     }
-    if (this.selectedState !== '*' && this.hasOverride) {
+    if (this.hasOverride) {
       return { ...this.owner, stateId: this.selectedState };
     }
     return this.owner;
@@ -176,7 +176,7 @@ export class ScenarioDraftEditor {
       return false;
     }
     commit('Edit scenario');
-    const replacement = structuredClone($state.snapshot(latest)) as ControlConfig;
+    const replacement = $state.snapshot(latest) as ControlConfig;
     replacement.scenario = clonePlain(draft.scenario);
     for (const trigger of TRIGGERS) {
       if (isEmptyList(replacement.scenario.triggers[trigger])) {
@@ -263,8 +263,6 @@ export class ScenarioDraftEditor {
     return event.parameter ? `${title}: ${event.parameter}` : title;
   }
 
-  // ---- per-state overrides ----
-
   makeOverride() {
     const draft = this.draft;
     if (!draft || !this.owner) {
@@ -288,8 +286,6 @@ export class ScenarioDraftEditor {
       scenario: setScenarioStateOverride(draft.scenario, this.owner, stateId, undefined),
     };
   }
-
-  // ---- event listeners ----
 
   addEvent(eventId: string) {
     const draft = this.draft;
@@ -328,8 +324,6 @@ export class ScenarioDraftEditor {
     );
     this.draft = { ...draft, scenario: { ...draft.scenario, events } };
   }
-
-  // ---- states, roles and binding ----
 
   replaceVariant(index: number, variant: Variant) {
     const draft = this.draft;

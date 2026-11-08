@@ -92,22 +92,21 @@
       pending = next;
     }
   }
-  async function saveValue(record: VariableRecord, value: unknown) {
-    const key = `value:${record.definition.id}`;
-    if (pending[key]) return;
-    try {
-      await mutate(key, 'setVariable', { id: record.definition.id, value });
-    } catch (error) {
-      markError(key, error);
-    }
+  function saveValue(record: VariableRecord, value: unknown) {
+    return mutate(`value:${record.definition.id}`, 'setVariable', {
+      id: record.definition.id,
+      value,
+    });
   }
   async function saveTextValue(record: VariableRecord) {
-    const key = `value:${record.definition.id}`;
+    let value: unknown;
     try {
-      await saveValue(record, parseVariableText(record.definition.type, textValue(record)));
+      value = parseVariableText(record.definition.type, textValue(record));
     } catch (error) {
-      markError(key, error);
+      markError(`value:${record.definition.id}`, error);
+      return;
     }
+    await saveValue(record, value);
   }
   async function createVariable() {
     try {
@@ -247,6 +246,11 @@
         {#each filtered as record (record.definition.id)}
           {@const id = record.definition.id}
           {@const editable = isEditable(record)}
+          {@const error =
+            errors[`value:${id}`] ||
+            errors[`name:${id}`] ||
+            errors[`persist:${id}`] ||
+            errors[`delete:${id}`]}
           <article
             class="grid min-w-0 gap-3 rounded-xl bg-card p-3 lg:grid-cols-[minmax(0,1fr)_minmax(180px,1fr)_auto] lg:items-center"
           >
@@ -344,14 +348,10 @@
                 >
               {:else}<span class="text-xs text-muted-foreground">Read only</span>{/if}
             </div>
-            {#if errors[`value:${id}`] || errors[`name:${id}`] || errors[`persist:${id}`] || errors[`delete:${id}`]}
+            {#if error}
               <span
                 class="text-xs text-destructive lg:col-span-3"
-                aria-live="polite"
-                >{errors[`value:${id}`] ??
-                  errors[`name:${id}`] ??
-                  errors[`persist:${id}`] ??
-                  errors[`delete:${id}`]}</span
+                aria-live="polite">{error}</span
               >
             {/if}
           </article>

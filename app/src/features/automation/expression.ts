@@ -44,6 +44,8 @@ function evaluateExpression(source: string, valueOf: (name: string) => VariableV
   return value;
 }
 
+const COMPARE_OPS = { eq: '==', ne: '!=', gt: '>', lt: '<' } as const;
+
 function operand(value: Operand, env: PredicateEnvironment): VariableValue {
   if (value.kind === 'literal') return value.value;
   if (value.kind === 'variable') {
@@ -67,9 +69,5 @@ export function evaluatePredicate(predicate: Predicate, env: PredicateEnvironmen
     predicate.op !== 'ne'
   )
     throw new ExpressionError('State values support equality only');
-  return compare(
-    predicate.op === 'eq' ? '==' : predicate.op === 'ne' ? '!=' : predicate.op === 'gt' ? '>' : '<',
-    left,
-    right,
-  );
+  return compare(COMPARE_OPS[predicate.op], left, right);
 }

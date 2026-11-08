@@ -34,7 +34,7 @@
     ];
   });
 
-  function stateLabel(stateId: string, index: number) {
+  function stateLabel(index: number) {
     return index < 0 ? 'Unavailable' : editor.stateTitle(draft.variants[index], index);
   }
 </script>
@@ -70,7 +70,7 @@
 <div
   class="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 [overflow-anchor:none] [scrollbar-gutter:stable]"
 >
-  {#if editor.selectedState !== '*' && editor.hasOverride}
+  {#if editor.hasOverride}
     <div class="mb-3 flex justify-end">
       <Button
         variant="ghost"
@@ -104,7 +104,7 @@
       </section>
       {#each overrides as stateId (stateId)}
         {@const index = editor.stateIndex(stateId)}
-        {@const label = stateLabel(stateId, index)}
+        {@const label = stateLabel(index)}
         <section
           class="grid min-w-0 gap-3"
           aria-label={index < 0 ? 'Unavailable state steps' : `${label} steps`}

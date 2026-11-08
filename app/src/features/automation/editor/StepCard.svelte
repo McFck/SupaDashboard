@@ -73,7 +73,7 @@
   }
 
   function bindSuggestedVariable() {
-    if (suggestedVariableId && step.kind === 'action') {
+    if (suggestedVariableId) {
       onbind(suggestedVariableId);
     }
   }
