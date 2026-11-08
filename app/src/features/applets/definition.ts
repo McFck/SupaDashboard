@@ -6,7 +6,7 @@ type AppletSettings = NonNullable<AppletDef['settings']>;
 
 const isGroup = (item: Param | SettingsGroup): item is SettingsGroup => 'params' in item;
 
-const optionsOf = (param: Param, args?: Record<string, unknown>) =>
+export const suggestionsOf = (param: Param, args?: Record<string, unknown>) =>
   typeof param.suggestions === 'function' ? param.suggestions(args) : param.suggestions;
 
 const QUICK_ACTION_GROUP: SettingsGroup = {
@@ -103,7 +103,7 @@ export function validAppletParam(param: Param, value: unknown, args?: Record<str
   if (param.type !== 'select') {
     return true;
   }
-  return optionsOf(param, args)?.some((option) => option.value === value) ?? false;
+  return suggestionsOf(param, args)?.some((option) => option.value === value) ?? false;
 }
 
 export function resolveAppletConfig(applet: AppletDef, stored: Record<string, unknown> = {}) {
@@ -143,7 +143,7 @@ export function nextAppletSettings(
     if (dependent.key === key || validAppletParam(dependent, resolved[dependent.key], resolved)) {
       continue;
     }
-    const options = optionsOf(dependent, resolved);
+    const options = suggestionsOf(dependent, resolved);
     const fallback =
       options?.find((option) => Object.is(option.value, dependent.default))?.value ??
       options?.[0]?.value;

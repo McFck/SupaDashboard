@@ -109,7 +109,7 @@
 {:else if host && slot}
   <div
     role="status"
-    aria-label="Skin slot unavailable"
+    aria-label="Applet slot unavailable"
     class="grid h-full w-full place-items-center rounded-lg border border-destructive/40 text-xs text-destructive"
   >
     Unavailable

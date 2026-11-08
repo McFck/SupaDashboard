@@ -47,28 +47,27 @@ function validEvent(value: unknown): value is FrameNavigation {
   if (!isRecord(value)) {
     return false;
   }
-  const event = value as Record<string, unknown>;
   if (
-    typeof event.frameKey !== 'string' ||
-    !event.frameKey.startsWith('content:') ||
-    event.frameKey.length <= 'content:'.length ||
-    /\s/.test(event.frameKey) ||
-    typeof event.navigationId !== 'number' ||
-    !Number.isSafeInteger(event.navigationId) ||
-    event.navigationId < 0
+    typeof value.frameKey !== 'string' ||
+    !value.frameKey.startsWith('content:') ||
+    value.frameKey.length <= 'content:'.length ||
+    /\s/.test(value.frameKey) ||
+    typeof value.navigationId !== 'number' ||
+    !Number.isSafeInteger(value.navigationId) ||
+    value.navigationId < 0
   ) {
     return false;
   }
-  if (event.phase === 'completed') {
+  if (value.phase === 'completed') {
     return (
-      typeof event.success === 'boolean' &&
-      (event.error === undefined || (typeof event.error === 'string' && !event.success))
+      typeof value.success === 'boolean' &&
+      (value.error === undefined || (typeof value.error === 'string' && !value.success))
     );
   }
   return (
-    (event.phase === 'starting' || event.phase === 'destroyed') &&
-    event.success === undefined &&
-    event.error === undefined
+    (value.phase === 'starting' || value.phase === 'destroyed') &&
+    value.success === undefined &&
+    value.error === undefined
   );
 }
 

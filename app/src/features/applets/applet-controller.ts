@@ -158,7 +158,7 @@ export class AppletController {
     this.assertOwner();
     const applet = this.host.definitions.get(appletId);
     if (!applet || !applet.views.some((view) => view.id === viewId)) {
-      throw new Error('Skin view is unavailable');
+      throw new Error('Applet view is unavailable');
     }
     if (settingParams(applet.settings).some((param) => param.key === 'view')) {
       this.setConfig(appletId, { view: viewId });
@@ -170,7 +170,7 @@ export class AppletController {
     this.assertOwner();
     const applet = this.host.definitions.get(appletId);
     if (!applet) {
-      throw new Error('Skin is unavailable');
+      throw new Error('Applet is unavailable');
     }
     const labels = settingParams(applet.settings)
       .filter((param) => Object.hasOwn(values, param.key))
@@ -193,7 +193,7 @@ export class AppletController {
     const applet = this.host.definitions.get(appletId);
     const field = applet?.state?.find((entry) => entry.key === key);
     if (!applet || !field || !validAppletStateValue(field.type, value)) {
-      throw new Error('Skin state is unavailable');
+      throw new Error('Applet state is unavailable');
     }
     return this.setVariable(applet, `${appletId}.${key}`, value, ancestry);
   }
@@ -208,7 +208,7 @@ export class AppletController {
     this.assertOwner();
     const applet = this.host.definitions.get(appletId);
     if (!applet?.events?.some((event) => event.id === eventId)) {
-      throw new Error('Skin event is unavailable');
+      throw new Error('Applet event is unavailable');
     }
     return this.host.emitEvent(eventId, parameter, payload, ancestry);
   }
@@ -221,7 +221,7 @@ export class AppletController {
 
   private assertOwner() {
     if (!this.host.isOwner()) {
-      throw new Error('Skin runtime is unavailable');
+      throw new Error('Applet runtime is unavailable');
     }
   }
 
@@ -234,7 +234,7 @@ export class AppletController {
     const owner = applet.plugin ?? applet.id;
     const record = this.host.variables.get(id);
     if (!record || record.definition.owner !== owner) {
-      throw new Error('Skin variable is unavailable');
+      throw new Error('Applet variable is unavailable');
     }
     return this.host.setVariable(id, value, owner, ancestry);
   }

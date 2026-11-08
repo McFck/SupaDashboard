@@ -6,7 +6,6 @@
   import Eye from '@lucide/svelte/icons/eye';
   import EyeOff from '@lucide/svelte/icons/eye-off';
   import LayoutGrid from '@lucide/svelte/icons/layout-grid';
-  import Monitor from '@lucide/svelte/icons/monitor';
   import Settings from '@lucide/svelte/icons/settings';
   import Puzzle from '@lucide/svelte/icons/puzzle';
   import Store from '@lucide/svelte/icons/store';
@@ -25,7 +24,7 @@
   let page = $state<Page>('layout');
   let pluginId = $state<string | null>(null);
   const confirmationActive = $derived(confirmationState.current !== null);
-  const NAV: { id: Page; label: string; icon: typeof Monitor }[] = [
+  const NAV: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
     { id: 'layout', label: 'Layout', icon: LayoutGrid },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'plugins', label: 'Plugins', icon: Puzzle },

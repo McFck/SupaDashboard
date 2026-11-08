@@ -1,4 +1,4 @@
-<!-- The app name for a 32–40px title row. Never hit-testable, so the row it sits in stays a drag region. -->
+<!-- The app name for a 32 to 40 px title row. Never hit-testable, so the row it sits in stays a drag region. -->
 <span
   role="img"
   aria-label="SupaDashboard"

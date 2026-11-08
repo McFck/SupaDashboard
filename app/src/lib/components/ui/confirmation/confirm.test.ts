@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { completeConfirmation, confirm, confirmationState, disposeConfirmations, resetConfirmationsForTest, settleConfirmation } from './confirm.svelte';
+import { completeConfirmation, confirm, confirmationState, disposeConfirmations, settleConfirmation } from './confirm.svelte';
 
-beforeEach(resetConfirmationsForTest);
+beforeEach(disposeConfirmations);
 
 describe('promise confirmations', () => {
   it('resolves yes once and rejects stale settlement IDs', async () => {

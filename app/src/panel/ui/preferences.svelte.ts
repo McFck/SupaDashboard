@@ -1,4 +1,4 @@
-import { inspectorWidth, sidebarWidth, SIDEBAR_RAIL } from './frame';
+import { inspectorWidth } from './frame';
 
 function load(key: string) {
   try {
@@ -16,13 +16,6 @@ function store(key: string, value: unknown) {
 }
 const saved = load('panel-frame');
 export const frame = $state({
-  sidebarWidth:
-    typeof saved?.sidebarWidth === 'number'
-      ? sidebarWidth(saved.sidebarWidth)
-      : saved?.collapsed === true
-        ? SIDEBAR_RAIL
-        : 240,
-  inspectorOpen: saved?.inspectorOpen !== false,
   inspectorWidth:
     typeof saved?.inspectorWidth === 'number' ? inspectorWidth(saved.inspectorWidth) : 400,
 });

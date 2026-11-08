@@ -5,7 +5,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Slider } from '$lib/components/ui/slider';
   import { Switch } from '$lib/components/ui/switch';
-  import { suggestionsOf } from '../registry';
+  import { suggestionsOf } from '../../applets/definition';
   import type { Option, Param } from '../contracts';
   import Choice from './Choice.svelte';
   import { pluginTitle } from './PluginMark.svelte';

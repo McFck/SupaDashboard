@@ -15,28 +15,3 @@ export function normalizePluginState(value: unknown): PluginState {
     ),
   };
 }
-
-/** Remote plugin index; empty until a catalogue is published, so the Market does not fetch. */
-export const CATALOG_URL: string = '';
-
-export type CatalogEntry = {
-  id: string;
-  title: string;
-  author: string;
-  icon?: string;
-  description?: string;
-};
-export function catalogEntries(value: unknown): CatalogEntry[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(
-    (entry): entry is CatalogEntry =>
-      !!entry &&
-      typeof entry === 'object' &&
-      typeof entry.id === 'string' &&
-      entry.id.length > 0 &&
-      typeof entry.title === 'string' &&
-      typeof entry.author === 'string' &&
-      (entry.icon === undefined || typeof entry.icon === 'string') &&
-      (entry.description === undefined || typeof entry.description === 'string'),
-  );
-}

@@ -1,5 +1,5 @@
 import { isTauri } from '@tauri-apps/api/core';
-import { callPlugin, onPluginEvent } from './plugin-host';
+import { callPlugin, pluginStateHub } from './plugin-host';
 import { isRecord } from '../features/automation/plain-data';
 
 type VoiceUser = { id: string; name: string };
@@ -153,96 +153,20 @@ export function avatarUrl(
   return `https://cdn.discordapp.com/embed/avatars/${index}.png`;
 }
 
-const listeners = new Set<(view: VoiceView) => void>();
-let latest: VoiceView = { state: 'absent' };
-let epoch = 0;
-let unlisten: (() => void) | undefined;
-let retry: ReturnType<typeof setTimeout> | undefined;
-let queue: Promise<unknown> = Promise.resolve();
-const enqueue = (job: () => Promise<void>) =>
-  (queue = queue
-    .catch(() => {
-      // Each queued operation reports its own failure; a failed start must not prevent cleanup.
-    })
-    .then(job));
+const hub = pluginStateHub<VoiceView>(
+  'discord',
+  (raw) => readVoiceView(raw) ?? { state: 'needsAuth' },
+  { state: 'absent' },
+  { state: 'absent' },
+);
 
-function deliver(raw: unknown) {
-  latest = readVoiceView(raw) ?? { state: 'needsAuth' };
-  for (const listener of [...listeners]) {
-    listener(latest);
-  }
-}
-
-function startHub() {
-  const mine = ++epoch;
-  enqueue(async () => {
-    if (mine !== epoch) {
-      return;
-    }
-    unlisten?.();
-    let receivedEvent = false;
-    const stops = [
-      await onPluginEvent<unknown>('discord', 'state', (payload) => {
-        if (mine === epoch) {
-          receivedEvent = true;
-          deliver(payload);
-        }
-      }),
-      // A restarted plugin process has no subscribers; subscribe again.
-      await onPluginEvent('discord', 'restarted', () => {
-        if (mine === epoch) {
-          startHub();
-        }
-      }),
-    ];
-    unlisten = () => stops.forEach((stop) => stop());
-    const snapshot = await callPlugin<unknown>('discord', 'subscribe');
-    // Events can arrive while invoke is returning an older snapshot.
-    if (mine === epoch && !receivedEvent) {
-      deliver(snapshot);
-    }
-  }).catch(() => {
-    if (mine === epoch) {
-      deliver({ state: 'absent' });
-      retry = setTimeout(startHub, 5000);
-    }
-  });
-}
-
-export function subscribeVoice(listener: (view: VoiceView) => void): () => void {
-  if (!isTauri()) {
-    listener({ state: 'absent' });
-    return () => {};
-  }
-  const receive = (view: VoiceView) => listener(view);
-  listeners.add(receive);
-  receive(latest);
-  if (listeners.size === 1) {
-    startHub();
-  }
-  return () => {
-    if (!listeners.delete(receive) || listeners.size) {
-      return;
-    }
-    epoch++;
-    clearTimeout(retry);
-    latest = { state: 'absent' };
-    enqueue(async () => {
-      unlisten?.();
-      unlisten = undefined;
-      await callPlugin('discord', 'unsubscribe');
-    }).catch(() => {
-      // Native also releases the subscriber when its window closes.
-    });
-  };
-}
+export const subscribeVoice = hub.subscribe;
 
 async function command(method: string, params?: Record<string, unknown>) {
   if (!isTauri()) {
     throw new Error("Discord isn't running");
   }
-  await queue;
-  if (!listeners.size) {
+  if (!(await hub.settled()).subscribed) {
     throw new Error('Connect Discord first');
   }
   await callPlugin<void>('discord', method, params);
@@ -259,7 +183,7 @@ export async function authorize(clientId: string) {
 export const logout = () => command('logout');
 
 export async function voiceCommand(voice: VoiceCommand) {
-  await queue;
+  const { latest } = await hub.settled();
   if (latest.state === 'absent') {
     throw new Error("Discord isn't running");
   }

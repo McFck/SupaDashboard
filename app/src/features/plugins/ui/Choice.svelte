@@ -2,7 +2,6 @@
   // A plain "pick one of these" dropdown on top of the shadcn Select.
   import type { Component } from 'svelte';
   import * as Select from '$lib/components/ui/select';
-  import { Hint } from '$lib/components/ui/tooltip';
   import OptionTags from './OptionTags.svelte';
   import PluginMark, { pluginTitle } from './PluginMark.svelte';
   import type { TileAppearance } from '../../controls/model';
@@ -13,7 +12,6 @@
     label: string;
     icon?: Component<any>;
     iconLabel?: string;
-    iconHint?: string;
     disabled?: boolean;
     plugin?: string;
     detail?: string;
@@ -28,7 +26,6 @@
     class: className = 'w-full',
     id,
     'aria-label': ariaLabel,
-    'aria-labelledby': ariaLabelledby,
     onopen,
     showPluginMark = true,
   }: {
@@ -39,13 +36,12 @@
     class?: string;
     id?: string;
     'aria-label'?: string;
-    'aria-labelledby'?: string;
     onopen?: () => void;
     showPluginMark?: boolean;
   } = $props();
   const selected = $derived(options.find((o) => o.value === value));
   // Leading icons get one fixed slot on every row and the trigger, so all labels share one left edge.
-  const iconSlot = $derived(options.some((o) => o.icon && !o.iconHint));
+  const iconSlot = $derived(options.some((o) => o.icon));
   const accessibleLabel = $derived(
     ariaLabel && selected?.plugin && pluginTitle(selected.plugin)
       ? `${ariaLabel}, Plugin: ${pluginTitle(selected.plugin)}`
@@ -56,7 +52,7 @@
 {#snippet leading(o: Option | undefined)}
   {#if o?.appearance}<StateSwatch appearance={o.appearance} />{/if}
   {#if iconSlot}<span class="flex size-4 shrink-0 items-center justify-center"
-      >{#if o?.icon && !o.iconHint}<o.icon
+      >{#if o?.icon}<o.icon
           size={15}
           class="size-4"
           aria-hidden={o.iconLabel ? 'true' : undefined}
@@ -76,7 +72,6 @@
   <Select.Trigger
     {id}
     aria-label={accessibleLabel}
-    aria-labelledby={ariaLabelledby}
     class={className}
   >
     {@render leading(selected)}
@@ -86,19 +81,6 @@
         detail={selected?.detail}
         unavailable={selected?.unavailable}
       />
-      {#if selected?.icon && selected.iconHint}
-        <Hint text={selected.iconHint}>
-          {#snippet children(props)}<span
-              {...props}
-              class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground"
-              ><selected.icon
-                size={12}
-                strokeWidth={1.75}
-                aria-hidden="true"
-              /></span
-            >{/snippet}
-        </Hint>
-      {/if}
       {#if showPluginMark && selected?.plugin}<PluginMark plugin={selected.plugin} />{/if}
     </span>
   </Select.Trigger>
@@ -117,19 +99,6 @@
               detail={o.detail}
               unavailable={o.unavailable}
             />
-            {#if o.icon && o.iconHint}
-              <Hint text={o.iconHint}>
-                {#snippet children(props)}<span
-                    {...props}
-                    class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground"
-                    ><o.icon
-                      size={12}
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                    /></span
-                  >{/snippet}
-              </Hint>
-            {/if}
             {#if showPluginMark && o.plugin}<PluginMark plugin={o.plugin} />{/if}
           </span>
         </Select.Item>

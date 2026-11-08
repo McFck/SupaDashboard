@@ -1,8 +1,7 @@
 import { writable } from 'svelte/store';
-import { settings } from '../../features/settings/state.svelte';
+import { controlById, settings } from '../../features/settings/state.svelte';
 import { onRemoteSettings } from '../../features/settings/persistence.svelte';
 import type { Settings } from '../../features/settings/schema';
-import { controlById } from '../../features/settings/state.svelte';
 import { EventRegistry } from '../../features/automation/events';
 import {
   runAction,

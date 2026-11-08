@@ -1,5 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { callPlugin, onPluginEvent } from './plugin-host';
+import { callPlugin, pluginStateHub } from './plugin-host';
 import { isRecord } from '../features/automation/plain-data';
 import { ActionFailure } from '../features/automation/action-failure';
 
@@ -54,95 +54,20 @@ export function readSpotifyView(raw: unknown): SpotifyView | undefined {
   };
 }
 
-const listeners = new Set<(view: SpotifyView) => void>();
-let latest: SpotifyView = { state: 'needsAuth' };
-let epoch = 0;
-let unlisten: (() => void) | undefined;
-let retry: ReturnType<typeof setTimeout> | undefined;
-let queue: Promise<unknown> = Promise.resolve();
-const enqueue = (job: () => Promise<void>) =>
-  (queue = queue
-    .catch(() => {
-      // Failed starts are reported below; cleanup must still run.
-    })
-    .then(job));
+const hub = pluginStateHub<SpotifyView>(
+  'spotify',
+  (raw) => readSpotifyView(raw) ?? { state: 'needsAuth', error: 'Invalid Spotify state' },
+  { state: 'needsAuth' },
+  { state: 'needsAuth', error: 'Spotify unavailable' },
+);
 
-function deliver(raw: unknown) {
-  latest = readSpotifyView(raw) ?? { state: 'needsAuth', error: 'Invalid Spotify state' };
-  for (const listener of [...listeners]) {
-    listener(latest);
-  }
-}
-
-function startHub() {
-  const mine = ++epoch;
-  enqueue(async () => {
-    if (mine !== epoch) {
-      return;
-    }
-    unlisten?.();
-    let receivedEvent = false;
-    const stops = [
-      await onPluginEvent<unknown>('spotify', 'state', (payload) => {
-        if (mine === epoch) {
-          receivedEvent = true;
-          deliver(payload);
-        }
-      }),
-      // A restarted plugin process has no subscribers; subscribe again.
-      await onPluginEvent('spotify', 'restarted', () => {
-        if (mine === epoch) {
-          startHub();
-        }
-      }),
-    ];
-    unlisten = () => stops.forEach((stop) => stop());
-    const snapshot = await callPlugin<unknown>('spotify', 'subscribe');
-    if (mine === epoch && !receivedEvent) {
-      deliver(snapshot);
-    }
-  }).catch(() => {
-    if (mine === epoch) {
-      deliver({ state: 'needsAuth', error: 'Spotify unavailable' });
-      retry = setTimeout(startHub, 5000);
-    }
-  });
-}
-
-export function subscribeSpotify(listener: (view: SpotifyView) => void): () => void {
-  if (!isTauri()) {
-    listener({ state: 'needsAuth' });
-    return () => {};
-  }
-  const receive = (view: SpotifyView) => listener(view);
-  listeners.add(receive);
-  receive(latest);
-  if (listeners.size === 1) {
-    startHub();
-  }
-  return () => {
-    if (!listeners.delete(receive) || listeners.size) {
-      return;
-    }
-    epoch++;
-    clearTimeout(retry);
-    latest = { state: 'needsAuth' };
-    enqueue(async () => {
-      unlisten?.();
-      unlisten = undefined;
-      await callPlugin('spotify', 'unsubscribe');
-    }).catch(() => {
-      // Native also releases the subscriber when its window closes.
-    });
-  };
-}
+export const subscribeSpotify = hub.subscribe;
 
 async function command(method: string, params?: Record<string, unknown>) {
   if (!isTauri()) {
     throw new Error('Spotify unavailable');
   }
-  await queue;
-  if (!listeners.size) {
+  if (!(await hub.settled()).subscribed) {
     throw new Error('Connect Spotify first');
   }
   await callPlugin<void>('spotify', method, params);

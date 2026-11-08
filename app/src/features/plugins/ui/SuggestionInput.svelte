@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
   import { Combobox } from 'bits-ui';
   import { fade } from 'svelte/transition';
   import { Input } from '$lib/components/ui/input';
@@ -41,13 +40,10 @@
     suggestions.find((option) => option.value === value || option.label === value),
   );
   const display = $derived(selected?.label ?? value);
-  let query = $state(untrack(() => display));
+  // Typing overrides the shown text until the selection changes.
+  let query = $derived(display);
   // Until the user types, the list is whole so the current pick can be swapped for another.
   const filtered = $derived(rankOptions(suggestions, typing ? query : ''));
-
-  $effect(() => {
-    query = display;
-  });
   // Opening here bypasses the combobox's own onOpenChange, so the options refresh is asked for directly.
   function show() {
     if (!open) {

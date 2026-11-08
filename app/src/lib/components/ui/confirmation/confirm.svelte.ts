@@ -49,8 +49,3 @@ export function disposeConfirmations() {
     request.resolve(false);
   }
 }
-
-export function resetConfirmationsForTest() {
-  disposeConfirmations();
-  nextId = 0;
-}

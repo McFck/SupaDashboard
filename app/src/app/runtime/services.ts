@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 import { isTauri } from '@tauri-apps/api/core';
 import { toast } from 'svelte-sonner';
 import { actions } from '../../features/plugins/registry';
-import { settings } from '../../features/settings/state.svelte';
+import { controlById } from '../../features/settings/state.svelte';
 import type { ScenarioFailure } from '../../features/automation/scenario-runner';
 import type { Trigger } from '../../features/automation/scenario';
 import { acceptRuntimeSnapshot, attachRuntimeConnection, setRuntimeSync } from './client';
@@ -23,7 +23,7 @@ let stopOwner: (() => Promise<void>) | undefined;
 let stopped = false;
 
 function controlName(controlId: string) {
-  return settings.controls.find((item) => item.id === controlId)?.name ?? 'Automation';
+  return controlById(controlId)?.name ?? 'Automation';
 }
 
 function reportFailure(failure: ScenarioFailure) {

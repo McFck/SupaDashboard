@@ -11,7 +11,6 @@ import type {
   EventAncestry,
   EventDef,
   MediaSource,
-  Param,
   Plugin,
   PluginApi,
   PluginVariableDef,
@@ -355,9 +354,6 @@ export async function setPluginEnabled(id: string, enabled: boolean) {
   await persistPlugins(state);
   location.reload();
 }
-
-export const suggestionsOf = (p: Param, args?: Record<string, unknown>) =>
-  typeof p.suggestions === 'function' ? p.suggestions(args) : p.suggestions;
 
 export async function runAction(ref: ActionRef, context?: ActionContext) {
   const def = actions.get(ref.id);

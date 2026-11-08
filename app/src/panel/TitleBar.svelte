@@ -7,32 +7,6 @@
   import X from '@lucide/svelte/icons/x';
   import Wordmark from './Wordmark.svelte';
 
-  type Platform = 'windows' | 'macos' | 'linux';
-
-  // macOS draws its own traffic lights; the header only reserves their room (px).
-  const LAYOUT = {
-    windows: {
-      lightsInset: 0,
-      buttons: true,
-      button: 'h-full w-11 text-muted-foreground',
-      close: 'hover:bg-[#e81123] hover:text-white',
-    },
-    linux: {
-      lightsInset: 0,
-      buttons: true,
-      button: 'my-auto mr-1.5 size-5 rounded-full bg-white/[.06] text-muted-foreground',
-      close: 'hover:bg-destructive hover:text-white',
-    },
-    macos: { lightsInset: 76, buttons: false, button: '', close: '' },
-  } satisfies Record<Platform, unknown>;
-
-  const platform: Platform = /Mac/.test(navigator.userAgent)
-    ? 'macos'
-    : /Windows/.test(navigator.userAgent)
-      ? 'windows'
-      : 'linux';
-  const layout = LAYOUT[platform];
-
   const appWindow = getCurrentWindow();
   let maximized = $state(false);
   let snapHover = $state(false);
@@ -40,7 +14,7 @@
 
   // Windows draws the Snap Layouts flyout only over a native hit target, so Rust gets the button's pixel rect.
   function placeSnapTarget() {
-    if (platform !== 'windows' || !maximizeButton) {
+    if (!maximizeButton) {
       return;
     }
     const rect = maximizeButton.getBoundingClientRect();
@@ -85,14 +59,13 @@
     };
   });
 
-  const base =
-    'grid place-items-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:bg-white/[.06] hover:text-foreground';
+  const button =
+    'grid h-full w-11 place-items-center text-muted-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:bg-white/[.06] hover:text-foreground';
 </script>
 
 <header
   data-tauri-drag-region
-  style:padding-left="{layout.lightsInset || 12}px"
-  class="flex h-9 shrink-0 select-none items-center justify-between bg-[var(--canvas-surface)] text-xs text-muted-foreground"
+  class="flex h-9 pl-3 shrink-0 select-none items-center justify-between bg-[var(--canvas-surface)] text-xs text-muted-foreground"
 >
   <Wordmark />
   <!-- Marks non-release builds in the empty middle of the bar; Vite drops the block from release bundles. -->
@@ -153,28 +126,26 @@
       />
     </svg>
   {/if}
-  {#if layout.buttons}
-    <div class="flex h-full">
-      <button
-        type="button"
-        aria-label="Minimize"
-        onclick={() => void appWindow.minimize()}
-        class="{base} {layout.button}"><Minus size={15} /></button
-      >
-      <button
-        bind:this={maximizeButton}
-        type="button"
-        aria-label={maximized ? 'Restore' : 'Maximize'}
-        onclick={() => void appWindow.toggleMaximize()}
-        class="{base} {layout.button} {snapHover ? 'bg-white/[.06] text-foreground' : ''}"
-        >{#if maximized}<Copy size={13} />{:else}<Square size={13} />{/if}</button
-      >
-      <button
-        type="button"
-        aria-label="Close"
-        onclick={() => void appWindow.close()}
-        class="{base} {layout.button} {layout.close}"><X size={16} /></button
-      >
-    </div>
-  {/if}
+  <div class="flex h-full">
+    <button
+      type="button"
+      aria-label="Minimize"
+      onclick={() => void appWindow.minimize()}
+      class={button}><Minus size={15} /></button
+    >
+    <button
+      bind:this={maximizeButton}
+      type="button"
+      aria-label={maximized ? 'Restore' : 'Maximize'}
+      onclick={() => void appWindow.toggleMaximize()}
+      class="{button} {snapHover ? 'bg-white/[.06] text-foreground' : ''}"
+      >{#if maximized}<Copy size={13} />{:else}<Square size={13} />{/if}</button
+    >
+    <button
+      type="button"
+      aria-label="Close"
+      onclick={() => void appWindow.close()}
+      class="{button} hover:bg-[#e81123] hover:text-white"><X size={16} /></button
+    >
+  </div>
 </header>
