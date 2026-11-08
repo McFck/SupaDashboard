@@ -5,6 +5,7 @@ import { configureHaptics, pulse, PULSE_KINDS, type PulseKind } from '../../plat
 import { onPluginEvent } from '../../platform/plugin-host';
 import HapticsSection from './ui/HapticsSection.svelte';
 import { DEFAULTS, loadSettings, toConfig, watchSettings, type HapticsSettings } from './settings';
+import guide from './guide.md?raw';
 
 const isKind = (value: unknown): value is PulseKind => PULSE_KINDS.includes(value as PulseKind);
 
@@ -18,6 +19,7 @@ export const hapticsPlugin: Plugin = {
   updated: '2026-11-06',
   source: 'bundled',
   settingsSection: HapticsSection,
+  guide,
   setup(api) {
     api.registerIcon(
       'vibrate',

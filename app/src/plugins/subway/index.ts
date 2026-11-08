@@ -19,6 +19,7 @@ import {
   setSubwayImmersion,
   runtime,
 } from './simulation/runtime';
+import guide from './guide.md?raw';
 
 const pickableLines = LINE_CATALOGUE.filter((line) => !PAUSED_LINES.has(line.id));
 const lineOptions: Option[] = [
@@ -224,6 +225,7 @@ export const subwayPlugin: Plugin = {
   updated: '2026-10-24',
   source: 'bundled',
   size: 1618,
+  guide,
   setup(api) {
     api.registerVariable({
       id: SUBWAY_MIX_VOLUME_ID,

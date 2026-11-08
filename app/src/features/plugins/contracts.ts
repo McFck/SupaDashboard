@@ -207,5 +207,7 @@ export type Plugin = {
   private?: boolean;
   /** A section of the plugin page for settings that must stay out of settings.json, such as credentials. */
   settingsSection?: Component;
+  /** Markdown shown by the plugin page's How to use button: what the plugin is for and how to set it up. */
+  guide?: string;
   setup(api: PluginApi): void;
 };

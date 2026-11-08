@@ -10,6 +10,7 @@ import { spotifyCommand, spotifyTransport, subscribeSpotify } from '../../platfo
 import ConnectionSection from './ui/ConnectionSection.svelte';
 import LyricsEditor from './ui/LyricsEditor.svelte';
 import LyricsTile from './ui/LyricsTile.svelte';
+import guide from './guide.md?raw';
 
 function followOwner(api: PluginApi) {
   let stopSources: (() => void) | undefined;
@@ -99,6 +100,7 @@ export const spotifyPlugin: Plugin = {
   default: true,
   source: 'bundled',
   settingsSection: ConnectionSection,
+  guide,
   setup(api) {
     api.registerIcon(
       'spotify',

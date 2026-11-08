@@ -1,13 +1,22 @@
 <script lang="ts">
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+  import BookOpen from '@lucide/svelte/icons/book-open';
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Badge } from '$lib/components/ui/badge';
   import { Switch } from '$lib/components/ui/switch';
   import Icon from '../../controls/ui/Icon.svelte';
-  import { pluginState, setPluginEnabled, applets } from '../registry';
+  import {
+    actions,
+    applets,
+    controlTypes,
+    mediaSources,
+    pluginState,
+    setPluginEnabled,
+  } from '../registry';
   import type { Param, Plugin } from '../contracts';
+  import GuideDialog from './GuideDialog.svelte';
   import ParamControl from './ParamControl.svelte';
   import SettingsIndex from './SettingsIndex.svelte';
   import { labelEdit } from '../../layout/history.svelte';
@@ -38,6 +47,16 @@
       })),
     ),
   );
+  const owned = <T extends { plugin?: string; title: string }>(items: Iterable<T>) =>
+    [...items].filter((item) => item.plugin === plugin.id).map((item) => item.title);
+  const adds = $derived(
+    [
+      { label: 'Widgets', titles: [...owned(controlTypes.values()), ...owned(applets.values())] },
+      { label: 'Actions', titles: owned(actions.values()) },
+      { label: 'Media sources', titles: owned(mediaSources.values()) },
+    ].filter(({ titles }) => titles.length),
+  );
+  let guideOpen = $state(false);
   let removing = $state(false);
   let changing = $state(false);
   async function setEnabled(enabled: boolean) {
@@ -147,6 +166,13 @@
             {#if pluginApplets.length}<Badge variant="secondary">Applet</Badge>{/if}
           </div>
         </div>
+        {#if plugin.guide}
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => (guideOpen = true)}><BookOpen />How to use</Button
+          >
+        {/if}
         <Switch
           aria-label={`Enable ${plugin.title}`}
           checked={plugin.default || !$pluginState.uninstalled.includes(plugin.id)}
@@ -215,6 +241,9 @@
           class="scroll-mt-14 @[900px]:scroll-mt-9"
         >
           <Section title="About">
+            {#each adds as { label, titles } (label)}
+              <Row {label}><span class="text-right text-sm">{titles.join(', ')}</span></Row>
+            {/each}
             <Row label="Last update"><span class="text-sm">{date(plugin.updated)}</span></Row>
             <Row label="Installed"
               ><span class="text-sm">{date($pluginState.installed[plugin.id])}</span></Row
@@ -238,3 +267,10 @@
     </div>
   </div>
 </div>
+{#if plugin.guide}
+  <GuideDialog
+    title={plugin.title}
+    guide={plugin.guide}
+    bind:open={guideOpen}
+  />
+{/if}

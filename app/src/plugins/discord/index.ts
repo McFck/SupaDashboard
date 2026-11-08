@@ -6,6 +6,7 @@ import type { Plugin, PluginApi } from '../../features/plugins/contracts';
 import { subscribeVoice, voiceCommand, type VoiceView } from '../../platform/discord';
 import ConnectionSection from './ui/ConnectionSection.svelte';
 import VoiceTile from './ui/VoiceTile.svelte';
+import guide from './guide.md?raw';
 
 function followOwner(api: PluginApi) {
   let stopVoice: (() => void) | undefined;
@@ -56,6 +57,7 @@ export const discordPlugin: Plugin = {
   updated: '2026-11-04',
   source: 'bundled',
   settingsSection: ConnectionSection,
+  guide,
   setup(api) {
     api.registerIcon(
       'discord-voice',
