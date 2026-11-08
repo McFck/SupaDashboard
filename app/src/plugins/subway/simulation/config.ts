@@ -8,14 +8,10 @@ export const SUBWAY_DEFAULT_CONFIG = Object.freeze({
   line: firstLine.id,
   direction: firstLine.directions[0].id,
   startStation: firstLine.stations[0],
-  speed: 1,
-  carNumber: '',
   displayLanguages: 'ja-en',
   announcementLanguages: 'ja-en',
   immersion: false,
   announcementVolume: 0.8,
-  gesture: 'tripleTap',
-  corner: 'bottomRight',
 });
 
 export type NormalizedSubwayConfig = Readonly<
@@ -30,8 +26,6 @@ export type NormalizedSubwayConfig = Readonly<
     announcementLanguages: string;
     immersion: boolean;
     announcementVolume: number;
-    gesture: 'tripleTap' | 'cornerHold' | 'off';
-    corner: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
   }
 >;
 
@@ -120,12 +114,6 @@ export function normalizeSubwayConfig(
     typeof stored.announcementVolume === 'number' && Number.isFinite(stored.announcementVolume)
       ? Math.min(1, Math.max(0, stored.announcementVolume))
       : 0.8;
-  const gesture =
-    stored.gesture === 'cornerHold' || stored.gesture === 'off' ? stored.gesture : 'tripleTap';
-  const corner =
-    stored.corner === 'topLeft' || stored.corner === 'topRight' || stored.corner === 'bottomLeft'
-      ? stored.corner
-      : 'bottomRight';
   return Object.freeze({
     ...stored,
     line: line.id,
@@ -137,7 +125,5 @@ export function normalizeSubwayConfig(
     announcementLanguages: announcementCandidate,
     immersion: typeof stored.immersion === 'boolean' ? stored.immersion : false,
     announcementVolume: volume,
-    gesture,
-    corner,
   }) as NormalizedSubwayConfig;
 }

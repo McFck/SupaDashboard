@@ -159,46 +159,6 @@ export function reduceRun(
       throw new Error('Run speed must be 0.5, 1, or 2');
     return { state: { ...current, nextMultiplier: command.multiplier }, effects };
   }
-  if (command.type === 'set-line') {
-    const line = lineFor(lines, command.lineId);
-    const stationCode = command.stationCode ?? line.stations[0]?.code;
-    if (!stationCode || !line.stations.some((station) => station.code === stationCode))
-      throw new Error(`Unknown station for ${line.id}: ${stationCode}`);
-    current = {
-      ...current,
-      lineId: line.id,
-      stationCode,
-      direction: line.directions[0].id,
-      phase: 'stopped',
-      doors: 'open',
-      active: false,
-      phaseStartedAt: null,
-      phaseDeadline: null,
-      stopDeadline: null,
-      segment: null,
-      pendingCues: [],
-      loopArrivalsRemaining: line.loop ? line.stations.length : 0,
-      incident: null,
-      pausedAt: null,
-      generation: current.generation + 1,
-    };
-    return { state: current, effects };
-  }
-  if (command.type === 'set-direction' || command.type === 'reverse') {
-    const line = lineFor(lines, current.lineId);
-    const direction =
-      command.type === 'reverse'
-        ? line.directions.find((item) => item.id !== current.direction)?.id
-        : command.direction;
-    if (!direction || !line.directions.some((item) => item.id === direction))
-      throw new Error(`Unknown direction for ${line.id}: ${direction}`);
-    const canRun = !!stepStation(line, current.stationCode, direction);
-    const startsFromTerminal = !current.active && current.phase === 'stopped' && canRun;
-    let next = { ...current, direction, ...(startsFromTerminal ? { active: true } : {}) };
-    if (next.phase === 'stopped' && next.active)
-      next = { ...next, ...prepareDwell({ ...next, pendingCues: [] }, now, line, plans) };
-    return { state: next, effects };
-  }
   if (command.type === 'start') {
     const line = lineFor(lines, current.lineId);
     if (

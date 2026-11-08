@@ -18,6 +18,13 @@ export type ScreenPage =
   | 'mobile';
 export type ScreenLanguage = 'ja' | 'kana' | 'en' | 'zh' | 'ko';
 
+export const isScreenLanguage = (language: string): language is ScreenLanguage =>
+  language === 'ja' ||
+  language === 'kana' ||
+  language === 'en' ||
+  language === 'zh' ||
+  language === 'ko';
+
 export interface ScreenConfig {
   line: LineDefinition;
   languages?: readonly string[];
@@ -62,14 +69,7 @@ function supportedLanguages(config: ScreenConfig): ScreenLanguage[] {
   if (config.line.id === 'sakaisuji') {
     return hankyuLanguages(config);
   }
-  const requested = config.languages?.filter(
-    (language): language is ScreenLanguage =>
-      language === 'ja' ||
-      language === 'kana' ||
-      language === 'en' ||
-      language === 'zh' ||
-      language === 'ko',
-  );
+  const requested = config.languages?.filter(isScreenLanguage);
   const choices: ScreenLanguage[] = requested?.length ? requested : ['ja', 'en'];
   const supports = (language: ScreenLanguage) =>
     language === 'zh' || language === 'ko'

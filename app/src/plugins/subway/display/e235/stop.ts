@@ -1,10 +1,9 @@
 import type { ScreenSchedule } from '../../rendering/screens';
 import { e235TrainStop } from './data';
+import { e235Target } from './draw';
 
 export function target(model: ScreenSchedule) {
-  return ['stopped', 'doorsClosing', 'arriving'].includes(model.snapshot.state)
-    ? model.station.code
-    : (model.nextStation?.code ?? model.station.code);
+  return e235Target(model).code;
 }
 
 export function stopFor(model: ScreenSchedule) {

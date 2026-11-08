@@ -74,10 +74,7 @@ export interface SubwayRunState extends RunTimeline {
 
 export type RunCommand =
   | { type: 'start' }
-  | { type: 'set-line'; lineId: LineDefinition['id']; stationCode?: string }
   | { type: 'configure'; lineId: LineDefinition['id']; direction: string; stationCode: string }
-  | { type: 'set-direction'; direction: string }
-  | { type: 'reverse' }
   | { type: 'set-speed'; multiplier: number }
   | { type: 'set-immersion'; enabled: boolean }
   | { type: 'emergency' }

@@ -4,7 +4,7 @@ const PARTIALS = 3;
 
 /**
  * Wheel squeal, synthesised because no free recording fits: a few detuned high partials with a slow shared
- * vibrato. One voice serves curve squeal (15–45 km/h) and brake squeal (below 8 km/h), which never overlap.
+ * vibrato. One voice serves curve squeal (15 to 45 km/h) and brake squeal (below 8 km/h), which never overlap.
  */
 export class Squeal {
   private readonly partials: OscillatorNode[];

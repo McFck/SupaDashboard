@@ -80,7 +80,7 @@ function drawStatic(ctx: CanvasRenderingContext2D, model: ScreenSchedule): void 
 }
 
 export function createHankyu1300Renderer() {
-  const cache = new CanvasLayerCache(12);
+  const cache = new CanvasLayerCache();
   return {
     draw(
       ctx: CanvasRenderingContext2D,
@@ -100,9 +100,6 @@ export function createHankyu1300Renderer() {
           drawStatic(ctx, model);
         }
       });
-    },
-    get cacheSize() {
-      return cache.size;
     },
     dispose() {
       cache.clear();

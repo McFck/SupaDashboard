@@ -1,6 +1,7 @@
+const LIMIT = 12;
+
 export class CanvasLayerCache {
   private readonly layers = new Map<string, HTMLCanvasElement>();
-  constructor(private readonly limit = 12) {}
 
   draw(
     ctx: CanvasRenderingContext2D,
@@ -26,15 +27,12 @@ export class CanvasLayerCache {
       layerContext.scale(layer.width / width, layer.height / height);
       render(layerContext);
       this.layers.set(key, layer);
-      while (this.layers.size > this.limit) this.layers.delete(this.layers.keys().next().value!);
+      while (this.layers.size > LIMIT) this.layers.delete(this.layers.keys().next().value!);
     }
     ctx.drawImage(layer, 0, 0, width, height);
     return true;
   }
 
-  get size(): number {
-    return this.layers.size;
-  }
   clear(): void {
     this.layers.clear();
   }

@@ -55,8 +55,6 @@ describe('Subway settings boundary', () => {
       announcementLanguages: 'ja-en',
       immersion: false,
       announcementVolume: 0.8,
-      gesture: 'tripleTap',
-      corner: 'bottomRight',
       unknownKey: { retained: true },
     });
   });

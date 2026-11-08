@@ -51,7 +51,7 @@ function overlay(ctx: CanvasRenderingContext2D, model: ScreenSchedule, time: num
 
 export function createYamanoteRenderer() {
   void e235Images.acquire();
-  const cache = new CanvasLayerCache(12);
+  const cache = new CanvasLayerCache();
   let animationKey = '',
     animationOrigin = 0;
   return {
@@ -81,9 +81,6 @@ export function createYamanoteRenderer() {
         }
         return overlay(ctx, model, time - animationOrigin);
       });
-    },
-    get cacheSize() {
-      return cache.size;
     },
     dispose() {
       cache.clear();

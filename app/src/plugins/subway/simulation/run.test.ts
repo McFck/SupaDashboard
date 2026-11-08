@@ -171,29 +171,6 @@ describe('Subway run timeline', () => {
     expect(departures).toEqual(['H21>H22', 'H22>H21']);
     expect(hibiya.direction).toBe('to-naka-meguro');
     expect(hibiya.laps).toBe(1);
-
-    for (const [lineId, terminal, forward, reverse, expected] of [
-      ['hibiya', 'H22', 'to-kita-senju', 'to-naka-meguro', 'H21'],
-      ['sakaisuji', 'K20', 'southbound', 'northbound', 'K19'],
-    ] as const) {
-      let terminalState = createRunState(lines, {
-        lineId,
-        stationCode: terminal,
-        direction: forward,
-        now: 0,
-      });
-      terminalState = reduce(terminalState, 'start', 0).state;
-      expect(terminalState.active).toBe(false);
-      terminalState = reduceRun(
-        terminalState,
-        { type: 'set-direction', direction: reverse },
-        0,
-        lines,
-        plans,
-      ).state;
-      expect(terminalState.active).toBe(true);
-      expect(snapshotRun(terminalState, 0, lines).next).toBe(expected);
-    }
   });
 
   it('applies speed changes on the next segment and preserves the current timeline with audio off', () => {
@@ -440,7 +417,7 @@ describe('Subway run timeline', () => {
     const initial = createRunState(lines, { lineId: 'yamanote', stationCode: 'JY01' });
     const changed = reduceRun(
       initial,
-      { type: 'set-line', lineId: 'hibiya', stationCode: 'H14' },
+      { type: 'configure', lineId: 'hibiya', direction: 'to-kita-senju', stationCode: 'H14' },
       10,
       lines,
     ).state;

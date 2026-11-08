@@ -11,7 +11,7 @@ import {
   HIBIYA_LCD_HEIGHT,
 } from './layout';
 export function createHibiyaRenderer() {
-  const cache = new CanvasLayerCache(12);
+  const cache = new CanvasLayerCache();
   let origin = 0,
     lastElapsed = -1,
     lastTime = 0;

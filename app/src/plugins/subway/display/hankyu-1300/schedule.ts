@@ -1,15 +1,13 @@
 import type { RunSnapshot } from '../../simulation/run';
-import type { ScreenConfig, ScreenLanguage, ScreenPage } from '../../rendering/screens';
+import {
+  isScreenLanguage,
+  type ScreenConfig,
+  type ScreenLanguage,
+  type ScreenPage,
+} from '../../rendering/screens';
 
 export function hankyuLanguages(config: ScreenConfig): ScreenLanguage[] {
-  const requested = config.languages?.filter(
-    (language): language is ScreenLanguage =>
-      language === 'ja' ||
-      language === 'kana' ||
-      language === 'en' ||
-      language === 'zh' ||
-      language === 'ko',
-  );
+  const requested = config.languages?.filter(isScreenLanguage);
   const choices: ScreenLanguage[] = requested?.length ? requested : ['ja', 'en'];
   const supports = (language: ScreenLanguage) =>
     (language === 'ja' || language === 'kana') &&

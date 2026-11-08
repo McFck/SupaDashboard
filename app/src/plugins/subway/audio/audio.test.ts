@@ -248,7 +248,6 @@ describe('Subway immersion audio', () => {
       emergency,
     ]);
     expect(harness.oscillators).toHaveLength(2);
-    expect(harness.audio.getStats().syntheticEmergencyAlert).toBe(true);
   });
 
   it('preloads only when immersion is visible and drops its context on disposal', async () => {

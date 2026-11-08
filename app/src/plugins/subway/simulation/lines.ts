@@ -49,7 +49,6 @@ export interface RawLineBundle {
 
 const CODE_PATTERN = /^[A-Z]{1,3}\d{2}$/;
 const COLOR_PATTERN = /^#[\da-f]{6}$/i;
-const TRANSFER_CODE_PATTERN = /^[A-Z]{1,3}\d{2}$/;
 
 type RawRecord = Record<string, unknown>;
 
@@ -154,7 +153,7 @@ function stationTransfers(
   const seenCodes = new Set<string>();
   const addCode = (value: unknown, source: string, revision?: string): void => {
     const transferCode = nonEmpty(value, `Transfer code at ${code}`);
-    if (!TRANSFER_CODE_PATTERN.test(transferCode))
+    if (!CODE_PATTERN.test(transferCode))
       throw new Error(`Invalid transfer code at ${code}: ${transferCode}`);
     if (seenCodes.has(transferCode)) return;
     seenCodes.add(transferCode);
@@ -214,12 +213,6 @@ export function normalizeSubwayLine(rawLine: unknown, rawPack: unknown): LineDef
   }
   const expectedCode = facts.code;
   const seenCodes = new Set<string>();
-  const firstCode = nonEmpty(
-    record(rawStations[0], `Line ${lineId} station 1`).code,
-    'Station code',
-  );
-  if (!CODE_PATTERN.test(firstCode) || !firstCode.startsWith(expectedCode))
-    throw new Error(`Invalid station code for ${lineId}: ${firstCode}`);
 
   const rawTransfers =
     line.transfers === undefined ? undefined : record(line.transfers, `Line ${lineId} transfers`);
@@ -361,22 +354,18 @@ export function normalizeSubwayLines(
 }
 
 export function localizedName(names: LocalizedNames, language: string, fallback = ''): string {
-  const key = typeof language === 'string' ? language.toLowerCase() : '';
-  return names[key] || names.en || names.ja || fallback;
+  return names[language.toLowerCase()] || names.en || names.ja || fallback;
 }
 
 export function stepStation(
   line: LineDefinition,
   stationCode: string,
   directionId: string,
-  steps = 1,
 ): StationDefinition | undefined {
-  if (!Number.isInteger(steps) || steps < 1)
-    throw new Error(`Invalid station step count: ${steps}`);
   const currentIndex = line.stations.findIndex((station) => station.code === stationCode);
   const direction = line.directions.find((item) => item.id === directionId);
   if (currentIndex < 0 || !direction) return undefined;
-  const targetIndex = currentIndex + direction.delta * steps;
+  const targetIndex = currentIndex + direction.delta;
   if (line.loop)
     return line.stations[
       ((targetIndex % line.stations.length) + line.stations.length) % line.stations.length

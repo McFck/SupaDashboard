@@ -18,7 +18,7 @@ export interface HibiyaPairSchedule {
 export function hibiyaLanguageFrame(
   languages: readonly ScreenLanguage[],
   elapsed: number,
-  offset = 0,
+  offset: number,
 ) {
   const tick = Math.floor((elapsed + 1_000) / 5_000);
   const index = (((tick + offset) % languages.length) + languages.length) % languages.length;

@@ -20,8 +20,6 @@ import {
   text,
 } from './draw';
 
-// ---------- Route map (RouteMap / RouteMapList) ----------
-
 // Each cell is a 54px canvas with Margin="-0.2,0,-0.2,...", so cells advance by 53.6px; 15 of them are centred
 // in the 944px ItemsControl (Margin 8,0,8,24), which puts the first cell's left edge at 77.2.
 const CELL = 53.6;
@@ -92,8 +90,8 @@ function verticalLabel(
       ? [value.slice(0, 2), value.slice(2)]
       : value.split('\n');
   const step = 25;
-  // The lower template inserts a 20px spacer before the second column; the block then
-  // After rotation the Viewbox is 39x120 above the track and 39x115 below it.
+  // The template puts a 20px spacer before the second column. After rotation the Viewbox is 39x120 above the
+  // track and 39x115 below it.
   const contentH = Math.max(...columns.map((c, k) => k * 20 + [...c].length * step));
   const sx = Math.min(1, 39 / (columns.length * step)),
     sy = Math.min(1, (bottom === null ? 115 : 120) / contentH);
@@ -102,7 +100,6 @@ function verticalLabel(
     const x = cx + ((columns.length - 1) / 2 - c) * step * sx;
     const chars = [...column.replace(/ー/g, '丨')];
     chars.forEach((ch, i) => {
-      // The lower-row template inserts a 20px Spacer before the second column.
       ctx.save();
       ctx.translate(x, blockTop + (c * 20 + (i + 0.5) * step) * sy);
       ctx.scale(sx, sy);

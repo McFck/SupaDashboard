@@ -16,32 +16,20 @@ export function buildCuePlans(
     for (const station of line.stations)
       for (const direction of line.directions) {
         const next = stepStation(line, station.code, direction.id);
-        if (next) {
-          plans[segmentPlanKey(line.id, station.code, next.code, direction.id)] =
+        // The plan from a station to itself serves a train standing there, such as an emergency stop.
+        for (const target of next ? [next, station] : [station])
+          plans[segmentPlanKey(line.id, station.code, target.code, direction.id)] =
             buildSegmentCuePlan(
               bundle,
               station.code,
-              next.code,
+              target.code,
               direction.id,
               languages,
-              next.transfers.length > 0,
+              target.transfers.length > 0,
               assets.catalogue,
               base,
               assets.doorSequence,
             );
-        }
-        plans[segmentPlanKey(line.id, station.code, station.code, direction.id)] =
-          buildSegmentCuePlan(
-            bundle,
-            station.code,
-            station.code,
-            direction.id,
-            languages,
-            station.transfers.length > 0,
-            assets.catalogue,
-            base,
-            assets.doorSequence,
-          );
       }
   }
   return Object.freeze(plans);

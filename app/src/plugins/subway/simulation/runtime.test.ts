@@ -34,6 +34,21 @@ const assets: LoadedSubwayAssets = {
   doorSequence,
 };
 
+function stubAudio(): SubwayAudioController {
+  return {
+    setEnabled: vi.fn(),
+    resetLine: vi.fn(),
+    setVisible: vi.fn(),
+    setMix: vi.fn(),
+    setAnnouncementVolume: vi.fn(),
+    transition: vi.fn(),
+    preload: vi.fn(),
+    playCue: vi.fn(async () => {}),
+    getStats: () => ({ activeSources: 0, cacheHits: 0, motion: undefined }),
+    dispose: vi.fn(),
+  };
+}
+
 class FakeClock implements SubwayRuntimeClock {
   nowMs = 0;
   nextId = 1;
@@ -171,7 +186,6 @@ describe('Subway owner runtime', () => {
     });
     disposers.push(() => handle.dispose());
     await flush();
-    expect(handle.isReady()).toBe(true);
     expect(clock.pending).toBe(0);
     expect(handle.dispatch({ type: 'start' })).toBe(false);
 
@@ -268,7 +282,7 @@ describe('Subway owner runtime', () => {
     handle.dispose();
     resolveAssets(assets);
     await flush();
-    expect(handle.isReady()).toBe(false);
+    expect(handle.getSnapshot()).toBeUndefined();
     expect(clock.pending).toBe(0);
     expect(fixture.values.size).toBe(0);
   });
@@ -278,7 +292,12 @@ describe('Subway owner runtime', () => {
     let handle: ReturnType<typeof createSubwayRuntime> | undefined;
     const fixture = makeContext((id) => {
       if (id === 'subway.departed')
-        handle?.dispatch({ type: 'set-line', lineId: 'hibiya', stationCode: 'H14' });
+        handle?.dispatch({
+          type: 'configure',
+          lineId: 'hibiya',
+          direction: 'to-kita-senju',
+          stationCode: 'H14',
+        });
     });
     const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
@@ -428,23 +447,23 @@ describe('Subway owner runtime', () => {
   it('keeps immersion running and audible behind another page until it is switched off', async () => {
     const clock = new FakeClock();
     const fixture = makeContext();
-    let cues = 0;
+    const audio = stubAudio();
     driveActive(fixture, false);
-    const options = { clock, loadAssets: async () => assets, onCue: () => void cues++ };
+    const options = { clock, loadAssets: async () => assets, audio };
     const handle = createSubwayRuntime(fixture.context, options);
     disposers.push(() => handle.dispose());
     await flush();
     clock.advanceUntil(() => handle.getSnapshot()?.station === 'JY01');
     await flush();
     expect(handle.getSnapshot()?.paused).toBe(false);
-    expect(cues).toBeGreaterThan(0);
+    expect(audio.playCue).toHaveBeenCalled();
 
     expect(handle.setImmersion(false)).toBe(true);
-    const [quiet, heard] = [handle.getSnapshot()!, cues];
+    const [quiet, heard] = [handle.getSnapshot()!, vi.mocked(audio.playCue).mock.calls.length];
     clock.advanceBy(60_000);
     await flush();
     expect(handle.getSnapshot()).toMatchObject({ station: quiet.station, paused: true });
-    expect(cues).toBe(heard);
+    expect(audio.playCue).toHaveBeenCalledTimes(heard);
   });
 
   it('keeps audio inside the eligible owner runtime and unlocks only through immersion commands', async () => {
@@ -452,25 +471,7 @@ describe('Subway owner runtime', () => {
     const fixture = makeContext();
     const surface = driveActive(fixture, true);
     disposers.push(() => surface.dispose());
-    const audio: SubwayAudioController = {
-      setEnabled: vi.fn(),
-      resetLine: vi.fn(),
-      setVisible: vi.fn(),
-      setMix: vi.fn(),
-      setAnnouncementVolume: vi.fn(),
-      transition: vi.fn(),
-      preload: vi.fn(),
-      playCue: vi.fn(async () => {}),
-      getStats: () => ({
-        activeSources: 0,
-        decodedCacheBytes: 0,
-        decodedCachePeakBytes: 0,
-        cacheHits: 0,
-        syntheticEmergencyAlert: true,
-        motion: undefined,
-      }),
-      dispose: vi.fn(),
-    };
+    const audio = stubAudio();
     const handle = createSubwayRuntime(fixture.context, {
       clock,
       loadAssets: async () => assets,

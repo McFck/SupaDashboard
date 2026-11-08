@@ -23,7 +23,6 @@ export interface SubwayRuntimeOptions {
   clock?: SubwayRuntimeClock;
   loadAssets?: () => Promise<LoadedSubwayAssets>;
   assetBase?: string;
-  onCue?: (effect: Extract<RunEffect, { type: 'play-cue' }>) => void | Promise<void>;
   audio?: SubwayAudioController;
 }
 
@@ -35,7 +34,6 @@ export interface SubwayRuntimeHandle {
   ): boolean;
   setImmersion(enabled?: boolean, ancestry?: EventAncestry): boolean;
   getSnapshot(): RunSnapshot | undefined;
-  isReady(): boolean;
   dispose(): void;
 }
 
@@ -213,10 +211,7 @@ export function createSubwayRuntime(
           )
             return;
           if (effect.type === 'play-cue') {
-            if (eligible && nextState.immersion) {
-              void audio.playCue(effect);
-              await options.onCue?.(effect);
-            }
+            if (eligible && nextState.immersion) void audio.playCue(effect);
             continue;
           }
           const event = eventFor(effect);
@@ -314,7 +309,6 @@ export function createSubwayRuntime(
     requestLine,
     setImmersion,
     getSnapshot,
-    isReady: () => ready,
     dispose,
   };
   activeRuntime = handle;
@@ -394,9 +388,6 @@ export function createSubwayRuntime(
       const config = normalizeSubwayConfig(currentConfig, lines);
       currentConfig = config;
       appliedConfig = config;
-      const line = lines.find((item) => item.id === config.line)!;
-      const stationCode = config.startStation;
-      const direction = config.direction;
       plans = buildCuePlans(
         lines,
         loadedAssets,
@@ -404,9 +395,9 @@ export function createSubwayRuntime(
         announcementLanguages(config.announcementLanguages),
       );
       state = createRunState(lines, {
-        lineId: line.id,
-        stationCode,
-        direction,
+        lineId: config.line,
+        stationCode: config.startStation,
+        direction: config.direction,
         multiplier: config.speed,
         dwellSeconds: Math.max(
           0,

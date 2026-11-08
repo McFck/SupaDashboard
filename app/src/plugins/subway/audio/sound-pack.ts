@@ -136,7 +136,7 @@ function queueStationCues(
     const selected = selectStationEntries(
       cueEntries(station[group], language),
       stationCode,
-      group === 'next' ? 'next' : group,
+      group,
       direction,
     )[0];
     if (!selected) continue;

@@ -11,10 +11,7 @@ import { TrainSound } from './motion/train-sound';
 
 export type SubwayAudioStats = {
   activeSources: number;
-  decodedCacheBytes: number;
-  decodedCachePeakBytes: number;
   cacheHits: number;
-  syntheticEmergencyAlert: true;
   motion?: ReturnType<TrainSound['stats']>;
 };
 
@@ -403,13 +400,9 @@ export function createSubwayAudio(options: SubwayAudioOptions = {}): SubwayAudio
   }
 
   function getStats(): SubwayAudioStats {
-    const { bytes, peakBytes, hits } = buffers.stats();
     return {
       activeSources: activeSources.size,
-      decodedCacheBytes: bytes,
-      decodedCachePeakBytes: peakBytes,
-      cacheHits: hits,
-      syntheticEmergencyAlert: true,
+      cacheHits: buffers.hits(),
       motion: motion?.stats(),
     };
   }
