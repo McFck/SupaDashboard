@@ -119,11 +119,6 @@ fn swap(root: &Path, id: &str, staging: &Path) -> Result<(), String> {
 }
 
 impl PluginHost {
-    fn bundled(&self, id: &str) -> bool {
-        self.get(id)
-            .is_some_and(|installed| installed.plugin.folder.parent() != Some(&self.root()))
-    }
-
     /// Takes the plugin out of the host and stops its process, so its folder can be moved.
     async fn take(&self, id: &str) {
         let installed = self.lock().remove(id);
@@ -135,12 +130,7 @@ impl PluginHost {
     /// Checks a staged folder and swaps it in. Without `unverified` an unsigned folder is discarded and `false`
     /// returned; a folder whose signature does not hold always is.
     async fn put(&self, id: &str, staged: PathBuf, unverified: bool) -> Result<bool, String> {
-        let checked = if self.bundled(id) {
-            Err("A bundled plugin cannot be replaced".into())
-        } else {
-            load(&staged, id)
-        };
-        match checked {
+        match load(&staged, id) {
             Ok(loaded) if loaded.trust == Trust::Verified || unverified => {}
             other => {
                 remove(&staged)?;
@@ -215,9 +205,6 @@ pub async fn plugin_uninstall(
         return Err("Invalid plugin id".into());
     }
     let _changing = host.changing.lock().await;
-    if host.bundled(&id) {
-        return Err("A bundled plugin cannot be removed".into());
-    }
     host.take(&id).await;
     let folder = host.root().join(&id);
     let removed = remove(&folder);

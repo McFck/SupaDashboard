@@ -67,8 +67,7 @@ struct Loaded {
 }
 
 impl PluginHost {
-    /// Bundled plugins first, then the user's; a user folder cannot replace a bundled plugin. Folders whose
-    /// release signature does not hold are skipped.
+    /// The plugins in `<app data>/plugins`; folders whose release signature does not hold are skipped.
     pub fn discover(app: &AppHandle) -> Result<Self, String> {
         let host = Self {
             plugins: Mutex::default(),
@@ -77,28 +76,19 @@ impl PluginHost {
             legacy: app.path().app_data_dir().map_err(|e| e.to_string())?,
             changing: tokio::sync::Mutex::default(),
         };
-        let roots = [
-            app.path().resource_dir().map(|dir| dir.join("plugins")),
-            Ok(host.root()),
-        ];
-        for root in roots.into_iter().flatten() {
-            let Ok(entries) = std::fs::read_dir(root) else {
+        let entries = std::fs::read_dir(host.root())
+            .into_iter()
+            .flatten()
+            .flatten();
+        for folder in entries.map(|entry| entry.path()) {
+            let name = folder.file_name().and_then(|name| name.to_str());
+            // Dot folders are an install's staging and kept copies.
+            let Some(id) = name.filter(|name| !name.starts_with('.') && folder.is_dir()) else {
                 continue;
             };
-            for folder in entries.flatten().map(|entry| entry.path()) {
-                let name = folder.file_name().and_then(|name| name.to_str());
-                // Dot folders are an install's staging and kept copies.
-                let Some(id) = name.filter(|name| !name.starts_with('.') && folder.is_dir()) else {
-                    continue;
-                };
-                if host.lock().contains_key(id) {
-                    log::warn!("Plugin {id} is installed twice");
-                    continue;
-                }
-                match load(&folder, id) {
-                    Ok(loaded) => host.add(folder, loaded),
-                    Err(error) => log::warn!("Skipped plugin {}: {error}", folder.display()),
-                }
+            match load(&folder, id) {
+                Ok(loaded) => host.add(folder, loaded),
+                Err(error) => log::warn!("Skipped plugin {}: {error}", folder.display()),
             }
         }
         Ok(host)
