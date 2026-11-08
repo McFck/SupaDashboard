@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const SCOPES: [&str; 3] = ["rpc", "rpc.voice.read", "rpc.voice.write"];
 const REDIRECT: &str = "http://127.0.0.1";
@@ -16,13 +15,6 @@ impl Tokens {
     pub fn needs_refresh(&self, now: u64) -> bool {
         self.expires_at <= now.saturating_add(60)
     }
-}
-
-pub fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
 }
 
 pub fn refresh_form(client_id: &str, token: &str) -> Vec<(String, String)> {
@@ -110,7 +102,7 @@ async fn request(form: Vec<(String, String)>, previous: Option<&Tokens>) -> Resu
     if !(200..300).contains(&response.status) {
         return Err("Discord token exchange failed".into());
     }
-    parse_tokens(&response.body, previous, now())
+    parse_tokens(&response.body, previous, plugin_sdk::now())
 }
 
 #[cfg(test)]

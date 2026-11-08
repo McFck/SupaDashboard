@@ -71,7 +71,6 @@ fn map_monitor_names(
     names: &[String],
     display_config: &HashMap<String, PathNames>,
     enum_display: &HashMap<String, String>,
-    primary_name: Option<&str>,
 ) -> Vec<MonitorName> {
     names
         .iter()
@@ -90,7 +89,7 @@ fn map_monitor_names(
                     .map(|info| info.device_path.clone())
                     .unwrap_or_default(),
                 index: index + 1,
-                primary: primary_name == Some(name.as_str()),
+                primary: false,
             }
         })
         .collect()
@@ -297,7 +296,7 @@ pub(crate) fn describe(names: &[String]) -> Vec<MonitorName> {
         return rows.clone();
     }
     let (display_config, enum_display) = windows_metadata(names);
-    let rows = map_monitor_names(names, &display_config, &enum_display, None);
+    let rows = map_monitor_names(names, &display_config, &enum_display);
     if rows.iter().all(|row| !row.path.is_empty()) {
         *cache = Some((generation, names.to_vec(), rows.clone()));
     }
@@ -377,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn mapping_keeps_snapshot_order_one_based_ids_and_os_primary_name() {
+    fn mapping_keeps_snapshot_order_and_one_based_ids() {
         let names = vec!["DISPLAY2".to_owned(), "DISPLAY1".to_owned()];
         let display = HashMap::from([
             (
@@ -389,12 +388,10 @@ mod tests {
                 metadata("DISPLAY2", 0, 1, 2, "Same product"),
             ),
         ]);
-        let rows = map_monitor_names(&names, &display, &HashMap::new(), Some("DISPLAY1"));
+        let rows = map_monitor_names(&names, &display, &HashMap::new());
         assert_eq!(rows[0].index, 1);
         assert_eq!(rows[1].index, 2);
         assert_eq!(rows[0].friendly, rows[1].friendly);
-        assert!(!rows[0].primary);
-        assert!(rows[1].primary);
         assert_eq!(rows[1].name, "DISPLAY1");
     }
 }

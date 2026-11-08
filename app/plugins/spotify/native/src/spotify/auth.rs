@@ -1,6 +1,6 @@
 use plugin_sdk::{http, secure};
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -16,13 +16,6 @@ pub struct Tokens {
     pub access_token: String,
     pub refresh_token: String,
     pub expires_at: u64,
-}
-
-pub fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
 }
 
 pub fn valid_id(id: &str) -> bool {
@@ -56,7 +49,7 @@ pub fn parse_tokens(body: &str, previous: Option<&Tokens>) -> Result<Tokens, Str
             .refresh_token
             .or_else(|| previous.map(|t| t.refresh_token.clone()))
             .ok_or("Missing Spotify refresh token")?,
-        expires_at: now()
+        expires_at: plugin_sdk::now()
             .checked_add(response.expires_in)
             .ok_or("Invalid Spotify expiry")?,
     };

@@ -69,6 +69,14 @@ impl Message {
     }
 }
 
+/// Wall-clock Unix time in seconds; 0 when the clock is before 1970.
+pub fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
 /// Method and event names: a lowercase letter, then up to 63 letters, digits, `_` or `-`.
 pub fn valid_name(name: &str) -> bool {
     let mut bytes = name.bytes();

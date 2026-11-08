@@ -272,6 +272,7 @@ impl Worker {
         self.tracked = kept.into_iter().flatten().collect();
     }
 }
+
 fn clip_id(id: windows::core::HSTRING) -> String {
     clip(id, MAX_ID)
 }

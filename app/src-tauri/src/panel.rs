@@ -119,13 +119,6 @@ fn create_panel(app: AppHandle) -> Result<(), String> {
             "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion \
              --disable-backgrounding-occluded-windows",
         );
-    // macOS keeps its native traffic lights, inset into the header (32px tall) and over a hidden title.
-    #[cfg(target_os = "macos")]
-    let builder = builder
-        .decorations(true)
-        .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .traffic_light_position(tauri::LogicalPosition::new(12.0, 9.0));
     let built = builder
         .on_page_load(move |window, payload| {
             if payload.event() != PageLoadEvent::Started || window.label() != "panel" {
@@ -200,10 +193,10 @@ fn destroy_when_idle(app: AppHandle, epoch: u64) {
         if !app.state::<PanelState>().lock().expire_idle(epoch) {
             return;
         }
-        if let Some(window) = app.get_webview_window("panel") {
-            if let Err(error) = window.destroy() {
-                log::warn!("could not destroy idle panel: {error}");
-            }
+        if let Some(window) = app.get_webview_window("panel")
+            && let Err(error) = window.destroy()
+        {
+            log::warn!("could not destroy idle panel: {error}");
         }
     });
 }

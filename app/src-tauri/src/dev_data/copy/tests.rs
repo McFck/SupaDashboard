@@ -31,24 +31,14 @@ impl Drop for Fixture {
 }
 
 #[test]
-fn plan_limits_export_and_keeps_backup_inside_release() {
+fn backup_stays_inside_release() {
     let release = Path::new(r"C:\temp\release");
-    let plan = plan(release, "20261104120300").unwrap();
     assert_eq!(
-        plan.entries,
-        [
-            "settings.json",
-            "variables.json",
-            "plugins.json",
-            "discord.json",
-            "spotify.json",
-            "icons",
-            "lyrics"
-        ]
+        backup_dir(release, "20261104120300").unwrap(),
+        release.join("backups/20261104120300")
     );
-    assert_eq!(plan.backup, release.join("backups/20261104120300"));
     for stamp in ["", "../escape", "C:\\escape", "12/34"] {
-        assert!(super::plan(release, stamp).is_err());
+        assert!(backup_dir(release, stamp).is_err());
     }
 }
 
@@ -144,6 +134,7 @@ fn export_ignores_locked_webview_files_and_keeps_other_release_data() {
     let locked = dev.join("EBWebView/Cookies");
     let _lock = fs::OpenOptions::new()
         .create(true)
+        .truncate(false)
         .write(true)
         .share_mode(0)
         .open(&locked)

@@ -1,11 +1,22 @@
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::{
+    fs,
+    io::{ErrorKind, Write},
+    os::windows::ffi::OsStrExt,
+    path::{Path, PathBuf},
+};
 use windows::Security::Cryptography::{Core::HashAlgorithmProvider, CryptographicBuffer};
+use windows::Storage::Streams::IBuffer;
 use windows::Win32::Foundation::{HLOCAL, LocalFree};
 use windows::Win32::Security::Cryptography::{
     CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData,
 };
-use windows::core::HSTRING;
+use windows::Win32::Storage::FileSystem::{
+    MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+};
+use windows::core::{HSTRING, PCWSTR};
 
-pub fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
+fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
     let input = CRYPT_INTEGER_BLOB {
         cbData: bytes
             .len()
@@ -54,6 +65,137 @@ pub fn protect(bytes: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
     }
 }
 
+#[derive(Deserialize, Serialize)]
+struct Envelope {
+    version: u32,
+    protected: Vec<u8>,
+}
+
+/// A credential file: JSON `{version: 1, protected: <DPAPI bytes>}`, at most 128 KiB. It is only ever replaced
+/// when it still holds the bytes it was opened with, so unreadable or externally changed data is never lost.
+pub struct ProtectedFile {
+    path: PathBuf,
+    original: Option<Vec<u8>>,
+    /// The service name in error titles, like "Spotify".
+    label: &'static str,
+}
+
+impl ProtectedFile {
+    /// The file and its decrypted value; `None` while the file does not exist.
+    pub fn open<T: DeserializeOwned>(
+        path: PathBuf,
+        label: &'static str,
+    ) -> Result<(Self, Option<T>), String> {
+        let original = read(&path, label)?;
+        let value = original
+            .as_ref()
+            .map(|bytes| -> Result<T, String> {
+                let envelope: Envelope = serde_json::from_slice(bytes)
+                    .map_err(|_| format!("Unreadable {label} store"))?;
+                if envelope.version != 1 {
+                    return Err(format!("Unsupported {label} store version"));
+                }
+                serde_json::from_slice(&protect(&envelope.protected, false)?)
+                    .map_err(|_| format!("Unreadable {label} credentials"))
+            })
+            .transpose()?;
+        let file = Self {
+            path,
+            original,
+            label,
+        };
+        Ok((file, value))
+    }
+
+    /// Encrypts `value` into a temporary file and moves it over the store; `None` deletes the store.
+    pub fn save<T: Serialize>(&mut self, value: Option<&T>) -> Result<(), String> {
+        let label = self.label;
+        if read(&self.path, label)? != self.original {
+            return Err(format!("{label} store changed externally"));
+        }
+        let Some(value) = value else {
+            if self.original.is_some() {
+                fs::remove_file(&self.path)
+                    .map_err(|_| format!("Could not remove {label} credentials"))?;
+            }
+            self.original = None;
+            return Ok(());
+        };
+        let clear = serde_json::to_vec(value)
+            .map_err(|_| format!("Could not encode {label} credentials"))?;
+        let bytes = serde_json::to_vec(&Envelope {
+            version: 1,
+            protected: protect(&clear, true)?,
+        })
+        .map_err(|_| format!("Could not encode {label} store"))?;
+        if let Some(parent) = self.path.parent() {
+            fs::create_dir_all(parent).map_err(|_| format!("Could not create {label} store"))?;
+        }
+        let temp = self.path.with_extension(format!(
+            "json.{}-{}.tmp",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)
+            .map_err(|_| format!("Could not create {label} store"))?;
+        let result = (|| {
+            file.write_all(&bytes)
+                .and_then(|_| file.sync_all())
+                .map_err(|_| format!("Could not save {label} credentials"))?;
+            drop(file);
+            replace(&temp, &self.path).map_err(|_| format!("Could not replace {label} store"))
+        })();
+        if result.is_err() {
+            // Only our own encrypted temporary file.
+            let _ = fs::remove_file(temp);
+        }
+        result?;
+        self.original = Some(bytes);
+        Ok(())
+    }
+}
+
+/// `fs::rename` without write-through could leave an empty store after a power loss.
+fn replace(from: &Path, to: &Path) -> windows::core::Result<()> {
+    let wide =
+        |path: &Path| -> Vec<u16> { path.as_os_str().encode_wide().chain(Some(0)).collect() };
+    let (from, to) = (wide(from), wide(to));
+    // SAFETY: both paths are NUL-terminated and outlive the call.
+    unsafe {
+        MoveFileExW(
+            PCWSTR(from.as_ptr()),
+            PCWSTR(to.as_ptr()),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    }
+}
+
+fn read(path: &Path, label: &str) -> Result<Option<Vec<u8>>, String> {
+    match fs::read(path) {
+        Ok(bytes) if bytes.len() <= 131_072 => Ok(Some(bytes)),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        _ => Err(format!("Could not read {label} store")),
+    }
+}
+
+fn sha256(bytes: &[u8]) -> windows::core::Result<IBuffer> {
+    let input = CryptographicBuffer::CreateFromByteArray(bytes)?;
+    HashAlgorithmProvider::OpenAlgorithm(&HSTRING::from("SHA256"))?.HashData(&input)
+}
+
+pub fn sha256_hex(bytes: &[u8]) -> Result<String, String> {
+    sha256(bytes)
+        .and_then(|hash| CryptographicBuffer::EncodeToHexString(&hash))
+        .map(|hex| hex.to_string())
+        .map_err(|_| "Could not hash".into())
+}
+
 pub fn pkce() -> Result<(String, String), String> {
     let bytes = CryptographicBuffer::GenerateRandom(32).map_err(|_| "Could not create verifier")?;
     let verifier = base64url(
@@ -61,11 +203,7 @@ pub fn pkce() -> Result<(String, String), String> {
             .map_err(|_| "Could not encode verifier")?
             .to_string(),
     );
-    let input = CryptographicBuffer::CreateFromByteArray(verifier.as_bytes())
-        .map_err(|_| "Could not hash verifier")?;
-    let hash = HashAlgorithmProvider::OpenAlgorithm(&HSTRING::from("SHA256"))
-        .and_then(|algorithm| algorithm.HashData(&input))
-        .map_err(|_| "Could not hash verifier")?;
+    let hash = sha256(verifier.as_bytes()).map_err(|_| "Could not hash verifier")?;
     let challenge = CryptographicBuffer::EncodeToBase64String(&hash)
         .map_err(|_| "Could not encode challenge")?;
     Ok((verifier, base64url(&challenge.to_string())))
@@ -76,4 +214,43 @@ fn base64url(value: &str) -> String {
         .trim_end_matches('=')
         .replace('+', "-")
         .replace('/', "_")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn credentials_are_encrypted_and_logout_removes_the_file() {
+        let path = std::env::temp_dir().join(format!("supa-protected-{}.json", std::process::id()));
+        let (mut file, value) = ProtectedFile::open::<String>(path.clone(), "Test").unwrap();
+        assert!(value.is_none());
+        file.save(Some(&"private-token".to_owned())).unwrap();
+        assert!(!fs::read_to_string(&path).unwrap().contains("private-token"));
+        let (mut file, value) = ProtectedFile::open::<String>(path.clone(), "Test").unwrap();
+        assert_eq!(value.as_deref(), Some("private-token"));
+        file.save::<String>(None).unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn unreadable_or_replaced_store_is_never_overwritten() {
+        let path = std::env::temp_dir().join(format!(
+            "supa-protected-corrupt-{}.json",
+            std::process::id()
+        ));
+        let (mut file, _) = ProtectedFile::open::<String>(path.clone(), "Test").unwrap();
+        for bytes in [
+            b"corrupt".as_slice(),
+            br#"{"version":2,"protected":[]}"#,
+            br#"{"version":1,"protected":[]}"#,
+        ] {
+            fs::write(&path, bytes).unwrap();
+            assert!(ProtectedFile::open::<String>(path.clone(), "Test").is_err());
+            assert!(file.save::<String>(None).is_err());
+            assert!(file.save(Some(&"x".to_owned())).is_err());
+            assert_eq!(fs::read(&path).unwrap(), bytes);
+        }
+        fs::remove_file(path).unwrap();
+    }
 }

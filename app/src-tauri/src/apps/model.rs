@@ -430,7 +430,7 @@ mod tests {
             minimized: true,
             ..win(7)
         };
-        assert!(fold(&[minimized.clone()], true, None, String::new()).minimized);
+        assert!(fold(std::slice::from_ref(&minimized), true, None, String::new()).minimized);
         let mixed = fold(&[minimized, win(7)], true, None, String::new());
         assert!(!mixed.minimized && mixed.visible);
     }

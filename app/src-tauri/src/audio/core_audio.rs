@@ -154,13 +154,13 @@ pub fn write_device(
         return Ok(true);
     }
 
-    let selector = normalize_target(target);
+    // `target` is already normalized by `validate_patch`.
     let sessions = session_volumes(device, names);
     let targets: Vec<&str> = sessions
         .iter()
         .map(|session| session.target.as_str())
         .collect();
-    let Some(chosen) = write_target(&targets, &selector) else {
+    let Some(chosen) = write_target(&targets, target) else {
         return Ok(false);
     };
     let mut first_error = None;

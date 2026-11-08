@@ -77,7 +77,7 @@ impl LyricsHub {
         // One queue serves both webviews. Completed results also deduplicate failed requests and
         // requests whose optional disk cache could not be written.
         let mut state = self.0.lock().await;
-        let now = cache::now();
+        let now = plugin_sdk::now();
         if let Some(entry) = state.entries.iter().find(|entry| {
             entry.key == key
                 && now.saturating_sub(entry.at)
@@ -94,11 +94,11 @@ impl LyricsHub {
             Ok(view)
         } else {
             let result = state.client.fetch(&track).await;
-            if let Ok(view) = &result {
-                if let Err(error) = cache::write(&dir, &key, view, now) {
-                    // Lyrics remain usable when this disposable cache cannot be written.
-                    eprintln!("Could not cache lyrics: {error}");
-                }
+            if let Ok(view) = &result
+                && let Err(error) = cache::write(&dir, &key, view, now)
+            {
+                // Lyrics remain usable when this disposable cache cannot be written.
+                eprintln!("Could not cache lyrics: {error}");
             }
             result
         };

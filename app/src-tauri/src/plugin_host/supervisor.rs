@@ -128,13 +128,11 @@ impl Owner {
                 }
                 Msg::SetEnabled(enabled, done) => {
                     self.enabled = enabled;
-                    if !enabled {
-                        if let State::Running(_, process) =
+                    if !enabled
+                        && let State::Running(_, process) =
                             std::mem::replace(&mut self.state, State::Idle)
-                        {
-                            process.stop().await;
-                        }
-                        self.state = State::Idle;
+                    {
+                        process.stop().await;
                     }
                     let _ = done.send(());
                 }

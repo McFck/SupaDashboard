@@ -1,5 +1,5 @@
 use super::{
-    DiscordHub, Message, Operation, auth, model,
+    DiscordHub, Message, Operation, model,
     rpc::Rpc,
     store::Store,
     voice::{self, VoiceState},
@@ -95,9 +95,8 @@ pub async fn run(
                         if let Err(error) = client.event(event).await { client.failed_event(&error); }
                     }
                     Ok((3, ping)) => {
-                        if let Some(rpc) = client.rpc.as_mut() {
-                            if rpc.pong(&ping).await.is_err() { client.disconnected(); }
-                        }
+                        if let Some(rpc) = client.rpc.as_mut()
+                            && rpc.pong(&ping).await.is_err() { client.disconnected(); }
                     }
                     Ok((4, _)) => {},
                     Ok(_) => client.disconnected(),
@@ -105,10 +104,9 @@ pub async fn run(
                 }
             }
             _ = tick.tick() => {
-                if client.rpc.is_none() && client.phase != Phase::NeedsAuth && client.store.credentials.is_some() && Instant::now() >= client.next_retry {
-                    if client.connect(None).await.is_err() { client.disconnected(); }
-                }
-                if client.phase == Phase::Ready && client.store.credentials.as_ref().is_some_and(|c| c.tokens.needs_refresh(auth::now())) {
+                if client.rpc.is_none() && client.phase != Phase::NeedsAuth && client.store.credentials.is_some() && Instant::now() >= client.next_retry
+                    && client.connect(None).await.is_err() { client.disconnected(); }
+                if client.phase == Phase::Ready && client.store.credentials.as_ref().is_some_and(|c| c.tokens.needs_refresh(plugin_sdk::now())) {
                     if let Err(error) = client.refresh().await {
                         eprintln!("Discord refresh failed: {error}");
                         client.phase = Phase::NeedsAuth;
@@ -175,24 +173,24 @@ impl Client {
             // A timed-out write may have reached Discord; close it and never replay the action.
             self.disconnected();
         }
-        if result.is_ok() {
-            if let Some(rpc) = &mut self.rpc {
-                // Pre-reply dispatches are already reflected in a snapshot. Replaying them could
-                // resurrect a departed member or restore older mute settings.
-                rpc.events.retain(|event| match cmd {
-                    "GET_SELECTED_VOICE_CHANNEL" => !matches!(
-                        event["evt"].as_str(),
-                        Some(
-                            "VOICE_CHANNEL_SELECT"
-                                | "VOICE_STATE_CREATE"
-                                | "VOICE_STATE_UPDATE"
-                                | "VOICE_STATE_DELETE"
-                        )
-                    ),
-                    "GET_VOICE_SETTINGS" => event["evt"] != "VOICE_SETTINGS_UPDATE",
-                    _ => true,
-                });
-            }
+        if result.is_ok()
+            && let Some(rpc) = &mut self.rpc
+        {
+            // Pre-reply dispatches are already reflected in a snapshot. Replaying them could
+            // resurrect a departed member or restore older mute settings.
+            rpc.events.retain(|event| match cmd {
+                "GET_SELECTED_VOICE_CHANNEL" => !matches!(
+                    event["evt"].as_str(),
+                    Some(
+                        "VOICE_CHANNEL_SELECT"
+                            | "VOICE_STATE_CREATE"
+                            | "VOICE_STATE_UPDATE"
+                            | "VOICE_STATE_DELETE"
+                    )
+                ),
+                "GET_VOICE_SETTINGS" => event["evt"] != "VOICE_SETTINGS_UPDATE",
+                _ => true,
+            });
         }
         result
     }

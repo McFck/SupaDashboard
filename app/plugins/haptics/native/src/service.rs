@@ -121,11 +121,10 @@ async fn run(mut rx: mpsc::UnboundedReceiver<Message>) {
                         shell = None;
                     }
                     config = Some(next);
-                    if let Some(active) = config.as_ref().filter(|c| c.enabled) {
-                        if shell.as_mut().is_none_or(|s| !alive(s)) {
+                    if let Some(active) = config.as_ref().filter(|c| c.enabled)
+                        && shell.as_mut().is_none_or(|s| !alive(s)) {
                             shell = connect(active).await;
                         }
-                    }
                     let _ = reply.send(shell.is_some());
                 }
                 Some(Message::Pulse(kind)) => {
@@ -156,11 +155,10 @@ async fn run(mut rx: mpsc::UnboundedReceiver<Message>) {
                 }
             },
             _ = poll.tick() => {
-                if let Some(active) = config.as_ref().filter(|c| c.enabled) {
-                    if shell.as_mut().is_none_or(|s| !alive(s)) {
+                if let Some(active) = config.as_ref().filter(|c| c.enabled)
+                    && shell.as_mut().is_none_or(|s| !alive(s)) {
                         shell = connect(active).await;
                     }
-                }
             }
         }
     }

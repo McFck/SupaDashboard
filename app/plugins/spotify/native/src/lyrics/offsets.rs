@@ -151,7 +151,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!(
             "supa-lyrics-offsets-{}-{}",
             std::process::id(),
-            cache::now()
+            plugin_sdk::now()
         ));
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join(FILE);

@@ -30,19 +30,11 @@ impl Format {
 }
 
 fn be16(bytes: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from(u16::from_be_bytes([
-        *bytes.get(at)?,
-        *bytes.get(at + 1)?,
-    ])))
+    Some(u16::from_be_bytes(bytes.get(at..at + 2)?.try_into().ok()?).into())
 }
 
 fn be32(bytes: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from_be_bytes([
-        *bytes.get(at)?,
-        *bytes.get(at + 1)?,
-        *bytes.get(at + 2)?,
-        *bytes.get(at + 3)?,
-    ]))
+    Some(u32::from_be_bytes(bytes.get(at..at + 4)?.try_into().ok()?))
 }
 
 fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {

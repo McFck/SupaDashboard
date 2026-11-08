@@ -107,10 +107,10 @@ pub(super) fn normalized(title: &str, artist: &str) -> (String, String) {
     };
     let mut title = clean(title);
     for separator in [" - ", " – ", " — "] {
-        if let Some((base, suffix)) = title.rsplit_once(separator) {
-            if suffix.contains("remaster") || suffix.trim().ends_with("version") {
-                title = base.into();
-            }
+        if let Some((base, suffix)) = title.rsplit_once(separator)
+            && (suffix.contains("remaster") || suffix.trim().ends_with("version"))
+        {
+            title = base.into();
         }
     }
     let artist = clean(artist);

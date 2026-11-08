@@ -28,12 +28,11 @@ impl Client {
             .store
             .credentials
             .as_ref()
-            .is_some_and(|c| c.tokens.needs_refresh(auth::now()))
+            .is_some_and(|c| c.tokens.needs_refresh(plugin_sdk::now()))
+            && let Err(error) = self.refresh().await
         {
-            if let Err(error) = self.refresh().await {
-                self.phase = Phase::NeedsAuth;
-                return Err(error);
-            }
+            self.phase = Phase::NeedsAuth;
+            return Err(error);
         }
         let token = self
             .store

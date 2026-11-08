@@ -39,10 +39,6 @@ fn failed(error: &Error, verb: &str, label: &str) -> String {
     }
 }
 
-fn not_running(label: &str) -> String {
-    format!("{label} isn't running")
-}
-
 /// A Direct3D exclusive full-screen game (borderless ones are fine) breaks when another app takes the foreground, so focus changes are refused.
 fn guard_focus() -> Result<(), String> {
     match unsafe { SHQueryUserNotificationState() } {
@@ -329,17 +325,14 @@ pub fn execute(command: &Command, matcher: &Matcher) -> Result<(), String> {
             }
             match plan {
                 Plan::Launch if display.is_none() => launch(matcher),
-                Plan::Launch => reveal_targets(&mut scan),
-                Plan::Restore | Plan::Raise => reveal_targets(&mut scan),
+                Plan::Launch | Plan::Restore | Plan::Raise => reveal_targets(&mut scan),
                 Plan::Hide => match command.hide {
                     Hide::Minimize => minimize(&selected, label),
                     Hide::Close => close(&mut scan, matcher, &selected, command.force),
                 },
             }
         }
-        Op::Minimize if !running => Err(not_running(label)),
-        Op::Close if !running => Err(not_running(label)),
-        Op::Quit if !running => Err(not_running(label)),
+        Op::Minimize | Op::Close | Op::Quit if !running => Err(format!("{label} isn't running")),
         Op::Minimize => minimize(&selected, label),
         Op::Close => close(&mut scan, matcher, &wins, command.force),
         Op::Quit => {

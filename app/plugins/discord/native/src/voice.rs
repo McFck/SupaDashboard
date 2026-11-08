@@ -40,14 +40,13 @@ impl VoiceState {
         if !data.is_object() || (event != "VOICE_SETTINGS_UPDATE" && self.channel.is_none()) {
             return next;
         }
-        if let Some(channel_id) = data["channel_id"].as_str() {
-            if self
+        if let Some(channel_id) = data["channel_id"].as_str()
+            && self
                 .channel
                 .as_ref()
                 .is_none_or(|channel| channel.id != channel_id)
-            {
-                return next;
-            }
+        {
+            return next;
         }
         match event {
             "VOICE_SETTINGS_UPDATE" => {

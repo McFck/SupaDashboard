@@ -103,7 +103,7 @@ impl Client {
             .tokens
             .as_ref()
             .ok_or("Connect Spotify first")?;
-        if tokens.expires_at <= auth::now().saturating_add(60) {
+        if tokens.expires_at <= plugin_sdk::now().saturating_add(60) {
             self.refresh().await?;
         }
         for attempt in 0..2 {

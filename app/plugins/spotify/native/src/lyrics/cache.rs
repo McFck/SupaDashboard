@@ -1,12 +1,7 @@
 use super::{LyricsView, Track};
+use plugin_sdk::secure::sha256_hex;
 use serde::{Deserialize, Serialize};
-use std::{
-    fs,
-    path::Path,
-    time::{SystemTime, UNIX_EPOCH},
-};
-use windows::Security::Cryptography::{Core::HashAlgorithmProvider, CryptographicBuffer};
-use windows::core::HSTRING;
+use std::{fs, path::Path};
 
 pub(super) const NEGATIVE_TTL: u64 = 300;
 const VERSION: u8 = 3;
@@ -19,24 +14,11 @@ struct Entry {
     result: LyricsView,
 }
 
-pub fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
-
 pub(super) fn key(track: &Track) -> Result<String, String> {
     // JSON avoids ambiguous separators in artist/title metadata.
     let identity = serde_json::to_vec(&(&track.artist, &track.title, &track.album, track.duration))
         .map_err(|_| "Invalid lyrics track")?;
-    let hash = (|| -> windows::core::Result<_> {
-        let bytes = CryptographicBuffer::CreateFromByteArray(&identity)?;
-        let hash =
-            HashAlgorithmProvider::OpenAlgorithm(&HSTRING::from("SHA256"))?.HashData(&bytes)?;
-        Ok(CryptographicBuffer::EncodeToHexString(&hash)?.to_string())
-    })();
-    hash.map_err(|_| "Could not hash lyrics track".into())
+    sha256_hex(&identity).map_err(|_| "Could not hash lyrics track".into())
 }
 
 pub fn read(dir: &Path, key: &str, now: u64) -> Option<LyricsView> {
@@ -106,8 +88,11 @@ mod tests {
     use super::*;
     #[test]
     fn round_trips_positive_entries_expires_misses_and_ignores_corruption() {
-        let dir =
-            std::env::temp_dir().join(format!("supa-lyrics-{}-{}", std::process::id(), now()));
+        let dir = std::env::temp_dir().join(format!(
+            "supa-lyrics-{}-{}",
+            std::process::id(),
+            plugin_sdk::now()
+        ));
         let plain = LyricsView::Plain {
             text: "hello".into(),
         };

@@ -38,10 +38,8 @@ pub fn get(dir: &Path, key: &str, refresh: bool) -> Result<Option<Vec<u8>>, Stri
         .get_or_init(Mutex::default)
         .lock()
         .map_err(|e| e.to_string())?;
-    if !refresh {
-        if let Some(bytes) = cache.images.get(key) {
-            return Ok(bytes.clone());
-        }
+    if !refresh && let Some(bytes) = cache.images.get(key) {
+        return Ok(bytes.clone());
     }
     let saved = icon_store::read(dir, key)?;
     if !refresh && saved.is_some() {
@@ -65,10 +63,11 @@ pub fn get(dir: &Path, key: &str, refresh: bool) -> Result<Option<Vec<u8>>, Stri
     } else if refresh {
         return Err("Could not extract app icon".into());
     }
-    if cache.images.len() >= 256 {
-        if let Some(oldest) = cache.images.keys().next().cloned() {
-            cache.images.remove(&oldest);
-        }
+    // Evicts an arbitrary entry: HashMap keys have no age order.
+    if cache.images.len() >= 256
+        && let Some(any) = cache.images.keys().next().cloned()
+    {
+        cache.images.remove(&any);
     }
     cache.images.insert(key.to_owned(), bytes.clone());
     Ok(bytes)
@@ -155,7 +154,6 @@ fn encode(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     #[test]
     fn refuses_unresolved_paths_and_non_app_files() {
         for key in [
@@ -173,37 +171,5 @@ mod tests {
                 .is_err()
             );
         }
-    }
-
-    #[test]
-    #[ignore = "reads only the chosen Windows executable; no process is launched"]
-    fn probe_notepad_icon() {
-        let path = std::env::var("SUPA_ICON_PROBE_EXE").unwrap_or_else(|_| {
-            format!(
-                "{}\\System32\\notepad.exe",
-                std::env::var("WINDIR").unwrap()
-            )
-        });
-        let key = format!("exe:{path}");
-        super::identity::matcher(&super::parse_key(&key).unwrap()).unwrap();
-        let bytes = super::get(&std::env::temp_dir().join("supa-probe-icons"), &key, true)
-            .unwrap()
-            .unwrap();
-        assert!(bytes.starts_with(b"\x89PNG\r\n\x1a\n"));
-        assert!(bytes.len() > 100);
-        let factory: IWICImagingFactory =
-            unsafe { CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER) }
-                .unwrap();
-        let stream = unsafe { factory.CreateStream() }.unwrap();
-        unsafe { stream.InitializeFromMemory(&bytes) }.unwrap();
-        let decoded = unsafe {
-            factory.CreateDecoderFromStream(&stream, std::ptr::null(), WICDecodeMetadataCacheOnLoad)
-        }
-        .unwrap();
-        let frame = unsafe { decoded.GetFrame(0) }.unwrap();
-        let (mut width, mut height) = (0, 0);
-        unsafe { frame.GetSize(&mut width, &mut height) }.unwrap();
-        assert!(width > 0 && height > 0 && width <= 512 && height <= 512);
-        println!("{path}: {} PNG bytes, {width}x{height}", bytes.len());
     }
 }

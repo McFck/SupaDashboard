@@ -13,19 +13,11 @@ const ENTRIES: [&str; 7] = [
     "lyrics",
 ];
 
-struct Plan {
-    entries: [&'static str; 7],
-    backup: PathBuf,
-}
-
-fn plan(release: &Path, stamp: &str) -> io::Result<Plan> {
+fn backup_dir(release: &Path, stamp: &str) -> io::Result<PathBuf> {
     if stamp.is_empty() || !stamp.bytes().all(|b| b.is_ascii_digit()) {
         return Err(Error::other("Invalid backup timestamp"));
     }
-    Ok(Plan {
-        entries: ENTRIES,
-        backup: release.join("backups").join(stamp),
-    })
+    Ok(release.join("backups").join(stamp))
 }
 
 // Reject junctions and symlinks: a cache or backup must never reach outside these roots.
@@ -152,17 +144,17 @@ pub(super) fn export(
     stamp: &str,
     stopped: impl Fn() -> Result<(), String>,
 ) -> io::Result<()> {
-    let plan = plan(release, stamp)?;
+    let backup = backup_dir(release, stamp)?;
     let stage = release.with_extension(format!("copy-{stamp}"));
     fs::create_dir(&stage)?;
     let result = (|| {
-        copy_data(dev, &stage, &plan.entries, true)?;
+        copy_data(dev, &stage, &ENTRIES, true)?;
         stopped().map_err(Error::other)?;
-        fs::create_dir_all(&plan.backup)?;
-        for name in plan.entries {
-            copy_tree(&release.join(name), &plan.backup.join(name))?;
+        fs::create_dir_all(&backup)?;
+        for name in ENTRIES {
+            copy_tree(&release.join(name), &backup.join(name))?;
         }
-        for name in plan.entries {
+        for name in ENTRIES {
             replace_entry(&stage, release, name)?;
         }
         Ok(())
