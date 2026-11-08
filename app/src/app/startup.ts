@@ -23,9 +23,6 @@ import { initVolumeSync } from '../features/media/volume';
 import { followRemovals } from '../features/layout/removal';
 import { appsPlugin } from '../plugins/core-apps';
 import { corePlugin } from '../plugins/core';
-import { spotifyPlugin } from '../plugins/spotify/index';
-import { discordPlugin } from '../plugins/discord';
-import { hapticsPlugin } from '../plugins/haptics';
 import { subwayPlugin } from '../plugins/subway';
 import { uiPlugin } from '../plugins/ui';
 
@@ -34,15 +31,7 @@ import Root from './Root.svelte';
 import ControlPanel from '../panel/ControlPanel.svelte';
 import Dashboard from '../features/dashboard/Dashboard.svelte';
 
-const BUNDLED_PLUGINS = [
-  corePlugin,
-  appsPlugin,
-  uiPlugin,
-  spotifyPlugin,
-  discordPlugin,
-  hapticsPlugin,
-  subwayPlugin,
-];
+const BUNDLED_PLUGINS = [corePlugin, appsPlugin, uiPlugin, subwayPlugin];
 
 let disposed = false;
 let stopAppIcons: (() => void) | undefined;

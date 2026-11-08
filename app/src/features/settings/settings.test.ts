@@ -249,6 +249,7 @@ describe('settings migration', () => {
     saved.deck = { ...structuredClone(DEFAULTS.deck.pages[0]) };
     for (const control of saved.controls) delete control.scenario;
     saved.controls[0].color = '#123456';
+    saved.controls[0].variants[1] = { ...saved.controls[0].variants[0], id: 'state-2' };
     delete saved.controls[0].variants[0].color;
     saved.controls[0].variants[0].label = '';
     saved.controls[0].variants[1].color = '#abcdef80';

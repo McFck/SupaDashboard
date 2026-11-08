@@ -32,7 +32,7 @@ src/
     plugins/       contracts, registry, plugin store; ui/ plugin pages and option pickers
     settings/      schema, migration, reactive state; settings page
   platform/        Tauri adapters
-  plugins/         bundled plugins: core, ui, spotify, discord, haptics, subway/
+  plugins/         bundled plugins: core, ui, subway/
   lib/             feature-independent helpers and UI primitives ($lib)
 ```
 
@@ -70,7 +70,7 @@ Plugins can register applets with views, slots, control faces, settings, state, 
 | Actions       | `src/features/plugins/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, and `open` |
 | Media sources | same                               | where media commands go: core `system` (current Windows player); plugins add more                                                                                                                                                     |
 | Values        | same                               | what a slider controls: `volume {target: "system" \| process name}`                                                                                                                                                                   |
-| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets), `spotify`, `discord`, `haptics` (Android tablet), `subway`                                                                                                                                           |
+| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets), `subway`; Spotify, Discord and Haptics install from the Market                                                                                                                                       |
 | Native        | `src-tauri/src/`                   | `audio/` (volume, mixer), `media/`, `apps/`, `dashboard/`, `panel/`, `content/`, `plugin_host/`, `tray.rs`, `monitors.rs`                                                                                                             |
 
 Deck settings: `%APPDATA%\dev.supadashboard.app\settings.json` (versioned; older versions migrate on load). Pages
@@ -158,11 +158,10 @@ Actions receive an `ActionContext` with the control/item, trigger, abort signal,
 emission. Plugins may also register typed variables and events, provide parameter suggestions, and mark an action's
 variable argument as bindable.
 
-A plugin's native part is its own process: a crate in `plugins/<id>/native` built on `plugin-sdk` (newline-delimited
-JSON over stdio) and a `plugins/<id>/plugin.json` naming its executable and the methods and windows allowed to call
-it. The app starts it on the first `plugin_call`, restarts it after a crash (`plugin://<id>/restarted`) and stops
-it when the plugin is disabled. `scripts/build-plugins.mjs` builds and stages the bundled plugin folders; `pnpm tauri
-dev` and `build` run it. Native plugin folders in `<app data>/plugins` load the same way.
+External plugins live in `<app data>/plugins/<id>`. A plugin's native part is its own process, built on
+`plugin-sdk` (newline-delimited JSON over stdio), with a `plugin.json` naming its executable and the methods and
+windows allowed to call it. The app starts it on the first `plugin_call`, restarts it after a crash
+(`plugin://<id>/restarted`) and stops it when the plugin is disabled.
 Each plugin keeps its files in `<app data>/plugin-data/<id>`; `migrate` in the manifest lists files the in-app version
 kept in the app data root, copied there once (originals stay). Its events reach only the windows it lists, and
 `media` grants it transport commands for one media session app through the app (`Host::call("media-command")`).
