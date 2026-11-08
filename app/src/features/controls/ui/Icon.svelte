@@ -8,6 +8,11 @@
   /** Every Lucide icon name plus plugin icons, for the picker. */
   export const iconNames = () => [...Object.keys(icons), ...customIcons.keys()].sort();
   export const appIconNames = () => Object.keys(brandIcons);
+  /** A plugin's own icon exists only once it is installed; the Market shows others before that. */
+  export const iconOr = (name: string | undefined, fallback: string) =>
+    name && (Object.hasOwn(icons, name) || Object.hasOwn(brandIcons, name) || customIcons.has(name))
+      ? name
+      : fallback;
 </script>
 
 <script lang="ts">

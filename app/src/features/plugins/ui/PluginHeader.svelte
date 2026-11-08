@@ -3,7 +3,7 @@
   import BookOpen from '@lucide/svelte/icons/book-open';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
-  import Icon from '../../controls/ui/Icon.svelte';
+  import Icon, { iconOr } from '../../controls/ui/Icon.svelte';
   import GuideDialog from './GuideDialog.svelte';
   import PluginAuthor from './PluginAuthor.svelte';
 
@@ -31,7 +31,7 @@
 <div class="flex items-center gap-4">
   <span class="grid size-16 shrink-0 place-items-center rounded-2xl border bg-accent"
     ><Icon
-      name={icon || 'Puzzle'}
+      name={iconOr(icon, 'Puzzle')}
       size={30}
     /></span
   >

@@ -5,7 +5,7 @@
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
-  import Icon from '../../controls/ui/Icon.svelte';
+  import Icon, { iconOr } from '../../controls/ui/Icon.svelte';
   import { catalogEntries, type CatalogEntry } from '../plugin-store';
   import { compiledPlugins, nativePlugins, pluginsInstalled } from '../registry';
   import {
@@ -145,7 +145,7 @@
             >
               <span class="grid size-10 place-items-center rounded-lg bg-accent"
                 ><Icon
-                  name={entry.icon || 'Puzzle'}
+                  name={iconOr(entry.icon, 'Puzzle')}
                   size={22}
                 /></span
               >
