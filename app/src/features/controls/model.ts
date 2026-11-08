@@ -12,7 +12,6 @@ export type Gesture =
 
 export type SwipeGesture = Extract<Gesture, `swipe${string}`>;
 
-/** One mode of a control: prev for all media vs prev for Spotify only, system vs Spotify volume. */
 /** How a tile face draws its state; absent means the default icon-and-label face. */
 export type TileStyle = 'text' | 'app';
 export const TILE_STYLES: readonly TileStyle[] = ['text', 'app'];
@@ -25,10 +24,11 @@ export type Variant = {
   background?: string | null;
   style?: TileStyle;
   app?: string;
-  /** Legacy action source, removed by normalizeControl. */ action?: ActionRef;
+  /** Legacy action source, removed by normalizeControl. */
+  action?: ActionRef;
   value?: ValueRef;
 };
-/** A resolved, presentation-only view supplied by ACTIONS; these fields are never persisted here. */
+/** The look a face draws for a state, with its label template already filled. */
 export type TileAppearance = Pick<
   Variant,
   'label' | 'icon' | 'color' | 'background' | 'style' | 'app'

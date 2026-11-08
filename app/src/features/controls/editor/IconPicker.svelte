@@ -66,7 +66,7 @@
             ? 'bg-white/15 ring-1 ring-white/40'
             : ''}"
         >
-          <span class="sr-only">{name}</span><Icon
+          <Icon
             {name}
             size={20}
           />

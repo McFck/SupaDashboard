@@ -36,7 +36,7 @@
   let draftFit = $state<'cover' | 'contain'>('cover');
   let draftLoop = $state(true);
   let draftMuted = $state(true);
-  let invalidDraft = $derived(draftType === 'url' && !!draftValue && !mediaUrl(draftValue));
+  const invalidDraft = $derived(draftType === 'url' && !!draftValue && !mediaUrl(draftValue));
   const draftIsVideo = $derived(
     draftType === 'video-file' ||
       (draftType === 'url' && isVideoSource({ kind: 'url', value: draftValue })),
@@ -53,7 +53,7 @@
   });
   function changeType(value: string) {
     const next = value as SourceType;
-    if (draftType !== next && !(draftType === 'url' && next === 'url')) {
+    if (draftType !== next) {
       draftValue = '';
     }
     draftType = next;

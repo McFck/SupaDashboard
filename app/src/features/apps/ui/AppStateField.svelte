@@ -13,7 +13,7 @@
     type AppField,
   } from '../keys';
   import { windowsParam, windowParam, titleParam } from '../window-params';
-  import type { WindowSelection } from '../window-selection';
+  import { readWindowSelection, type WindowSelection } from '../window-selection';
   import { Label } from '$lib/components/ui/label';
   import {
     appKeyForName,
@@ -93,8 +93,9 @@
   }
 
   function setWindows(windows: unknown) {
-    if (windows === 'main' || windows === 'all' || windows === 'window' || windows === 'title') {
-      setSelection({ windows, title: selection.title });
+    const next = readWindowSelection({ windows, title: selection.title });
+    if (next) {
+      setSelection(next);
     }
   }
 </script>

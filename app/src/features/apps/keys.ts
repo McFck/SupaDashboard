@@ -55,8 +55,9 @@ export function parseAppVariable(
     }
     return { slug: match[1], field: field.value, selection };
   } catch {
+    // A malformed stored suffix must never fall back to app-wide state.
     return undefined;
-  } // A malformed stored suffix must never fall back to app-wide state.
+  }
 }
 
 export const windowState = (field: AppField) =>
@@ -142,25 +143,22 @@ export function appRequest(op: AppOp, args: Record<string, unknown>): AppRequest
     }
     // "Specific window" keeps its exact title under its own key, so switching modes never loses the other text.
     const raw = windows === 'window' ? args.window : args.title;
-    const title = raw === undefined ? '' : raw;
-    if (
-      typeof title !== 'string' ||
-      new TextEncoder().encode(title).length > MAX_KEY ||
-      /[\u0000-\u001f\u007f-\u009f]/.test(title)
-    ) {
+    const selection = readWindowSelection({ windows, title: raw === undefined ? '' : raw });
+    if (!selection) {
       throw new Error('The window title is not valid');
     }
-    if (windows === 'window' && !title.trim()) {
+    const title = selection.title.trim();
+    if (windows === 'window' && !title) {
       throw new Error('Choose a window');
     }
-    if (windows === 'title' && !title.trim()) {
+    if (windows === 'title' && !title) {
       throw new Error('Enter a window title');
     }
     if (op === 'toggle' && args.hide === 'close' && args.force === true && windows !== 'all') {
       throw new Error('Force close requires All windows');
     }
-    request.windows = windows as AppRequest['windows'];
-    request.title = title.trim();
+    request.windows = selection.windows;
+    request.title = title;
   }
   if (typeof args.display === 'string' && args.display) {
     request.display = args.display;

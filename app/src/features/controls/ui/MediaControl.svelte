@@ -306,10 +306,7 @@
           {#if !source}
             <EmptyContent icon="Image" />
           {:else if targetReady && unavailable}
-            <div
-              class="absolute inset-0 grid place-items-center text-sm text-muted-foreground transition-opacity duration-150"
-              style:opacity={unavailable ? 1 : 0}
-            >
+            <div class="absolute inset-0 grid place-items-center text-sm text-muted-foreground">
               Unavailable
             </div>
           {/if}

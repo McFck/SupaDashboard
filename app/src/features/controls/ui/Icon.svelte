@@ -29,7 +29,9 @@
       untrack(() => void requestAppIcon(key));
     }
   });
-  const Lucide = $derived(icon ? (icons as Record<string, any>)[icon] : undefined);
+  const Lucide = $derived(
+    icon && Object.hasOwn(icons, icon) ? icons[icon as keyof typeof icons] : undefined,
+  );
   const custom = $derived(icon ? (brandIcons[icon] ?? customIcons.get(icon)) : undefined);
 </script>
 

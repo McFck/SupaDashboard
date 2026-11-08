@@ -6,7 +6,7 @@ import {
   type Trigger,
 } from '../../automation/scenario';
 import type { ControlConfig, SwipeGesture } from '../model';
-import { stateIdAt, variantIndexForState } from '../variants';
+import { stateIdAt, stateIndex } from '../variants';
 
 export type PullAxis = 'x' | 'y';
 
@@ -22,18 +22,8 @@ function simpleSelfVariant(
   if (!steps || steps.length !== 1 || steps[0].kind !== 'action') return undefined;
   const action = steps[0].action;
   if (action.id !== 'button.variant' || action.args?.target !== 'self') return undefined;
-  const requested = String(action.args.variant ?? 'next');
-  if (requested === 'next' || requested === 'prev') {
-    const count = control.variants.length;
-    return count ? (current + (requested === 'next' ? 1 : -1) + count) % count : 0;
-  }
-  const byId = variantIndexForState(control, requested);
-  if (byId !== undefined) return byId;
-  if (/^\d+$/.test(requested)) {
-    const index = Number(requested);
-    return index >= 0 && index < control.variants.length ? index : undefined;
-  }
-  return undefined;
+  const index = stateIndex(control, current, String(action.args.variant ?? 'next'));
+  return index >= 0 ? index : undefined;
 }
 
 export type PullState = {

@@ -14,7 +14,7 @@
 
   type Fixed = { target: string; label?: string; icon?: string };
   let { controlId }: { controlId: string } = $props();
-  // Read through the settings store rather than mutating a prop.
+  // Edits go to the settings store; a prop must not be mutated.
   const control = $derived(controlById(controlId));
   const o = $derived(
     (control?.options ?? {}) as {
@@ -27,9 +27,10 @@
   let running = $state<string[]>([]);
   mixer()
     .then((c) => (running = c.map((x) => x.target)))
+    // Suggestions only; the field accepts any app name.
     .catch(() => {});
 
-  /** Typed fields pass 	yping so a word is one undo step, not one per keystroke. */
+  /** Typed fields pass `typing` so a word is one undo step, not one per keystroke. */
   function save(patch: Partial<typeof o>, label: string, typing = false) {
     if (!control) {
       return;

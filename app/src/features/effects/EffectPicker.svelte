@@ -85,7 +85,6 @@
       {:else}
         <Button
           size="sm"
-          aria-label="None"
           variant={!value ? 'secondary' : 'ghost'}
           class="mb-1 w-full"
           onclick={() => choose()}>None</Button
@@ -94,7 +93,6 @@
           {#each EFFECTS as effect (effect.id)}
             <Button
               size="sm"
-              aria-label={effect.label}
               aria-pressed={value === effect.id}
               variant="ghost"
               class="h-16 min-w-0 flex-col gap-1.5 px-0.5 text-[11px] aria-pressed:bg-accent aria-pressed:ring-1 aria-pressed:ring-primary/70"

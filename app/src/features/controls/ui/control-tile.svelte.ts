@@ -21,7 +21,6 @@ type PullRelease = { release(snapshot: PullSnapshot, commit: () => void): unknow
 
 export class ControlTile {
   readonly #host: Host;
-  readonly #commands = runtimeCommands;
   readonly #runtime = fromStore(runtimeView);
   private heldPacket: TriggerPacket | undefined;
   private origin = { x: 0.5, y: 0.5 };
@@ -30,18 +29,15 @@ export class ControlTile {
       this.origin = point;
     },
     onEffectHold: (captured) => {
-      if (captured === this.heldPacket) {
-        return;
-      }
-      if (!isTriggerPacket(captured)) {
+      if (captured === this.heldPacket || !isTriggerPacket(captured)) {
         return;
       }
       this.heldPacket = captured;
-      this.#commands.holdTileEffect(captured);
+      runtimeCommands.holdTileEffect(captured);
     },
     onEffectEnd: () => {
       if (this.heldPacket) {
-        this.#commands.endTileEffect(this.heldPacket.interactionId);
+        runtimeCommands.endTileEffect(this.heldPacket.interactionId);
       }
       this.heldPacket = undefined;
     },
@@ -64,7 +60,7 @@ export class ControlTile {
 
   /** Capture one trigger at press start, frozen with the state the control had then. */
   capture = (trigger: Trigger, interactionId: string) => {
-    const packet = this.#commands.captureRuntimeTrigger(
+    const packet = runtimeCommands.captureRuntimeTrigger(
       this.#host.control().id,
       this.#host.itemId?.() ?? '',
       trigger,
@@ -85,10 +81,10 @@ export class ControlTile {
     }
     if (snapshot) {
       void content?.release(snapshot, () => {
-        void this.#commands.dispatchRuntimePacket(packet);
+        void runtimeCommands.dispatchRuntimePacket(packet);
       });
       return;
     }
-    void this.#commands.dispatchRuntimePacket(packet);
+    void runtimeCommands.dispatchRuntimePacket(packet);
   }
 }

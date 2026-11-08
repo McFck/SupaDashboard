@@ -8,7 +8,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import type { Variant } from '../model';
-  import { stateIdAt } from '../variants';
+  import { stateChoices } from '../variants';
   import type { Scalar, StateBinding } from '../../automation/scenario';
   import { runtimeView } from '../../../app/runtime/state';
   import { parseVariableText, type VariableType } from '../../automation/variables';
@@ -62,13 +62,7 @@
   const variable = $derived(
     variables.find((record) => record.definition.id === binding.variableId),
   );
-  const states = $derived(
-    variants.map((variant, index) => ({
-      value: stateIdAt({ variants }, index),
-      label: variant.label || `State ${index + 1}`,
-      appearance: variant,
-    })),
-  );
+  const states = $derived(stateChoices(variants));
   const caseType = $derived<VariableType | undefined>(
     appField ? (appField === 'display' ? 'string' : 'boolean') : variable?.definition.type,
   );

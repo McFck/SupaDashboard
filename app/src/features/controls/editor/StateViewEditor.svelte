@@ -11,7 +11,7 @@
   import { Label } from '$lib/components/ui/label';
   import { MAX_VARIANTS, type TileAppearance, type TileStyle, type Variant } from '../model';
   import { variantView } from '../control-state';
-  import { stateIdAt, variantIndexForState } from '../variants';
+  import { stateChoices, stateIdAt, variantIndexForState } from '../variants';
   import { runtimeView } from '../../../app/runtime/state';
   import ButtonFace from '../ui/ButtonFace.svelte';
   import StateView from '../ui/StateView.svelte';
@@ -44,13 +44,7 @@
     onremove: (index: number) => void;
     onmove: (from: number, to: number) => void;
   } = $props();
-  const states = $derived(
-    variants.map((variant, index) => ({
-      value: stateIdAt({ variants }, index),
-      label: variant.label || `State ${index + 1}`,
-      appearance: variant,
-    })),
-  );
+  const states = $derived(stateChoices(variants));
   let selectedId = $state('');
   let previewId = $state('');
   let refreshingIcon = $state(false);

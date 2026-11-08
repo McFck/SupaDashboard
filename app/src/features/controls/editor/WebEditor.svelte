@@ -15,11 +15,9 @@
   let lastUrl = '';
   let lastZoom = Number.NaN;
   let lastRefresh = Number.NaN;
-  const zoomInvalid = $derived(!Number.isFinite(zoomDraft) || zoomDraft < 50 || zoomDraft > 200);
-  const refreshInvalid = $derived(
-    !Number.isFinite(refreshDraft) ||
-      !(refreshDraft === 0 || (refreshDraft >= 1 && refreshDraft <= 86400)),
-  );
+  const validZoom = (value: number) => Number.isFinite(value) && value >= 50 && value <= 200;
+  const validRefresh = (value: number) =>
+    Number.isFinite(value) && (value === 0 || (value >= 1 && value <= 86400));
 
   $effect(() => {
     if (options.url !== lastUrl) {
@@ -54,12 +52,7 @@
     save('Web URL', { url: value });
   }
   function saveNumber(key: 'zoom' | 'refresh', label: string, value: number) {
-    const valid =
-      Number.isFinite(value) &&
-      (key === 'zoom'
-        ? value >= 50 && value <= 200
-        : value === 0 || (value >= 1 && value <= 86400));
-    if (!valid) {
+    if (!(key === 'zoom' ? validZoom : validRefresh)(value)) {
       toast.error(
         key === 'zoom'
           ? 'Zoom must be between 50 and 200'
@@ -92,7 +85,7 @@
     max="200"
     step="1"
     bind:value={zoomDraft}
-    aria-invalid={zoomInvalid}
+    aria-invalid={!validZoom(zoomDraft)}
     onchange={(event) => saveNumber('zoom', 'Web zoom', event.currentTarget.valueAsNumber)}
   />
 </div>
@@ -106,7 +99,7 @@
     max="86400"
     step="1"
     bind:value={refreshDraft}
-    aria-invalid={refreshInvalid}
+    aria-invalid={!validRefresh(refreshDraft)}
     onchange={(event) => saveNumber('refresh', 'Web refresh', event.currentTarget.valueAsNumber)}
   />
 </div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, untrack } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import type { ControlConfig } from '../model';
   import { newId } from '../../automation/scenario';
   import { runtimeView } from '../../../app/runtime/state';
@@ -162,11 +162,6 @@
       stopFrames?.();
       document.removeEventListener('visibilitychange', updateDocument);
     };
-  });
-
-  onDestroy(() => {
-    generation++;
-    stopFrames?.();
   });
 </script>
 

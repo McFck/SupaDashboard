@@ -19,17 +19,9 @@
   import StateView from './StateView.svelte';
   import { sliderFaceText } from '../face-layout';
 
-  type TrackRect = {
-    left: number;
-    right: number;
-    top: number;
-    bottom: number;
-    width: number;
-    height: number;
-  };
   type ActiveDrag = {
     state: PullState;
-    rect: TrackRect;
+    rect: DOMRectReadOnly;
     vertical: boolean;
     bindings: PullBindings;
     snapshot: PullSnapshot | null;
@@ -47,7 +39,7 @@
     label,
     presentation,
     presentationImmediate = false,
-    face = SliderFace,
+    face: Face = SliderFace,
     stateId = 'state-1',
     stateIndex = 0,
     busy = false,
@@ -151,20 +143,9 @@
     previousLevel = value;
   });
 
-  const rectNow = (): TrackRect => {
-    const r = el!.getBoundingClientRect();
-    return {
-      left: r.left,
-      right: r.right,
-      top: r.top,
-      bottom: r.bottom,
-      width: r.width,
-      height: r.height,
-    };
-  };
   const fromPointer = (
     point: { clientX: number; clientY: number },
-    rect: TrackRect,
+    rect: DOMRectReadOnly,
     isVertical: boolean,
   ) => {
     const v = isVertical
@@ -175,7 +156,7 @@
   const valueAxis = (isVertical: boolean): PullAxis => (isVertical ? 'y' : 'x');
 
   // A short press sets the value where it landed (or mutes on the icon); it can pair into a double tap.
-  const press = new PressMachine<Tap & { rect: TrackRect }>({
+  const press = new PressMachine<Tap & { rect: DOMRectReadOnly }>({
     trigger: (trigger, captures) => {
       if (trigger === 'longPress') {
         gestureEffects?.onEffectHold?.(captures[trigger]);
@@ -195,10 +176,10 @@
   });
 
   function down(e: PointerEvent) {
-    if (e.button !== 0 || drag) {
+    if (e.button !== 0 || drag || !el) {
       return;
     }
-    const rect = rectNow();
+    const rect = el.getBoundingClientRect();
     gestureEffects?.onEffectPoint?.({
       x: (e.clientX - rect.left) / rect.width,
       y: (e.clientY - rect.top) / rect.height,
@@ -214,7 +195,7 @@
     };
     press.start(drag.captures);
     feedback?.start(e);
-    el!.setPointerCapture(e.pointerId);
+    el.setPointerCapture(e.pointerId);
   }
   function move(e: PointerEvent) {
     if (!drag || e.pointerId !== drag.state.pointerId) {
@@ -320,7 +301,6 @@
       view: { label: label ?? '', icon, color: accent },
     },
   );
-  const Face = $derived(face ?? SliderFace);
   const faceText = $derived(sliderFaceText(width || pixelWidth, height || pixelHeight, vertical));
   const animateFill = $derived(
     fillReady && Number.isFinite(level) && !active && !prefersReducedMotion.current,

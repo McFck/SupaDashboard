@@ -190,7 +190,6 @@
         <Button
           variant="outline"
           size="sm"
-          aria-label="Add source"
           onclick={addSource}><Plus /> Add source</Button
         >
         <Button

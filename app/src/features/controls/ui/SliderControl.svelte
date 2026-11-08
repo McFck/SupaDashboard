@@ -1,13 +1,12 @@
 <script lang="ts">
-  import type { Component } from 'svelte';
   // One level slider widget. Its long side is the value axis; swipes across it use the gesture map.
+  import type { Component } from 'svelte';
   import { toast } from 'svelte-sonner';
   import { pullBindingsFor, type PullSnapshot } from '../input/pull';
   import { sliderOrientation } from '../face-layout';
   import type { ControlConfig, ControlFaceProps, TilePresentation, Variant } from '../model';
   import { stateIdAt } from '../variants';
   import type { Trigger } from '../../automation/scenario';
-  import { onDestroy } from 'svelte';
   import { value as valueOf } from '../../plugins/registry';
   import { findVolumeChannel, setVolume, volumeChannels } from '../../media/volume';
   import PullContent from './PullContent.svelte';
@@ -63,11 +62,10 @@
   }
   let genericLevel = $state<number | null>(null);
   const level = $derived(volumeTarget != null ? (volumeChannel?.volume ?? null) : genericLevel);
-  const muted = $derived(volumeTarget != null ? (volumeChannel?.muted ?? false) : false);
+  const muted = $derived(volumeChannel?.muted ?? false);
   let pull = $state<PullSnapshot | null>(null);
   let dragging = false;
   let sourceGeneration = 0;
-  let alive = true;
   const pullBindings = $derived(
     pullBindingsFor(
       control,
@@ -96,10 +94,10 @@
       if (dragging) return;
       s.get()
         .then((v) => {
-          if (alive && generation === sourceGeneration && !dragging) genericLevel = v;
+          if (generation === sourceGeneration && !dragging) genericLevel = v;
         })
         .catch(() => {
-          if (alive && generation === sourceGeneration && !dragging) genericLevel = null;
+          if (generation === sourceGeneration && !dragging) genericLevel = null;
         });
     };
     read();
@@ -108,10 +106,6 @@
       clearInterval(timer);
       if (generation === sourceGeneration) sourceGeneration++;
     };
-  });
-  onDestroy(() => {
-    alive = false;
-    sourceGeneration++;
   });
 
   let pending: number | null = null,

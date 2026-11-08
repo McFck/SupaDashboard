@@ -25,7 +25,7 @@
     tauriAvailable = isTauri();
   });
   $effect(() => {
-    const next = readMediaOptions(control.options).sources;
+    const next = options.sources;
     const key = JSON.stringify(next);
     if (key !== sourcesKey) {
       sourcesKey = key;

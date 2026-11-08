@@ -18,7 +18,7 @@
     pixelWidth,
     pixelHeight,
     presentation,
-    face = ButtonFace,
+    face: Face = ButtonFace,
     pressFeedbackDisabled = false,
     itemId,
   }: {
@@ -43,7 +43,6 @@
   );
   const accent = $derived(resolvedPresentation.view.color ?? tile.variant.color ?? '#67c9eb');
   const faceLabelHidden = $derived(!buttonLabelVisible(width || pixelWidth, height || pixelHeight));
-  const Face = $derived(face ?? ButtonFace);
   function presentationFor(view: Variant): TilePresentation {
     const index = control.variants.indexOf(view);
     // Same key for the same state wherever it renders, so a committed pull never crossfades a face into itself.

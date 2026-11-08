@@ -1,6 +1,6 @@
 // State identity and pure edits of a control's states. Scenarios, bindings and roles refer to states by these ids.
 import type { ActionStep } from '../automation/scenario';
-import type { ControlConfig } from './model';
+import type { ControlConfig, Variant } from './model';
 
 /** The one id rule: a state without a stored id is named by its position. */
 export function stateIdAt(control: Pick<ControlConfig, 'variants'>, index: number) {
@@ -10,6 +10,15 @@ export function stateIdAt(control: Pick<ControlConfig, 'variants'>, index: numbe
 export function variantIndexForState(control: Pick<ControlConfig, 'variants'>, stateId: string) {
   const index = control.variants.findIndex((_, i) => stateIdAt(control, i) === stateId);
   return index < 0 ? undefined : index;
+}
+
+/** The states as picker options, unnamed ones by position. */
+export function stateChoices(variants: Variant[]) {
+  return variants.map((variant, index) => ({
+    value: stateIdAt({ variants }, index),
+    label: variant.label || `State ${index + 1}`,
+    appearance: variant,
+  }));
 }
 
 /** Relative states and numeric indices remain accepted for migrated actions. */

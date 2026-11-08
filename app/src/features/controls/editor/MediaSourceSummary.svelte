@@ -45,7 +45,6 @@
     <Button
       variant="outline"
       size="sm"
-      aria-label="Edit sources"
       onclick={onedit}>Edit sources</Button
     >
   </div>
