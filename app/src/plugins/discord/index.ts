@@ -27,10 +27,6 @@ export const discordPlugin: Plugin = {
   title: 'Discord',
   description: 'Voice channel and voice controls for Discord.',
   icon: 'discord-voice',
-  author: 'SupaDashboard',
-  version: '1.0.0',
-  updated: '2026-11-04',
-  source: 'bundled',
   settingsSection: ConnectionSection,
   guide,
   setup(api) {

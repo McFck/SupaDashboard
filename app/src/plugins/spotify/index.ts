@@ -69,11 +69,7 @@ export const spotifyPlugin: Plugin = {
   title: 'Spotify',
   description: 'Lyrics, playback and library controls for Spotify.',
   icon: 'spotify',
-  author: 'SupaDashboard',
-  version: '1.0.0',
-  updated: '2026-11-05',
   default: true,
-  source: 'bundled',
   settingsSection: ConnectionSection,
   guide,
   setup(api) {

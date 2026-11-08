@@ -1,9 +1,7 @@
 <script lang="ts">
-  import { isTauri } from '@tauri-apps/api/core';
-  import { openUrl } from '@tauri-apps/plugin-opener';
-  import { toast } from 'svelte-sonner';
   import * as Dialog from '$lib/components/ui/dialog';
   import { parseMarkdown, type Inline } from '../markdown';
+  import { followLink } from './about';
 
   let {
     title,
@@ -11,15 +9,6 @@
     open = $bindable(false),
   }: { title: string; guide: string; open?: boolean } = $props();
   const blocks = $derived(parseMarkdown(guide));
-
-  function follow(event: MouseEvent, href: string) {
-    event.preventDefault();
-    if (!isTauri()) {
-      window.open(href, '_blank', 'noopener');
-      return;
-    }
-    openUrl(href).catch(() => toast.error('Could not open link'));
-  }
 </script>
 
 {#snippet text(inline: Inline[])}
@@ -33,7 +22,7 @@
       <a
         href={part.href}
         class="font-medium text-primary underline underline-offset-2"
-        onclick={(event) => follow(event, part.href)}>{part.text}</a
+        onclick={(event) => followLink(event, part.href)}>{part.text}</a
       >
     {:else}
       {part.text}

@@ -105,7 +105,29 @@ fn check_with(
             return Err(format!("{path} was changed after signing"));
         }
     }
+    if has_unsigned(folder, "", &release.files) {
+        return Ok(Trust::Unverified);
+    }
     Ok(Trust::Verified)
+}
+
+/// Whether `folder` holds anything besides the signed files and the release pair: a DLL beside a signed exe
+/// would load into it, so such a folder counts as unverified.
+fn has_unsigned(folder: &Path, prefix: &str, signed: &BTreeMap<String, String>) -> bool {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return true;
+    };
+    entries.into_iter().any(|entry| {
+        let Ok(entry) = entry else {
+            return true;
+        };
+        let path = format!("{prefix}{}", entry.file_name().to_string_lossy());
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            return has_unsigned(&entry.path(), &format!("{path}/"), signed);
+        }
+        let release = prefix.is_empty() && (path == "release.json" || path == "release.sig");
+        !release && !signed.contains_key(&path)
+    })
 }
 
 #[cfg(test)]
@@ -166,6 +188,16 @@ mod tests {
         assert_eq!(trust(&folder(good, "console.log(1)")), Ok(Trust::Verified));
         assert_eq!(trust(&folder(None, "anything")), Ok(Trust::Unverified));
         assert!(trust(&folder(good, "console.log(2)")).is_err(), "tampered");
+        for extra in ["version.dll", "ui/extra.js", "lib/helper.dll"] {
+            let signed = folder(good, "console.log(1)");
+            fs::create_dir_all(signed.join("lib")).unwrap();
+            fs::write(signed.join(extra), "").unwrap();
+            assert_eq!(
+                trust(&signed),
+                Ok(Trust::Unverified),
+                "{extra} beside signed files"
+            );
+        }
         assert!(
             trust(&folder(Some((OTHER, OTHER_SIG)), "console.log(1)")).is_err(),
             "id"

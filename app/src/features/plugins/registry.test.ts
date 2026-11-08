@@ -46,7 +46,7 @@ describe('plugin bookkeeping', () => {
         });
       },
     };
-    await registry.installEnabled(spotify, { id: 'subway', title: 'Subway', setup });
+    await registry.installEnabled([spotify, { id: 'subway', title: 'Subway', setup }], [], []);
     expect(setup).not.toHaveBeenCalled();
     const registeredApplet = registry.applets.get('test.applet')!;
     expect(() =>
@@ -99,17 +99,18 @@ describe('plugin bookkeeping', () => {
     expect(location.reload).toHaveBeenCalledOnce();
   });
 
-  it('does not record a plugin until its setup succeeds', async () => {
+  it('skips a plugin whose setup throws without stopping the plugins after it', async () => {
     const registry = await import('./registry');
-    const plugin = {
+    const broken = {
       id: 'broken',
       title: 'Broken',
       setup: () => {
         throw new Error('setup failed');
       },
     };
-    expect(() => registry.install(plugin)).toThrow('setup failed');
-    expect(registry.plugins.some((entry) => entry.id === plugin.id)).toBe(false);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    registry.installEach([broken, { id: 'after', title: 'After', setup: vi.fn() }]);
+    expect(registry.plugins.map((entry) => entry.id)).toEqual(['after']);
   });
 });
 

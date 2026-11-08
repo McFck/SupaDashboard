@@ -3,8 +3,16 @@
   import { Switch } from '$lib/components/ui/switch';
   import Icon from '../../controls/ui/Icon.svelte';
   import { Badge } from '$lib/components/ui/badge';
-  import { applets, bundledPlugins, pluginState, setPluginEnabled } from '../registry';
+  import {
+    applets,
+    bundledPlugins,
+    nativePlugins,
+    pluginState,
+    setPluginEnabled,
+    verifiedPlugin,
+  } from '../registry';
   import Section from '../../../panel/ui/Section.svelte';
+  import PluginAuthor from './PluginAuthor.svelte';
   import PluginPage from './PluginPage.svelte';
   let { selected = $bindable(null) }: { selected: string | null } = $props();
   const packages = bundledPlugins.filter((p) => !p.builtin);
@@ -56,17 +64,20 @@
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline gap-3">
                   <p class="truncate text-base font-medium">{p.title}</p>
-                  {#if p.author}
-                    <span class="shrink-0 text-xs text-muted-foreground">{p.author}</span>
-                  {/if}
+                  <PluginAuthor
+                    class="shrink-0 text-xs text-muted-foreground"
+                    verified={verifiedPlugin(p.id)}
+                  />
                   {#if appletPlugins.has(p.id)}<Badge variant="secondary">Applet</Badge>{/if}
                 </div>
                 {#if p.description}
                   <p class="truncate text-xs text-muted-foreground">{p.description}</p>
                 {/if}
               </div>
-              {#if p.version}
-                <span class="shrink-0 text-xs text-muted-foreground tabular-nums">{p.version}</span>
+              {#if nativePlugins.has(p.id)}
+                <span class="shrink-0 text-xs text-muted-foreground tabular-nums"
+                  >{nativePlugins.get(p.id)?.version}</span
+                >
               {/if}
             </button>
             <Switch

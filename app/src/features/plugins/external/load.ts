@@ -10,10 +10,12 @@ import * as motion from 'svelte/motion';
 import * as reactivity from 'svelte/reactivity';
 import * as store from 'svelte/store';
 import * as transition from 'svelte/transition';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { isTauri } from '@tauri-apps/api/core';
 import * as kit from '../../../plugin-kit';
+import { listPlugins } from '../../../platform/plugin-host';
 import { isRecord } from '../../automation/plain-data';
 import type { Plugin } from '../contracts';
+import { PLUGIN_ID } from '../plugin-store';
 
 declare global {
   /** Shared modules by import name; `plugin` is where a loading bundle leaves its export. */
@@ -21,10 +23,9 @@ declare global {
 }
 
 const ORIGIN = 'http://plugin.localhost';
-const ID = /^[a-z0-9-]{1,64}$/;
 
 /** A discovered plugin: `api` is null without a UI bundle, `size` in bytes, `updated` in Unix milliseconds. */
-interface NativePlugin {
+export interface NativePlugin {
   id: string;
   version: string;
   api: number | null;
@@ -42,7 +43,7 @@ export function listedPlugins(raw: unknown): NativePlugin[] {
     (entry): entry is NativePlugin =>
       isRecord(entry) &&
       typeof entry.id === 'string' &&
-      ID.test(entry.id) &&
+      PLUGIN_ID.test(entry.id) &&
       typeof entry.version === 'string' &&
       (entry.api === null || Number.isSafeInteger(entry.api)) &&
       (entry.trust === 'verified' || entry.trust === 'unverified') &&
@@ -94,10 +95,16 @@ async function loadPlugin(id: string) {
   }
 }
 
-/** Loads one bundle at a time, since each leaves its export in the same slot; a failing plugin is skipped. */
-export async function loadExternalPlugins() {
+/**
+ * Loads one bundle at a time, since each leaves its export in the same slot; a failing plugin is skipped.
+ * `listed` is everything native discovered, with or without a UI.
+ */
+export async function loadExternalPlugins(): Promise<{
+  listed: NativePlugin[];
+  plugins: Plugin[];
+}> {
   if (!isTauri()) {
-    return [];
+    return { listed: [], plugins: [] };
   }
   globalThis.__supadashboard = {
     svelte,
@@ -110,7 +117,8 @@ export async function loadExternalPlugins() {
     '@supadashboard/kit': kit,
   };
   const loaded: Plugin[] = [];
-  for (const { id, api } of listedPlugins(await invoke('plugin_list'))) {
+  const listed = listedPlugins(await listPlugins());
+  for (const { id, api } of listed) {
     if (api === null) {
       continue;
     }
@@ -124,5 +132,5 @@ export async function loadExternalPlugins() {
       console.warn(`Plugin ${id}`, error);
     }
   }
-  return loaded;
+  return { listed, plugins: loaded };
 }

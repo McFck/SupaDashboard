@@ -195,16 +195,10 @@ export type Plugin = {
   title: string;
   description?: string;
   icon?: string;
-  author?: string;
-  version?: string;
-  updated?: string;
-  size?: number | string;
+  /** Cannot be turned off. */
   default?: boolean;
-  source?: string;
   /** Part of the app itself: not listed on the Plugins page. */
   builtin?: boolean;
-  /** Owner-only: never listed in the Market or a published catalogue. */
-  private?: boolean;
   /** A section of the plugin page for settings that must stay out of settings.json, such as credentials. */
   settingsSection?: Component;
   /** Markdown shown by the plugin page's How to use button: what the plugin is for and how to set it up. */

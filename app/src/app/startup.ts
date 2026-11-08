@@ -2,7 +2,19 @@
 import { mount, tick } from 'svelte';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { install, installEnabled } from '../features/plugins/registry';
+import { get } from 'svelte/store';
+import { toast } from 'svelte-sonner';
+import {
+  compiledPlugins,
+  installEach,
+  installEnabled,
+  nativePlugins,
+  pluginsInstalled,
+  pluginState,
+} from '../features/plugins/registry';
+import { formerBundledDue } from '../features/plugins/former-bundled';
+import { installPlugin } from '../platform/plugin-host';
+import { whileOwner } from '../plugins/owner';
 import { loadExternalPlugins } from '../features/plugins/external/load';
 import { redo, startHistory, undo } from '../features/layout/history.svelte';
 import { loadSettings } from '../features/settings/persistence.svelte';
@@ -69,15 +81,48 @@ async function panelGeneration() {
 }
 
 async function installPlugins() {
-  const external = await loadExternalPlugins().catch((error) => {
+  const { listed, plugins: external } = await loadExternalPlugins().catch((error) => {
     console.warn('external plugins', error);
-    return [];
+    return { listed: [], plugins: [] };
   });
   try {
-    await installEnabled(...BUNDLED_PLUGINS, ...external);
+    await installEnabled(BUNDLED_PLUGINS, external, listed);
   } catch (error) {
     console.warn('plugins', error);
-    install(...BUNDLED_PLUGINS, ...external);
+    installEach([...BUNDLED_PLUGINS, ...external]);
+  }
+}
+
+/** The dashboard owner installs former bundled plugins from the catalogue once; a failed one retries next launch. */
+function restoreFormerBundled() {
+  const present = new Set([...compiledPlugins, ...nativePlugins.keys()]);
+  const due = formerBundledDue(get(pluginState), present);
+  if (!due.length) {
+    return;
+  }
+  let started = false;
+  whileOwner(() => {
+    if (!started) {
+      started = true;
+      void reinstall(due);
+    }
+    return () => {};
+  });
+}
+
+async function reinstall(ids: string[]) {
+  const installed: string[] = [];
+  for (const id of ids) {
+    try {
+      await installPlugin(id);
+      installed.push(id);
+    } catch (error) {
+      console.warn(`Plugin ${id}`, error);
+      toast.error(`Could not install ${id}`);
+    }
+  }
+  if (installed.length) {
+    await pluginsInstalled(installed).catch((error) => console.warn('plugins', error));
   }
 }
 
@@ -149,6 +194,7 @@ export async function startApp() {
     document.addEventListener('keydown', handleUndoShortcut);
   }
   followRemovals();
+  restoreFormerBundled();
   mount(Root, {
     target: document.getElementById('app')!,
     props: { content },

@@ -9,6 +9,22 @@ export const callPlugin = <T>(plugin: string, method: string, params: unknown = 
 export const setPluginProcessEnabled = (plugin: string, enabled: boolean) =>
   invoke<void>('plugin_set_enabled', { plugin, enabled });
 
+/** Raw `plugin_list`; `features/plugins/external/load.ts` validates it. */
+export const listPlugins = () => invoke<unknown>('plugin_list');
+
+/** Raw signed catalogue entries; `features/plugins/plugin-store.ts` validates them. Throws a short message. */
+export const pluginCatalogue = () => invoke<unknown>('plugin_catalogue');
+
+/** Installs or updates a verified release from the catalogue. */
+export const installPlugin = (id: string) => invoke<void>('plugin_install', { id });
+
+/** Returns the installed id, or null for an unsigned folder that needs `unverified`. */
+export const installPluginFolder = (path: string, unverified: boolean) =>
+  invoke<string | null>('plugin_install_folder', { path, unverified });
+
+/** Deletes an installed plugin's folder; its data and settings stay. */
+export const uninstallPlugin = (id: string) => invoke<void>('plugin_uninstall', { id });
+
 /** `restarted` means a crashed process came back without its state; the plugin applies it again. */
 export const onPluginEvent = <T>(plugin: string, event: string, handler: (payload: T) => void) =>
   listen<T>(`plugin://${plugin}/${event}`, (message) => handler(message.payload));

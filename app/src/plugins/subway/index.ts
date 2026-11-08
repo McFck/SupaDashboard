@@ -220,11 +220,6 @@ export const subwayPlugin: Plugin = {
   title: 'Subway',
   description: 'Japanese passenger-information displays with a compact control strip.',
   icon: 'TrainFront',
-  author: 'SupaDashboard',
-  version: '1.0.0',
-  updated: '2026-10-24',
-  source: 'bundled',
-  size: 1618,
   guide,
   setup(api) {
     api.registerVariable({

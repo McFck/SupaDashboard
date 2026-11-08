@@ -169,14 +169,10 @@ pub async fn plugin_catalogue(window: WebviewWindow) -> Result<Vec<Entry>, Strin
     Source::new().catalogue().await
 }
 
-/// Installs or updates `id` from the catalogue; only a verified release is accepted.
+/// Installs or updates `id` from the catalogue; only a verified release is accepted. Not panel-only: the dashboard
+/// owner restores former bundled plugins at start-up, and a signed catalogue release is all this can install.
 #[tauri::command]
-pub async fn plugin_install(
-    window: WebviewWindow,
-    host: State<'_, PluginHost>,
-    id: String,
-) -> Result<(), String> {
-    require_panel(&window)?;
+pub async fn plugin_install(host: State<'_, PluginHost>, id: String) -> Result<(), String> {
     let _changing = host.changing.lock().await;
     let source = Source::new();
     let entries = source.catalogue().await?;
@@ -192,19 +188,19 @@ pub async fn plugin_install(
     }
 }
 
-/// Installs a plugin folder. `false` means it is unsigned and was not installed; the panel asks and calls again
-/// with `unverified`.
+/// Installs a plugin folder and returns its id. `None` means it is unsigned and was not installed; the panel asks
+/// and calls again with `unverified`.
 #[tauri::command]
 pub async fn plugin_install_folder(
     window: WebviewWindow,
     host: State<'_, PluginHost>,
     path: String,
     unverified: bool,
-) -> Result<bool, String> {
+) -> Result<Option<String>, String> {
     require_panel(&window)?;
     let _changing = host.changing.lock().await;
     let (id, staged) = copy_folder(&host.root(), Path::new(&path))?;
-    host.put(&id, staged, unverified).await
+    Ok(host.put(&id, staged, unverified).await?.then_some(id))
 }
 
 /// Deletes the plugin's folder; its data, settings and `plugins.json` entry stay.

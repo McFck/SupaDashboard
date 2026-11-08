@@ -1,16 +1,21 @@
 <script lang="ts">
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
-  import BookOpen from '@lucide/svelte/icons/book-open';
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
-  import { Badge } from '$lib/components/ui/badge';
   import { Switch } from '$lib/components/ui/switch';
-  import Icon from '../../controls/ui/Icon.svelte';
-  import { pluginState, setPluginEnabled, applets } from '../registry';
+  import {
+    applets,
+    nativePlugins,
+    pluginState,
+    removePlugin,
+    setPluginEnabled,
+    verifiedPlugin,
+  } from '../registry';
   import type { Param, Plugin } from '../contracts';
-  import GuideDialog from './GuideDialog.svelte';
+  import { formatDate, formatSize } from './about';
   import ParamControl from './ParamControl.svelte';
+  import PluginHeader from './PluginHeader.svelte';
   import SettingsIndex from './SettingsIndex.svelte';
   import { labelEdit } from '../../layout/history.svelte';
   import { nextAppletSettings, resolveAppletConfig, settingGroups } from '../../applets/definition';
@@ -40,7 +45,7 @@
       })),
     ),
   );
-  let guideOpen = $state(false);
+  const listed = $derived(nativePlugins.get(plugin.id));
   let removing = $state(false);
   let changing = $state(false);
   async function setEnabled(enabled: boolean) {
@@ -80,38 +85,18 @@
       ),
     };
   }
-  function date(value?: string) {
-    return value && Number.isFinite(Date.parse(value))
-      ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))
-      : '—';
-  }
-  function size(value?: number | string) {
-    if (typeof value !== 'number') {
-      return value ?? '—';
-    }
-    if (value < 1024) {
-      return `${value} B`;
-    }
-    return value < 1024 * 1024
-      ? `${(value / 1024).toFixed(1)} KB`
-      : `${(value / 1024 / 1024).toFixed(1)} MB`;
-  }
   async function remove() {
     if (removing) {
       return;
     }
     removing = true;
-    const id = plugin.id;
     try {
       if (
         !(await confirm({ title: `Remove ${plugin.title}?`, action: 'Remove', destructive: true }))
       ) {
         return;
       }
-      if (!$pluginState.installed[id] || $pluginState.uninstalled.includes(id)) {
-        return;
-      }
-      await setPluginEnabled(id, false);
+      await removePlugin(plugin.id);
     } catch (error) {
       console.error(error);
       toast.error(`Could not remove ${plugin.title}`);
@@ -133,41 +118,21 @@
       onclick={onback}><ArrowLeft />Plugins</Button
     >
     <div class="grid max-w-[740px] gap-3 {sections.length >= 3 ? '@[900px]:max-w-none' : ''}">
-      <div class="flex items-center gap-4">
-        <span class="grid size-16 shrink-0 place-items-center rounded-2xl border bg-accent"
-          ><Icon
-            name={plugin.icon ?? 'Puzzle'}
-            size={30}
-          /></span
-        >
-        <div class="grid min-w-0 flex-1 gap-1.5">
-          <h1 class="font-display text-2xl font-semibold tracking-wide">{plugin.title}</h1>
-          <div class="flex flex-wrap items-center gap-1.5">
-            {#if plugin.version}<Badge
-                variant="secondary"
-                class="tabular-nums">{plugin.version}</Badge
-              >{/if}
-            {#if pluginApplets.length}<Badge variant="secondary">Applet</Badge>{/if}
-          </div>
-        </div>
-        {#if plugin.guide}
-          <Button
-            variant="outline"
-            size="sm"
-            onclick={() => (guideOpen = true)}><BookOpen />How to use</Button
-          >
-        {/if}
+      <PluginHeader
+        title={plugin.title}
+        icon={plugin.icon}
+        badges={[...(listed ? [listed.version] : []), ...(pluginApplets.length ? ['Applet'] : [])]}
+        verified={verifiedPlugin(plugin.id)}
+        description={plugin.description}
+        guide={plugin.guide}
+      >
         <Switch
           aria-label={`Enable ${plugin.title}`}
           checked={plugin.default || !$pluginState.uninstalled.includes(plugin.id)}
           disabled={plugin.default || changing}
           onCheckedChange={setEnabled}
         />
-      </div>
-      {#if plugin.author}<p class="text-sm font-medium">{plugin.author}</p>{/if}
-      {#if plugin.description}<p class="text-sm leading-relaxed text-muted-foreground">
-          {plugin.description}
-        </p>{/if}
+      </PluginHeader>
     </div>
     <div
       class="grid gap-8 {sections.length >= 3
@@ -225,11 +190,14 @@
           class="scroll-mt-14 @[900px]:scroll-mt-9"
         >
           <Section title="About">
-            <Row label="Last update"><span class="text-sm">{date(plugin.updated)}</span></Row>
-            <Row label="Installed"
-              ><span class="text-sm">{date($pluginState.installed[plugin.id])}</span></Row
+            <Row label="Last update"><span class="text-sm">{formatDate(listed?.updated)}</span></Row
             >
-            <Row label="Size"><span class="text-sm tabular-nums">{size(plugin.size)}</span></Row>
+            <Row label="Installed"
+              ><span class="text-sm">{formatDate($pluginState.installed[plugin.id])}</span></Row
+            >
+            <Row label="Size"
+              ><span class="text-sm tabular-nums">{formatSize(listed?.size)}</span></Row
+            >
             {#if !plugin.default && !plugin.builtin}
               <Row label="Remove plugin">
                 <Button
@@ -248,10 +216,3 @@
     </div>
   </div>
 </div>
-{#if plugin.guide}
-  <GuideDialog
-    title={plugin.title}
-    guide={plugin.guide}
-    bind:open={guideOpen}
-  />
-{/if}

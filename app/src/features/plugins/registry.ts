@@ -2,7 +2,8 @@
 import { get, writable } from 'svelte/store';
 import { isTauri } from '@tauri-apps/api/core';
 import { load } from '@tauri-apps/plugin-store';
-import { setPluginProcessEnabled } from '../../platform/plugin-host';
+import { setPluginProcessEnabled, uninstallPlugin } from '../../platform/plugin-host';
+import type { NativePlugin } from './external/load';
 import type {
   ActionContext,
   ActionDef,
@@ -50,7 +51,14 @@ export const appIcons = new Map<string, string>();
 /** Which plugin registered each app, so app pickers can show the plugin mark. */
 export const appOwners = new Map<string, string>();
 export const plugins: Plugin[] = [];
+/** Every plugin known at start-up, compiled or external, installed or turned off. */
 export const bundledPlugins: Plugin[] = [];
+/** Ids of the plugins compiled into the app; they are SupaDashboard's own and verified. */
+export const compiledPlugins = new Set<string>();
+/** `plugin_list` at start-up by id: native parts and external plugins on disk, with version, size and trust. */
+export const nativePlugins = new Map<string, NativePlugin>();
+export const verifiedPlugin = (id: string) =>
+  compiledPlugins.has(id) || nativePlugins.get(id)?.trust === 'verified';
 export const pluginState = writable<PluginState>(normalizePluginState(null));
 const variableDefinitions = new Map<string, { owner: string; definition: PluginVariableDef }>();
 const eventDefinitions = new Map<string, EventDef>();
@@ -305,9 +313,32 @@ async function persistPlugins(state: PluginState) {
   pluginState.set(state);
 }
 
-/** Load the separate plugin store before registering bundled plugins in either window. */
-export async function installEnabled(...list: Plugin[]) {
+/** Installs each plugin on its own: one whose setup throws is skipped and cannot stop the rest. */
+export function installEach(list: Plugin[]) {
+  for (const plugin of list) {
+    try {
+      install(plugin);
+    } catch (error) {
+      console.warn(`Plugin ${plugin.id}`, error);
+    }
+  }
+}
+
+/**
+ * Load the separate plugin store before registering plugins in either window. `compiled` are part of the app
+ * bundle; `external` were loaded from their folders; `listed` is everything native found on disk.
+ */
+export async function installEnabled(
+  compiled: Plugin[],
+  external: Plugin[],
+  listed: NativePlugin[],
+) {
+  const list = [...compiled, ...external];
   bundledPlugins.splice(0, bundledPlugins.length, ...list);
+  compiledPlugins.clear();
+  compiled.forEach((plugin) => compiledPlugins.add(plugin.id));
+  nativePlugins.clear();
+  listed.forEach((entry) => nativePlugins.set(entry.id, entry));
   let saved: unknown;
   try {
     pluginStore = await load('plugins.json', { defaults: {}, autoSave: false });
@@ -323,11 +354,17 @@ export async function installEnabled(...list: Plugin[]) {
   for (const plugin of list)
     if (!state.installed[plugin.id]) state.installed[plugin.id] = new Date().toISOString();
   await persistPlugins(state);
-  install(
-    ...list.filter(
+  installEach(
+    list.filter(
       (plugin) => plugin.builtin || plugin.default || !state.uninstalled.includes(plugin.id),
     ),
   );
+  if (isTauri()) {
+    // An installed or updated plugin's process starts enabled; one the user turned off stays off.
+    for (const id of state.uninstalled.filter((id) => nativePlugins.has(id))) {
+      setPluginProcessEnabled(id, false).catch((error) => console.warn(`Plugin ${id}`, error));
+    }
+  }
   if (pluginStore)
     await pluginStore.onKeyChange('plugin-store', (raw) => {
       if (JSON.stringify(normalizePluginState(raw)) !== lastPluginState) {
@@ -353,6 +390,28 @@ export async function setPluginEnabled(id: string, enabled: boolean) {
   }
   await persistPlugins(state);
   location.reload();
+}
+
+/**
+ * After installs or updates of `ids`: one that was not on disk at start-up is turned on, an update keeps its state.
+ * The new installation dates change the store, which reloads the other window onto the new files too.
+ */
+export async function pluginsInstalled(ids: readonly string[]) {
+  const state = structuredClone(get(pluginState));
+  state.uninstalled = state.uninstalled.filter((id) => !ids.includes(id) || nativePlugins.has(id));
+  for (const id of ids) {
+    state.installed[id] = new Date().toISOString();
+  }
+  await persistPlugins(state);
+  location.reload();
+}
+
+/** An external plugin's folder is deleted; a compiled one can only be turned off. */
+export async function removePlugin(id: string) {
+  if (!compiledPlugins.has(id)) {
+    await uninstallPlugin(id);
+  }
+  await setPluginEnabled(id, false);
 }
 
 export async function runAction(ref: ActionRef, context?: ActionContext) {
