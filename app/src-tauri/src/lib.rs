@@ -21,6 +21,12 @@ pub fn run() {
     #[cfg(debug_assertions)]
     let context = dev_data::context(context);
     tauri::Builder::default()
+        // First: a second launch (a double-clicked `.sdplugin`) hands its arguments over and exits, so two instances
+        // never both own the dashboard.
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            plugin_host::opened::opened(app, &args, std::path::Path::new(&cwd));
+        }))
+        .manage(plugin_host::opened::OpenedFile::default())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -54,6 +60,8 @@ pub fn run() {
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
+            let args: Vec<String> = std::env::args().collect();
+            plugin_host::opened::opened(app.handle(), &args, &std::env::current_dir()?);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -69,11 +77,6 @@ pub fn run() {
                 _ => return,
             }
             content::on_window_event(window, event);
-            if matches!(event, WindowEvent::Destroyed) {
-                window
-                    .state::<plugin_host::PluginHost>()
-                    .window_closed(window.label());
-            }
         })
         .invoke_handler(tauri::generate_handler![
             // Debug builds only: the release app has no dev data to copy.
@@ -93,13 +96,13 @@ pub fn run() {
             dashboard::commands::dashboard_set_shown,
             audio::service::audio_snapshot,
             audio::service::audio_update,
-            plugin_host::plugin_call,
             plugin_host::install::plugin_catalogue,
             plugin_host::install::plugin_install,
-            plugin_host::install::plugin_install_folder,
+            plugin_host::install::plugin_inspect_file,
+            plugin_host::install::plugin_install_file,
             plugin_host::install::plugin_uninstall,
+            plugin_host::opened::plugin_opened_file,
             plugin_host::plugin_list,
-            plugin_host::plugin_set_enabled,
             apps::apps_list,
             apps::apps_icon,
             apps::app_command,

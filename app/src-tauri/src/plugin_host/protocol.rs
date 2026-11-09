@@ -1,36 +1,24 @@
-//! The `plugin` URI scheme (`http://plugin.localhost/<id>/ui/index.js`): serves the UI bundle of a discovered
-//! plugin and nothing else. The files are read once at discovery, so a later change on disk is never served.
+//! The `plugin` URI scheme (`http://plugin.localhost/<id>/ui/index.js`, `/<id>/assets/<path>`): serves the UI bundle
+//! and assets of a discovered plugin from its open `.sdplugin`, nothing else.
 use std::borrow::Cow;
-use std::path::Path;
 
-use tauri::http::{Request, Response, StatusCode, header::CONTENT_TYPE};
+use tauri::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE};
+use tauri::http::{Request, Response, StatusCode};
 use tauri::{AppHandle, Manager};
 
 use super::PluginHost;
 
-pub struct Ui {
-    script: Vec<u8>,
-    style: Vec<u8>,
-}
-
-impl Ui {
-    pub fn read(folder: &Path) -> Result<Self, String> {
-        let read = |name: &str| {
-            std::fs::read(folder.join("ui").join(name)).map_err(|e| format!("ui/{name}: {e}"))
-        };
-        Ok(Self {
-            script: read("index.js")?,
-            style: read("index.css")?,
-        })
-    }
-
-    /// The bytes served for `path`; the release check hashes these, so what runs is what was checked.
-    pub fn file(&self, path: &str) -> Option<&[u8]> {
-        match path {
-            "ui/index.js" => Some(&self.script),
-            "ui/index.css" => Some(&self.style),
-            _ => None,
-        }
+fn content_type(file: &str) -> &'static str {
+    match file.rsplit_once('.').map_or("", |(_, extension)| extension) {
+        "js" => "text/javascript",
+        "css" => "text/css",
+        "json" => "application/json",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "opus" | "ogg" => "audio/ogg",
+        "flac" => "audio/flac",
+        "md" | "txt" => "text/plain; charset=utf-8",
+        _ => "application/octet-stream",
     }
 }
 
@@ -40,14 +28,13 @@ pub fn serve(app: &AppHandle, request: &Request<Vec<u8>>) -> Response<Cow<'stati
     let found = app
         .try_state::<PluginHost>()
         .and_then(|host| host.ui_file(id, file));
-    let kind = if file.ends_with(".js") {
-        "text/javascript"
-    } else {
-        "text/css"
-    };
     let response = Response::builder();
     match found {
-        Some(bytes) => response.header(CONTENT_TYPE, kind).body(bytes.into()),
+        // The app's origin is not plugin.localhost, and plugins fetch their assets and draw them on canvases.
+        Some(bytes) => response
+            .header(CONTENT_TYPE, content_type(file))
+            .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+            .body(bytes.into()),
         None => response
             .status(StatusCode::NOT_FOUND)
             .body(Cow::Borrowed(&[][..])),

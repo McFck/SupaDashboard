@@ -158,10 +158,10 @@ Actions receive an `ActionContext` with the control/item, trigger, abort signal,
 emission. Plugins may also register typed variables and events, provide parameter suggestions, and mark an action's
 variable argument as bindable.
 
-External plugins live in `<app data>/plugins/<id>`. A plugin's native part is its own process, built on
-`plugin-sdk` (newline-delimited JSON over stdio), with a `plugin.json` naming its executable and the methods and
-windows allowed to call it. The app starts it on the first `plugin_call`, restarts it after a crash
-(`plugin://<id>/restarted`) and stops it when the plugin is disabled.
-Each plugin keeps its files in `<app data>/plugin-data/<id>`; `migrate` in the manifest lists files the in-app version
-kept in the app data root, copied there once (originals stay). Its events reach only the windows it lists, and
-`media` grants it transport commands for one media session app through the app (`Host::call("media-command")`).
+External plugins are one `.sdplugin` file each in `<app data>/plugins/<id>.sdplugin`: an uncompressed ustar archive
+of `plugin.json`, `ui/index.js`, `ui/index.css`, `assets/**` and, when signed, `release.json` + `release.sig`, packed
+by `plugin-tools/release.mjs`. The app keeps the file open and serves its `ui/` and `assets/` through the `plugin`
+scheme. The manifest's `permissions` declare the native reach (hosts, sign-ins, local apps, programs, link schemes).
+Plugins install from the Market or from a file (Market, drag and drop onto the panel, double-click in Explorer); a
+file install always asks first. Each plugin keeps its files in `<app data>/plugin-data/<id>`; `migrate` in the
+manifest lists files the in-app version kept in the app data root, copied there once (originals stay).

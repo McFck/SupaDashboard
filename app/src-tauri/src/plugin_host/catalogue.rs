@@ -1,20 +1,20 @@
-//! The plugin catalogue: `catalogue.json` and `catalogue.sig` from the plugins repository's `catalogue` release,
-//! checked against the pinned key and validated strictly before anything in it is shown or downloaded.
+//! The plugin catalogue: `catalogue.json` and `catalogue.sig` from the plugins repository's `catalogue-v2` release,
+//! checked against the pinned key and validated strictly before anything in it is shown or downloaded. Version 1
+//! catalogues (folders of files, tag `catalogue`) are frozen for older app releases.
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::manifest::{valid_file_name, valid_id, valid_path};
+use super::archive::MAX_PLUGIN;
+use super::manifest::{valid_file_name, valid_id};
+use super::permissions::Permissions;
 use super::trust;
 
 const URL: &str =
-    "https://github.com/McFck/supadashboard-plugins/releases/download/catalogue/catalogue.json";
+    "https://github.com/McFck/supadashboard-plugins/releases/download/catalogue-v2/catalogue.json";
 const SIG_URL: &str =
-    "https://github.com/McFck/supadashboard-plugins/releases/download/catalogue/catalogue.sig";
+    "https://github.com/McFck/supadashboard-plugins/releases/download/catalogue-v2/catalogue.sig";
 const MAX_CATALOGUE: u64 = 1 << 20;
-/// Sound packs ship as plugin files, so a single file can be large.
-pub const MAX_FILE: u64 = 128 << 20;
-pub const MAX_PLUGIN: u64 = 256 << 20;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -25,7 +25,7 @@ struct Catalogue {
     plugins: Vec<Entry>,
 }
 
-/// One plugin as the Market shows it; `files` stay native, the frontend installs by id only.
+/// One plugin as the Market shows it; the file's URL and hash stay native, the frontend installs by id only.
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
@@ -34,22 +34,17 @@ pub struct Entry {
     description: String,
     icon: String,
     pub version: String,
-    api: u32,
+    pub api: u32,
     published: String,
-    size: u64,
+    /// Bytes of the `.sdplugin`.
+    pub size: u64,
     source: String,
     guide: String,
+    pub permissions: Permissions,
     #[serde(skip_serializing)]
-    pub files: Vec<File>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct File {
-    pub path: String,
     pub url: String,
+    #[serde(skip_serializing)]
     pub sha256: String,
-    pub size: u64,
 }
 
 fn valid_url(url: &str) -> bool {
@@ -57,30 +52,24 @@ fn valid_url(url: &str) -> bool {
 }
 
 fn valid_entry(entry: &Entry) -> bool {
-    let mut paths = HashSet::new();
-    let total: u64 = entry.files.iter().map(|file| file.size).sum();
     valid_id(&entry.id)
         && !entry.version.is_empty()
         && entry.version.len() <= 32
         && valid_url(&entry.source)
-        && total <= MAX_PLUGIN
-        && entry.files.iter().all(|file| {
-            valid_path(&file.path)
-                && paths.insert(file.path.as_str())
-                && valid_url(&file.url)
-                && file.size <= MAX_FILE
-                && file.sha256.len() == 64
-                && file
-                    .sha256
-                    .bytes()
-                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        })
+        && valid_url(&entry.url)
+        && entry.size <= MAX_PLUGIN
+        && entry.sha256.len() == 64
+        && entry
+            .sha256
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && entry.permissions.validate().is_ok()
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Vec<Entry>, String> {
     let catalogue: Catalogue =
         serde_json::from_slice(bytes).map_err(|error| format!("Invalid catalogue: {error}"))?;
-    if catalogue.format != 1 {
+    if catalogue.format != 2 {
         return Err("Unsupported catalogue format".into());
     }
     let mut ids = HashSet::new();
@@ -113,7 +102,7 @@ impl Source {
         match self {
             Self::Remote => {
                 let limit = usize::try_from(limit).map_err(|_| "File too large")?;
-                plugin_sdk::http::download(url, limit).await
+                super::http::download(url, limit).await
             }
             #[cfg(debug_assertions)]
             Self::Local(folder) => {
@@ -139,63 +128,51 @@ impl Source {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
-    fn entry(id: &str, files: &[String]) -> String {
+    /// One entry granting `http` to example.com; `extra` is spliced into its fields.
+    pub fn entry(id: &str, sha256: &str, size: u64, extra: &str) -> String {
         format!(
             r#"{{"id":"{id}","title":"Spike","description":"","icon":"box","version":"1.0.0","api":1,
-            "published":"2026-11-09","size":3,"source":"https://github.com/McFck/supadashboard-plugins",
-            "guide":"","files":[{}]}}"#,
-            files.join(",")
+            "published":"2026-11-09","size":{size},"source":"https://github.com/McFck/supadashboard-plugins",
+            "guide":"","permissions":{{"http":["example.com"]}},
+            "url":"https://github.com/McFck/supadashboard-plugins/releases/download/spike-1.0.0/spike-1.0.0.sdplugin",
+            "sha256":"{sha256}"{extra}}}"#
         )
     }
 
-    fn catalogue(entries: &[String]) -> String {
+    pub fn catalogue(entries: &[String]) -> String {
         format!(
-            r#"{{"format":1,"published":"2026-11-09","plugins":[{}]}}"#,
+            r#"{{"format":2,"published":"2026-11-09","plugins":[{}]}}"#,
             entries.join(",")
         )
     }
 
-    fn file(path: &str, url: &str, sha256: &str, size: u64) -> String {
-        format!(r#"{{"path":"{path}","url":"{url}","sha256":"{sha256}","size":{size}}}"#)
-    }
-
     #[test]
-    fn nothing_outside_the_plugin_folder_over_http_or_over_the_limits_is_accepted() {
+    fn nothing_over_http_unhashed_over_the_limit_or_over_granted_is_accepted() {
         let sha = "ab".repeat(32);
-        let url =
-            "https://github.com/McFck/supadashboard-plugins/releases/download/spike-v1/index.js";
-        let ok = file("ui/index.js", url, &sha, 3);
-        let single = |f: String| catalogue(&[entry("spike", &[f])]);
-        let entries = parse(single(ok.clone()).as_bytes()).unwrap();
-        assert_eq!(entries[0].files[0].path, "ui/index.js");
-        let big = |name: &str, size| file(name, url, &sha, size);
+        let ok = entry("spike", &sha, 3, "");
+        let entries = parse(catalogue(std::slice::from_ref(&ok)).as_bytes()).unwrap();
+        assert_eq!(entries[0].permissions.http, ["example.com"]);
+        let single = |entry: String| catalogue(&[entry]);
         let bad = [
-            single(file("../index.js", url, &sha, 3)),
-            single(file("ui/a/b.js", url, &sha, 3)),
-            single(file("C:x.js", url, &sha, 3)),
-            single(file("ui/index.js", "http://example.com/x", &sha, 3)),
-            single(file("ui/index.js", url, &"AB".repeat(32), 3)),
-            single(file("ui/index.js", url, &sha[2..], 3)),
-            single(big("ui/index.js", MAX_FILE + 1)),
-            catalogue(&[entry(
-                "spike",
-                &[big("a", MAX_FILE), big("b", MAX_FILE), big("c", 1)],
-            )]),
-            catalogue(&[entry("spike", &[ok.clone(), ok.clone()])]),
-            catalogue(&[
-                entry("spike", std::slice::from_ref(&ok)),
-                entry("spike", std::slice::from_ref(&ok)),
-            ]),
-            catalogue(&[entry("../spike", std::slice::from_ref(&ok))]),
-            single(ok.clone()).replace(r#""format":1"#, r#""format":2"#),
-            single(ok.clone()).replace(r#""guide":"""#, r#""guide":"","author":"x""#),
-            single(ok.clone()).replace(
+            single(ok.replace(
+                "https://github.com/McFck/supadashboard-plugins/releases",
+                "http://x.com",
+            )),
+            single(entry("spike", &"AB".repeat(32), 3, "")),
+            single(entry("spike", &sha[2..], 3, "")),
+            single(entry("spike", &sha, MAX_PLUGIN + 1, "")),
+            single(entry("../spike", &sha, 3, "")),
+            single(entry("spike", &sha, 3, r#","author":"x""#)),
+            single(ok.replace(r#""example.com""#, r#""*.example.com""#)),
+            single(ok.replace(
                 r#""version":"1.0.0""#,
                 &format!(r#""version":"{}""#, "1".repeat(33)),
-            ),
+            )),
+            single(ok.clone()).replace(r#""format":2"#, r#""format":1"#),
+            catalogue(&[ok.clone(), ok.clone()]),
         ];
         for text in bad {
             assert!(parse(text.as_bytes()).is_err(), "{text}");

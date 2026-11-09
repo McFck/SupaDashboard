@@ -1,23 +1,27 @@
-//! Installing, updating and removing user plugins in `<app data>/plugins`. New files land in `.staging-<id>` and
-//! are checked there; the current folder is kept as `.old-<id>` until the new one is in place and is restored on
-//! any failure. The plugin's data (`plugin-data/<id>`) is never touched. The frontend reloads both windows after.
+//! Installing, updating and removing plugins in `<app data>/plugins`. A new file lands in `.staging.sdplugin` and
+//! is checked there; the current file is kept as `.old-<id>.sdplugin` until the new one is in place and checked again,
+//! and comes back on any failure. The plugin's data (`plugin-data/<id>`) is never touched. The frontend reloads both
+//! windows after.
 // ponytail: file work (copy, hash, rename) runs on the async worker; move it to spawn_blocking if installs of the
 // largest plugins visibly stall other commands.
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
-use plugin_sdk::secure::sha256_hex;
+use serde::Serialize;
 use tauri::{State, WebviewWindow};
 
-use super::catalogue::{Entry, MAX_FILE, MAX_PLUGIN, Source};
-use super::manifest::{valid_file_name, valid_id};
+use super::archive::MAX_PLUGIN;
+use super::catalogue::{Entry, Source};
+use super::manifest::{Manifest, valid_id};
+use super::permissions::Permissions;
+use super::secure::sha256_hex;
 use super::trust::Trust;
-use super::{PluginHost, load};
+use super::{Plugin, PluginHost, load};
 use crate::panel::require_panel;
 
-fn remove(path: &Path) -> Result<(), String> {
-    match fs::remove_dir_all(path) {
+fn remove_file(path: &Path) -> Result<(), String> {
+    match fs::remove_file(path) {
         Err(error) if error.kind() != ErrorKind::NotFound => {
             Err(format!("Could not remove {}: {error}", path.display()))
         }
@@ -25,130 +29,114 @@ fn remove(path: &Path) -> Result<(), String> {
     }
 }
 
-fn staging(root: &Path, id: &str) -> Result<PathBuf, String> {
-    let folder = root.join(format!(".staging-{id}"));
-    remove(&folder)?;
-    fs::create_dir_all(folder.join("ui")).map_err(|e| format!("Could not stage plugin: {e}"))?;
-    Ok(folder)
+fn installed(root: &Path, id: &str) -> PathBuf {
+    root.join(format!("{id}.sdplugin"))
 }
 
-/// Downloads every file of `entry` into a fresh staging folder, each checked against its catalogue size and hash.
-async fn download(root: &Path, entry: &Entry, source: &Source) -> Result<PathBuf, String> {
-    let folder = staging(root, &entry.id)?;
-    for file in &entry.files {
-        let written = source.fetch(&file.url, file.size).await.and_then(|bytes| {
-            if bytes.len() as u64 != file.size || sha256_hex(&bytes)? != file.sha256 {
-                return Err(format!("{} does not match the catalogue", file.path));
-            }
-            fs::write(folder.join(&file.path), bytes).map_err(|e| format!("{}: {e}", file.path))
-        });
-        if let Err(error) = written {
-            remove(&folder)?;
-            return Err(error);
-        }
-    }
-    Ok(folder)
-}
-
-/// Copies the top-level and `ui/` files of a plugin folder into staging; nothing else is part of a plugin.
-fn copy_folder(root: &Path, from: &Path) -> Result<(String, PathBuf), String> {
-    let text = fs::read_to_string(from.join("plugin.json"))
-        .map_err(|_| "No plugin.json in this folder")?;
-    let id = serde_json::from_str::<serde_json::Value>(&text)
-        .ok()
-        .and_then(|manifest| manifest["id"].as_str().map(str::to_owned))
-        .filter(|id| valid_id(id))
-        .ok_or("Invalid plugin id")?;
-    let folder = staging(root, &id)?;
-    let mut total = 0;
-    let copied = copy_files(from, &folder, &mut total)
-        .and_then(|()| copy_files(&from.join("ui"), &folder.join("ui"), &mut total));
-    if let Err(error) = copied {
-        remove(&folder)?;
-        return Err(error);
-    }
-    Ok((id, folder))
-}
-
-fn copy_files(from: &Path, to: &Path, total: &mut u64) -> Result<(), String> {
-    let Ok(entries) = fs::read_dir(from) else {
-        // Only `ui/` can be missing: the folder itself held plugin.json.
-        return Ok(());
-    };
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let Some(name) = name.to_str().filter(|name| valid_file_name(name)) else {
-            continue;
-        };
-        if !entry.file_type().is_ok_and(|kind| kind.is_file()) {
-            continue;
-        }
-        let size = entry.metadata().map_or(u64::MAX, |meta| meta.len());
-        *total = total.saturating_add(size);
-        if size > MAX_FILE || *total > MAX_PLUGIN {
-            return Err("Plugin is too large".into());
-        }
-        fs::copy(entry.path(), to.join(name)).map_err(|e| format!("{name}: {e}"))?;
-    }
-    Ok(())
-}
-
-/// Moves `staging` into place as `root/<id>`. The current folder moves aside to `.old-<id>` first and comes back if
-/// the new one cannot be moved in.
-fn swap(root: &Path, id: &str, staging: &Path) -> Result<(), String> {
-    let (target, old) = (root.join(id), root.join(format!(".old-{id}")));
+/// Moves `staged` into place as `<id>.sdplugin` and opens it with `open`. The current file moves aside to
+/// `.old-<id>.sdplugin` first and comes back if the new one cannot be moved in or opened. A version 1 plugin folder
+/// of the same id is deleted once the new file is in.
+fn place<T>(
+    root: &Path,
+    id: &str,
+    staged: &Path,
+    open: impl FnOnce(&Path) -> Result<T, String>,
+) -> Result<T, String> {
+    let (target, old) = (
+        installed(root, id),
+        root.join(format!(".old-{id}.sdplugin")),
+    );
     // An install interrupted between the two renames left only the kept copy.
     if !target.exists() && old.exists() {
         fs::rename(&old, &target).map_err(|e| format!("Could not restore {id}: {e}"))?;
     }
-    remove(&old)?;
+    remove_file(&old)?;
     let had = target.exists();
     if had {
+        // Fails while the current file is still open.
         fs::rename(&target, &old).map_err(|e| format!("Could not replace {id}: {e}"))?;
     }
-    if let Err(error) = fs::rename(staging, &target) {
+    let placed = fs::rename(staged, &target)
+        .map_err(|e| format!("Could not install {id}: {e}"))
+        .and_then(|()| open(&target));
+    if placed.is_err() {
+        // Our own staged or refused file; if a restore fails, the next install of this id restores the kept copy.
+        let _ = remove_file(staged);
+        let _ = remove_file(&target);
         if had {
-            // If this fails too, the next install of this id restores the kept copy (above).
             let _ = fs::rename(&old, &target);
         }
-        return Err(format!("Could not install {id}: {error}"));
+        return placed;
     }
-    // Harmless if it stays: the next install of this id removes it, and discovery skips dot folders.
-    let _ = remove(&old);
+    // Harmless if they stay: the next install removes the kept copy, and discovery ignores folders.
+    let _ = remove_file(&old);
+    if let Err(error) = fs::remove_dir_all(root.join(id))
+        && error.kind() != ErrorKind::NotFound
+    {
+        log::warn!("Could not remove the version 1 folder of {id}: {error}");
+    }
+    placed
+}
+
+/// A catalogue install takes only the verified release the catalogue describes, with exactly its permissions.
+fn matches_catalogue(entry: &Entry, manifest: &Manifest, trust: Trust) -> Result<(), String> {
+    if trust != Trust::Verified {
+        return Err("Plugin is not signed".into());
+    }
+    if manifest.version != entry.version || manifest.api != entry.api {
+        return Err("Plugin does not match the catalogue".into());
+    }
+    if manifest.permissions != entry.permissions {
+        return Err("Plugin permissions differ from the catalogue".into());
+    }
     Ok(())
 }
 
 impl PluginHost {
-    /// Takes the plugin out of the host and stops its process, so its folder can be moved.
-    async fn take(&self, id: &str) {
-        let installed = self.lock().remove(id);
-        if let Some(supervisor) = installed.and_then(|installed| installed.supervisor) {
-            supervisor.shutdown().await;
-        }
-    }
-
-    /// Checks a staged folder and swaps it in. Without `unverified` an unsigned folder is discarded and `false`
-    /// returned; a folder whose signature does not hold always is.
-    async fn put(&self, id: &str, staged: PathBuf, unverified: bool) -> Result<bool, String> {
-        match load(&staged, id) {
-            Ok(loaded) if loaded.trust == Trust::Verified || unverified => {}
-            other => {
-                remove(&staged)?;
-                return other.map(|_| false);
+    /// Checks a staged file, takes the current plugin out of the host so its file closes, and swaps the new one in.
+    /// `id` is the id the file must have; the installed id is returned.
+    fn put(
+        &self,
+        staged: &Path,
+        id: Option<&str>,
+        accept: impl Fn(&Plugin) -> Result<(), String>,
+    ) -> Result<String, String> {
+        let check = |plugin: Plugin| {
+            if id.is_some_and(|id| id != plugin.manifest.id) {
+                return Err("Plugin id does not match".to_owned());
+            }
+            accept(&plugin).map(|()| plugin)
+        };
+        let id = match load(staged).and_then(check) {
+            Ok(plugin) => plugin.manifest.id,
+            Err(error) => {
+                remove_file(staged)?;
+                return Err(error);
+            }
+        };
+        let root = self.root();
+        // Closes the current file, unless a scheme read holds it a moment longer; then the swap fails cleanly.
+        drop(self.lock().remove(&id));
+        match place(&root, &id, staged, |path| load(path).and_then(check)) {
+            Ok(plugin) => self.add(plugin),
+            Err(error) => {
+                // Back in the host: the file the swap restored.
+                if let Ok(plugin) = load(&installed(&root, &id)) {
+                    self.add(plugin);
+                }
+                return Err(error);
             }
         }
-        self.take(id).await;
+        Ok(id)
+    }
+
+    fn stage(&self, bytes: &[u8]) -> Result<PathBuf, String> {
         let root = self.root();
-        let swapped = swap(&root, id, &staged);
-        if swapped.is_err() {
-            remove(&staged)?;
-        }
-        // Back in the host either way: the new folder, or the old one the swap restored.
-        match load(&root.join(id), id) {
-            Ok(loaded) => self.add(root.join(id), loaded),
-            Err(error) => log::warn!("Plugin {id} is not loaded: {error}"),
-        }
-        swapped.map(|()| true)
+        let staged = root.join(".staging.sdplugin");
+        fs::create_dir_all(&root)
+            .and_then(|()| fs::write(&staged, bytes))
+            .map_err(|e| format!("Could not stage plugin: {e}"))?;
+        Ok(staged)
     }
 }
 
@@ -159,8 +147,9 @@ pub async fn plugin_catalogue(window: WebviewWindow) -> Result<Vec<Entry>, Strin
     Source::new().catalogue().await
 }
 
-/// Installs or updates `id` from the catalogue; only a verified release is accepted. Not panel-only: the dashboard
-/// owner restores former bundled plugins at start-up, and a signed catalogue release is all this can install.
+/// Installs or updates `id` from the catalogue; only the verified release it describes is accepted. Not panel-only:
+/// the dashboard owner restores former bundled plugins at start-up, and a signed catalogue release is all this can
+/// install.
 #[tauri::command]
 pub async fn plugin_install(host: State<'_, PluginHost>, id: String) -> Result<(), String> {
     let _changing = host.changing.lock().await;
@@ -170,30 +159,79 @@ pub async fn plugin_install(host: State<'_, PluginHost>, id: String) -> Result<(
         .iter()
         .find(|entry| entry.id == id)
         .ok_or("Plugin is not in the catalogue")?;
-    let staged = download(&host.root(), entry, &source).await?;
-    if host.put(&id, staged, false).await? {
-        Ok(())
-    } else {
-        Err("Plugin is not signed".into())
+    let bytes = source.fetch(&entry.url, entry.size).await?;
+    if bytes.len() as u64 != entry.size || sha256_hex(&bytes)? != entry.sha256 {
+        return Err("Plugin file does not match the catalogue".into());
     }
+    let staged = host.stage(&bytes)?;
+    host.put(&staged, Some(&id), |plugin| {
+        matches_catalogue(entry, &plugin.manifest, plugin.trust)
+    })
+    .map(|_| ())
 }
 
-/// Installs a plugin folder and returns its id. `None` means it is unsigned and was not installed; the panel asks
-/// and calls again with `unverified`.
+/// A plugin file the user picked, dropped or opened, as the install confirmation shows it. `sha256` names these
+/// exact bytes for `plugin_install_file`.
+#[derive(Serialize)]
+pub struct Inspected {
+    id: String,
+    version: String,
+    trust: Trust,
+    permissions: Permissions,
+    sha256: String,
+}
+
+fn read_plugin_file(path: &str) -> Result<Vec<u8>, String> {
+    let path = Path::new(path);
+    if path
+        .extension()
+        .is_none_or(|extension| extension != "sdplugin")
+    {
+        return Err("Not a plugin file".into());
+    }
+    let size = fs::metadata(path)
+        .map_err(|e| format!("Could not read plugin file: {e}"))?
+        .len();
+    if size > MAX_PLUGIN {
+        return Err("Plugin is too large".into());
+    }
+    fs::read(path).map_err(|e| format!("Could not read plugin file: {e}"))
+}
+
 #[tauri::command]
-pub async fn plugin_install_folder(
+pub async fn plugin_inspect_file(window: WebviewWindow, path: String) -> Result<Inspected, String> {
+    require_panel(&window)?;
+    let bytes = read_plugin_file(&path)?;
+    let plugin = load(Path::new(&path))?;
+    Ok(Inspected {
+        id: plugin.manifest.id,
+        version: plugin.manifest.version,
+        trust: plugin.trust,
+        permissions: plugin.manifest.permissions,
+        sha256: sha256_hex(&bytes)?,
+    })
+}
+
+/// Installs the file the user confirmed after `plugin_inspect_file`, signed or not, and returns its id; a file that
+/// changed since is refused.
+#[tauri::command]
+pub async fn plugin_install_file(
     window: WebviewWindow,
     host: State<'_, PluginHost>,
     path: String,
-    unverified: bool,
-) -> Result<Option<String>, String> {
+    sha256: String,
+) -> Result<String, String> {
     require_panel(&window)?;
     let _changing = host.changing.lock().await;
-    let (id, staged) = copy_folder(&host.root(), Path::new(&path))?;
-    Ok(host.put(&id, staged, unverified).await?.then_some(id))
+    let bytes = read_plugin_file(&path)?;
+    if sha256_hex(&bytes)? != sha256 {
+        return Err("The plugin file changed".into());
+    }
+    let staged = host.stage(&bytes)?;
+    host.put(&staged, None, |_| Ok(()))
 }
 
-/// Deletes the plugin's folder; its data, settings and `plugins.json` entry stay.
+/// Deletes the plugin's file; its data, settings and `plugins.json` entry stay.
 #[tauri::command]
 pub async fn plugin_uninstall(
     window: WebviewWindow,
@@ -205,13 +243,13 @@ pub async fn plugin_uninstall(
         return Err("Invalid plugin id".into());
     }
     let _changing = host.changing.lock().await;
-    host.take(&id).await;
-    let folder = host.root().join(&id);
-    let removed = remove(&folder);
+    drop(host.lock().remove(&id));
+    let path = installed(&host.root(), &id);
+    let removed = remove_file(&path);
     if removed.is_err()
-        && let Ok(loaded) = load(&folder, &id)
+        && let Ok(plugin) = load(&path)
     {
-        host.add(folder, loaded);
+        host.add(plugin);
     }
     removed
 }
@@ -219,36 +257,60 @@ pub async fn plugin_uninstall(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::plugin_host::archive::tests::temp;
+    use crate::plugin_host::catalogue::{parse, tests as catalogue};
+    use std::os::windows::fs::OpenOptionsExt;
 
     #[test]
     fn a_failed_install_leaves_the_installed_plugin_as_it_was() {
-        let base = std::env::temp_dir().join(format!("supa-install-{}", std::process::id()));
-        let (root, source) = (base.join("plugins"), base.join("source"));
+        let root = temp("install");
         fs::create_dir_all(root.join("spike")).unwrap();
-        fs::create_dir_all(&source).unwrap();
-        fs::write(root.join("spike/plugin.json"), "installed").unwrap();
-        fs::write(source.join("index.js"), "changed").unwrap();
-        let sha = sha256_hex(b"original").unwrap();
-        let catalogue = format!(
-            r#"{{"format":1,"published":"","plugins":[{{"id":"spike","title":"","description":"","icon":"",
-            "version":"1.0.0","api":1,"published":"","size":7,"source":"https://example.com","guide":"",
-            "files":[{{"path":"ui/index.js","url":"https://example.com/index.js","sha256":"{sha}","size":7}}]}}]}}"#
-        );
-        let entry = &super::super::catalogue::parse(catalogue.as_bytes()).unwrap()[0];
-        let downloaded =
-            tauri::async_runtime::block_on(download(&root, entry, &Source::Local(source)));
+        let (current, staged) = (installed(&root, "spike"), root.join(".staging.sdplugin"));
+        fs::write(&current, "installed").unwrap();
+        fs::write(&staged, "refused").unwrap();
+        let refused = place(&root, "spike", &staged, |_| Err::<(), _>("bad".into()));
+        assert!(refused.is_err());
+        assert_eq!(fs::read(&current).unwrap(), b"installed");
+        assert!(!staged.exists() && !root.join(".old-spike.sdplugin").exists());
         assert!(
-            downloaded.is_err(),
-            "a file that does not match its hash was accepted"
+            root.join("spike").exists(),
+            "the folder went with a failed install"
         );
-        assert!(!root.join(".staging-spike").exists());
 
-        assert!(swap(&root, "spike", &root.join(".staging-spike")).is_err());
-        assert_eq!(
-            fs::read(root.join("spike/plugin.json")).unwrap(),
-            b"installed"
-        );
-        assert!(!root.join(".old-spike").exists());
-        fs::remove_dir_all(base).unwrap();
+        // The served file is open without delete sharing, so it cannot be swapped out underneath.
+        fs::write(&staged, "new").unwrap();
+        let open = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&current)
+            .unwrap();
+        assert!(place(&root, "spike", &staged, |_| Ok(())).is_err());
+        drop(open);
+        assert_eq!(fs::read(&current).unwrap(), b"installed");
+
+        fs::write(&staged, "new").unwrap();
+        let placed = place(&root, "spike", &staged, |path| Ok(fs::read(path).unwrap()));
+        assert_eq!(placed.unwrap(), b"new");
+        assert!(!root.join("spike").exists(), "the version 1 folder stayed");
+        assert!(!root.join(".old-spike.sdplugin").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_catalogue_install_takes_only_the_signed_release_with_the_listed_permissions() {
+        let text = catalogue::catalogue(&[catalogue::entry("spike", &"ab".repeat(32), 3, "")]);
+        let entry = &parse(text.as_bytes()).unwrap()[0];
+        let manifest = |permissions: &str| {
+            let text = format!(
+                r#"{{"id":"spike","version":"1.0.0","api":1,"permissions":{permissions}}}"#
+            );
+            Manifest::parse(text.as_bytes()).unwrap()
+        };
+        let listed = manifest(r#"{"http":["example.com"]}"#);
+        assert_eq!(matches_catalogue(entry, &listed, Trust::Verified), Ok(()));
+        assert!(matches_catalogue(entry, &listed, Trust::Unverified).is_err());
+        let more = manifest(r#"{"http":["example.com","evil.com"]}"#);
+        assert!(matches_catalogue(entry, &more, Trust::Verified).is_err());
+        assert!(matches_catalogue(entry, &manifest("{}"), Trust::Verified).is_err());
     }
 }

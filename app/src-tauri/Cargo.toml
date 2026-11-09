@@ -16,22 +16,29 @@ tauri-build = { version = "2.7.4", features = [] }
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
-plugin-sdk = { path = "../plugin-sdk", features = ["http", "secure"] }
 log = "0.4"
 tauri = { version = "2.12.5", features = ["tray-icon", "protocol-asset"] }
 tauri-plugin-log = "2"
 tauri-plugin-store = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
 webview2-com = "0.39.1"
 windows-future = "0.3.2"
 tokio = { version = "1", features = ["io-util", "sync", "time", "process"] }
 windows = { version = "0.62", features = [
   "Foundation",
   "Media_Control",
+  "Security_Cryptography",
+  "Security_Cryptography_Core",
   "Storage_Streams",
+  "Web_Http",
+  "Web_Http_Filters",
+  "Web_Http_Headers",
   "Win32_Foundation",
   "Win32_Security",
+  "Win32_Security_Cryptography",
+  "Win32_Storage_FileSystem",
   "Win32_Devices_Display",
   "Win32_Graphics_Dwm",
   "Win32_Storage_Packaging_Appx",

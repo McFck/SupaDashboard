@@ -1,32 +1,21 @@
-//! `plugin.json`: what a plugin folder declares. Read from a folder anyone could drop into the plugins
-//! directory, so everything that reaches a path, an event name or a permission is checked here.
-use plugin_sdk::{HELLO, PROTOCOL, WINDOW_CLOSED, valid_name};
+//! `plugin.json`: what a plugin file declares. Read from a file anyone could hand the app, so everything that
+//! reaches a path or a permission is checked here.
 use serde::Deserialize;
 
-const WINDOWS: [&str; 2] = ["main", "panel"];
+use super::permissions::Permissions;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
     pub id: String,
     pub version: String,
-    pub protocol: u32,
-    /// File name of the plugin host executable inside the plugin folder; none for a plugin with only a UI.
-    #[serde(default)]
-    pub exe: Option<String>,
-    /// Windows allowed to call the plugin; stateful plugins list only the dashboard owner, `main`.
-    pub windows: Vec<String>,
-    /// Methods the frontend may call.
-    pub methods: Vec<String>,
+    /// The plugin UI API (`PLUGIN_API` in plugin-kit.ts) of `ui/index.js` and `ui/index.css`.
+    pub api: u32,
     /// Files and folders the in-app version kept in the app data root, moved once into the plugin's data folder.
     #[serde(default)]
     pub migrate: Vec<String>,
-    /// The media session app the plugin may send transport commands to (matched like a media target).
     #[serde(default)]
-    pub media: Option<String>,
-    /// The plugin UI API (`PLUGIN_API` in plugin-kit.ts) of `ui/index.js` and `ui/index.css`; none without a UI.
-    #[serde(default)]
-    pub api: Option<u32>,
+    pub permissions: Permissions,
 }
 
 pub(super) fn valid_id(id: &str) -> bool {
@@ -47,69 +36,21 @@ pub(super) fn valid_file_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
 }
 
-fn valid_exe(exe: &str) -> bool {
-    valid_file_name(exe) && exe.len() > 4 && exe.ends_with(".exe")
-}
-
-/// A file a plugin folder may hold: a bare name or `ui/<bare name>`.
-pub(super) fn valid_path(path: &str) -> bool {
-    valid_file_name(path.strip_prefix("ui/").unwrap_or(path))
-}
-
 impl Manifest {
-    /// `folder` is the plugin folder's name, which must be the id.
-    pub fn parse(text: &str, folder: &str) -> Result<Self, String> {
-        let manifest: Manifest = serde_json::from_str(text).map_err(|error| error.to_string())?;
-        if !valid_id(&manifest.id) || manifest.id != folder {
-            return Err(format!(
-                "Plugin id {:?} does not match its folder",
-                manifest.id
-            ));
-        }
-        if manifest.protocol != PROTOCOL {
-            return Err(format!(
-                "Plugin protocol {} is not supported",
-                manifest.protocol
-            ));
-        }
-        if manifest.exe.as_deref().is_some_and(|exe| !valid_exe(exe)) {
-            return Err(format!("Invalid plugin executable {:?}", manifest.exe));
-        }
-        if manifest.exe.is_none() && manifest.api.is_none() {
-            return Err("Plugin has neither an executable nor a UI".into());
+    pub fn parse(bytes: &[u8]) -> Result<Self, String> {
+        let manifest: Manifest =
+            serde_json::from_slice(bytes).map_err(|error| format!("plugin.json: {error}"))?;
+        if !valid_id(&manifest.id) {
+            return Err(format!("Invalid plugin id {:?}", manifest.id));
         }
         if manifest.version.is_empty() || manifest.version.len() > 32 {
             return Err("Invalid plugin version".into());
         }
-        if !manifest
-            .windows
-            .iter()
-            .all(|w| WINDOWS.contains(&w.as_str()))
-        {
-            return Err("Unknown window in plugin permissions".into());
-        }
-        if manifest
-            .media
-            .as_deref()
-            .is_some_and(|target| !valid_id(target))
-        {
-            return Err("Invalid media target".into());
-        }
         if !manifest.migrate.iter().all(|name| valid_file_name(name)) {
             return Err("Invalid migrated file name".into());
         }
-        if !manifest
-            .methods
-            .iter()
-            .all(|m| valid_name(m) && m != HELLO && m != WINDOW_CLOSED)
-        {
-            return Err("Invalid method in plugin permissions".into());
-        }
+        manifest.permissions.validate()?;
         Ok(manifest)
-    }
-
-    pub fn allows(&self, window: &str, method: &str) -> bool {
-        self.windows.iter().any(|w| w == window) && self.methods.iter().any(|m| m == method)
     }
 }
 
@@ -117,42 +58,23 @@ impl Manifest {
 mod tests {
     use super::*;
 
-    fn manifest(exe: &str, extra: &str) -> String {
-        format!(
-            r#"{{"id":"haptics","version":"1.0.0","protocol":1,"exe":"{exe}","windows":["main"],"methods":["pulse"]{extra}}}"#
-        )
-    }
-
     #[test]
-    fn a_folder_cannot_point_outside_itself_or_grant_more_than_it_lists() {
-        let ok = Manifest::parse(&manifest("haptics.exe", ""), "haptics").unwrap();
-        assert!(ok.allows("main", "pulse"));
-        assert!(!ok.allows("panel", "pulse"));
-        assert!(!ok.allows("main", "configure"));
-        for exe in [
-            "..\\\\x.exe",
-            "../x.exe",
-            "C:x.exe",
-            "x.bat",
-            ".exe",
-            "a/b.exe",
-        ] {
-            assert!(
-                Manifest::parse(&manifest(exe, ""), "haptics").is_err(),
-                "{exe}"
-            );
+    fn a_manifest_cannot_point_outside_the_plugin_or_carry_v1_grants() {
+        let ok = r#"{"id":"spotify","version":"2.0.0","api":2,"migrate":["spotify.json","lyrics"],
+            "permissions":{"http":["api.spotify.com"]}}"#;
+        let manifest = Manifest::parse(ok.as_bytes()).unwrap();
+        assert_eq!(manifest.permissions.http, ["api.spotify.com"]);
+        let bad = [
+            ok.replace(r#""lyrics""#, r#""../settings.json""#),
+            ok.replace(r#""spotify","version""#, r#""../spotify","version""#),
+            ok.replace(r#""api":2,"#, ""),
+            ok.replace(r#""api.spotify.com""#, r#""*.spotify.com""#),
+            // Version 1 manifests: an executable and window grants.
+            ok.replace(r#""api":2"#, r#""api":1,"protocol":1,"exe":"x.exe""#),
+            ok.replace(r#""api":2"#, r#""api":2,"windows":["main"],"methods":[]"#),
+        ];
+        for text in bad {
+            assert!(Manifest::parse(text.as_bytes()).is_err(), "{text}");
         }
-        assert!(Manifest::parse(&manifest("haptics.exe", ""), "other").is_err());
-        assert!(Manifest::parse(&manifest("haptics.exe", r#","extra":1"#), "haptics").is_err());
-        let escape = manifest("haptics.exe", r#","migrate":["../settings.json"]"#);
-        assert!(Manifest::parse(&escape, "haptics").is_err());
-        let hello = manifest("haptics.exe", "").replace(r#"["pulse"]"#, r#"["hello"]"#);
-        assert!(Manifest::parse(&hello, "haptics").is_err());
-        let old = manifest("haptics.exe", "").replace(r#""protocol":1"#, r#""protocol":0"#);
-        assert!(Manifest::parse(&old, "haptics").is_err());
-        let bare = manifest("haptics.exe", "").replace(r#""exe":"haptics.exe","#, "");
-        assert!(Manifest::parse(&bare, "haptics").is_err());
-        let ui_only = Manifest::parse(&bare.replace('}', r#","api":1}"#), "haptics").unwrap();
-        assert_eq!(ui_only.exe, None);
     }
 }
