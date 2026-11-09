@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 use super::archive::MAX_PLUGIN;
-use super::manifest::{valid_file_name, valid_id};
+use super::manifest::valid_id;
 use super::permissions::Permissions;
 use super::trust;
 
@@ -107,7 +107,7 @@ impl Source {
             #[cfg(debug_assertions)]
             Self::Local(folder) => {
                 let name = url.rsplit('/').next().unwrap_or("");
-                if !valid_file_name(name) {
+                if !super::manifest::valid_file_name(name) {
                     return Err(format!("Invalid file name in {url}"));
                 }
                 let bytes = std::fs::read(folder.join(name)).map_err(|e| format!("{name}: {e}"))?;
