@@ -1,3 +1,5 @@
+import { pluginPermissions, type PluginPermissions } from './permissions';
+
 export type PluginState = {
   uninstalled: string[];
   installed: Record<string, string>;
@@ -16,7 +18,7 @@ export function normalizePluginState(value: unknown): PluginState {
   };
 }
 
-/** A plugin folder name, as native accepts it. */
+/** A plugin id, as native accepts it. */
 export const PLUGIN_ID = /^[a-z0-9-]{1,64}$/;
 
 /** A plugin in the signed catalogue. `published` is an ISO date, `size` bytes, `source` an https page. */
@@ -31,6 +33,7 @@ export type CatalogEntry = {
   size: number;
   source: string;
   guide: string;
+  permissions: PluginPermissions;
 };
 const TEXT = [
   'id',
@@ -52,16 +55,21 @@ const https = (value: string) => {
 /** `plugin_catalogue` entries; native checked the signature, this checks what the Market renders and links. */
 export function catalogEntries(value: unknown): CatalogEntry[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(
-    (entry): entry is CatalogEntry =>
-      !!entry &&
-      typeof entry === 'object' &&
-      TEXT.every((key) => typeof entry[key] === 'string') &&
-      PLUGIN_ID.test(entry.id) &&
-      entry.title.length > 0 &&
-      Number.isSafeInteger(entry.api) &&
-      Number.isSafeInteger(entry.size) &&
-      entry.size >= 0 &&
-      https(entry.source),
-  );
+  return value
+    .filter(
+      (entry): entry is Omit<CatalogEntry, 'permissions'> & { permissions: unknown } =>
+        !!entry &&
+        typeof entry === 'object' &&
+        TEXT.every((key) => typeof entry[key] === 'string') &&
+        PLUGIN_ID.test(entry.id) &&
+        entry.title.length > 0 &&
+        Number.isSafeInteger(entry.api) &&
+        Number.isSafeInteger(entry.size) &&
+        entry.size >= 0 &&
+        https(entry.source),
+    )
+    .flatMap((entry) => {
+      const permissions = pluginPermissions(entry.permissions);
+      return permissions ? [{ ...entry, permissions }] : [];
+    });
 }

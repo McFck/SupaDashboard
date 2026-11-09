@@ -15,6 +15,7 @@
   import PluginsPage from '../features/plugins/ui/PluginsPage.svelte';
   import SettingsPage from '../features/settings/SettingsPage.svelte';
   import MarketPage from '../features/plugins/ui/MarketPage.svelte';
+  import { PluginFileIntake } from '../features/plugins/file-intake';
   import ConfirmationHost from '$lib/components/ui/confirmation/ConfirmationHost.svelte';
   import { confirmationState } from '$lib/components/ui/confirmation/confirm.svelte';
   import TitleBar from './TitleBar.svelte';
@@ -30,6 +31,14 @@
     { id: 'plugins', label: 'Plugins', icon: Puzzle },
     { id: 'market', label: 'Market', icon: Store },
   ];
+
+  $effect(() => {
+    if (!isTauri()) {
+      return;
+    }
+    const intake = new PluginFileIntake();
+    return () => intake.destroy();
+  });
 
   // Mirror the dashboard's visibility (the tray can change it too).
   let visible = $state<boolean | null>(null);

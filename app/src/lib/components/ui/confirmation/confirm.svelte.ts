@@ -3,6 +3,8 @@ export type ConfirmOptions = {
   action: string;
   destructive?: boolean;
   cancel?: false;
+  /** Label and value rows under the title. */
+  details?: readonly { label: string; value: string }[];
 };
 
 type Request = ConfirmOptions & {

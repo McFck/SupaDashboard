@@ -15,6 +15,7 @@
   import type { Param, Plugin } from '../contracts';
   import { formatDate, formatSize } from './about';
   import ParamControl from './ParamControl.svelte';
+  import PermissionsSection from './PermissionsSection.svelte';
   import PluginHeader from './PluginHeader.svelte';
   import SettingsIndex from './SettingsIndex.svelte';
   import { labelEdit } from '../../layout/history.svelte';
@@ -184,6 +185,9 @@
         {/each}
         {#if plugin.settingsSection}
           <plugin.settingsSection />
+        {/if}
+        {#if listed}
+          <PermissionsSection permissions={listed.permissions} />
         {/if}
         <div
           id={aboutId}

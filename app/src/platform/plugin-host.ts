@@ -1,13 +1,10 @@
-// The native plugin host: each plugin's native part is its own process behind one generic command.
+// The native plugin host: installs `.sdplugin` files and lists what is installed.
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
+// The native `plugin_call` is gone with plugin processes; calls fail until they route to plugin services.
 export const callPlugin = <T>(plugin: string, method: string, params: unknown = null) =>
   invoke<T>('plugin_call', { plugin, method, params });
-
-/** Starts or stops the plugin's process with the plugin; plugins without a native part ignore it. */
-export const setPluginProcessEnabled = (plugin: string, enabled: boolean) =>
-  invoke<void>('plugin_set_enabled', { plugin, enabled });
 
 /** Raw `plugin_list`; `features/plugins/external/load.ts` validates it. */
 export const listPlugins = () => invoke<unknown>('plugin_list');
@@ -18,11 +15,17 @@ export const pluginCatalogue = () => invoke<unknown>('plugin_catalogue');
 /** Installs or updates a verified release from the catalogue. */
 export const installPlugin = (id: string) => invoke<void>('plugin_install', { id });
 
-/** Returns the installed id, or null for an unsigned folder that needs `unverified`. */
-export const installPluginFolder = (path: string, unverified: boolean) =>
-  invoke<string | null>('plugin_install_folder', { path, unverified });
+/** Raw `{id, version, trust, permissions, sha256}` of a `.sdplugin`; `features/plugins/file-install.ts` validates it. */
+export const inspectPluginFile = (path: string) => invoke<unknown>('plugin_inspect_file', { path });
 
-/** Deletes an installed plugin's folder; its data and settings stay. */
+/** Installs the inspected file if its bytes still hash to `sha256`; returns the installed id. */
+export const installPluginFile = (path: string, sha256: string) =>
+  invoke<string>('plugin_install_file', { path, sha256 });
+
+/** A `.sdplugin` opened from Explorer that waits for the panel, once. */
+export const takeOpenedPluginFile = () => invoke<string | null>('plugin_opened_file');
+
+/** Deletes an installed plugin's file; its data and settings stay. */
 export const uninstallPlugin = (id: string) => invoke<void>('plugin_uninstall', { id });
 
 /** `restarted` means a crashed process came back without its state; the plugin applies it again. */

@@ -1,4 +1,4 @@
-// External plugins: UI bundles from `<app data>/plugins/<id>/ui`, served by the native `plugin` scheme. The build
+// External plugins: UI bundles in `<app data>/plugins/<id>.sdplugin`, served by the native `plugin` scheme. The build
 // preset (`plugin-tools/vite-plugin.mjs`) compiles their shared imports to this module table, so they run on the
 // app's own Svelte instance. An import map cannot do that: under Vite dev it resolves to a second Svelte instance,
 // and a release bundle has no module URL for `svelte/internal/client` at all.
@@ -15,6 +15,7 @@ import * as kit from '../../../plugin-kit';
 import { listPlugins } from '../../../platform/plugin-host';
 import { isRecord } from '../../automation/plain-data';
 import type { Plugin } from '../contracts';
+import { pluginPermissions, type PluginPermissions } from '../permissions';
 import { PLUGIN_ID } from '../plugin-store';
 
 declare global {
@@ -24,32 +25,38 @@ declare global {
 
 const ORIGIN = 'http://plugin.localhost';
 
-/** A discovered plugin: `api` is null without a UI bundle, `size` in bytes, `updated` in Unix milliseconds. */
+/** An installed `.sdplugin`: `size` in bytes, `updated` in Unix milliseconds. */
 export interface NativePlugin {
   id: string;
   version: string;
-  api: number | null;
+  api: number;
   trust: 'verified' | 'unverified';
+  permissions: PluginPermissions;
   size: number;
   updated: number;
 }
 
-/** `plugin_list` entries, by folder id. */
+/** `plugin_list` entries, by file id. */
 export function listedPlugins(raw: unknown): NativePlugin[] {
   if (!Array.isArray(raw)) {
     throw new Error('Invalid plugin list');
   }
-  return raw.filter(
-    (entry): entry is NativePlugin =>
-      isRecord(entry) &&
-      typeof entry.id === 'string' &&
-      PLUGIN_ID.test(entry.id) &&
-      typeof entry.version === 'string' &&
-      (entry.api === null || Number.isSafeInteger(entry.api)) &&
-      (entry.trust === 'verified' || entry.trust === 'unverified') &&
-      Number.isSafeInteger(entry.size) &&
-      Number.isSafeInteger(entry.updated),
-  );
+  return raw
+    .filter(
+      (entry): entry is Omit<NativePlugin, 'permissions'> & { permissions: unknown } =>
+        isRecord(entry) &&
+        typeof entry.id === 'string' &&
+        PLUGIN_ID.test(entry.id) &&
+        typeof entry.version === 'string' &&
+        Number.isSafeInteger(entry.api) &&
+        (entry.trust === 'verified' || entry.trust === 'unverified') &&
+        Number.isSafeInteger(entry.size) &&
+        Number.isSafeInteger(entry.updated),
+    )
+    .flatMap((entry) => {
+      const permissions = pluginPermissions(entry.permissions);
+      return permissions ? [{ ...entry, permissions }] : [];
+    });
 }
 
 /** What a bundle left in the module table, checked against the folder it was loaded from. */
@@ -97,7 +104,7 @@ async function loadPlugin(id: string) {
 
 /**
  * Loads one bundle at a time, since each leaves its export in the same slot; a failing plugin is skipped.
- * `listed` is everything native discovered, with or without a UI.
+ * `listed` is everything native discovered, including plugins for another plugin API.
  */
 export async function loadExternalPlugins(): Promise<{
   listed: NativePlugin[];
@@ -119,9 +126,6 @@ export async function loadExternalPlugins(): Promise<{
   const loaded: Plugin[] = [];
   const listed = listedPlugins(await listPlugins());
   for (const { id, api } of listed) {
-    if (api === null) {
-      continue;
-    }
     if (api !== kit.PLUGIN_API) {
       console.warn(`Plugin ${id} needs plugin API ${api}`);
       continue;

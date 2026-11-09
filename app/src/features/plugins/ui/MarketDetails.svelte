@@ -6,6 +6,7 @@
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
   import { followLink, formatDate, formatSize } from './about';
+  import PermissionsSection from './PermissionsSection.svelte';
   import PluginHeader from './PluginHeader.svelte';
 
   let { entry, onback, children }: { entry: CatalogEntry; onback: () => void; children: Snippet } =
@@ -32,6 +33,7 @@
       {@render children()}
     </PluginHeader>
   </div>
+  <PermissionsSection permissions={entry.permissions} />
   <Section title="About">
     <Row label="Version"><span class="text-sm tabular-nums">{entry.version}</span></Row>
     <Row label="Updated"><span class="text-sm">{formatDate(entry.published)}</span></Row>

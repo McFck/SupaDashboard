@@ -18,20 +18,29 @@ describe('external plugin boundary', () => {
   });
 
   it('never builds a plugin URL or a trust badge from a malformed native entry', () => {
-    const spike = { id: 'spike', version: '1.0.0', api: 1, trust: 'verified', size: 3, updated: 0 };
-    const native = { ...spike, id: 'haptics', api: null, trust: 'unverified' };
+    const spike = {
+      id: 'spike',
+      version: '1.0.0',
+      api: 1,
+      trust: 'verified',
+      permissions: { http: ['example.com'] },
+      size: 3,
+      updated: 0,
+    };
     expect(() => listedPlugins({})).toThrow();
-    expect(
-      listedPlugins([
-        spike,
-        native,
-        { ...spike, id: '../x' },
-        { ...spike, id: 'a/b' },
-        { ...spike, api: '1' },
-        { ...spike, trust: 'tampered' },
-        { ...spike, version: undefined },
-        null,
-      ]),
-    ).toEqual([spike, native]);
+    const listed = listedPlugins([
+      spike,
+      { ...spike, id: '../x' },
+      { ...spike, id: 'a/b' },
+      { ...spike, api: '1' },
+      { ...spike, api: null },
+      { ...spike, trust: 'tampered' },
+      { ...spike, version: undefined },
+      { ...spike, permissions: undefined },
+      null,
+    ]);
+    expect(listed.map((entry) => [entry.id, entry.permissions.http])).toEqual([
+      ['spike', ['example.com']],
+    ]);
   });
 });

@@ -1,8 +1,7 @@
 // Host registry: the registered extension points, plugin installation and persistence.
 import { get, writable } from 'svelte/store';
-import { isTauri } from '@tauri-apps/api/core';
 import { load } from '@tauri-apps/plugin-store';
-import { setPluginProcessEnabled, uninstallPlugin } from '../../platform/plugin-host';
+import { uninstallPlugin } from '../../platform/plugin-host';
 import type { NativePlugin } from './external/load';
 import type {
   ActionContext,
@@ -326,7 +325,7 @@ export function installEach(list: Plugin[]) {
 
 /**
  * Load the separate plugin store before registering plugins in either window. `compiled` are part of the app
- * bundle; `external` were loaded from their folders; `listed` is everything native found on disk.
+ * bundle; `external` were loaded from their `.sdplugin` files; `listed` is everything native found on disk.
  */
 export async function installEnabled(
   compiled: Plugin[],
@@ -359,12 +358,6 @@ export async function installEnabled(
       (plugin) => plugin.builtin || plugin.default || !state.uninstalled.includes(plugin.id),
     ),
   );
-  if (isTauri()) {
-    // An installed or updated plugin's process starts enabled; one the user turned off stays off.
-    for (const id of state.uninstalled.filter((id) => nativePlugins.has(id))) {
-      setPluginProcessEnabled(id, false).catch((error) => console.warn(`Plugin ${id}`, error));
-    }
-  }
   if (pluginStore)
     await pluginStore.onKeyChange('plugin-store', (raw) => {
       if (JSON.stringify(normalizePluginState(raw)) !== lastPluginState) {
@@ -385,9 +378,6 @@ export async function setPluginEnabled(id: string, enabled: boolean) {
   state.uninstalled = state.uninstalled.filter((entry) => entry !== id);
   if (!enabled) state.uninstalled.push(id);
   state.installed[id] ??= new Date().toISOString();
-  if (isTauri()) {
-    await setPluginProcessEnabled(id, enabled);
-  }
   await persistPlugins(state);
   location.reload();
 }
@@ -406,7 +396,7 @@ export async function pluginsInstalled(ids: readonly string[]) {
   location.reload();
 }
 
-/** An external plugin's folder is deleted; a compiled one can only be turned off. */
+/** An external plugin's file is deleted; a compiled one can only be turned off. */
 export async function removePlugin(id: string) {
   if (!compiledPlugins.has(id)) {
     await uninstallPlugin(id);

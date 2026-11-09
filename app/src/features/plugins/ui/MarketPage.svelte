@@ -1,18 +1,14 @@
 <script lang="ts">
-  import FolderOpen from '@lucide/svelte/icons/folder-open';
+  import FileUp from '@lucide/svelte/icons/file-up';
   import { isTauri } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
-  import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import Icon, { iconOr } from '../../controls/ui/Icon.svelte';
+  import { installPluginFromFile } from '../file-install';
   import { catalogEntries, type CatalogEntry } from '../plugin-store';
   import { compiledPlugins, nativePlugins, pluginsInstalled } from '../registry';
-  import {
-    installPlugin,
-    installPluginFolder,
-    pluginCatalogue,
-  } from '../../../platform/plugin-host';
+  import { installPlugin, pluginCatalogue } from '../../../platform/plugin-host';
   import Section from '../../../panel/ui/Section.svelte';
   import MarketDetails from './MarketDetails.svelte';
   import PluginAuthor from './PluginAuthor.svelte';
@@ -85,20 +81,12 @@
     }, `Could not ${action.toLowerCase()} ${entry.title}`);
   }
 
-  function installFolder() {
+  function installFile() {
     void installing(async () => {
-      const path = await open({ directory: true });
-      if (typeof path !== 'string') {
-        return null;
-      }
-      const signed = await installPluginFolder(path, false);
-      if (signed !== null) {
-        return signed;
-      }
-      if (!(await confirm({ title: 'Install unverified plugin?', action: 'Install' }))) {
-        return null;
-      }
-      return installPluginFolder(path, true);
+      const path = await open({
+        filters: [{ name: 'SupaDashboard plugin', extensions: ['sdplugin'] }],
+      });
+      return typeof path === 'string' ? installPluginFromFile(path) : null;
     }, 'Could not install plugin');
   }
 </script>
@@ -129,7 +117,7 @@
         variant="outline"
         size="sm"
         disabled={busy}
-        onclick={installFolder}><FolderOpen />Install from folder</Button
+        onclick={installFile}><FileUp />Install from file</Button
       >
     </div>
     <Section>

@@ -27,6 +27,7 @@ describe('plugin store', () => {
       size: 1024,
       source: 'https://github.com/McFck/supadashboard-plugins',
       guide: '',
+      permissions: {},
     };
     expect(
       catalogEntries([
@@ -40,8 +41,10 @@ describe('plugin store', () => {
         { ...valid, source: 'javascript:alert(1)' },
         { ...valid, source: 'http://example.com' },
         { ...valid, guide: undefined },
-      ]),
-    ).toEqual([valid]);
+        { ...valid, permissions: undefined },
+        { ...valid, permissions: { http: 'example.com' } },
+      ]).map((entry) => entry.id),
+    ).toEqual(['spike']);
     expect(catalogEntries({ plugins: [valid] })).toEqual([]);
   });
 });

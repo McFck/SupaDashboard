@@ -85,6 +85,14 @@
       onEscapeKeydown={() => settle(false)} onInteractOutside={() => settle(false)}
       class="w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto max-w-96 rounded-xl p-4">
       <AlertDialog.Header><AlertDialog.Title>{request.title}</AlertDialog.Title></AlertDialog.Header>
+      {#if request.details?.length}
+        <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
+          {#each request.details as { label, value }, index (index)}
+            <dt class="font-medium">{label}</dt>
+            <dd class="break-words text-muted-foreground">{value}</dd>
+          {/each}
+        </dl>
+      {/if}
       <AlertDialog.Footer>
         {#if request.cancel !== false}
           <AlertDialog.Cancel bind:ref={cancelButton} onclick={() => settle(false)}>Cancel</AlertDialog.Cancel>
