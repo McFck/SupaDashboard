@@ -226,13 +226,13 @@ mod tests {
     const DISCORD: &str = r#"{"http":["discord.com"],"pipes":["discord-ipc"],"oauth":{"discord":{
         "token":"https://discord.com/api/oauth2/token","redirect":"http://127.0.0.1",
         "scopes":["rpc","rpc.voice.read"],"send":["pipe:discord-ipc"]}}}"#;
-    const WORK: &str = r#"{"http":["staff.example.com"],"signin":{"staff":{"url":"https://staff.example.com",
-        "storage":"oidc.user:https://passport.example.com:staff_site_new","profile":"work-web",
-        "send":["staff.example.com"]}},"automation":["meet.exe"],"open":["meet"]}"#;
+    const SIGNIN: &str = r#"{"http":["portal.example.com"],"signin":{"staff":{"url":"https://portal.example.com",
+        "storage":"oidc.user:https://login.example.com:portal","profile":"portal-web",
+        "send":["portal.example.com"]}},"automation":["meet.exe"],"open":["meet"]}"#;
 
     #[test]
     fn a_manifest_cannot_grant_reach_beyond_what_its_permissions_name() {
-        for good in [SPOTIFY, DISCORD, WORK, r#"{"process":["adb.exe"]}"#, "{}"] {
+        for good in [SPOTIFY, DISCORD, SIGNIN, r#"{"process":["adb.exe"]}"#, "{}"] {
             assert_eq!(parse(good), Ok(()), "{good}");
         }
         let bad: &[&str] = &[
@@ -268,10 +268,10 @@ mod tests {
             &SPOTIFY.replace(r#""user-library-read""#, r#""a b""#),
             &SPOTIFY.replace(r#""spotify":{"#, r#""../x":{"#),
             &DISCORD.replace("pipe:discord-ipc", "pipe:other-ipc"),
-            &WORK.replace("https://staff.example.com\",", "javascript:alert(1)\","),
-            &WORK.replace("work-web", "../profile"),
-            &WORK.replace("oidc.user", "a\\\"b"),
-            &WORK.replace(r#""send":["staff.example.com"]"#, r#""send":["x.com"]"#),
+            &SIGNIN.replace("https://portal.example.com\",", "javascript:alert(1)\","),
+            &SIGNIN.replace("portal-web", "../profile"),
+            &SIGNIN.replace("oidc.user", "a\\\"b"),
+            &SIGNIN.replace(r#""send":["portal.example.com"]"#, r#""send":["x.com"]"#),
             r#"{"oauth":{"staff":{"token":"https://a.com/t","redirect":"http://127.0.0.1","scopes":[],"send":[]}},
                 "signin":{"staff":{"url":"https://a.com","storage":"k","profile":"p","send":[]}}}"#,
             // Programs and schemes.

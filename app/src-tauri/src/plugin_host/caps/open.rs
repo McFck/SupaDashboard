@@ -63,7 +63,7 @@ mod tests {
             open: vec!["meet".into()],
             ..Permissions::default()
         };
-        assert_eq!(check(&permissions, "meet://meet.example.com/room"), Ok(()));
+        assert_eq!(check(&permissions, "meet://space.example.com/room"), Ok(()));
         for url in [
             "https://evil.com",
             "file:///C:/Windows/System32/calc.exe",
