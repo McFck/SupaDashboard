@@ -19,7 +19,14 @@ export { emptyScenario } from './features/automation/scenario';
 export { ActionFailure } from './features/automation/action-failure';
 export { progressAt } from './features/media/now-playing';
 export { commit } from './features/layout/history.svelte';
+export { registerLocalVolumeChannel } from './features/media/volume';
+export { default as Slot } from './features/applets/Slot.svelte';
+export { default as CanvasScene } from './features/applets/CanvasScene.svelte';
+export { default as AppletQuickActions } from './features/applets/AppletQuickActions.svelte';
+export { getAppletHostContext } from './features/applets/context';
 export { currentRuntime } from './app/runtime/session.svelte';
+export { requestRuntime } from './app/runtime/client';
+export { runtimeView } from './app/runtime/state';
 export { ownerAction, whileOwner } from './plugins/owner';
 export {
   callPlugin,
@@ -42,7 +49,15 @@ export {
 export { nativeSessions } from './platform/media';
 export { toast } from 'svelte-sonner';
 
-export type { NowPlayingSession, Plugin, PluginApi } from './features/plugins/contracts';
+export type {
+  EventAncestry,
+  NowPlayingSession,
+  Option,
+  Param,
+  Plugin,
+  PluginApi,
+  SettingsGroup,
+} from './features/plugins/contracts';
 export type { ControlConfig } from './features/controls/model';
 export type { PluginService } from './platform/plugin-host';
 export type {
@@ -55,3 +70,6 @@ export type {
   PluginProcessOutput,
   PluginSecret,
 } from './platform/plugin-native';
+export type { AppletRuntimeContext, AppletStateField } from './features/applets/contracts';
+export type { AppletSceneFactory, AppletSceneRenderer } from './features/applets/scene-contracts';
+export type { RuntimeSnapshot } from './app/runtime/state';
