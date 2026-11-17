@@ -29,10 +29,14 @@ export {
   providePlugin,
 } from './platform/plugin-host';
 export {
+  pluginAutomation,
   pluginHttp,
   pluginOAuth,
   pluginOpen,
+  pluginPipe,
+  pluginProcess,
   pluginSecrets,
+  pluginSignIn,
   pluginStorage,
 } from './platform/plugin-native';
 export { nativeSessions } from './platform/media';
@@ -42,8 +46,12 @@ export type { NowPlayingSession, Plugin, PluginApi } from './features/plugins/co
 export type { ControlConfig } from './features/controls/model';
 export type { PluginService } from './platform/plugin-host';
 export type {
+  PluginAutomationSnapshot,
   PluginFile,
   PluginHttpRequest,
   PluginHttpResponse,
+  PluginPipeEvent,
+  PluginProcessEvent,
+  PluginProcessOutput,
   PluginSecret,
 } from './platform/plugin-native';
