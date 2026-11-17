@@ -1,14 +1,20 @@
 //! Native capabilities for plugin JS: `plugin_<capability>_*(plugin, ...)` commands. Every plugin shares one JS realm,
 //! so a call is bound to the plugin id it names: each command checks that the plugin is installed and declared the
-//! reach it asks for. Native resources (a pending PKCE verifier, a sign-in in progress) belong to the plugin and the
-//! webview that started them, and go when that webview navigates or closes, or when the plugin is removed.
+//! reach it asks for. Native resources (a pending PKCE verifier, a sign-in in progress, an open pipe, a child process,
+//! a window watcher) belong to the plugin and the webview that started them, and go when that webview navigates or
+//! closes, or when the plugin is removed.
+pub mod automation;
 pub mod http;
 pub mod oauth;
 pub mod open;
+pub mod pipe;
+pub mod process;
 pub mod secrets;
+pub mod signin;
 pub mod storage;
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use tauri::{AppHandle, Manager};
@@ -21,8 +27,13 @@ use super::{Plugin, PluginHost};
 struct Owned {
     /// PKCE verifiers by secret name, waiting for `exchange`.
     verifiers: HashMap<String, String>,
-    /// Loopback sign-ins by secret name.
+    /// Loopback and web sign-ins by secret name.
     signins: HashMap<String, AbortHandle>,
+    pipes: HashMap<u32, pipe::Pipe>,
+    processes: HashMap<u32, process::Spawned>,
+    /// The command to run when the PC sleeps or shuts down.
+    power_off: Option<process::Armed>,
+    watcher: Option<automation::Watcher>,
 }
 
 impl Drop for Owned {
@@ -40,6 +51,13 @@ pub struct Caps {
     /// One secret change at a time across plugins, so a refresh never races another refresh of the same rotating
     /// token. ponytail: one lock for every plugin; per-secret locks if a slow token endpoint stalls other plugins.
     secrets: tokio::sync::Mutex<()>,
+    /// Web sign-in tokens by (plugin id, sign-in name), in memory only: the session itself lives in the sign-in
+    /// window's profile.
+    signed_in: Mutex<HashMap<(String, String), signin::Token>>,
+    /// The plugin's sign-in window, shared by the sign-ins using it; it closes with the last one.
+    signin_windows: Mutex<HashMap<String, std::sync::Weak<signin::Window>>>,
+    /// Handles of pipes and processes.
+    next: AtomicU32,
 }
 
 impl Caps {
@@ -68,6 +86,34 @@ impl Caps {
             keys.iter().filter_map(|key| owned.remove(key)).collect()
         };
         drop(released);
+    }
+
+    /// The plugin is removed: everything it owns goes, its sign-in tokens too.
+    pub fn forget(&self, plugin: &str) {
+        self.release(|owner, _| owner == plugin);
+        self.signed_in
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|(owner, _), _| owner != plugin);
+    }
+
+    fn handle(&self) -> u32 {
+        self.next.fetch_add(1, Ordering::Relaxed) + 1
+    }
+}
+
+/// The access token of OAuth client or sign-in `name`; the caller checked that it may go where it is sent.
+async fn token(host: &PluginHost, plugin: &str, name: &str) -> Result<String, String> {
+    if host
+        .installed(plugin)?
+        .manifest
+        .permissions
+        .signin
+        .contains_key(name)
+    {
+        signin::token(host, plugin, name)
+    } else {
+        oauth::access_token(host, plugin, name).await
     }
 }
 

@@ -146,6 +146,16 @@ fn unique<'a>(values: impl IntoIterator<Item = &'a String>) -> bool {
 }
 
 impl Permissions {
+    /// Whether the token of OAuth client or sign-in `secret` may go to `target`, a host or `pipe:<prefix>`.
+    pub fn sends(&self, secret: &str, target: &str) -> bool {
+        let send = match (self.oauth.get(secret), self.signin.get(secret)) {
+            (Some(oauth), _) => &oauth.send,
+            (None, Some(signin)) => &signin.send,
+            (None, None) => return false,
+        };
+        send.iter().any(|declared| declared == target)
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         let fail = |what: &str| Err(format!("Invalid plugin permission: {what}"));
         if !self.http.iter().all(|host| valid_host(host)) || !unique(&self.http) {

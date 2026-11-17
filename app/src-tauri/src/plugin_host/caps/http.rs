@@ -1,6 +1,6 @@
 //! `http`: HTTPS requests without a body to the plugin's declared hosts, through the native client (10 s, no
-//! redirects, 1 MiB). A header may carry `{{secret:<client>}}`, replaced natively by that client's access token when
-//! the host is one the client may send to; JS never sees the token.
+//! redirects, 1 MiB). A header may carry `{{secret:<name>}}`, replaced natively by the access token of that OAuth
+//! client or sign-in when the host is one it may send to; JS never sees the token.
 use std::collections::BTreeMap;
 
 use serde::Deserialize;
@@ -8,7 +8,7 @@ use tauri::State;
 use windows::Foundation::Uri;
 use windows::core::HSTRING;
 
-use super::oauth::access_token;
+use super::token;
 use crate::plugin_host::PluginHost;
 use crate::plugin_host::http::{Response, send};
 use crate::plugin_host::permissions::Permissions;
@@ -73,11 +73,7 @@ fn check<'a>(permissions: &Permissions, request: &'a Request) -> Result<&'a str,
             return Err("Invalid HTTP header".into());
         }
         for secret in placeholders(value)? {
-            let allowed = permissions
-                .oauth
-                .get(secret)
-                .is_some_and(|oauth| oauth.send.iter().any(|target| target == host));
-            if !allowed {
+            if !permissions.sends(secret, host) {
                 return Err("This secret is not sent to this host".into());
             }
         }
@@ -97,7 +93,7 @@ pub async fn plugin_http_request(
     for (name, original) in &request.headers {
         let mut value = original.clone();
         for secret in placeholders(original)? {
-            let token = access_token(&host, &plugin, secret).await?;
+            let token = token(&host, &plugin, secret).await?;
             value = value.replace(&format!("{PLACEHOLDER}{secret}}}}}"), &token);
         }
         headers.push((name.as_str(), value));

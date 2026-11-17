@@ -6,12 +6,12 @@ pub mod caps;
 mod catalogue;
 mod http;
 pub mod install;
-#[expect(dead_code, reason = "the process capability uses it")]
 mod job;
 mod manifest;
 mod migrate;
 pub mod opened;
 mod permissions;
+pub mod power;
 pub mod protocol;
 mod secure;
 mod trust;
@@ -111,7 +111,7 @@ impl PluginHost {
     /// Unlists a plugin (its file closes once no scheme read holds it) and releases its native resources.
     fn take(&self, id: &str) {
         drop(self.lock().remove(id));
-        self.caps.release(|plugin, _| plugin == id);
+        self.caps.forget(id);
     }
 
     /// Moves what the in-app version kept in the app data root into the plugin's data folder, then lists it.
