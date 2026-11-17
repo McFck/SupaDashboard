@@ -1,9 +1,10 @@
 // Packs and signs plugin releases for SupaDashboard (CI and local builds).
 //   node release.mjs <plugin folder> <out.sdplugin>  packs plugin.json, ui/* and assets/** into one .sdplugin, with
-//                                                    release.json (SHA-256 of every entry) and release.sig
+//                                                    release.json (SHA-256 of every entry) and release.sig;
+//                                                    plugin.json must declare PLUGIN_API of src/plugin-kit.ts
 //   node release.mjs --catalogue <file.json>         writes catalogue.sig next to the catalogue
 // The key is the P-256 private key PEM in env PLUGIN_SIGNING_KEY. Without it a plugin is packed unsigned (no
-// release.json, so the app installs it only as unverified); a catalogue is never left unsigned.
+// release.json, so only debug builds of the app install it, as unverified); a catalogue is never left unsigned.
 // Signatures are base64 of the 64-byte r || s form the app verifies (`plugin_host/trust.rs`).
 // A .sdplugin is a deterministic uncompressed ustar archive (`plugin_host/archive.rs`): sorted regular files, mode
 // 0644, uid/gid 0, mtime 0, no directory entries, names of at most 99 bytes, two zero blocks at the end.
@@ -14,6 +15,8 @@ import path from 'node:path';
 // `valid_entry_name` in plugin_host/archive.rs. ponytail: names over 99 bytes need the ustar prefix field.
 const SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
 const key = process.env.PLUGIN_SIGNING_KEY;
+const kit = fs.readFileSync(new URL('../src/plugin-kit.ts', import.meta.url), 'utf8');
+const PLUGIN_API = Number(/^export const PLUGIN_API = (\d+);$/m.exec(kit)?.[1]);
 
 function sign(bytes) {
   return crypto.sign('sha256', bytes, { key, dsaEncoding: 'ieee-p1363' }).toString('base64');
@@ -102,6 +105,9 @@ function pack(folder, out) {
     entries(folder).map((name) => [name, fs.readFileSync(path.join(folder, name))]),
   );
   const { id, version, api } = JSON.parse(files.get('plugin.json').toString('utf8'));
+  if (!Number.isSafeInteger(PLUGIN_API) || api !== PLUGIN_API) {
+    throw new Error(`plugin.json declares api ${api}; the app's plugin API is ${PLUGIN_API}`);
+  }
   if (key) {
     const hashes = Object.fromEntries(
       [...files.keys()]

@@ -123,9 +123,9 @@ export const installPlugin = (id: string) => invoke<void>('plugin_install', { id
 /** Raw `{id, version, trust, permissions, sha256}` of a `.sdplugin`; `features/plugins/file-install.ts` validates it. */
 export const inspectPluginFile = (path: string) => invoke<unknown>('plugin_inspect_file', { path });
 
-/** Installs the inspected file if its bytes still hash to `sha256`; returns the installed id. */
-export const installPluginFile = (path: string, sha256: string) =>
-  invoke<string>('plugin_install_file', { path, sha256 });
+/** Installs the copy `inspectPluginFile` staged as `sha256`; returns the installed id. */
+export const installPluginFile = (sha256: string) =>
+  invoke<string>('plugin_install_file', { sha256 });
 
 /** A `.sdplugin` opened from Explorer that waits for the panel, once. */
 export const takeOpenedPluginFile = () => invoke<string | null>('plugin_opened_file');

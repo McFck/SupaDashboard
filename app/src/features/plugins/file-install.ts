@@ -1,5 +1,5 @@
 // Installing a `.sdplugin` the user picked, dropped or opened from Explorer: always behind a confirmation that names
-// the plugin, its author and what it may reach natively.
+// the plugin, its author and what it may reach natively. Release builds refuse unsigned files at inspection.
 import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
 import { inspectPluginFile, installPluginFile } from '../../platform/plugin-host';
 import { isRecord } from '../automation/plain-data';
@@ -27,5 +27,5 @@ export async function installPluginFromFile(path: string): Promise<string | null
     action: 'Install',
     details: [{ label: 'Author', value: author }, ...permissionRows(permissions)],
   });
-  return confirmed ? installPluginFile(path, raw.sha256) : null;
+  return confirmed ? installPluginFile(raw.sha256) : null;
 }

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::archive::MAX_PLUGIN;
 use super::manifest::valid_id;
 use super::permissions::Permissions;
+use super::secure::valid_sha256;
 use super::trust;
 
 const URL: &str =
@@ -58,11 +59,7 @@ fn valid_entry(entry: &Entry) -> bool {
         && valid_url(&entry.source)
         && valid_url(&entry.url)
         && entry.size <= MAX_PLUGIN
-        && entry.sha256.len() == 64
-        && entry
-            .sha256
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && valid_sha256(&entry.sha256)
         && entry.permissions.validate().is_ok()
 }
 

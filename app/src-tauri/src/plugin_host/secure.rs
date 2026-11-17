@@ -192,6 +192,14 @@ fn sha256(bytes: &[u8]) -> windows::core::Result<IBuffer> {
     HashAlgorithmProvider::OpenAlgorithm(&HSTRING::from("SHA256"))?.HashData(&input)
 }
 
+/// Lowercase hex SHA-256, as `sha256_hex` writes it.
+pub fn valid_sha256(hex: &str) -> bool {
+    hex.len() == 64
+        && hex
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
 pub fn sha256_hex(bytes: &[u8]) -> Result<String, String> {
     sha256(bytes)
         .and_then(|hash| CryptographicBuffer::EncodeToHexString(&hash))

@@ -80,6 +80,7 @@ impl PluginHost {
             caps: caps::Caps::default(),
         };
         let root = host.root();
+        install::recover(&root);
         let entries = std::fs::read_dir(&root).into_iter().flatten().flatten();
         for name in entries.filter_map(|entry| entry.file_name().into_string().ok()) {
             // Dot files are an install's staging and kept copies.

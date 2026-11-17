@@ -4,6 +4,9 @@ use serde::Deserialize;
 
 use super::permissions::Permissions;
 
+/// `PLUGIN_API` in plugin-kit.ts: the only plugin API this app installs.
+pub const PLUGIN_API: u32 = 2;
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
@@ -57,6 +60,12 @@ impl Manifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_native_plugin_api_is_the_kit_one() {
+        let kit = include_str!("../../../src/plugin-kit.ts");
+        assert!(kit.contains(&format!("export const PLUGIN_API = {PLUGIN_API};")));
+    }
 
     #[test]
     fn a_manifest_cannot_point_outside_the_plugin_or_carry_v1_grants() {
