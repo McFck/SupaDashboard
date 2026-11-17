@@ -6,6 +6,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, State, Webview};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::task::AbortHandle;
 
 use super::open::open;
 use super::secrets::{Secret, Tokens, valid_token};
@@ -17,7 +18,7 @@ use crate::plugin_host::secure::pkce;
 /// The error of a rejected refresh token; the tokens are dropped with it.
 const SIGN_IN_AGAIN: &str = "Sign in again";
 
-fn now() -> u64 {
+pub(super) fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -344,7 +345,8 @@ pub async fn plugin_oauth_sign_in(
     );
     let label = webview.label().to_owned();
     host.caps
-        .with(&plugin, &label, |owned| owned.signins.remove(&name));
+        .with(&plugin, &label, |owned| owned.signins.remove(&name))
+        .inspect(AbortHandle::abort);
     let task = tauri::async_runtime::spawn({
         let (app, plugin, name) = (app.clone(), plugin.clone(), name.clone());
         async move {
