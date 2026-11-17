@@ -1,6 +1,3 @@
-# Sound pack build leftovers (the packed audio in assets/ is free to use and tracked).
-assets/lines/*/raw/
-assets/preview/
 tools/
 app/docs/
 

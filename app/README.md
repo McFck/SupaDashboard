@@ -1,7 +1,7 @@
 # SupaDashboard app
 
 Tauri 2 (Rust) + Svelte 5 + TypeScript + shadcn-svelte. A customizable dashboard for a second screen
-(e.g. a spacedesk tablet). Each page can use an applet that changes its whole look; the Subway display is one of them.
+(e.g. a spacedesk tablet). Each page can use an applet that changes its whole look; the Subway display from the Market is one of them.
 
 ```
 pnpm install
@@ -32,7 +32,7 @@ src/
     plugins/       contracts, registry, plugin store; ui/ plugin pages and option pickers
     settings/      schema, migration, reactive state; settings page
   platform/        Tauri adapters
-  plugins/         bundled plugins: core, ui, subway/
+  plugins/         bundled plugins: core, ui
   lib/             feature-independent helpers and UI primitives ($lib)
 ```
 
@@ -70,7 +70,7 @@ Plugins can register applets with views, slots, control faces, settings, state, 
 | Actions       | `src/features/plugins/registry.ts` | named commands with args; core includes media/volume, `page.next`/`page.prev`/`page.goto`, `button.off`/`button.on`/`button.toggle`/`button.variant`, `variable.set`/`variable.toggle`/`variable.increment`, `event.emit`, and `open` |
 | Media sources | same                               | where media commands go: core `system` (current Windows player); plugins add more                                                                                                                                                     |
 | Values        | same                               | what a slider controls: `volume {target: "system" \| process name}`                                                                                                                                                                   |
-| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets), `subway`; Spotify, Discord and Haptics install from the Market                                                                                                                                       |
+| Plugins       | `src/plugins/`                     | `core`, `ui` (built-in widgets); Spotify, Discord, Haptics and Subway install from the Market                                                                                                                                         |
 | Native        | `src-tauri/src/`                   | `audio/` (volume, mixer), `media/`, `apps/`, `dashboard/`, `panel/`, `content/`, `plugin_host/`, `tray.rs`, `monitors.rs`                                                                                                             |
 
 Deck settings: `%APPDATA%\dev.supadashboard.app\settings.json` (versioned; older versions migrate on load). Pages
@@ -96,15 +96,6 @@ and asset origins, and other HTTP hosts. Zoom ranges from 50% to 200%; refresh `
 off by default, so tile gestures remain available; turn it on to use the embedded page. The iframe keeps its
 scripts, forms, and popups sandboxed and does not allow top-level navigation. `web.reload` can target this or another
 placed Web widget. Failed or blocked frames show `Unavailable`; page-hidden refresh timers pause.
-
-### Subway applet
-
-The Subway applet displays the Yamanote, Hibiya, and Sakaisuji line information screens, a route overview, and a
-deterministic simulated run. Immersion audio uses the bundled motion profiles and compatible sound-pack cues; it
-creates audio only in the visible dashboard owner. The shared mixer exposes it as **Subway**, separate from Windows
-app channels. Mixer gain and mute persist as `subway.mixVolume` and `subway.mixMuted`; the applet's
-announcement-volume setting affects voice cues only. The Sakaisuji motion profile is generic Osaka Metro sound,
-not a Hankyu recording.
 
 ### Gestures
 

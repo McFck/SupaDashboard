@@ -5,9 +5,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/stage-subway-assets.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/stage-subway-assets.mjs",
     "build": "vite build",
     "test": "vitest run",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",

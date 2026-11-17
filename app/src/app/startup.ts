@@ -23,7 +23,6 @@ import { initVolumeSync } from '../features/media/volume';
 import { followRemovals } from '../features/layout/removal';
 import { appsPlugin } from '../plugins/core-apps';
 import { corePlugin } from '../plugins/core';
-import { subwayPlugin } from '../plugins/subway';
 import { uiPlugin } from '../plugins/ui';
 
 import { startRuntimeServices, stopRuntimeServices, type WindowView } from './runtime/services';
@@ -31,7 +30,7 @@ import Root from './Root.svelte';
 import ControlPanel from '../panel/ControlPanel.svelte';
 import Dashboard from '../features/dashboard/Dashboard.svelte';
 
-const BUNDLED_PLUGINS = [corePlugin, appsPlugin, uiPlugin, subwayPlugin];
+const BUNDLED_PLUGINS = [corePlugin, appsPlugin, uiPlugin];
 
 let disposed = false;
 let stopAppIcons: (() => void) | undefined;
