@@ -31,6 +31,7 @@
     "security": {
       "assetProtocol": { "enable": true, "scope": [] },
       "csp": {
+        "connect-src": "'self' ipc: http://ipc.localhost http://plugin.localhost",
         "frame-src": "https: http://localhost:*",
         "img-src": "'self' http://asset.localhost https: http: data:",
         "media-src": "'self' http://asset.localhost https: http:",
