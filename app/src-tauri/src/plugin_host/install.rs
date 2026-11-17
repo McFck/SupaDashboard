@@ -116,7 +116,7 @@ impl PluginHost {
         };
         let root = self.root();
         // Closes the current file, unless a scheme read holds it a moment longer; then the swap fails cleanly.
-        drop(self.lock().remove(&id));
+        self.take(&id);
         match place(&root, &id, staged, |path| load(path).and_then(check)) {
             Ok(plugin) => self.add(plugin),
             Err(error) => {
@@ -243,7 +243,7 @@ pub async fn plugin_uninstall(
         return Err("Invalid plugin id".into());
     }
     let _changing = host.changing.lock().await;
-    drop(host.lock().remove(&id));
+    host.take(&id);
     let path = installed(&host.root(), &id);
     let removed = remove_file(&path);
     if removed.is_err()

@@ -2,20 +2,17 @@
 //! and kept open from discovery on and served by the `plugin` scheme. What a plugin may reach natively is declared in
 //! its manifest's `permissions`.
 mod archive;
+pub mod caps;
 mod catalogue;
-#[expect(dead_code, reason = "the plugin capability commands use the rest")]
 mod http;
 pub mod install;
-#[expect(dead_code, reason = "the plugin capability commands use it")]
+#[expect(dead_code, reason = "the process capability uses it")]
 mod job;
 mod manifest;
 mod migrate;
-#[expect(dead_code, reason = "the plugin capability commands use it")]
-mod open;
 pub mod opened;
 mod permissions;
 pub mod protocol;
-#[expect(dead_code, reason = "the plugin capability commands use the rest")]
 mod secure;
 mod trust;
 
@@ -44,6 +41,7 @@ pub struct PluginHost {
     legacy: PathBuf,
     /// One install or removal at a time, so two never share a staging file.
     changing: tokio::sync::Mutex<()>,
+    caps: caps::Caps,
 }
 
 /// Opens and checks a plugin file; the archive stays open, so what is served later is what was checked here.
@@ -78,6 +76,7 @@ impl PluginHost {
             plugins: Mutex::default(),
             legacy: app.path().app_data_dir().map_err(|e| e.to_string())?,
             changing: tokio::sync::Mutex::default(),
+            caps: caps::Caps::default(),
         };
         let root = host.root();
         let entries = std::fs::read_dir(&root).into_iter().flatten().flatten();
@@ -104,10 +103,21 @@ impl PluginHost {
         self.legacy.join("plugins")
     }
 
+    /// `<app data>/plugin-data/<id>`, the plugin's own files.
+    fn data(&self, id: &str) -> PathBuf {
+        self.legacy.join("plugin-data").join(id)
+    }
+
+    /// Unlists a plugin (its file closes once no scheme read holds it) and releases its native resources.
+    fn take(&self, id: &str) {
+        drop(self.lock().remove(id));
+        self.caps.release(|plugin, _| plugin == id);
+    }
+
     /// Moves what the in-app version kept in the app data root into the plugin's data folder, then lists it.
     fn add(&self, plugin: Plugin) {
         let id = plugin.manifest.id.clone();
-        let data = self.legacy.join("plugin-data").join(&id);
+        let data = self.data(&id);
         if let Err(error) = migrate::migrate(&self.legacy, &data, &plugin.manifest.migrate) {
             log::warn!("Plugin {id} data was not moved: {error}");
         }

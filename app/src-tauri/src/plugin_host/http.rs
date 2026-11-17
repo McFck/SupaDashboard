@@ -9,6 +9,8 @@ use windows::Web::Http::{
 use windows::core::{HSTRING, Interface};
 use windows_future::IAsyncOperation;
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Response {
     pub status: u16,
     pub retry_after: Option<String>,

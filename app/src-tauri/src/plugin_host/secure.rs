@@ -165,7 +165,7 @@ impl ProtectedFile {
 }
 
 /// `fs::rename` without write-through could leave an empty store after a power loss.
-fn replace(from: &Path, to: &Path) -> windows::core::Result<()> {
+pub fn replace(from: &Path, to: &Path) -> windows::core::Result<()> {
     let wide =
         |path: &Path| -> Vec<u16> { path.as_os_str().encode_wide().chain(Some(0)).collect() };
     let (from, to) = (wide(from), wide(to));

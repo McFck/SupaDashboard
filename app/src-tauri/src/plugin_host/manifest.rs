@@ -29,7 +29,7 @@ pub(super) fn valid_id(id: &str) -> bool {
 /// A bare file or folder name: no separators, no `..`, no drive.
 pub(super) fn valid_file_name(name: &str) -> bool {
     !name.is_empty()
-        && name.len() <= 64
+        && name.len() <= 128
         && !name.starts_with('.')
         && name
             .bytes()

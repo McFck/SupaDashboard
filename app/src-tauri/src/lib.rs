@@ -14,6 +14,7 @@ mod panel;
 mod plugin_host;
 mod tray;
 
+use tauri::webview::PageLoadEvent;
 use tauri::{Manager, WindowEvent};
 
 pub fn run() {
@@ -64,7 +65,15 @@ pub fn run() {
             plugin_host::opened::opened(app.handle(), &args, &std::env::current_dir()?);
             Ok(())
         })
+        .on_page_load(|webview, payload| {
+            if payload.event() == PageLoadEvent::Started {
+                plugin_host::caps::release_webview(webview.app_handle(), webview.label());
+            }
+        })
         .on_window_event(|window, event| {
+            if let WindowEvent::Destroyed = event {
+                plugin_host::caps::release_webview(window.app_handle(), window.label());
+            }
             match window.label() {
                 // The dashboard lives in the tray: closing hides it.
                 "main" => {
@@ -103,6 +112,19 @@ pub fn run() {
             plugin_host::install::plugin_uninstall,
             plugin_host::opened::plugin_opened_file,
             plugin_host::plugin_list,
+            plugin_host::caps::storage::plugin_storage_read,
+            plugin_host::caps::storage::plugin_storage_write,
+            plugin_host::caps::storage::plugin_storage_remove,
+            plugin_host::caps::storage::plugin_storage_list,
+            plugin_host::caps::http::plugin_http_request,
+            plugin_host::caps::secrets::plugin_secrets_read,
+            plugin_host::caps::secrets::plugin_secrets_write,
+            plugin_host::caps::oauth::plugin_oauth_sign_in,
+            plugin_host::caps::oauth::plugin_oauth_pkce,
+            plugin_host::caps::oauth::plugin_oauth_exchange,
+            plugin_host::caps::oauth::plugin_oauth_refresh,
+            plugin_host::caps::oauth::plugin_oauth_sign_out,
+            plugin_host::caps::open::plugin_open,
             apps::apps_list,
             apps::apps_icon,
             apps::app_command,
