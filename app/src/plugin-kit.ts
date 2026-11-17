@@ -1,7 +1,7 @@
 // The public plugin API, imported by external plugins as `@supadashboard/kit`. Deliberately a re-export module:
 // every export is a promise to plugin authors, so it holds only what they use. A breaking change here or a Svelte
 // upgrade bumps PLUGIN_API.
-export const PLUGIN_API = 1;
+export const PLUGIN_API = 2;
 
 export { Button } from '$lib/components/ui/button';
 export { Input } from '$lib/components/ui/input';
@@ -21,9 +21,29 @@ export { progressAt } from './features/media/now-playing';
 export { commit } from './features/layout/history.svelte';
 export { currentRuntime } from './app/runtime/session.svelte';
 export { ownerAction, whileOwner } from './plugins/owner';
-export { callPlugin, onPluginEvent, pluginStateHub } from './platform/plugin-host';
+export {
+  callPlugin,
+  emitPluginEvent,
+  onPluginEvent,
+  pluginStateHub,
+  providePlugin,
+} from './platform/plugin-host';
+export {
+  pluginHttp,
+  pluginOAuth,
+  pluginOpen,
+  pluginSecrets,
+  pluginStorage,
+} from './platform/plugin-native';
 export { nativeSessions } from './platform/media';
 export { toast } from 'svelte-sonner';
 
 export type { NowPlayingSession, Plugin, PluginApi } from './features/plugins/contracts';
 export type { ControlConfig } from './features/controls/model';
+export type { PluginService } from './platform/plugin-host';
+export type {
+  PluginFile,
+  PluginHttpRequest,
+  PluginHttpResponse,
+  PluginSecret,
+} from './platform/plugin-native';
