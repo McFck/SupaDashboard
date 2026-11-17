@@ -1,10 +1,115 @@
-// The native plugin host: installs `.sdplugin` files and lists what is installed.
+// The native plugin host (installs `.sdplugin` files, lists what is installed) and the routing of plugin service
+// calls: a plugin's service runs in the dashboard owner (`main`), the panel reaches it through events.
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { emit, emitTo, listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
-// The native `plugin_call` is gone with plugin processes; calls fail until they route to plugin services.
-export const callPlugin = <T>(plugin: string, method: string, params: unknown = null) =>
-  invoke<T>('plugin_call', { plugin, method, params });
+/** A plugin service: its methods by name, each taking the call's params. */
+export type PluginService = Record<string, (params: unknown) => unknown>;
+
+const services = new Map<string, PluginService>();
+let serving: Promise<unknown> | undefined;
+const pending = new Map<
+  string,
+  { resolve: (value: unknown) => void; reject: (error: Error) => void }
+>();
+let replies: Promise<unknown> | undefined;
+/** The longest call: a sign-in waits up to 5 minutes for the browser. */
+const CALL_TIMEOUT = 360_000;
+const REPLY_ID = /^[0-9a-f-]{36}$/;
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+function serviceMethod(plugin: unknown, name: unknown) {
+  const service = typeof plugin === 'string' ? services.get(plugin) : undefined;
+  if (!service) {
+    throw new Error(`${String(plugin)} is not running`);
+  }
+  const run = typeof name === 'string' && Object.hasOwn(service, name) ? service[name] : undefined;
+  if (typeof run !== 'function') {
+    throw new Error(`${String(plugin)} has no method ${String(name)}`);
+  }
+  return (params: unknown) => run.call(service, params);
+}
+
+/** Answers a panel's `plugin-call` envelope `{plugin, method, params, reply}`; one without a reply id is dropped. */
+async function answer(raw: unknown) {
+  if (!isObject(raw) || typeof raw.reply !== 'string' || !REPLY_ID.test(raw.reply)) {
+    return;
+  }
+  const { reply } = raw;
+  try {
+    const value = await serviceMethod(raw.plugin, raw.method)(raw.params ?? null);
+    await emit('plugin-reply', { reply, ok: true, value });
+  } catch (error) {
+    await emit('plugin-reply', {
+      reply,
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function settle(raw: unknown) {
+  const call = isObject(raw) && typeof raw.reply === 'string' ? pending.get(raw.reply) : undefined;
+  if (!isObject(raw) || !call) {
+    return;
+  }
+  if (raw.ok === true) {
+    call.resolve(raw.value);
+  } else {
+    call.reject(new Error(typeof raw.error === 'string' ? raw.error : 'Plugin call failed'));
+  }
+}
+
+/** Serves a plugin's service in this window (the dashboard owner) and announces it with `plugin://<id>/ready`. */
+export function providePlugin(id: string, service: PluginService): () => void {
+  services.set(id, service);
+  serving ??= listen<unknown>('plugin-call', (event) => void answer(event.payload));
+  void serving.then(() => emitPluginEvent(id, 'ready', null));
+  return () => {
+    if (services.get(id) === service) {
+      services.delete(id);
+    }
+  };
+}
+
+/** Sends `plugin://<plugin>/<event>` to every window. */
+export const emitPluginEvent = (plugin: string, event: string, data: unknown) =>
+  emit(`plugin://${plugin}/${event}`, data);
+
+/** Calls a plugin service: directly where it runs, from the panel through the dashboard owner. */
+export async function callPlugin(
+  plugin: string,
+  method: string,
+  params: unknown = null,
+): Promise<unknown> {
+  if (services.has(plugin) || getCurrentWindow().label === 'main') {
+    return await serviceMethod(plugin, method)(params);
+  }
+  replies ??= listen<unknown>('plugin-reply', (event) => settle(event.payload));
+  await replies;
+  const reply = crypto.randomUUID();
+  const settled = new Promise<unknown>((resolve, reject) =>
+    pending.set(reply, { resolve, reject }),
+  );
+  const timer = setTimeout(
+    () => settle({ reply, ok: false, error: `${plugin} did not answer` }),
+    CALL_TIMEOUT,
+  );
+  try {
+    // Together, so a reply that arrives before `emitTo` returns is never an unhandled rejection.
+    const [, value] = await Promise.all([
+      emitTo('main', 'plugin-call', { plugin, method, params, reply }),
+      settled,
+    ]);
+    return value;
+  } finally {
+    clearTimeout(timer);
+    pending.delete(reply);
+  }
+}
 
 /** Raw `plugin_list`; `features/plugins/external/load.ts` validates it. */
 export const listPlugins = () => invoke<unknown>('plugin_list');
@@ -28,12 +133,12 @@ export const takeOpenedPluginFile = () => invoke<string | null>('plugin_opened_f
 /** Deletes an installed plugin's file; its data and settings stay. */
 export const uninstallPlugin = (id: string) => invoke<void>('plugin_uninstall', { id });
 
-/** `restarted` means a crashed process came back without its state; the plugin applies it again. */
+/** `ready` means the plugin's service (re)started in the owner without its subscribers or state. */
 export const onPluginEvent = <T>(plugin: string, event: string, handler: (payload: T) => void) =>
   listen<T>(`plugin://${plugin}/${event}`, (message) => handler(message.payload));
 
 /**
- * One native `subscribe` shared by every listener of a plugin's `state` events. `read` validates each
+ * One service `subscribe` shared by every listener of a plugin's `state` events. `read` validates each
  * payload; `idle` is the view without a subscription and `failed` the view while a failed start retries.
  */
 export function pluginStateHub<V>(plugin: string, read: (raw: unknown) => V, idle: V, failed: V) {
@@ -55,6 +160,7 @@ export function pluginStateHub<V>(plugin: string, read: (raw: unknown) => V, idl
   }
 
   function start() {
+    clearTimeout(retry);
     const mine = ++epoch;
     enqueue(async () => {
       if (mine !== epoch) {
@@ -69,15 +175,15 @@ export function pluginStateHub<V>(plugin: string, read: (raw: unknown) => V, idl
             deliver(read(payload));
           }
         }),
-        // A restarted plugin process has no subscribers; subscribe again.
-        await onPluginEvent(plugin, 'restarted', () => {
+        // A service that (re)started in the owner has no subscribers; subscribe again.
+        await onPluginEvent(plugin, 'ready', () => {
           if (mine === epoch) {
             start();
           }
         }),
       ];
       unlisten = () => stops.forEach((stop) => stop());
-      const snapshot = await callPlugin<unknown>(plugin, 'subscribe');
+      const snapshot = await callPlugin(plugin, 'subscribe');
       // Events can arrive while invoke is returning an older snapshot.
       if (mine === epoch && !receivedEvent) {
         deliver(read(snapshot));
@@ -115,7 +221,7 @@ export function pluginStateHub<V>(plugin: string, read: (raw: unknown) => V, idl
           unlisten = undefined;
           await callPlugin(plugin, 'unsubscribe');
         }).catch(() => {
-          // Native also releases the subscriber when its window closes.
+          // The owner is gone or reloading; its service starts again without subscribers.
         });
       };
     },
