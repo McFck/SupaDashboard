@@ -55,6 +55,7 @@ fn load(path: &Path) -> Result<Plugin, String> {
         return Err("The plugin has no UI bundle".into());
     }
     let trust = trust::check(&archive, &manifest)?;
+    trust::admitted(trust, cfg!(debug_assertions))?;
     let updated = std::fs::metadata(path)
         .and_then(|meta| meta.modified())
         .ok()

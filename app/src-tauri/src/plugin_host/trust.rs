@@ -46,6 +46,17 @@ pub fn signed(message: &[u8], signature: &[u8]) -> Result<(), String> {
     }
 }
 
+/// Release builds take only verified plugins, at discovery and install: every bundle runs in the app's one JS realm,
+/// so an unverified bundle could call capabilities under another plugin's id and use its grants. Debug builds also
+/// take unverified ones, after the install confirmation.
+pub fn admitted(trust: Trust, debug: bool) -> Result<(), String> {
+    if trust == Trust::Verified || debug {
+        Ok(())
+    } else {
+        Err("Plugin is not signed".into())
+    }
+}
+
 pub fn check(archive: &Archive, manifest: &Manifest) -> Result<Trust, String> {
     check_with(&KEY, archive, manifest)
 }
@@ -120,6 +131,13 @@ mod tests {
         drop(opened);
         std::fs::remove_file(path).unwrap();
         trust
+    }
+
+    #[test]
+    fn a_release_build_refuses_unverified_plugins() {
+        assert!(admitted(Trust::Unverified, false).is_err());
+        assert_eq!(admitted(Trust::Unverified, true), Ok(()));
+        assert_eq!(admitted(Trust::Verified, false), Ok(()));
     }
 
     #[test]
