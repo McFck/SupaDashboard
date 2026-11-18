@@ -1,20 +1,19 @@
-//! PC sleep and shutdown: runs the plugins' armed `onPowerOff` commands. Windows tells every top-level window, a
-//! hidden one included (a message-only window hears no broadcasts), before it suspends or ends the session; the
-//! commands run then, while the PC still waits.
+//! PC power events: runs armed commands before sleep or shutdown and notifies the dashboard on resume.
+//! The watcher needs a top-level window because message-only windows do not receive power broadcasts.
 use std::os::windows::process::CommandExt;
 use std::process::Stdio;
 use std::sync::{OnceLock, mpsc};
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Power::RegisterSuspendResumeNotification;
 use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DEVICE_NOTIFY_WINDOW_HANDLE, DefWindowProcW, DispatchMessageW, GetMessageW,
-    MSG, PBT_APMSUSPEND, RegisterClassW, WINDOW_EX_STYLE, WINDOW_STYLE, WM_POWERBROADCAST,
-    WM_QUERYENDSESSION, WNDCLASSW,
+    MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMSUSPEND, RegisterClassW, WINDOW_EX_STYLE, WINDOW_STYLE,
+    WM_POWERBROADCAST, WM_QUERYENDSESSION, WNDCLASSW,
 };
 use windows::core::w;
 
@@ -67,7 +66,7 @@ fn power_off() {
     log::warn!("Power-off commands were still running when the wait ended");
 }
 
-/// Starts the hidden power window once, when a plugin first arms a command.
+/// Starts the hidden power window once for resume events and armed commands.
 /// ponytail: a shutdown that another app then cancels still runs the commands.
 pub fn watch(app: &AppHandle) -> Result<(), String> {
     WATCHING
@@ -148,15 +147,21 @@ unsafe extern "system" fn window_proc(
         power_off();
         return LRESULT(1);
     }
+    if message == WM_POWERBROADCAST && wparam.0 == PBT_APMRESUMEAUTOMATIC as usize {
+        if let Some(app) = APP.get()
+            && let Err(error) = app.emit_to("main", "plugin-power-resumed", ())
+        {
+            log::warn!("Could not notify plugins of PC resume: {error}");
+        }
+        return LRESULT(1);
+    }
     unsafe { DefWindowProcW(window, message, wparam, lparam) }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        PBT_APMRESUMEAUTOMATIC, PBT_POWERSETTINGCHANGE, WM_ENDSESSION,
-    };
+    use windows::Win32::UI::WindowsAndMessaging::{PBT_POWERSETTINGCHANGE, WM_ENDSESSION};
 
     #[test]
     fn only_suspend_and_end_session_queries_run_power_off_commands() {
