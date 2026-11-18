@@ -14,17 +14,44 @@ export type PluginBrowserSnapshot =
       tabs: { id: number; title: string; active: boolean; favicon: string | null }[];
       activeTab: number | null;
       media: { tab: number; paused: boolean; rate: number; fullscreen: boolean } | null;
+      outline?: PluginBrowserOutline | null;
     };
 
+type OutlineRect = { x: number; y: number; w: number; h: number };
+
+export type PluginBrowserOutline = {
+  tab: number;
+  doc: string;
+  seq: number;
+  width: number;
+  height: number;
+  moving: boolean;
+  shapes: { kind: 'text' | 'heading' | 'image'; rect: OutlineRect }[];
+  targets: { id: number; kind: 'link' | 'button'; rect: OutlineRect; label: string }[];
+};
+
+export type PluginBrowserSelection = Pick<PluginBrowserOutline, 'tab' | 'doc' | 'seq'> & {
+  target: number;
+  x: number;
+  y: number;
+  token: string;
+};
+
 export type PluginBrowserScrollFrame =
-  | { phase: 'hold' }
+  | { phase: 'hold'; outline?: boolean }
   | { phase: 'move'; dx: number; dy: number }
   | { phase: 'release'; vx: number; vy: number };
 
 export type PluginBrowserAction =
   | { kind: 'activate' | 'close'; tab: number }
   | { kind: 'open'; url: string; destination: 'new' | 'current' }
-  | { kind: 'page'; input: { kind: 'page_up' | 'page_down' | 'top' | 'bottom' } }
+  | {
+      kind: 'page';
+      input:
+        | { kind: 'page_up' | 'page_down' | 'top' | 'bottom' }
+        | { kind: 'preview' | 'clear_preview'; selection: PluginBrowserSelection }
+        | { kind: 'press'; selection: PluginBrowserSelection; background: boolean };
+    }
   | {
       kind: 'media';
       input:

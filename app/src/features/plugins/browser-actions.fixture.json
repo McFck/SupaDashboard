@@ -6,6 +6,52 @@
   { "kind": "page", "input": { "kind": "bottom" } },
   { "kind": "page", "input": { "kind": "page_up" } },
   { "kind": "page", "input": { "kind": "page_down" } },
+  {
+    "kind": "page",
+    "input": {
+      "kind": "preview",
+      "selection": {
+        "tab": 1,
+        "doc": "00000000000000000000000000000000",
+        "seq": 1,
+        "target": 1,
+        "x": 2,
+        "y": 3,
+        "token": "00000000000000000000000000000001"
+      }
+    }
+  },
+  {
+    "kind": "page",
+    "input": {
+      "kind": "clear_preview",
+      "selection": {
+        "tab": 1,
+        "doc": "00000000000000000000000000000000",
+        "seq": 1,
+        "target": 1,
+        "x": 2,
+        "y": 3,
+        "token": "00000000000000000000000000000001"
+      }
+    }
+  },
+  {
+    "kind": "page",
+    "input": {
+      "kind": "press",
+      "selection": {
+        "tab": 1,
+        "doc": "00000000000000000000000000000000",
+        "seq": 1,
+        "target": 1,
+        "x": 2,
+        "y": 3,
+        "token": "00000000000000000000000000000001"
+      },
+      "background": false
+    }
+  },
   { "kind": "media", "input": { "kind": "toggle" } },
   { "kind": "media", "input": { "kind": "seek", "seconds": -10 } },
   { "kind": "media", "input": { "kind": "speed", "rate": 1.5 } },

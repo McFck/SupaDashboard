@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use super::wire::{Failure, State};
+use super::{
+    view::Selection,
+    wire::{Failure, State},
+};
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -12,15 +15,24 @@ pub enum Destination {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "phase", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ScrollFrame {
-    Hold {},
-    Move { dx: i32, dy: i32 },
-    Release { vx: f32, vy: f32 },
+    Hold {
+        #[serde(default)]
+        outline: bool,
+    },
+    Move {
+        dx: i32,
+        dy: i32,
+    },
+    Release {
+        vx: f32,
+        vy: f32,
+    },
 }
 
 impl ScrollFrame {
     pub(super) fn validate(&self) -> Result<(), Failure> {
         let valid = match self {
-            Self::Hold {} => true,
+            Self::Hold { .. } => true,
             Self::Move { dx, dy } => [dx, dy].into_iter().all(|d| d.unsigned_abs() <= 4096),
             Self::Release { vx, vy } => [vx, vy].into_iter().all(|v| v.abs() <= 10000.0),
         };
@@ -35,6 +47,16 @@ pub enum PageInput {
     PageDown {},
     Top {},
     Bottom {},
+    Preview {
+        selection: Selection,
+    },
+    ClearPreview {
+        selection: Selection,
+    },
+    Press {
+        selection: Selection,
+        background: bool,
+    },
 }
 
 #[derive(Deserialize, Serialize)]
@@ -83,8 +105,23 @@ pub(super) fn web_url(value: &str, max: usize) -> bool {
 }
 
 impl Action {
+    pub(super) fn selection(&self) -> Option<&Selection> {
+        match self {
+            Self::Page {
+                input: PageInput::Preview { selection } | PageInput::Press { selection, .. },
+            } => Some(selection),
+            _ => None,
+        }
+    }
+
     pub(super) fn validate_input(&self) -> Result<(), Failure> {
         match self {
+            Self::Page {
+                input:
+                    PageInput::Preview { selection }
+                    | PageInput::ClearPreview { selection }
+                    | PageInput::Press { selection, .. },
+            } => selection.validate(),
             Self::Open { url, .. } if !web_url(url, 2048) => Err("Enter a valid HTTP or HTTPS URL"),
             Self::Media {
                 input: MediaInput::Seek { seconds },
@@ -116,6 +153,10 @@ impl Action {
             Self::Activate { .. } => "Could not select tab",
             Self::Close { .. } => "Could not close tab",
             Self::Open { .. } => "Could not open website",
+            Self::Page {
+                input:
+                    PageInput::Preview { .. } | PageInput::ClearPreview { .. } | PageInput::Press { .. },
+            } => "Page element is unavailable",
             Self::Page { .. } => "Could not scroll this tab",
             Self::Media { .. } => "Could not control browser media",
         }

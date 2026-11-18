@@ -3,6 +3,7 @@ mod actions;
 mod pairing;
 mod server;
 mod stream;
+mod view;
 mod wire;
 
 use std::sync::{Arc, Weak};
@@ -177,5 +178,18 @@ pub fn plugin_browser_scroll(
     frame.validate()?;
     watched(&webview, &plugin, watch, |watcher| {
         watcher.bridge.scroll(frame)
+    })
+}
+
+#[tauri::command]
+pub fn plugin_browser_outline(
+    webview: Webview,
+    plugin: String,
+    watch: u32,
+    enabled: bool,
+) -> Result<(), String> {
+    watched(&webview, &plugin, watch, |watcher| {
+        watcher.bridge.outline(watch, enabled);
+        Ok(())
     })
 }

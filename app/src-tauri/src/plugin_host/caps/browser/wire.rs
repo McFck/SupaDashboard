@@ -11,6 +11,7 @@ use tokio_tungstenite::{
 use super::{
     actions::{Action, valid_rate, web_url},
     stream::ScrollOut,
+    view::{Outline, VIEW_LIMIT},
 };
 
 pub(super) const ADDRESS: &str = "127.0.0.1:43822";
@@ -104,6 +105,7 @@ impl State {
 pub(super) enum Outgoing<'a> {
     Command { id: u32, action: &'a Action },
     Scroll(ScrollOut),
+    Outline { enabled: bool },
 }
 
 #[derive(Deserialize)]
@@ -112,11 +114,16 @@ pub(super) enum Reply {
     State {
         state: State,
     },
+    Outline {
+        view: Option<Outline>,
+    },
     Done {
         id: u32,
         ok: bool,
         #[serde(default)]
         gone: bool,
+        #[serde(default)]
+        covered: bool,
     },
 }
 
@@ -127,10 +134,12 @@ fn decode<T: DeserializeOwned>(text: &str) -> Result<T, Failure> {
     serde_json::from_str(text).map_err(|_| "Invalid browser message")
 }
 
-pub(super) async fn read<T: DeserializeOwned>(socket: &mut Socket) -> Result<T, Failure> {
+async fn read_text(
+    socket: &mut Socket,
+) -> Result<tokio_tungstenite::tungstenite::Utf8Bytes, Failure> {
     loop {
         match socket.next().await {
-            Some(Ok(Message::Text(text))) => return decode(&text),
+            Some(Ok(Message::Text(text))) => return Ok(text),
             Some(Ok(Message::Ping(_))) => {
                 socket.flush().await.map_err(|_| "Browser disconnected")?;
             }
@@ -138,6 +147,19 @@ pub(super) async fn read<T: DeserializeOwned>(socket: &mut Socket) -> Result<T, 
             _ => return Err("Browser disconnected"),
         }
     }
+}
+
+pub(super) async fn read<T: DeserializeOwned>(socket: &mut Socket) -> Result<T, Failure> {
+    decode(&read_text(socket).await?)
+}
+
+pub(super) async fn read_reply(socket: &mut Socket) -> Result<Reply, Failure> {
+    let text = read_text(socket).await?;
+    let reply = decode(&text)?;
+    if matches!(reply, Reply::Outline { .. }) && text.len() > VIEW_LIMIT {
+        return Err("Page outline is too large");
+    }
+    Ok(reply)
 }
 
 pub(super) async fn send(socket: &mut Socket, frame: &impl Serialize) -> Result<(), Failure> {
@@ -239,7 +261,8 @@ mod tests {
             Ok(Reply::Done {
                 id: 4,
                 ok: false,
-                gone: true
+                gone: true,
+                ..
             })
         ));
         for payload in [

@@ -164,6 +164,8 @@ export const pluginBrowser = {
   pair: (plugin: string, watch: number) => invoke<string>('plugin_browser_pair', { plugin, watch }),
   action: (plugin: string, watch: number, action: PluginBrowserAction) =>
     invoke<void>('plugin_browser_action', { plugin, watch, action }),
+  outline: (plugin: string, watch: number, enabled: boolean) =>
+    invoke<void>('plugin_browser_outline', { plugin, watch, enabled }),
   scroll: (plugin: string, watch: number, frame: PluginBrowserScrollFrame) => {
     if (frame.phase === 'hold') {
       scrollGestures.set(watch, { reported: false });

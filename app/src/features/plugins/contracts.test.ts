@@ -7,11 +7,23 @@ type Input<K extends 'page' | 'media'> = Extract<PluginBrowserAction, { kind: K 
 type Examples<K extends 'page' | 'media'> = Record<Input<K>['kind'], Input<K>>;
 
 it('keeps an action fixture for every browser command in the kit', () => {
+  const selection = {
+    tab: 1,
+    doc: '00000000000000000000000000000000',
+    seq: 1,
+    target: 1,
+    x: 2,
+    y: 3,
+    token: '00000000000000000000000000000001',
+  };
   const page = {
     top: { kind: 'top' },
     bottom: { kind: 'bottom' },
     page_up: { kind: 'page_up' },
     page_down: { kind: 'page_down' },
+    preview: { kind: 'preview', selection },
+    clear_preview: { kind: 'clear_preview', selection },
+    press: { kind: 'press', selection, background: false },
   } satisfies Examples<'page'>;
   const media = {
     toggle: { kind: 'toggle' },

@@ -13,6 +13,7 @@ type Response = oneshot::Sender<Result<(), Failure>>;
 #[derive(Default, serde::Serialize)]
 pub(super) struct ScrollOut {
     hold: bool,
+    outline: bool,
     dx: i32,
     dy: i32,
     fling: Option<[f32; 2]>,
@@ -24,8 +25,11 @@ pub(super) struct ScrollQueue(ScrollOut);
 impl ScrollQueue {
     pub(super) fn push(&mut self, frame: ScrollFrame) {
         match frame {
-            ScrollFrame::Hold {} => {
+            ScrollFrame::Hold { outline } => {
                 self.0.hold = true;
+                self.0.outline = outline;
+                self.0.dx = 0;
+                self.0.dy = 0;
                 self.0.fling = None;
             }
             ScrollFrame::Move { dx, dy } => {
@@ -80,10 +84,10 @@ impl Pending {
         Ok(id)
     }
 
-    pub(super) fn complete(&mut self, id: u32, ok: bool, gone: bool) {
+    pub(super) fn complete(&mut self, id: u32, ok: bool, failure: Option<Failure>) {
         if let Some(waiter) = self.waiters.remove(&id) {
-            let result = if gone {
-                Err("Tab closed")
+            let result = if let Some(failure) = failure {
+                Err(failure)
             } else if ok {
                 Ok(())
             } else {
@@ -120,7 +124,7 @@ mod tests {
             vx: 100.0,
             vy: -200.0,
         });
-        queue.push(ScrollFrame::Hold {});
+        queue.push(ScrollFrame::Hold { outline: true });
         for _ in 0..10 {
             queue.push(ScrollFrame::Move {
                 dx: 4096,
@@ -129,6 +133,7 @@ mod tests {
         }
         let out = queue.take().unwrap();
         assert!(out.hold);
+        assert!(out.outline);
         assert_eq!([out.dx, out.dy], [32768, -32768]);
         assert_eq!(out.fling, None);
         assert!(queue.take().is_none());
@@ -150,12 +155,12 @@ mod tests {
         };
         let (first, mut a) = add();
         let (second, mut b) = add();
-        pending.complete(second, false, true);
-        pending.complete(second, true, false);
-        pending.complete(999, true, false);
+        pending.complete(second, false, Some("Tab closed"));
+        pending.complete(second, true, None);
+        pending.complete(999, true, None);
         assert_eq!(b.try_recv(), Ok(Err("Tab closed")));
         assert_eq!(a.try_recv(), Err(oneshot::error::TryRecvError::Empty));
-        pending.complete(first, true, false);
+        pending.complete(first, true, None);
         assert_eq!(a.try_recv(), Ok(Ok(())));
     }
 
@@ -175,7 +180,7 @@ mod tests {
         assert_eq!(pending.expire(now + DEADLINE), None);
         let next = pending.insert(reply, "Failed", now + DEADLINE).unwrap();
         for (id, expired) in &mut waiters {
-            pending.complete(*id, true, false);
+            pending.complete(*id, true, None);
             assert_eq!(expired.try_recv(), Ok(Err("Browser did not respond")));
         }
         assert_ne!(next, waiters[0].0);
