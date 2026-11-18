@@ -12,6 +12,7 @@ type Response = oneshot::Sender<Result<(), Failure>>;
 
 #[derive(Default, serde::Serialize)]
 pub(super) struct ScrollOut {
+    tab: Option<i32>,
     hold: bool,
     outline: bool,
     dx: i32,
@@ -24,19 +25,26 @@ pub(super) struct ScrollQueue(ScrollOut);
 
 impl ScrollQueue {
     pub(super) fn push(&mut self, frame: ScrollFrame) {
+        let tab = frame.tab();
+        if tab != self.0.tab {
+            self.0 = ScrollOut {
+                tab,
+                ..ScrollOut::default()
+            };
+        }
         match frame {
-            ScrollFrame::Hold { outline } => {
+            ScrollFrame::Hold { outline, .. } => {
                 self.0.hold = true;
                 self.0.outline = outline;
                 self.0.dx = 0;
                 self.0.dy = 0;
                 self.0.fling = None;
             }
-            ScrollFrame::Move { dx, dy } => {
+            ScrollFrame::Move { dx, dy, .. } => {
                 self.0.dx = (self.0.dx + dx).clamp(-SCROLL_LIMIT, SCROLL_LIMIT);
                 self.0.dy = (self.0.dy + dy).clamp(-SCROLL_LIMIT, SCROLL_LIMIT);
             }
-            ScrollFrame::Release { vx, vy } => self.0.fling = Some([vx, vy]),
+            ScrollFrame::Release { vx, vy, .. } => self.0.fling = Some([vx, vy]),
         }
     }
 
@@ -123,12 +131,17 @@ mod tests {
         queue.push(ScrollFrame::Release {
             vx: 100.0,
             vy: -200.0,
+            tab: None,
         });
-        queue.push(ScrollFrame::Hold { outline: true });
+        queue.push(ScrollFrame::Hold {
+            outline: true,
+            tab: None,
+        });
         for _ in 0..10 {
             queue.push(ScrollFrame::Move {
                 dx: 4096,
                 dy: -4096,
+                tab: None,
             });
         }
         let out = queue.take().unwrap();
@@ -138,11 +151,36 @@ mod tests {
         assert_eq!(out.fling, None);
         assert!(queue.take().is_none());
 
-        queue.push(ScrollFrame::Release { vx: 0.0, vy: 0.0 });
+        queue.push(ScrollFrame::Release {
+            vx: 0.0,
+            vy: 0.0,
+            tab: None,
+        });
         let out = queue.take().unwrap();
         assert!(!out.hold);
         assert_eq!([out.dx, out.dy], [0, 0]);
         assert_eq!(out.fling, Some([0.0, 0.0]));
+    }
+
+    #[test]
+    fn scroll_deltas_cannot_follow_the_touchpad_to_another_tab() {
+        let mut queue = ScrollQueue::default();
+        queue.push(ScrollFrame::Move {
+            dx: 100,
+            dy: 0,
+            tab: Some(1),
+        });
+        queue.push(ScrollFrame::Hold {
+            outline: false,
+            tab: Some(2),
+        });
+        queue.push(ScrollFrame::Move {
+            dx: 0,
+            dy: 20,
+            tab: Some(2),
+        });
+        let out = queue.take().unwrap();
+        assert_eq!((out.tab, out.hold, out.dx, out.dy), (Some(2), true, 0, 20));
     }
 
     #[test]

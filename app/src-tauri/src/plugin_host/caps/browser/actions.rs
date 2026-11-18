@@ -18,25 +18,36 @@ pub enum ScrollFrame {
     Hold {
         #[serde(default)]
         outline: bool,
+        tab: Option<i32>,
     },
     Move {
         dx: i32,
         dy: i32,
+        tab: Option<i32>,
     },
     Release {
         vx: f32,
         vy: f32,
+        tab: Option<i32>,
     },
 }
 
 impl ScrollFrame {
+    pub(super) fn tab(&self) -> Option<i32> {
+        match self {
+            Self::Hold { tab, .. } | Self::Move { tab, .. } | Self::Release { tab, .. } => *tab,
+        }
+    }
+
     pub(super) fn validate(&self) -> Result<(), Failure> {
         let valid = match self {
-            Self::Hold { .. } => true,
-            Self::Move { dx, dy } => [dx, dy].into_iter().all(|d| d.unsigned_abs() <= 4096),
-            Self::Release { vx, vy } => [vx, vy].into_iter().all(|v| v.abs() <= 10000.0),
+            Self::Hold { outline, tab } => !outline || tab.is_none(),
+            Self::Move { dx, dy, .. } => [dx, dy].into_iter().all(|d| d.unsigned_abs() <= 4096),
+            Self::Release { vx, vy, .. } => [vx, vy].into_iter().all(|v| v.abs() <= 10000.0),
         };
-        valid.then_some(()).ok_or("Invalid scroll request")
+        (valid && self.tab().is_none_or(|tab| tab >= 0))
+            .then_some(())
+            .ok_or("Invalid scroll request")
     }
 }
 
@@ -73,7 +84,6 @@ pub enum MediaInput {
 pub enum PointerInput {
     Begin {},
     Move { dx: i32, dy: i32 },
-    Wheel { dx: i32, dy: i32 },
     Click {},
     Down {},
     Up {},
@@ -83,7 +93,7 @@ pub enum PointerInput {
 impl PointerInput {
     fn validate(&self) -> Result<(), Failure> {
         match self {
-            Self::Move { dx, dy } | Self::Wheel { dx, dy }
+            Self::Move { dx, dy }
                 if [dx, dy]
                     .into_iter()
                     .any(|delta| delta.unsigned_abs() > 2048) =>
@@ -306,6 +316,8 @@ mod tests {
             json!({"phase": "move", "dx": 0.5, "dy": 0}),
             json!({"phase": "move", "dx": -2147483648i32, "dy": 0}),
             json!({"phase": "release", "vx": 0, "vy": 10001}),
+            json!({"phase": "hold", "tab": -1}),
+            json!({"phase": "hold", "outline": true, "tab": 1}),
         ] {
             assert!(
                 serde_json::from_value::<ScrollFrame>(input)
@@ -317,7 +329,8 @@ mod tests {
         assert!(
             ScrollFrame::Move {
                 dx: -4096,
-                dy: 4096
+                dy: 4096,
+                tab: Some(1),
             }
             .validate()
             .is_ok()
@@ -325,7 +338,8 @@ mod tests {
         assert!(
             ScrollFrame::Release {
                 vx: 10000.0,
-                vy: -10000.0
+                vy: -10000.0,
+                tab: Some(1),
             }
             .validate()
             .is_ok()

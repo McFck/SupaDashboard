@@ -38,9 +38,9 @@ export type PluginBrowserSelection = Pick<PluginBrowserOutline, 'tab' | 'doc' | 
 };
 
 export type PluginBrowserScrollFrame =
-  | { phase: 'hold'; outline?: boolean }
-  | { phase: 'move'; dx: number; dy: number }
-  | { phase: 'release'; vx: number; vy: number };
+  | { phase: 'hold'; outline?: boolean; tab?: number }
+  | { phase: 'move'; dx: number; dy: number; tab?: number }
+  | { phase: 'release'; vx: number; vy: number; tab?: number };
 
 export type PluginBrowserAction =
   | { kind: 'activate' | 'close'; tab: number }
@@ -49,7 +49,7 @@ export type PluginBrowserAction =
       kind: 'pointer';
       tab: number;
       input:
-        | { kind: 'move' | 'wheel'; dx: number; dy: number }
+        | { kind: 'move'; dx: number; dy: number }
         | { kind: 'begin' | 'click' | 'down' | 'up' | 'cancel' };
     }
   | {

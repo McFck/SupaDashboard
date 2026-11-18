@@ -4,7 +4,6 @@
   { "kind": "open", "url": "https://example.org/", "destination": "new" },
   { "kind": "pointer", "tab": 1, "input": { "kind": "begin" } },
   { "kind": "pointer", "tab": 1, "input": { "kind": "move", "dx": 12, "dy": -8 } },
-  { "kind": "pointer", "tab": 1, "input": { "kind": "wheel", "dx": 0, "dy": 90 } },
   { "kind": "pointer", "tab": 1, "input": { "kind": "click" } },
   { "kind": "pointer", "tab": 1, "input": { "kind": "down" } },
   { "kind": "pointer", "tab": 1, "input": { "kind": "up" } },

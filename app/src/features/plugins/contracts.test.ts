@@ -37,7 +37,6 @@ it('keeps an action fixture for every browser command in the kit', () => {
   const pointer = {
     begin: { kind: 'begin' },
     move: { kind: 'move', dx: 12, dy: -8 },
-    wheel: { kind: 'wheel', dx: 0, dy: 90 },
     click: { kind: 'click' },
     down: { kind: 'down' },
     up: { kind: 'up' },
