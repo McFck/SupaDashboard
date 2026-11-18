@@ -76,6 +76,11 @@ impl MonitorGuard {
         self.blocked.get()
     }
 
+    pub fn topology_changed(&self, hwnd: HWND) {
+        self.confirmed.set(0);
+        self.check(hwnd);
+    }
+
     pub fn restore(&self, bounds: super::geometry::Geometry) -> Result<(), String> {
         let (x, y, width, height) = bounds.to_win32()?;
         let rect = RECT {

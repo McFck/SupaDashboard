@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { matchMonitor } from './monitor-identity';
 import { buildMonitorOptions, CURRENT_POSITION, monitorSelectOptions } from './monitor-options';
 
 const monitor = (name: string | null, x = 0) => ({
@@ -26,6 +27,27 @@ it('keeps a readable disconnected selection and uses the device path after GDI r
   ).toBe(options[0].value);
   expect(buildMonitorOptions([monitor('DISPLAY17')])[0].label).toBe('Display 1');
   expect(monitorSelectOptions(options, 'DISPLAY17')).toHaveLength(2);
+});
+
+it('matches a recreated virtual display by hardware ID only when the live match is unique', () => {
+  const path = (instance: string) =>
+    `\\\\?\\DISPLAY#MTT1337#${instance}#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}`;
+  const options = (display: string, instance: string) =>
+    buildMonitorOptions(
+      [monitor(display)],
+      [{ name: display, path: path(instance), friendly: 'Virtual Display' }],
+    );
+  const previous = options('DISPLAY17', '5&old&0&UID17');
+  const [recreated] = options('DISPLAY22', '5&new&0&UID22');
+  const [second] = options('DISPLAY23', '5&other&0&UID23');
+  const saved = previous[0].value;
+  expect(matchMonitor([recreated], saved)).toBe(recreated);
+  expect(monitorSelectOptions([recreated], saved)).toEqual([
+    expect.objectContaining({ value: CURRENT_POSITION }),
+    recreated,
+  ]);
+  expect(matchMonitor([recreated, second], saved)).toBeUndefined();
+  expect(matchMonitor([recreated, ...previous], saved)).toBe(previous[0]);
 });
 
 it.each([

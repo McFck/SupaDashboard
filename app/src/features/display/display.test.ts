@@ -12,6 +12,7 @@ const native = vi.hoisted(() => ({
   bounds: { x: 10, y: 10, width: 400, height: 300 } as Geometry,
   adjustment: 0,
   blocked: false,
+  guardedMonitor: null as string | null,
   readMonitors: vi.fn<() => Promise<MonitorSnapshot>>(),
   shown: undefined as undefined | ((shown: boolean) => Promise<void>),
 }));
@@ -23,7 +24,10 @@ vi.mock('../../platform/window', () => ({
     return (native.bounds = { ...bounds, width: bounds.width + native.adjustment });
   },
   setDashboardInteractionMode: async () => {},
-  setDashboardMonitor: async () => native.blocked,
+  setDashboardMonitor: async (monitor: string | null) => {
+    native.guardedMonitor = monitor;
+    return native.blocked;
+  },
   dashboardMonitorBlocked: async () => native.blocked,
   setDashboardShown: async (shown: boolean) => native.shown?.(shown),
 }));
@@ -340,22 +344,31 @@ it.each([false, true])(
   },
 );
 
-it('restores after a native hide even when the monitor returns between availability polls', async () => {
+it.each([false, true])('restores a monitor between polls (new instance=%s)', async (recreated) => {
   const { deck, stored, moved, set, show } = windowFixture();
-  native.screens.push(secondScreen());
+  const path = (instance: string) =>
+    `\\\\?\\display#mtt1337#${instance}#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}`;
+  const original = path('old');
+  native.screens.push({ ...secondScreen(), name: original, legacyName: 'DISPLAY17' });
   const remembered = { x: 2100, y: 60, width: 800, height: 500 };
-  stored.dashboardByMonitor = { second: remembered };
+  stored.dashboardByMonitor = { [original]: remembered };
   vi.useFakeTimers();
   try {
-    await controller.start(onSecond, deck);
+    await controller.start({ ...onSecond, monitor: original }, deck);
     set.mockClear();
+    const live = recreated ? path('new') : original;
+    if (recreated) {
+      native.screens[1] = { ...secondScreen(), name: live, legacyName: 'DISPLAY22' };
+    }
     native.bounds = { x: 10, y: 10, width: 800, height: 500 };
-    native.blocked = true;
+    native.blocked = !recreated;
     moved();
     await vi.advanceTimersByTimeAsync(400);
     expect(set).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1200);
+    expect(native.guardedMonitor).toBe(live);
     expect(native.bounds).toEqual(remembered);
+    expect(stored.dashboardByMonitor).toEqual({ [original]: remembered });
     expect(show).toHaveBeenCalledOnce();
   } finally {
     vi.useRealTimers();

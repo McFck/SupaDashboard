@@ -1,5 +1,6 @@
 // Pure dashboard window geometry and placement policy: monitor choice, work-area clamping, first-launch size.
 import type { Page, Settings } from '../settings/schema';
+import { matchMonitor } from './monitor-identity';
 
 /** Physical pixels, as Tauri reports outer window and monitor rectangles. */
 export type Geometry = { x: number; y: number; width: number; height: number };
@@ -80,9 +81,7 @@ export function monitorWithLargestIntersection<
 export const chosenMonitorMissing = (
   screens: readonly { name: string; legacyName?: string }[],
   preferred: string | null,
-) =>
-  !!preferred &&
-  !screens.some((screen) => screen.name === preferred || screen.legacyName === preferred);
+) => !!preferred && !matchMonitor(screens, preferred);
 
 /** Monitor for a live display change: the explicit choice, else wherever the window is now, else the primary. */
 export function resolveLiveMonitor<T extends Pick<MonitorGeometry, 'name' | 'legacyName'>>(
@@ -91,9 +90,7 @@ export function resolveLiveMonitor<T extends Pick<MonitorGeometry, 'name' | 'leg
   current: T | null,
   primary: T | null,
 ): T | undefined {
-  const explicit = preferred
-    ? screens.find((screen) => screen.name === preferred || screen.legacyName === preferred)
-    : undefined;
+  const explicit = matchMonitor(screens, preferred);
   const currentScreen = current
     ? screens.find((screen) => screen.name === current.name)
     : undefined;
@@ -186,8 +183,8 @@ export function startupPlacement(
     bounds = actual;
   } else if (savedBounds) {
     const savedMonitor = monitorWithLargestIntersection(savedBounds, screens);
-    const explicitChanged =
-      !!preferred && monitor.name === preferred && savedMonitor?.name !== monitor.name;
+    const legacyAlias = monitor.name !== preferred && monitor.legacyName === preferred;
+    const explicitChanged = !!preferred && !legacyAlias && savedMonitor?.name !== monitor.name;
     bounds = clampGeometryToWorkArea(savedBounds, monitor, explicitChanged) ?? actual;
   } else {
     bounds = firstLaunchGeometry(deck, monitor) ?? actual;

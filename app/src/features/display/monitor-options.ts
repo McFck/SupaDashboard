@@ -1,5 +1,6 @@
 import { isRecord } from '../automation/plain-data';
 import { monitorRect, sameGeometry } from './geometry';
+import { matchMonitor } from './monitor-identity';
 
 export const CURRENT_POSITION = '__current_position__';
 
@@ -100,11 +101,7 @@ export function monitorSelectOptions(
   const local: MonitorOption[] = [
     { value: CURRENT_POSITION, label: 'Current position', ordinal: 0, primary: false },
   ];
-  if (
-    selected !== null &&
-    selected !== CURRENT_POSITION &&
-    !options.some((option) => option.value === selected || option.legacyName === selected)
-  ) {
+  if (selected !== null && selected !== CURRENT_POSITION && !matchMonitor(options, selected)) {
     local.push({
       value: selected,
       label: savedLabel || 'Display',

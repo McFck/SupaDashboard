@@ -17,12 +17,18 @@ import {
   validGeometry,
 } from './geometry';
 import type { Geometry, MonitorGeometry } from './geometry';
+import { matchMonitor } from './monitor-identity';
 
 const SAVE_DELAY_MS = 300;
 /** window-state.json key: the remembered windowed rectangle per monitor name. */
 const BY_MONITOR = 'dashboardByMonitor';
 
 type StartupPlacement = Awaited<ReturnType<WindowedBounds['startupPlacement']>>;
+
+function boundsKey(target: MonitorGeometry, preferred: string | null) {
+  // A selected device path survives a reconnect as the settings key. GDI aliases can be reused by Windows.
+  return preferred && preferred !== target.legacyName ? preferred : target.name;
+}
 
 export class WindowedBounds {
   selected: string | null = null;
@@ -101,18 +107,16 @@ export class WindowedBounds {
   }
 
   /** Where the window opens: the saved rectangle, or the deck's natural size, on the chosen monitor. */
-  async startupPlacement(preferred: string | null, deck: Page) {
-    const [{ screens, current, primary }, actual] = await Promise.all([
-      connectedMonitors(),
-      this.win.readBounds(),
-    ]);
-    const target = screens.find(
-      (screen) => screen.name === preferred || screen.legacyName === preferred,
-    );
-    // Windows reuses GDI numbers; migrate an alias only while the saved selection still uses that alias.
+  async startupPlacement(
+    { screens, current, primary }: Awaited<ReturnType<typeof connectedMonitors>>,
+    preferred: string | null,
+    deck: Page,
+  ) {
+    const actual = await this.win.readBounds();
+    const target = matchMonitor(screens, preferred);
     const saved = await this.remembered(
-      target?.name ?? preferred,
-      preferred === target?.legacyName ? target?.legacyName : undefined,
+      target ? boundsKey(target, preferred) : preferred,
+      preferred,
     );
     const placement = startupPlacement(screens, preferred, saved, primary, actual, deck);
     return {
@@ -124,10 +128,10 @@ export class WindowedBounds {
   }
 
   /** Explicit monitors use their own entry; the global rectangle is only for automatic placement. */
-  private async remembered(monitor: string | null, legacyName?: string) {
+  private async remembered(monitor: string | null, preferred: string | null) {
     const entries = await this.rememberedByMonitor();
     const byMonitor = monitor
-      ? (entries[monitor] ?? (legacyName ? entries[legacyName] : undefined))
+      ? (entries[monitor] ?? (preferred ? entries[preferred] : undefined))
       : undefined;
     // A global rectangle may have been saved after Windows moved a disconnected window to DISPLAY1.
     return monitor ? byMonitor : await this.store.get<Geometry>('dashboard');
@@ -181,20 +185,20 @@ export class WindowedBounds {
 
   /** `dashboard` stays the last rectangle (the pre-per-monitor shape), so an older build still reads it. */
   async save(bounds: Geometry, monitor: string | null) {
+    let key = monitor;
     if (this.selected) {
       const { screens } = await connectedMonitors();
-      const target = screens.find(
-        (screen) => screen.name === this.selected || screen.legacyName === this.selected,
-      );
+      const target = matchMonitor(screens, this.selected);
       if (!target || monitorWithLargestIntersection(bounds, screens)?.name !== target.name) {
         return;
       }
       monitor = target.name;
+      key = boundsKey(target, this.selected);
     }
-    if (monitor) {
+    if (key) {
       await this.store.set(BY_MONITOR, {
         ...(await this.rememberedByMonitor()),
-        [monitor]: bounds,
+        [key]: bounds,
       });
     }
     await this.store.set('dashboard', bounds);

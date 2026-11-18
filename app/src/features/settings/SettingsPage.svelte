@@ -14,6 +14,7 @@
   import Choice from '../plugins/ui/Choice.svelte';
   import Row from '../../panel/ui/Row.svelte';
   import Section from '../../panel/ui/Section.svelte';
+  import { matchMonitor } from '../display/monitor-identity';
   import {
     buildMonitorOptions,
     CURRENT_POSITION,
@@ -42,12 +43,7 @@
       iconLabel: option.primary ? 'Primary display' : undefined,
     })),
   );
-  const selectedMonitor = $derived(
-    monitorOptions.find(
-      (option) =>
-        option.value === settings.display.monitor || option.legacyName === settings.display.monitor,
-    ),
-  );
+  const selectedMonitor = $derived(matchMonitor(monitorOptions, settings.display.monitor));
 
   function chooseMonitor(value: string) {
     settings.display.monitor = value === CURRENT_POSITION ? null : value;
