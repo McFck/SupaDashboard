@@ -13,6 +13,7 @@ import {
 } from '../../platform/window';
 import { ControlledWindow } from './controlled-window';
 import { Fullscreen } from './fullscreen';
+import { matchMonitor } from './monitor-identity';
 import {
   chosenMonitorMissing,
   resolveLiveMonitor,
@@ -58,6 +59,7 @@ export class DisplayController {
   private readonly listeners: (() => void)[] = [];
   private applied: DisplayRequest | null = null;
   private latest: DisplayRequest | null = null;
+  private guardedMonitor: string | null = null;
   private deck: Page | null = null;
   /** Hidden because the chosen monitor is not connected; nothing is moved or saved until it returns. */
   unavailable = false;
@@ -131,10 +133,11 @@ export class DisplayController {
     this.deck = deck;
     this.latest = initial;
     this.windowed.selected = initial.monitor;
-    await setDashboardMonitor(initial.monitor);
+    const snapshot = await connectedMonitors();
+    await this.guardMonitor(initial.monitor, matchMonitor(snapshot.screens, initial.monitor));
     this.window.topmost = await this.win.isAlwaysOnTop();
     this.window.step();
-    const startup = await this.windowed.startupPlacement(initial.monitor, deck);
+    const startup = await this.windowed.startupPlacement(snapshot, initial.monitor, deck);
     if (this.abandoned()) {
       return false;
     }
@@ -156,12 +159,7 @@ export class DisplayController {
     if (this.abandoned()) {
       return false;
     }
-    if (
-      initial.fullscreen === this.fullscreen.active &&
-      (!initial.monitor ||
-        initial.monitor === startup.monitor?.name ||
-        initial.monitor === startup.monitor?.legacyName)
-    ) {
+    if (initial.fullscreen === this.fullscreen.active) {
       this.applied = initial;
     }
     this.onFullscreen(this.fullscreen.active);
@@ -189,20 +187,24 @@ export class DisplayController {
   private async apply(request: DisplayRequest) {
     const last = this.applied;
     this.windowed.selected = request.monitor;
-    if (await setDashboardMonitor(request.monitor)) {
+    const snapshot = await resolveTarget(request.monitor);
+    const { screens, current, target } = snapshot;
+    this.window.step();
+    const previousGuard = this.guardedMonitor;
+    const blocked = await this.guardMonitor(request.monitor, target);
+    if (blocked || (request.monitor === last?.monitor && this.guardedMonitor !== previousGuard)) {
       await this.hide();
     }
     if (
       last &&
       !this.unavailable &&
+      (!request.monitor || target) &&
       request.monitor === last.monitor &&
       request.fullscreen === last.fullscreen
     ) {
       await this.window.setTopmost(this.fullscreen.active || request.alwaysOnTop);
       return true;
     }
-    const { screens, current, target } = await resolveTarget(request.monitor);
-    this.window.step();
     if (!target) {
       if (request.monitor) {
         await this.hide();
@@ -213,7 +215,21 @@ export class DisplayController {
     }
 
     if (this.unavailable) {
-      await this.reopen(request, target, screens, current);
+      // Restore from the same snapshot used to select the native guard.
+      if (!this.deck) {
+        throw new Error('Dashboard grid is not configured');
+      }
+      const placement = await this.windowed.startupPlacement(snapshot, request.monitor, this.deck);
+      if (!(await this.windowed.restore(placement))) {
+        return false;
+      }
+      this.fullscreen.active = false;
+      this.window.step();
+      if (request.fullscreen) {
+        await this.fullscreen.enter(target, screens, current);
+      } else {
+        await this.window.setTopmost(request.alwaysOnTop);
+      }
     } else if (request.fullscreen) {
       if (!this.fullscreen.active) {
         await this.fullscreen.enter(target, screens, current);
@@ -227,35 +243,17 @@ export class DisplayController {
     } else if (this.fullscreen.active) {
       await this.fullscreen.exit(target, request.alwaysOnTop);
     } else if (request.monitor !== last?.monitor) {
-      const chosen =
-        !!request.monitor &&
-        (target.name === request.monitor || target.legacyName === request.monitor);
-      await this.windowed.moveTo(target, chosen, request.alwaysOnTop);
+      await this.windowed.moveTo(target, !!request.monitor, request.alwaysOnTop);
     }
     await this.show();
-    return (
-      !request.monitor || target.name === request.monitor || target.legacyName === request.monitor
-    );
+    return true;
   }
 
-  /** The screen is back (or another one was chosen): open at its remembered rectangle, as at start-up. */
-  private async reopen(
-    request: DisplayRequest,
-    target: MonitorGeometry,
-    screens: MonitorGeometry[],
-    current: MonitorGeometry | null,
-  ) {
-    if (!this.deck) {
-      throw new Error('Dashboard grid is not configured');
-    }
-    await this.windowed.restore(await this.windowed.startupPlacement(request.monitor, this.deck));
-    this.fullscreen.active = false;
-    this.window.step();
-    if (request.fullscreen) {
-      await this.fullscreen.enter(target, screens, current);
-    } else {
-      await this.window.setTopmost(request.alwaysOnTop);
-    }
+  private async guardMonitor(preferred: string | null, target: MonitorGeometry | undefined) {
+    const monitor = preferred ? (target?.name ?? preferred) : null;
+    const blocked = await setDashboardMonitor(monitor);
+    this.guardedMonitor = monitor;
+    return blocked;
   }
 
   private async hide() {
@@ -297,13 +295,11 @@ export class DisplayController {
         if (this.latest !== request) {
           return;
         }
-        const missing = chosenMonitorMissing(screens, request.monitor);
-        if (blocked) {
+        const target = matchMonitor(screens, request.monitor);
+        if (blocked || !target || target.name !== this.guardedMonitor) {
           await this.hide();
         }
-        if (missing && !this.unavailable) {
-          await this.hide();
-        } else if (!missing && this.unavailable) {
+        if (target && this.unavailable) {
           void this.request(request);
         }
       });
