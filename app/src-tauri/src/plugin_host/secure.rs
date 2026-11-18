@@ -89,10 +89,22 @@ impl ProtectedFile {
         path: PathBuf,
         label: &'static str,
     ) -> Result<(Self, Option<T>), String> {
+        let (file, value) = Self::inspect(path, label)?;
+        Ok((file, value?))
+    }
+
+    /// Keeps the original bytes for recovery after the user successfully signs in again.
+    pub(super) fn inspect<T: DeserializeOwned>(
+        path: PathBuf,
+        label: &'static str,
+    ) -> Result<(Self, Result<Option<T>, String>), String> {
         let original = read(&path, label)?;
         let value = original
             .as_ref()
             .map(|bytes| -> Result<T, String> {
+                if bytes.len() > 131_072 {
+                    return Err(format!("Unreadable {label} store"));
+                }
                 let envelope: Envelope = serde_json::from_slice(bytes)
                     .map_err(|_| format!("Unreadable {label} store"))?;
                 if envelope.version != 1 {
@@ -101,7 +113,7 @@ impl ProtectedFile {
                 serde_json::from_slice(&protect(&envelope.protected, false)?)
                     .map_err(|_| format!("Unreadable {label} credentials"))
             })
-            .transpose()?;
+            .transpose();
         let file = Self {
             path,
             original,
@@ -181,7 +193,7 @@ pub fn replace(from: &Path, to: &Path) -> windows::core::Result<()> {
 
 fn read(path: &Path, label: &str) -> Result<Option<Vec<u8>>, String> {
     match fs::read(path) {
-        Ok(bytes) if bytes.len() <= 131_072 => Ok(Some(bytes)),
+        Ok(bytes) => Ok(Some(bytes)),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         _ => Err(format!("Could not read {label} store")),
     }

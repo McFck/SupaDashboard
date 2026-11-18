@@ -36,6 +36,7 @@ struct Owned {
     power_off: Option<process::Armed>,
     watcher: Option<automation::Watcher>,
     browser: Option<browser::Watcher>,
+    browser_start: Option<u32>,
 }
 
 impl Drop for Owned {
@@ -58,7 +59,7 @@ pub struct Caps {
     signed_in: Mutex<HashMap<(String, String), signin::Session>>,
     /// The plugin's sign-in window, shared by the sign-ins using it; it closes with the last one.
     signin_windows: Mutex<HashMap<String, std::sync::Weak<signin::Window>>>,
-    browser: Mutex<std::sync::Weak<browser::Bridge>>,
+    browser: tokio::sync::Mutex<browser::Listener>,
     /// Handles of pipes and processes.
     next: AtomicU32,
 }

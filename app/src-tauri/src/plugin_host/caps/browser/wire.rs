@@ -10,7 +10,8 @@ use tokio_tungstenite::{
 
 pub(super) const ADDRESS: &str = "127.0.0.1:43822";
 pub(super) const PATH: &str = "/browser-remote";
-pub(super) const LIMIT: usize = 512 * 1024;
+pub(super) const LOGIN_LIMIT: usize = 1024;
+pub(super) const LIMIT: usize = 128 * 1024;
 pub(super) const DEADLINE: Duration = Duration::from_secs(4);
 pub(super) type Socket = WebSocketStream<TcpStream>;
 pub(super) type Failure = &'static str;

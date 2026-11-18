@@ -1,27 +1,27 @@
 use super::{
-    pairing::{Pairing, Proof},
-    wire::{self, ADDRESS, Command, DEADLINE, Failure, LIMIT, Reply, Socket, Tab},
+    pairing::{Hello, Mode, Pairing, Proof},
+    wire::{self, ADDRESS, Command, DEADLINE, Failure, LIMIT, LOGIN_LIMIT, Reply, Socket, Tab},
 };
 use serde::Serialize;
 use std::{
     path::PathBuf,
     sync::{
-        Arc, Mutex, MutexGuard, PoisonError, Weak,
+        Arc, Mutex, MutexGuard, PoisonError,
         atomic::{AtomicU32, Ordering},
     },
     time::{Duration, Instant},
 };
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{mpsc, oneshot, watch},
-    task::{AbortHandle, JoinSet},
+    sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch},
+    task::{AbortHandle, JoinHandle, JoinSet},
     time::{MissedTickBehavior, interval, timeout},
 };
 use tokio_tungstenite::{
-    accept_hdr_async_with_config,
+    WebSocketStream, accept_hdr_async_with_config,
     tungstenite::{
         handshake::server::{ErrorResponse, Request, Response},
-        protocol::WebSocketConfig,
+        protocol::{Role, WebSocketConfig},
     },
 };
 
@@ -29,11 +29,11 @@ use tokio_tungstenite::{
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Snapshot {
     Offline,
+    Repair,
     Connected { revision: u32, tabs: Vec<Tab> },
 }
 
 pub(super) struct Activation {
-    pub owner: Weak<()>,
     pub revision: u32,
     pub tab: i32,
     pub reply: oneshot::Sender<Result<(), Failure>>,
@@ -61,8 +61,17 @@ struct Server {
 }
 
 impl Bridge {
-    pub(super) fn start(plugin: String, extension: String, path: PathBuf) -> Result<Self, String> {
-        let pairing = Pairing::open(path)?;
+    pub(super) fn start(
+        plugin: String,
+        extension: String,
+        path: PathBuf,
+    ) -> Result<(Self, JoinHandle<()>), String> {
+        let pairing = Pairing::open(path);
+        let snapshot = if pairing.needs_repair() {
+            Snapshot::Repair
+        } else {
+            Snapshot::Offline
+        };
         let bind_error = |_| "Browser Remote port 43822 is unavailable";
         let listener = std::net::TcpListener::bind(ADDRESS).map_err(bind_error)?;
         listener.set_nonblocking(true).map_err(bind_error)?;
@@ -72,17 +81,16 @@ impl Bridge {
             pairing: Mutex::new(pairing),
             admission: tokio::sync::Mutex::new(()),
             commands: Mutex::new(None),
-            snapshots: watch::Sender::new(Snapshot::Offline),
+            snapshots: watch::Sender::new(snapshot),
             revision: AtomicU32::default(),
         });
-        let task = tauri::async_runtime::spawn(serve(listener, state.clone()))
-            .inner()
-            .abort_handle();
-        Ok(Self {
+        let task = tokio::spawn(serve(listener, state.clone()));
+        let bridge = Self {
             plugin,
-            task,
+            task: task.abort_handle(),
             state,
-        })
+        };
+        Ok((bridge, task))
     }
 
     pub(super) fn extension(&self) -> &str {
@@ -121,11 +129,15 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 async fn serve(listener: TcpListener, state: Arc<Server>) {
     let mut peers = JoinSet::new();
+    let slots = Arc::new(Semaphore::new(4));
     loop {
         tokio::select! {
-            result = listener.accept(), if peers.len() < 4 => {
-                match result {
-                    Ok((stream, _)) => { peers.spawn(connect(stream, state.clone())); }
+            incoming = async {
+                let slot = slots.clone().acquire_owned().await.expect("pre-auth semaphore stays open");
+                listener.accept().await.map(|(stream, _)| (stream, slot))
+            } => {
+                match incoming {
+                    Ok((stream, slot)) => { peers.spawn(connect(stream, state.clone(), slot)); }
                     Err(error) => {
                         log::warn!("Browser Remote listener: {error}");
                         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -137,15 +149,13 @@ async fn serve(listener: TcpListener, state: Arc<Server>) {
     }
 }
 
-async fn authenticate(
-    stream: TcpStream,
-    state: &Server,
-) -> Result<(Socket, tokio::sync::MutexGuard<'_, ()>), Failure> {
+async fn upgrade(stream: TcpStream, extension: &str) -> Result<(Socket, Hello), Failure> {
     let config = WebSocketConfig::default()
-        .max_message_size(Some(LIMIT))
-        .max_frame_size(Some(LIMIT));
+        .read_buffer_size(LOGIN_LIMIT)
+        .max_message_size(Some(LOGIN_LIMIT))
+        .max_frame_size(Some(LOGIN_LIMIT));
     let upgrade = |request: &Request, response: Response| {
-        if wire::origin(request, &state.extension) {
+        if wire::origin(request, extension) {
             Ok(response)
         } else {
             let mut refused = ErrorResponse::new(None);
@@ -157,28 +167,68 @@ async fn authenticate(
         .await
         .map_err(|_| "Browser upgrade refused")?;
     let hello = wire::read(&mut socket).await?;
+    Ok((socket, hello))
+}
+
+async fn authenticate<'a>(
+    socket: &mut Socket,
+    hello: Hello,
+    state: &'a Server,
+) -> Result<(Mode, tokio::sync::MutexGuard<'a, ()>), Failure> {
     let (attempt, challenge) =
         lock(&state.pairing).begin(hello, &state.extension, Instant::now())?;
-    wire::send(&mut socket, &challenge).await?;
-    let proof: Proof = wire::read(&mut socket).await?;
+    wire::send(socket, &challenge).await?;
+    let proof: Proof = wire::read(socket).await?;
     let permit = state
         .admission
         .try_lock()
         .map_err(|_| "Browser is already connected")?;
-    lock(&state.pairing)
+    let mode = lock(&state.pairing)
         .finish(attempt, &state.extension, proof, Instant::now())
         .map_err(|error| {
             log::debug!("Browser Remote authentication: {error}");
             "Browser authentication refused"
         })?;
-    wire::send(&mut socket, &serde_json::json!({"kind": "ready"})).await?;
-    Ok((socket, permit))
+    Ok((mode, permit))
 }
 
-async fn connect(stream: TcpStream, state: Arc<Server>) {
-    let Ok(Ok((socket, _permit))) = timeout(DEADLINE, authenticate(stream, &state)).await else {
+async fn connect(stream: TcpStream, state: Arc<Server>, slot: OwnedSemaphorePermit) {
+    let Ok(Ok((mut socket, hello))) =
+        timeout(Duration::from_secs(1), upgrade(stream, &state.extension)).await
+    else {
         return;
     };
+    let Ok(Ok((mode, permit))) = timeout(DEADLINE, authenticate(&mut socket, hello, &state)).await
+    else {
+        return;
+    };
+    drop(slot);
+    if mode == Mode::Pair {
+        drop(permit);
+        // Give the extension time to save the credential and close this socket before logging in.
+        let _ = timeout(DEADLINE, async {
+            wire::send(&mut socket, &serde_json::json!({"kind": "ready"})).await?;
+            wire::read::<Proof>(&mut socket).await
+        })
+        .await;
+        return;
+    }
+    // The extension waits for ready and a request before sending any session frames.
+    let config = WebSocketConfig::default()
+        .max_message_size(Some(LIMIT))
+        .max_frame_size(Some(LIMIT));
+    let mut socket =
+        WebSocketStream::from_raw_socket(socket.into_inner(), Role::Server, Some(config)).await;
+    if !matches!(
+        timeout(
+            DEADLINE,
+            wire::send(&mut socket, &serde_json::json!({"kind": "ready"}))
+        )
+        .await,
+        Ok(Ok(()))
+    ) {
+        return;
+    }
     let (send, receive) = mpsc::channel(4);
     *lock(&state.commands) = Some(send);
     if let Err(error) = session(socket, &state, receive).await {
@@ -229,7 +279,7 @@ async fn activate(
 ) -> Result<(), Failure> {
     let current = matches!(&*state.snapshots.borrow(), Snapshot::Connected { revision, tabs }
         if *revision == action.revision && tabs.iter().any(|tab| tab.id == action.tab));
-    if !current || action.owner.strong_count() == 0 || action.reply.is_closed() {
+    if !current || action.reply.is_closed() {
         let _ = action.reply.send(Err("Browser tabs changed"));
         return Ok(());
     }

@@ -3,20 +3,28 @@ mod pairing;
 mod server;
 mod wire;
 
-use std::sync::{Arc, PoisonError};
+use std::sync::{Arc, Weak};
 
 use tauri::{Manager, Webview, ipc::Channel};
-use tokio::{sync::oneshot, task::AbortHandle, time::timeout};
+use tokio::{
+    sync::oneshot,
+    task::{AbortHandle, JoinHandle},
+    time::timeout,
+};
 
 use crate::plugin_host::PluginHost;
 
-pub(super) use server::Bridge;
-use server::{Activation, Snapshot};
+use server::{Activation, Bridge, Snapshot};
+
+#[derive(Default)]
+pub(super) struct Listener {
+    bridge: Weak<Bridge>,
+    task: Option<JoinHandle<()>>,
+}
 
 pub(super) struct Watcher {
     id: u32,
     bridge: Arc<Bridge>,
-    owner: Arc<()>,
     task: AbortHandle,
 }
 
@@ -43,24 +51,40 @@ pub async fn plugin_browser_watch(
     events: Channel<Snapshot>,
 ) -> Result<u32, String> {
     let host = webview.state::<PluginHost>();
-    let extension = grant(&host, &plugin)?;
+    grant(&host, &plugin)?;
+    let id = host.caps.handle();
     host.caps.with(&plugin, webview.label(), |owned| {
-        let mut active = host
-            .caps
-            .browser
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        let bridge = match active.upgrade() {
+        owned.browser_start = Some(id)
+    });
+    let mut active = host.caps.browser.lock().await;
+    let bridge = active.bridge.upgrade();
+    if bridge.is_none() {
+        if let Some(task) = active.task.as_mut() {
+            // The last watcher aborts the server. Await it before rebinding the listener.
+            let _ = task.await;
+        }
+        active.task = None;
+    }
+    host.caps.with(&plugin, webview.label(), |owned| {
+        if owned.browser_start != Some(id) {
+            return Err("Browser Remote page closed".into());
+        }
+        owned.browser_start = None;
+        let extension = grant(&host, &plugin)?;
+        let bridge = match bridge {
             Some(bridge) if bridge.plugin == plugin && bridge.extension() == extension => bridge,
             Some(_) => return Err("Browser Remote is in use".into()),
             None => {
                 let path = host.data(&plugin).join(".browser-remote.json");
-                let bridge = Arc::new(Bridge::start(plugin.clone(), extension, path)?);
-                *active = Arc::downgrade(&bridge);
+                let (bridge, task) = Bridge::start(plugin.clone(), extension, path)?;
+                let bridge = Arc::new(bridge);
+                *active = Listener {
+                    bridge: Arc::downgrade(&bridge),
+                    task: Some(task),
+                };
                 bridge
             }
         };
-        let id = host.caps.handle();
         let mut snapshots = bridge.snapshots();
         let task = tauri::async_runtime::spawn(async move {
             loop {
@@ -72,12 +96,7 @@ pub async fn plugin_browser_watch(
         })
         .inner()
         .abort_handle();
-        owned.browser = Some(Watcher {
-            id,
-            bridge,
-            owner: Arc::new(()),
-            task,
-        });
+        owned.browser = Some(Watcher { id, bridge, task });
         Ok(id)
     })
 }
@@ -140,7 +159,6 @@ pub async fn plugin_browser_activate(
     let (reply, result) = oneshot::channel();
     watched(&webview, &plugin, watch, |watcher| {
         watcher.bridge.activate(Activation {
-            owner: Arc::downgrade(&watcher.owner),
             revision,
             tab,
             reply,
