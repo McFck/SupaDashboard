@@ -46,6 +46,13 @@ export type PluginBrowserAction =
   | { kind: 'activate' | 'close'; tab: number }
   | { kind: 'open'; url: string; destination: 'new' | 'current' }
   | {
+      kind: 'pointer';
+      tab: number;
+      input:
+        | { kind: 'move' | 'wheel'; dx: number; dy: number }
+        | { kind: 'begin' | 'click' | 'down' | 'up' | 'cancel' };
+    }
+  | {
       kind: 'page';
       input:
         | { kind: 'page_up' | 'page_down' | 'top' | 'bottom' }

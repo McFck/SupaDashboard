@@ -70,6 +70,33 @@ pub enum MediaInput {
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PointerInput {
+    Begin {},
+    Move { dx: i32, dy: i32 },
+    Wheel { dx: i32, dy: i32 },
+    Click {},
+    Down {},
+    Up {},
+    Cancel {},
+}
+
+impl PointerInput {
+    fn validate(&self) -> Result<(), Failure> {
+        match self {
+            Self::Move { dx, dy } | Self::Wheel { dx, dy }
+                if [dx, dy]
+                    .into_iter()
+                    .any(|delta| delta.unsigned_abs() > 2048) =>
+            {
+                Err("Invalid browser pointer movement")
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
     Activate {
         tab: i32,
@@ -86,6 +113,10 @@ pub enum Action {
     },
     Media {
         input: MediaInput,
+    },
+    Pointer {
+        tab: i32,
+        input: PointerInput,
     },
 }
 
@@ -116,6 +147,8 @@ impl Action {
 
     pub(super) fn validate_input(&self) -> Result<(), Failure> {
         match self {
+            Self::Pointer { tab, .. } if *tab < 0 => Err("Invalid browser tab"),
+            Self::Pointer { input, .. } => input.validate(),
             Self::Page {
                 input:
                     PageInput::Preview { selection }
@@ -144,6 +177,11 @@ impl Action {
             } if state.active_tab.is_none() => Err("No active browser tab"),
             Self::Page { .. } if state.active_tab.is_none() => Err("No active browser tab"),
             Self::Media { .. } if !state.has_media() => Err("Browser media unavailable"),
+            Self::Pointer { tab, input }
+                if !matches!(input, PointerInput::Cancel {}) && state.active_tab != Some(*tab) =>
+            {
+                Err("Browser tab changed")
+            }
             _ => Ok(()),
         }
     }
@@ -159,6 +197,7 @@ impl Action {
             } => "Page element is unavailable",
             Self::Page { .. } => "Could not scroll this tab",
             Self::Media { .. } => "Could not control browser media",
+            Self::Pointer { .. } => "Browser touchpad unavailable",
         }
     }
 }
@@ -220,6 +259,8 @@ mod tests {
             json!({"kind": "media", "input": {"kind": "speed", "rate": 0}}),
             json!({"kind": "media", "input": {"kind": "seek", "seconds": -601}}),
             json!({"kind": "media", "input": {"kind": "fullscreen", "window": 2}}),
+            json!({"kind": "pointer", "tab": 1, "input": {"kind": "move", "dx": 2049, "dy": 0}}),
+            json!({"kind": "pointer", "tab": 1, "input": {"kind": "click", "x": 4}}),
         ] {
             assert!(validate(value.clone()).is_err(), "{value}");
         }
@@ -227,6 +268,14 @@ mod tests {
             (json!({"kind": "activate", "tab": 0}), false),
             (json!({"kind": "close", "tab": -1}), false),
             (json!({"kind": "close", "tab": 1}), true),
+            (
+                json!({"kind": "pointer", "tab": 2, "input": {"kind": "click"}}),
+                false,
+            ),
+            (
+                json!({"kind": "pointer", "tab": 1, "input": {"kind": "click"}}),
+                true,
+            ),
             (
                 json!({"kind": "page", "input": {"kind": "page_down"}}),
                 true,

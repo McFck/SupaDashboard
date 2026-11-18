@@ -3,8 +3,11 @@ import fixture from './browser-actions.fixture.json';
 import type { PluginBrowserAction } from './contracts';
 
 type Kind = PluginBrowserAction['kind'];
-type Input<K extends 'page' | 'media'> = Extract<PluginBrowserAction, { kind: K }>['input'];
-type Examples<K extends 'page' | 'media'> = Record<Input<K>['kind'], Input<K>>;
+type Input<K extends 'page' | 'media' | 'pointer'> = Extract<
+  PluginBrowserAction,
+  { kind: K }
+>['input'];
+type Examples<K extends 'page' | 'media' | 'pointer'> = Record<Input<K>['kind'], Input<K>>;
 
 it('keeps an action fixture for every browser command in the kit', () => {
   const selection = {
@@ -31,11 +34,21 @@ it('keeps an action fixture for every browser command in the kit', () => {
     speed: { kind: 'speed', rate: 1.5 },
     fullscreen: { kind: 'fullscreen' },
   } satisfies Examples<'media'>;
+  const pointer = {
+    begin: { kind: 'begin' },
+    move: { kind: 'move', dx: 12, dy: -8 },
+    wheel: { kind: 'wheel', dx: 0, dy: 90 },
+    click: { kind: 'click' },
+    down: { kind: 'down' },
+    up: { kind: 'up' },
+    cancel: { kind: 'cancel' },
+  } satisfies Examples<'pointer'>;
   // TypeScript widens string literals in JSON imports, so check the fixture against typed examples.
   const examples = {
     activate: [{ kind: 'activate', tab: 1 }],
     close: [{ kind: 'close', tab: 1 }],
     open: [{ kind: 'open', url: 'https://example.org/', destination: 'new' }],
+    pointer: Object.values(pointer).map((input) => ({ kind: 'pointer', tab: 1, input })),
     page: Object.values(page).map((input) => ({ kind: 'page', input })),
     media: Object.values(media).map((input) => ({ kind: 'media', input })),
   } satisfies Record<Kind, PluginBrowserAction[]>;
