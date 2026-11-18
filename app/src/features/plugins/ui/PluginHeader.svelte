@@ -10,7 +10,8 @@
   let {
     title,
     icon,
-    badges,
+    version,
+    applet = false,
     verified,
     description,
     guide,
@@ -18,7 +19,8 @@
   }: {
     title: string;
     icon?: string;
-    badges: string[];
+    version?: string;
+    applet?: boolean;
     verified: boolean;
     description?: string;
     guide?: string;
@@ -37,14 +39,18 @@
   >
   <div class="grid min-w-0 flex-1 gap-1.5">
     <h1 class="font-display text-2xl font-semibold tracking-wide">{title}</h1>
-    <div class="flex flex-wrap items-center gap-1.5">
-      {#each badges as badge (badge)}
-        <Badge
-          variant="secondary"
-          class="tabular-nums">{badge}</Badge
-        >
-      {/each}
-    </div>
+    {#if version || applet}
+      <div class="plugin-badges flex flex-wrap items-center gap-1.5">
+        {#if version}
+          <Badge
+            variant="secondary"
+            class="version-badge relative isolate h-auto min-h-5 max-w-full text-center leading-normal wrap-anywhere whitespace-normal tabular-nums"
+            >Ver: {version}</Badge
+          >
+        {/if}
+        {#if applet}<Badge variant="secondary">Applet</Badge>{/if}
+      </div>
+    {/if}
   </div>
   {#if guide}
     <Button
@@ -56,7 +62,7 @@
   {@render children()}
 </div>
 <PluginAuthor
-  class="text-sm font-medium"
+  class="text-sm"
   {verified}
 />
 {#if description}<p class="text-sm leading-relaxed text-muted-foreground">{description}</p>{/if}
@@ -67,3 +73,61 @@
     bind:open={guideOpen}
   />
 {/if}
+
+<style>
+  .plugin-badges :global(.version-badge) {
+    color: #f4f8ff;
+    border-color: #5f748d;
+    background-color: #27384c;
+    background-image: linear-gradient(
+      174deg in oklab,
+      #354961,
+      #4a6079 43%,
+      #283c53 50%,
+      #202d3e 78%,
+      #32465d
+    );
+    box-shadow:
+      inset 0 1px rgb(219 234 255 / 32%),
+      inset 0 -1px #1b2838;
+  }
+
+  @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+    .plugin-badges :global(.version-badge)::before {
+      position: absolute;
+      z-index: -1;
+      inset: 0;
+      pointer-events: none;
+      content: '';
+      background-image: linear-gradient(
+        110deg in oklab,
+        transparent 32%,
+        rgb(219 234 255 / 13%) 50%,
+        transparent 68%
+      );
+      opacity: 0;
+      animation: version-glint 750ms ease-out 100ms backwards;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .plugin-badges :global(.version-badge) {
+      border-color: CanvasText;
+    }
+  }
+
+  @keyframes version-glint {
+    from {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    30%,
+    70% {
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+</style>

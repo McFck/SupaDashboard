@@ -122,7 +122,8 @@
       <PluginHeader
         title={plugin.title}
         icon={plugin.icon}
-        badges={[...(listed ? [listed.version] : []), ...(pluginApplets.length ? ['Applet'] : [])]}
+        version={listed?.version}
+        applet={pluginApplets.length > 0}
         verified={verifiedPlugin(plugin.id)}
         description={plugin.description}
         guide={plugin.guide}

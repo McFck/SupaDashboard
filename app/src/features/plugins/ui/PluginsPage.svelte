@@ -1,8 +1,9 @@
 <script lang="ts">
+  import Boxes from '@lucide/svelte/icons/boxes';
   import { toast } from 'svelte-sonner';
   import { Switch } from '$lib/components/ui/switch';
+  import { Hint } from '$lib/components/ui/tooltip';
   import Icon from '../../controls/ui/Icon.svelte';
-  import { Badge } from '$lib/components/ui/badge';
   import {
     applets,
     bundledPlugins,
@@ -48,12 +49,12 @@
       <div class="grid grid-cols-1 gap-2">
         {#each packages as p (p.id)}
           <div
-            class="flex items-center gap-4 rounded-xl bg-white/[.03] pr-4 transition-colors hover:bg-accent"
+            class="flex items-center gap-3 rounded-xl bg-white/[.03] pr-3 transition-colors hover:bg-accent"
           >
             <button
               type="button"
               onclick={() => (selected = p.id)}
-              class="flex min-w-0 flex-1 items-center gap-4 rounded-xl p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-white/[.06]"
                 ><Icon
@@ -61,17 +62,37 @@
                   size={20}
                 /></span
               >
-              <div class="min-w-0 flex-1">
-                <div class="flex items-baseline gap-3">
-                  <p class="truncate text-base font-medium">{p.title}</p>
-                  <PluginAuthor
-                    class="shrink-0 text-xs text-muted-foreground"
-                    verified={verifiedPlugin(p.id)}
-                  />
-                  {#if appletPlugins.has(p.id)}<Badge variant="secondary">Applet</Badge>{/if}
+              <div class="grid min-w-0 flex-1 gap-y-0.5">
+                <div class="flex min-w-0 items-start gap-2">
+                  <p class="min-w-0 text-base leading-snug font-medium wrap-anywhere">
+                    {p.title}
+                  </p>
+                  {#if appletPlugins.has(p.id)}
+                    <Hint text="Applet">
+                      {#snippet children(props)}
+                        <span
+                          {...props}
+                          tabindex="-1"
+                          role="img"
+                          aria-label="Applet"
+                          class="mt-0.5 inline-flex shrink-0 text-muted-foreground"
+                        >
+                          <Boxes class="size-4" />
+                        </span>
+                      {/snippet}
+                    </Hint>
+                  {/if}
                 </div>
+                <PluginAuthor
+                  class="justify-self-start text-xs leading-normal text-muted-foreground"
+                  verified={verifiedPlugin(p.id)}
+                />
                 {#if p.description}
-                  <p class="truncate text-xs text-muted-foreground">{p.description}</p>
+                  <p
+                    class="mt-[calc(var(--spacing)*0.2)] max-w-[65ch] text-xs leading-normal wrap-anywhere text-muted-foreground"
+                  >
+                    {p.description}
+                  </p>
                 {/if}
               </div>
               {#if nativePlugins.has(p.id)}

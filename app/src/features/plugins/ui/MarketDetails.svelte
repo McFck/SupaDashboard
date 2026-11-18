@@ -25,7 +25,7 @@
     <PluginHeader
       title={entry.title}
       icon={entry.icon}
-      badges={[entry.version]}
+      version={entry.version}
       verified
       description={entry.description}
       guide={entry.guide || undefined}
