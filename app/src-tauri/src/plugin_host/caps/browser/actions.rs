@@ -78,6 +78,13 @@ pub enum SuspendMode {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MoveSide {
+    Before,
+    After,
+}
+
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PointerInput {
     Begin {},
@@ -114,6 +121,11 @@ pub enum Action {
     },
     CloseTab {
         tab: i32,
+    },
+    MoveTab {
+        tab: i32,
+        anchor: i32,
+        side: MoveSide,
     },
     Group {
         group: i32,
@@ -163,6 +175,9 @@ impl Action {
                 Err("Invalid browser tab")
             }
             Self::Group { group, .. } if *group < 0 => Err("Invalid browser tab group"),
+            Self::MoveTab { tab, anchor, .. } if *tab < 0 || *anchor < 0 || tab == anchor => {
+                Err("Invalid tab move")
+            }
             Self::Pointer { input, .. } => input.validate(),
             Self::Open { url, .. } if !web_url(url, 2048) => Err("Enter a valid HTTP or HTTPS URL"),
             Self::Media {
@@ -181,6 +196,9 @@ impl Action {
                 Err("Tab closed")
             }
             Self::Group { group, .. } if !state.has_group(*group) => Err("Tab group closed"),
+            Self::MoveTab { tab, anchor, .. } if !state.can_move_tab(*tab, *anchor) => {
+                Err("Tab position changed")
+            }
             Self::Tab {
                 input: TabInput::Next | TabInput::Previous | TabInput::Close,
             } if state.active_tab.is_none() => Err("No active browser tab"),
@@ -204,6 +222,7 @@ impl Action {
             Self::Tab { .. } => "Could not control browser tab",
             Self::SelectTab { .. } => "Could not select tab",
             Self::CloseTab { .. } => "Could not close tab",
+            Self::MoveTab { .. } => "Could not move tab",
             Self::Group { .. } => "Could not change tab group",
             Self::Open { .. } => "Could not open website",
             Self::Page { .. } => "Could not control this page",
@@ -268,6 +287,8 @@ mod tests {
             json!({"kind": "tab", "input": "close", "window": 0}),
             json!({"kind": "tab", "input": "activate"}),
             json!({"kind": "suspend", "mode": "invalid"}),
+            json!({"kind": "move_tab", "tab": 1, "anchor": 1, "side": "after"}),
+            json!({"kind": "move_tab", "tab": 1, "anchor": 2, "side": "between"}),
             json!({"kind": "open", "url": "https://example.org", "destination": "popup"}),
             json!({"kind": "page", "input": {"kind": "top", "extra": 0}}),
             json!({"kind": "media", "input": {"kind": "speed", "rate": 0}}),
@@ -306,6 +327,34 @@ mod tests {
         ] {
             let action = serde_json::from_value::<Action>(value.clone()).unwrap();
             assert_eq!(action.validate_target(&state).is_ok(), allowed, "{value}");
+        }
+    }
+
+    #[test]
+    fn moving_a_tab_keeps_its_window_group_and_pin_status() {
+        let state = serde_json::from_value::<State>(json!({
+            "tabs": [
+                {"id": 1, "title": "Grouped", "active": true, "window": 2, "group": 4},
+                {"id": 2, "title": "Grouped", "active": false, "window": 2, "group": 4},
+                {"id": 3, "title": "Plain", "active": false, "window": 2},
+                {"id": 4, "title": "Detached", "active": true, "window": 3},
+                {"id": 5, "title": "Pinned", "active": false, "window": 2, "pinned": true},
+            ],
+            "groups": [{"id": 4, "window": 2, "title": "Work", "color": "blue", "collapsed": false}],
+            "activeTab": 1
+        }))
+        .unwrap();
+        for (tab, anchor, allowed) in [(1, 2, true), (1, 3, false), (3, 4, false), (3, 5, false)] {
+            let action = Action::MoveTab {
+                tab,
+                anchor,
+                side: MoveSide::Before,
+            };
+            assert_eq!(
+                action.validate_target(&state).is_ok(),
+                allowed,
+                "{tab} to {anchor}"
+            );
         }
     }
 

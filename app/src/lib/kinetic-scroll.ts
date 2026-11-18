@@ -12,6 +12,8 @@ type Host = {
 };
 type Options = {
   axis?: 'x' | 'y';
+  /** Delay capture on interactive content so a tap reaches the original button. */
+  dragThreshold?: number;
   /** Px the content rests on a multiple of; each wheel notch moves one. 0 rests anywhere. */
   snap?: number;
 };
@@ -19,6 +21,7 @@ type Sample = { t: number; y: number };
 /** Analytical motions, so every frame is one transform write and no layout read. */
 type Motion =
   | { kind: 'idle' }
+  | { kind: 'press'; pointerId: number; along: number; across: number; t: number }
   | {
       kind: 'drag';
       pointerId: number;
@@ -69,6 +72,7 @@ export class KineticScroll {
   readonly #host: Host;
   readonly #observer: ResizeObserver;
   readonly #horizontal: boolean;
+  readonly #dragThreshold: number;
   readonly #snap: number;
   #motion: Motion = { kind: 'idle' };
   #y = 0;
@@ -78,6 +82,7 @@ export class KineticScroll {
 
   constructor(viewport: HTMLElement, content: HTMLElement, host: Host, options: Options = {}) {
     this.#horizontal = options.axis === 'x';
+    this.#dragThreshold = options.dragThreshold ?? 0;
     this.#snap = options.snap ?? 0;
     this.#viewport = viewport;
     this.#content = content;
@@ -90,7 +95,7 @@ export class KineticScroll {
     viewport.addEventListener('pointermove', this.#move);
     viewport.addEventListener('pointerup', this.#up);
     viewport.addEventListener('pointercancel', this.#cancel);
-    viewport.addEventListener('lostpointercapture', this.#cancel);
+    viewport.addEventListener('lostpointercapture', this.#lostCapture);
     viewport.addEventListener('wheel', this.#wheel, { passive: false });
   }
 
@@ -117,7 +122,7 @@ export class KineticScroll {
     this.#viewport.removeEventListener('pointermove', this.#move);
     this.#viewport.removeEventListener('pointerup', this.#up);
     this.#viewport.removeEventListener('pointercancel', this.#cancel);
-    this.#viewport.removeEventListener('lostpointercapture', this.#cancel);
+    this.#viewport.removeEventListener('lostpointercapture', this.#lostCapture);
     this.#viewport.removeEventListener('wheel', this.#wheel);
   }
 
@@ -162,21 +167,56 @@ export class KineticScroll {
     }
     // A touch on moving content catches it where it is, as native scrolling does.
     cancelAnimationFrame(this.#frame);
-    this.#viewport.setPointerCapture(event.pointerId);
     const now = performance.now();
-    this.#motion = {
-      kind: 'drag',
-      pointerId: event.pointerId,
-      fromY: this.#y,
-      fromPointer: this.#pointer(event),
-      pointer: this.#pointer(event),
-      samples: [{ t: now, y: this.#y }],
-    };
+    const along = this.#pointer(event);
+    if (this.#dragThreshold) {
+      if (motion.kind === 'decay' || motion.kind === 'spring' || motion.kind === 'wheel') {
+        this.#viewport.setPointerCapture(event.pointerId);
+      }
+      this.#motion = {
+        kind: 'press',
+        pointerId: event.pointerId,
+        along,
+        across: this.#cross(event),
+        t: now,
+      };
+    } else {
+      this.#motion = this.#beginDrag(event.pointerId, along, now);
+    }
     this.#host.onInput();
   };
 
+  #cross = (event: PointerEvent) => (this.#horizontal ? event.clientY : event.clientX);
+
+  #beginDrag(pointerId: number, along: number, t: number): Extract<Motion, { kind: 'drag' }> {
+    this.#viewport.setPointerCapture(pointerId);
+    return {
+      kind: 'drag',
+      pointerId,
+      fromY: this.#y,
+      fromPointer: along,
+      pointer: along,
+      samples: [{ t, y: this.#y }],
+    };
+  }
+
   #move = (event: PointerEvent) => {
-    const motion = this.#motion;
+    let motion = this.#motion;
+    if (motion.kind === 'press' && motion.pointerId === event.pointerId) {
+      const along = Math.abs(this.#pointer(event) - motion.along);
+      const across = Math.abs(this.#cross(event) - motion.across);
+      if (Math.max(along, across) < this.#dragThreshold) {
+        return;
+      }
+      if (along < across) {
+        this.#viewport.setPointerCapture(event.pointerId);
+        this.scrollTo(this.#y, false);
+        this.#host.onRest();
+        return;
+      }
+      motion = this.#beginDrag(event.pointerId, motion.along, motion.t);
+      this.#motion = motion;
+    }
     if (motion.kind !== 'drag' || motion.pointerId !== event.pointerId) {
       return;
     }
@@ -205,8 +245,19 @@ export class KineticScroll {
   /** A cancelled or stolen pointer settles where it is; flinging on it threw the lyrics to an end. */
   #cancel = (event: PointerEvent) => this.#release(event, false);
 
+  #lostCapture = (event: PointerEvent) => {
+    if (event.target === this.#viewport) {
+      this.#cancel(event);
+    }
+  };
+
   #release(event: PointerEvent, fling: boolean) {
     const motion = this.#motion;
+    if (motion.kind === 'press' && motion.pointerId === event.pointerId) {
+      this.scrollTo(this.#y, false);
+      this.#host.onRest();
+      return;
+    }
     if (motion.kind !== 'drag' || motion.pointerId !== event.pointerId) {
       return;
     }

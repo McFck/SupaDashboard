@@ -146,6 +146,14 @@ impl State {
     pub(super) fn has_group(&self, id: i32) -> bool {
         self.groups.iter().any(|group| group.id == id)
     }
+
+    pub(super) fn can_move_tab(&self, id: i32, anchor: i32) -> bool {
+        let source = self.tabs.iter().find(|tab| tab.id == id);
+        let target = self.tabs.iter().find(|tab| tab.id == anchor);
+        source.zip(target).is_some_and(|(a, b)| {
+            a.window == b.window && a.group == b.group && a.pinned == b.pinned
+        })
+    }
 }
 
 #[derive(Serialize)]

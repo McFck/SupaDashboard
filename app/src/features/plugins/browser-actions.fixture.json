@@ -6,6 +6,7 @@
   { "kind": "tab", "input": "reopen" },
   { "kind": "select_tab", "tab": 1 },
   { "kind": "close_tab", "tab": 1 },
+  { "kind": "move_tab", "tab": 1, "anchor": 2, "side": "after" },
   { "kind": "group", "group": 2, "collapsed": true },
   { "kind": "open", "url": "https://example.org/", "destination": "new" },
   { "kind": "window_fullscreen" },

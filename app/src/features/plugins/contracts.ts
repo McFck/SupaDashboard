@@ -40,6 +40,7 @@ export type PluginBrowserScrollFrame =
 export type PluginBrowserAction =
   | { kind: 'tab'; input: 'next' | 'previous' | 'new' | 'close' | 'reopen' }
   | { kind: 'select_tab' | 'close_tab'; tab: number }
+  | { kind: 'move_tab'; tab: number; anchor: number; side: 'before' | 'after' }
   | { kind: 'group'; group: number; collapsed: boolean }
   | { kind: 'open'; url: string; destination: 'new' | 'current' }
   | { kind: 'window_fullscreen' }

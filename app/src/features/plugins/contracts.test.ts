@@ -43,6 +43,7 @@ it('keeps an action fixture for every browser command in the kit', () => {
     })),
     select_tab: [{ kind: 'select_tab', tab: 1 }],
     close_tab: [{ kind: 'close_tab', tab: 1 }],
+    move_tab: [{ kind: 'move_tab', tab: 1, anchor: 2, side: 'after' }],
     group: [{ kind: 'group', group: 2, collapsed: true }],
     open: [{ kind: 'open', url: 'https://example.org/', destination: 'new' }],
     window_fullscreen: [{ kind: 'window_fullscreen' }],
