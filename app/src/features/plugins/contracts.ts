@@ -9,7 +9,24 @@ import type { VariableDefinition, VariableRecord, VariableValue } from '../autom
 export type PluginBrowserSnapshot =
   | { kind: 'offline' }
   | { kind: 'repair' }
-  | { kind: 'connected'; revision: number; tabs: { id: number; title: string; active: boolean }[] };
+  | {
+      kind: 'connected';
+      revision: number;
+      tabs: { id: number; title: string; active: boolean; favicon: string | null }[];
+      activeTab: number | null;
+      media: { tab: number; paused: boolean; rate: number; fullscreen: boolean } | null;
+    };
+
+export type PluginBrowserScroll =
+  { kind: 'drag' | 'fling'; pixels: number } | { kind: 'page_up' | 'page_down' | 'top' | 'bottom' };
+
+export type PluginBrowserMedia =
+  { kind: 'toggle' | 'back' | 'forward' | 'fullscreen' } | { kind: 'speed'; rate: number };
+
+export type PluginBrowserAction =
+  | { kind: 'activate' | 'close'; tab: number }
+  | { kind: 'scroll'; tab: number; input: PluginBrowserScroll }
+  | { kind: 'media'; tab: number; input: PluginBrowserMedia };
 
 /** A reference to an action plus its arguments, as stored in settings. */
 export type ActionRef = { id: string; args?: Record<string, unknown> };

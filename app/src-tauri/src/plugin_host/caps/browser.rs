@@ -1,4 +1,5 @@
 //! A loopback bridge shared by a plugin's open pages, with one channel per webview.
+mod actions;
 mod pairing;
 mod server;
 mod wire;
@@ -14,7 +15,8 @@ use tokio::{
 
 use crate::plugin_host::PluginHost;
 
-use server::{Activation, Bridge, Snapshot};
+use actions::Action;
+use server::{Bridge, RequestAction, Snapshot};
 
 #[derive(Default)]
 pub(super) struct Listener {
@@ -67,15 +69,15 @@ pub async fn plugin_browser_watch(
     }
     host.caps.with(&plugin, webview.label(), |owned| {
         if owned.browser_start != Some(id) {
-            return Err("Browser Remote page closed".into());
+            return Err("WebCompanion page closed".into());
         }
         owned.browser_start = None;
         let extension = grant(&host, &plugin)?;
         let bridge = match bridge {
             Some(bridge) if bridge.plugin == plugin && bridge.extension() == extension => bridge,
-            Some(_) => return Err("Browser Remote is in use".into()),
+            Some(_) => return Err("Browser bridge is in use".into()),
             None => {
-                let path = host.data(&plugin).join(".browser-remote.json");
+                let path = host.data(&plugin).join(".browser.json");
                 let (bridge, task) = Bridge::start(plugin.clone(), extension, path)?;
                 let bridge = Arc::new(bridge);
                 *active = Listener {
@@ -130,7 +132,7 @@ fn watched<T>(
             .browser
             .as_ref()
             .filter(|entry| entry.id == watch && entry.bridge.extension() == extension)
-            .ok_or("Browser Remote is not watching")?;
+            .ok_or("WebCompanion is unavailable")?;
         use_watch(watcher).map_err(String::from)
     })
 }
@@ -138,7 +140,7 @@ fn watched<T>(
 #[tauri::command]
 pub fn plugin_browser_pair(webview: Webview, plugin: String, watch: u32) -> Result<String, String> {
     if webview.label() != "panel" {
-        return Err("Pair Browser Remote from the control panel".into());
+        return Err("Pair WebCompanion from the control panel".into());
     }
     watched(&webview, &plugin, watch, |watcher| {
         watcher.bridge.pair(watch)
@@ -146,21 +148,19 @@ pub fn plugin_browser_pair(webview: Webview, plugin: String, watch: u32) -> Resu
 }
 
 #[tauri::command]
-pub async fn plugin_browser_activate(
+pub async fn plugin_browser_action(
     webview: Webview,
     plugin: String,
     watch: u32,
-    revision: u32,
-    tab: i32,
+    revision: Option<u32>,
+    action: Action,
 ) -> Result<(), String> {
-    if tab < 0 {
-        return Err("Invalid browser tab ID".into());
-    }
+    action.validate_input(revision)?;
     let (reply, result) = oneshot::channel();
     watched(&webview, &plugin, watch, |watcher| {
-        watcher.bridge.activate(Activation {
+        watcher.bridge.send(RequestAction {
             revision,
-            tab,
+            action,
             reply,
         })
     })?;
