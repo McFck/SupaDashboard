@@ -97,7 +97,7 @@ pub(super) struct Attempt {
 
 impl Pairing {
     pub(super) fn open(path: PathBuf) -> Self {
-        let inspected = ProtectedFile::inspect::<Stored>(path, "Browser Remote");
+        let inspected = ProtectedFile::inspect::<Stored>(path, "Browser bridge");
         let (file, stored) = match inspected {
             Ok((file, stored)) => (Ok(file), stored),
             Err(error) => (Err(error.clone()), Err(error)),
@@ -189,7 +189,7 @@ impl Pairing {
         let key = key.ok_or("Browser pairing required")?.to_owned();
         let nonce = random()?;
         let transcript = format!(
-            "browser-remote-v1:{mode}:{extension}:{}:{nonce}",
+            "supadashboard-browser-v2:{mode}:{extension}:{}:{nonce}",
             hello.nonce
         );
         let proof = sign(&key, &format!("server:{transcript}"))?;
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn pairing_rejects_wrong_expired_and_replayed_proofs_and_restores_only_the_paired_id() {
         let folder = temp("browser-pairing");
-        let path = folder.join(".browser-remote.json");
+        let path = folder.join(".browser.json");
         let mut pairing = Pairing::open(path.clone());
         let now = Instant::now();
         assert!(pairing.begin(hello(Mode::Auth), ID, now).is_err());
@@ -383,9 +383,9 @@ mod tests {
     #[test]
     fn a_replacement_cannot_strand_the_old_extension_before_the_new_login() {
         let folder = temp("browser-rotation");
-        let path = folder.join(".browser-remote.json");
+        let path = folder.join(".browser.json");
         let (mut file, _) =
-            ProtectedFile::open::<Credential>(path.clone(), "Browser Remote").unwrap();
+            ProtectedFile::open::<Credential>(path.clone(), "Browser bridge").unwrap();
         let old = "1".repeat(64);
         file.save(Some(&Credential {
             extension: ID.into(),
@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn damaged_credentials_stay_untouched_until_the_browser_proves_the_pairing_code() {
         let folder = temp("browser-repair");
-        let path = folder.join(".browser-remote.json");
+        let path = folder.join(".browser.json");
         std::fs::create_dir_all(&folder).unwrap();
         std::fs::write(&path, b"old unreadable data").unwrap();
         let now = Instant::now();

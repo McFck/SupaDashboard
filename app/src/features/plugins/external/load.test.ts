@@ -48,7 +48,7 @@ describe('external plugin boundary', () => {
   it('shows the granted browser extension in the permissions UI', () => {
     const browser = 'cnojhdmglpjodgblffallbibdifemkop';
     const entry = {
-      id: 'browser-remote',
+      id: 'webcompanion',
       version: '0.1.0',
       api: 2,
       trust: 'dev',
@@ -59,6 +59,6 @@ describe('external plugin boundary', () => {
       { ...entry, permissions: { browser } },
       { ...entry, permissions: { browser: `chrome-extension://${browser}` } },
     ]).flatMap((plugin) => permissionRows(plugin.permissions));
-    expect(rows).toEqual([{ label: 'Browser tabs', value: browser }]);
+    expect(rows).toEqual([{ label: 'Browser control', value: browser }]);
   });
 });

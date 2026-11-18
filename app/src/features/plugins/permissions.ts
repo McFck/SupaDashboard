@@ -67,7 +67,7 @@ export function permissionRows(permissions: PluginPermissions): PermissionRow[] 
     ['Local app', permissions.pipes],
     ['Runs', permissions.process],
     ['Controls', permissions.automation],
-    ['Browser tabs', permissions.browser ? [permissions.browser] : []],
+    ['Browser control', permissions.browser ? [permissions.browser] : []],
     ['Opens', permissions.open.map((scheme) => `${scheme}: links`)],
   ];
   return rows

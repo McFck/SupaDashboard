@@ -8,10 +8,12 @@ use tokio_tungstenite::{
     tungstenite::{Message, handshake::server::Request},
 };
 
+use super::actions::{Action, valid_rate, web_url};
+
 pub(super) const ADDRESS: &str = "127.0.0.1:43822";
-pub(super) const PATH: &str = "/browser-remote";
+pub(super) const PATH: &str = "/browser";
 pub(super) const LOGIN_LIMIT: usize = 1024;
-pub(super) const LIMIT: usize = 128 * 1024;
+pub(super) const LIMIT: usize = 256 * 1024;
 pub(super) const DEADLINE: Duration = Duration::from_secs(4);
 pub(super) type Socket = WebSocketStream<TcpStream>;
 pub(super) type Failure = &'static str;
@@ -40,59 +42,92 @@ pub(super) fn hex(value: &str, length: usize) -> bool {
 #[derive(Clone, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Tab {
-    pub id: i32,
+    id: i32,
     title: String,
     active: bool,
+    favicon: Option<String>,
+}
+
+#[derive(Clone, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MediaState {
+    tab: i32,
+    paused: bool,
+    rate: f64,
+    fullscreen: bool,
+}
+
+#[derive(Clone, Default, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct State {
+    tabs: Vec<Tab>,
+    pub(super) active_tab: Option<i32>,
+    media: Option<MediaState>,
+}
+
+impl State {
+    pub(super) fn validate(&self) -> Result<(), Failure> {
+        let mut ids = std::collections::HashSet::new();
+        if self.tabs.len() > 256
+            || !self.tabs.iter().all(|tab| {
+                tab.id >= 0
+                    && tab.title.len() <= 256
+                    && tab.favicon.as_deref().is_none_or(|url| web_url(url, 512))
+                    && ids.insert(tab.id)
+            })
+            || self
+                .active_tab
+                .is_some_and(|id| !self.tabs.iter().any(|tab| tab.id == id && tab.active))
+            || self.media.as_ref().is_some_and(|media| {
+                !ids.contains(&media.tab) || (media.rate != 0.0 && !valid_rate(media.rate))
+            })
+        {
+            return Err("Invalid browser state");
+        }
+        Ok(())
+    }
+
+    pub(super) fn contains(&self, id: i32) -> bool {
+        self.tabs.iter().any(|tab| tab.id == id)
+    }
+
+    pub(super) fn has_media(&self, id: i32) -> bool {
+        self.media_tab() == Some(id)
+    }
+
+    fn media_tab(&self) -> Option<i32> {
+        self.media.as_ref().map(|media| media.tab)
+    }
+
+    pub(super) fn same_targets(&self, other: &Self) -> bool {
+        self.active_tab == other.active_tab
+            && self.media_tab() == other.media_tab()
+            && self
+                .tabs
+                .iter()
+                .map(|tab| tab.id)
+                .eq(other.tabs.iter().map(|tab| tab.id))
+    }
 }
 
 #[derive(Serialize)]
-#[serde(tag = "kind", rename_all = "lowercase")]
-pub(super) enum Command {
-    #[serde(rename = "tabs.list")]
-    List { id: u32 },
-    #[serde(rename = "tabs.activate")]
-    Activate { id: u32, tab: i32 },
+pub(super) struct Command<'a> {
+    pub id: u32,
+    pub action: &'a Action,
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase", deny_unknown_fields)]
 pub(super) enum Reply {
-    #[serde(rename = "tabs.list")]
-    List {
-        id: u32,
-        tabs: Vec<Tab>,
-    },
-    #[serde(rename = "tabs.activate")]
-    Activate {
-        id: u32,
-    },
-    Failed {
-        id: u32,
-    },
+    State { state: State },
+    Done { id: u32, ok: bool },
 }
 
 impl Reply {
-    pub(super) fn list(self, request: u32) -> Result<Vec<Tab>, Failure> {
-        let Self::List { id, tabs } = self else {
-            return Err("Browser could not list tabs");
-        };
-        let mut ids = std::collections::HashSet::new();
-        if id != request
-            || tabs.len() > 256
-            || !tabs
-                .iter()
-                .all(|tab| tab.id >= 0 && tab.title.len() <= 256 && ids.insert(tab.id))
-        {
-            return Err("Invalid browser tab list");
-        }
-        Ok(tabs)
-    }
-
-    pub(super) fn activation(self, request: u32) -> Result<Result<(), Failure>, Failure> {
+    pub(super) fn completion(self, request: u32) -> Result<bool, Failure> {
         match self {
-            Self::Activate { id } if id == request => Ok(Ok(())),
-            Self::Failed { id } if id == request => Ok(Err("Browser could not activate the tab")),
-            _ => Err("Invalid browser activation reply"),
+            Self::Done { id, ok } if id == request => Ok(ok),
+            _ => Err("Unexpected browser reply"),
         }
     }
 }
@@ -125,13 +160,10 @@ pub(super) async fn send(socket: &mut Socket, frame: &impl Serialize) -> Result<
         .map_err(|_| "Browser disconnected")
 }
 
-pub(super) async fn request(socket: &mut Socket, command: Command) -> Result<Reply, Failure> {
-    timeout(DEADLINE, async {
-        send(socket, &command).await?;
-        read(socket).await
-    })
-    .await
-    .map_err(|_| "Browser did not respond")?
+pub(super) async fn receive(socket: &mut Socket) -> Result<Reply, Failure> {
+    timeout(DEADLINE * 8, read(socket))
+        .await
+        .map_err(|_| "Browser disconnected")?
 }
 
 #[cfg(test)]
@@ -166,40 +198,70 @@ mod tests {
             ID
         ));
         assert!(!origin(&request("localhost:43822", PATH, &[&expected]), ID));
-        assert!(!origin(
-            &request(ADDRESS, "/browser-remote?x", &[&expected]),
-            ID
-        ));
+        assert!(!origin(&request(ADDRESS, "/browser?x", &[&expected]), ID));
     }
 
     #[test]
-    fn malformed_oversized_or_unmatched_replies_do_not_supply_tabs() {
-        let list = |tabs| json!({"kind": "tabs.list", "id": 1, "tabs": tabs}).to_string();
+    fn malformed_oversized_or_unmatched_state_cannot_supply_targets() {
+        let state = |tabs, active_tab, media| {
+            json!({"kind": "state", "state": {"tabs": tabs, "activeTab": active_tab, "media": media}})
+                .to_string()
+        };
         let good = json!({"id": 10, "title": "Example", "active": true});
-        let valid = list(json!([good]));
-        assert_eq!(decode::<Reply>(&valid).unwrap().list(1).unwrap()[0].id, 10);
-        assert!(decode::<Reply>(&valid).unwrap().list(2).is_err());
+        let media = json!({"tab": 10, "paused": true, "rate": 1, "fullscreen": false});
+        let valid = state(json!([good]), json!(10), media.clone());
+        let parse = |payload: &str| match decode::<Reply>(payload)? {
+            Reply::State { state } => state.validate(),
+            _ => Err("Expected state"),
+        };
+        assert_eq!(parse(&valid), Ok(()));
         for payload in [
-            list(json!([good, good])),
-            list(json!([{"id": -1, "title": "X", "active": true}])),
-            list(json!([{"id": 1, "title": "x".repeat(257), "active": true}])),
-            list(json!([{"id": 1, "title": "X", "active": true, "url": "https://example.org"}])),
+            state(json!([good, good]), json!(10), media.clone()),
+            state(
+                json!([{"id": -1, "title": "X", "active": true}]),
+                json!(null),
+                json!(null),
+            ),
+            state(
+                json!([{"id": 1, "title": "x".repeat(257), "active": true}]),
+                json!(null),
+                json!(null),
+            ),
+            state(
+                json!([{"id": 10, "title": "X", "active": true, "favicon": "file:///secret"}]),
+                json!(10),
+                json!(null),
+            ),
+            state(
+                json!([good]),
+                json!(null),
+                json!({"tab": 9, "paused": true, "rate": 1, "fullscreen": false}),
+            ),
+            state(
+                json!([good]),
+                json!(null),
+                json!({"tab": 10, "paused": true, "rate": 17, "fullscreen": false}),
+            ),
+            state(json!([good]), json!(9), json!(null)),
             format!("{valid}{}", " ".repeat(LIMIT)),
-            r#"{"kind":"tabs.list","id":1,"tabs":[],"extra":true}"#.into(),
+            r#"{"kind":"state","state":{"tabs":[],"extra":true}}"#.into(),
         ] {
-            assert!(
-                decode::<Reply>(&payload)
-                    .and_then(|reply| reply.list(1))
-                    .is_err()
-            );
+            assert!(parse(&payload).is_err(), "{:.240}", payload);
         }
-        let activated = decode::<Reply>(r#"{"kind":"tabs.activate","id":1}"#).unwrap();
-        assert!(matches!(activated.activation(1), Ok(Ok(()))));
-        assert!(
-            decode::<Reply>(r#"{"kind":"tabs.activate","id":1}"#)
-                .unwrap()
-                .activation(2)
-                .is_err()
-        );
+    }
+
+    #[test]
+    fn only_a_well_formed_reply_to_the_in_flight_action_can_complete_it() {
+        let complete = |payload| decode::<Reply>(payload)?.completion(4);
+        assert_eq!(complete(r#"{"kind":"done","id":4,"ok":true}"#), Ok(true));
+        assert_eq!(complete(r#"{"kind":"done","id":4,"ok":false}"#), Ok(false));
+        for payload in [
+            r#"{"kind":"done","id":3,"ok":true}"#,
+            r#"{"kind":"done","id":4,"ok":"true"}"#,
+            r#"{"kind":"done","id":4,"ok":true,"tab":9}"#,
+            r#"{"kind":"done","id":-1,"ok":true}"#,
+        ] {
+            assert!(complete(payload).is_err(), "{payload}");
+        }
     }
 }
