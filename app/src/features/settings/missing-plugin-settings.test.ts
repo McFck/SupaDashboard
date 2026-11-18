@@ -3,6 +3,28 @@ import { serializeSettings } from './state.svelte';
 import { DEFAULTS } from './defaults';
 import { migrate } from './normalize';
 
+it('upgrades retired browser widgets in place without losing custom names or positions', () => {
+  const saved = structuredClone(DEFAULTS);
+  const placements = [
+    { id: 'tabs-tile', control: 'tabs', x: 0, y: 0, w: 2, h: 2 },
+    { id: 'outline-tile', control: 'outline', x: 2, y: 0, w: 2, h: 2 },
+  ];
+  saved.deck.pages[0].items = placements;
+  const loaded = migrate({
+    ...saved,
+    version: 20,
+    controls: [
+      { id: 'tabs', type: 'browserRemoteTabs', name: 'WebCompanion' },
+      { id: 'outline', type: 'webcompanionPageOutline', name: 'Browser remote' },
+    ],
+  });
+  expect(loaded.controls).toMatchObject([
+    { id: 'tabs', type: 'webcompanionTouchpad', name: 'Browser Touchpad' },
+    { id: 'outline', type: 'webcompanionTouchpad', name: 'Browser remote' },
+  ]);
+  expect(loaded.deck.pages[0].items).toEqual(placements);
+});
+
 describe('settings of a missing plugin', () => {
   it('keeps the tiles and actions of a plugin that is not installed through load and save', () => {
     const tile = {

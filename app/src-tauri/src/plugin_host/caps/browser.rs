@@ -3,7 +3,6 @@ mod actions;
 mod pairing;
 mod server;
 mod stream;
-mod view;
 mod wire;
 
 use std::sync::{Arc, Weak};
@@ -140,7 +139,11 @@ fn watched<T>(
 }
 
 #[tauri::command]
-pub fn plugin_browser_pair(webview: Webview, plugin: String, watch: u32) -> Result<String, String> {
+pub fn plugin_browser_pair(
+    webview: Webview,
+    plugin: String,
+    watch: u32,
+) -> Result<pairing::PairCode, String> {
     if webview.label() != "panel" {
         return Err("Pair WebCompanion from the control panel".into());
     }
@@ -178,18 +181,5 @@ pub fn plugin_browser_scroll(
     frame.validate()?;
     watched(&webview, &plugin, watch, |watcher| {
         watcher.bridge.scroll(frame)
-    })
-}
-
-#[tauri::command]
-pub fn plugin_browser_outline(
-    webview: Webview,
-    plugin: String,
-    watch: u32,
-    enabled: bool,
-) -> Result<(), String> {
-    watched(&webview, &plugin, watch, |watcher| {
-        watcher.bridge.outline(watch, enabled);
-        Ok(())
     })
 }

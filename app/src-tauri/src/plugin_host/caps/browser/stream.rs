@@ -14,7 +14,6 @@ type Response = oneshot::Sender<Result<(), Failure>>;
 pub(super) struct ScrollOut {
     tab: Option<i32>,
     hold: bool,
-    outline: bool,
     dx: i32,
     dy: i32,
     fling: Option<[f32; 2]>,
@@ -33,9 +32,8 @@ impl ScrollQueue {
             };
         }
         match frame {
-            ScrollFrame::Hold { outline, .. } => {
+            ScrollFrame::Hold { .. } => {
                 self.0.hold = true;
-                self.0.outline = outline;
                 self.0.dx = 0;
                 self.0.dy = 0;
                 self.0.fling = None;
@@ -133,10 +131,7 @@ mod tests {
             vy: -200.0,
             tab: None,
         });
-        queue.push(ScrollFrame::Hold {
-            outline: true,
-            tab: None,
-        });
+        queue.push(ScrollFrame::Hold { tab: None });
         for _ in 0..10 {
             queue.push(ScrollFrame::Move {
                 dx: 4096,
@@ -146,7 +141,6 @@ mod tests {
         }
         let out = queue.take().unwrap();
         assert!(out.hold);
-        assert!(out.outline);
         assert_eq!([out.dx, out.dy], [32768, -32768]);
         assert_eq!(out.fling, None);
         assert!(queue.take().is_none());
@@ -170,10 +164,7 @@ mod tests {
             dy: 0,
             tab: Some(1),
         });
-        queue.push(ScrollFrame::Hold {
-            outline: false,
-            tab: Some(2),
-        });
+        queue.push(ScrollFrame::Hold { tab: Some(2) });
         queue.push(ScrollFrame::Move {
             dx: 0,
             dy: 20,

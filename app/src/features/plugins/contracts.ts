@@ -14,37 +14,19 @@ export type PluginBrowserSnapshot =
       tabs: { id: number; title: string; active: boolean; favicon: string | null }[];
       activeTab: number | null;
       media: { tab: number; paused: boolean; rate: number; fullscreen: boolean } | null;
-      outline?: PluginBrowserOutline | null;
+      suspended: boolean;
     };
 
-type OutlineRect = { x: number; y: number; w: number; h: number };
-
-export type PluginBrowserOutline = {
-  tab: number;
-  doc: string;
-  seq: number;
-  width: number;
-  height: number;
-  moving: boolean;
-  shapes: { kind: 'text' | 'heading' | 'image'; rect: OutlineRect }[];
-  targets: { id: number; kind: 'link' | 'button'; rect: OutlineRect; label: string }[];
-};
-
-export type PluginBrowserSelection = Pick<PluginBrowserOutline, 'tab' | 'doc' | 'seq'> & {
-  target: number;
-  x: number;
-  y: number;
-  token: string;
-};
-
 export type PluginBrowserScrollFrame =
-  | { phase: 'hold'; outline?: boolean; tab?: number }
+  | { phase: 'hold'; tab?: number }
   | { phase: 'move'; dx: number; dy: number; tab?: number }
   | { phase: 'release'; vx: number; vy: number; tab?: number };
 
 export type PluginBrowserAction =
-  | { kind: 'activate' | 'close'; tab: number }
+  | { kind: 'tab'; input: 'next' | 'previous' | 'new' | 'close' | 'reopen' }
   | { kind: 'open'; url: string; destination: 'new' | 'current' }
+  | { kind: 'window_fullscreen' }
+  | { kind: 'suspend'; mode: 'toggle' | 'on' | 'off' }
   | {
       kind: 'pointer';
       tab: number;
@@ -54,15 +36,12 @@ export type PluginBrowserAction =
     }
   | {
       kind: 'page';
-      input:
-        | { kind: 'page_up' | 'page_down' | 'top' | 'bottom' }
-        | { kind: 'preview' | 'clear_preview'; selection: PluginBrowserSelection }
-        | { kind: 'press'; selection: PluginBrowserSelection; background: boolean };
+      input: { kind: 'page_up' | 'page_down' | 'top' | 'bottom' | 'back' | 'forward' | 'reload' };
     }
   | {
       kind: 'media';
       input:
-        | { kind: 'toggle' | 'fullscreen' }
+        | { kind: 'play' | 'pause' | 'toggle' | 'fullscreen' }
         | { kind: 'seek'; seconds: number }
         | { kind: 'speed'; rate: number };
     };

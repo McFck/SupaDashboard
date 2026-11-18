@@ -20,6 +20,8 @@ use crate::plugin_host::{
 use super::wire::{Failure, hex};
 
 const CODE_LIFETIME: Duration = Duration::from_secs(120);
+pub(super) const VERSION: u8 = 3;
+const MAX_ATTEMPTS: u8 = 3;
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -50,8 +52,17 @@ enum Stored {
 
 struct Code {
     owner: u32,
+    id: String,
     value: String,
     expires: Instant,
+    failures: u8,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairCode {
+    code: String,
+    expires_in_ms: u64,
 }
 
 pub(super) struct Pairing {
@@ -61,7 +72,7 @@ pub(super) struct Pairing {
     code: Option<Code>,
 }
 
-#[derive(Clone, Copy, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub(super) enum Mode {
     Pair,
@@ -71,6 +82,8 @@ pub(super) enum Mode {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Hello {
+    #[serde(default)]
+    pub v: u8,
     pub mode: Mode,
     pub nonce: String,
     #[serde(rename = "keyId")]
@@ -80,7 +93,12 @@ pub(super) struct Hello {
 #[derive(Serialize)]
 pub(super) struct Challenge {
     pub nonce: String,
-    pub proof: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(super) struct Ready {
+    kind: &'static str,
+    proof: String,
 }
 
 #[derive(Deserialize)]
@@ -91,8 +109,17 @@ pub(super) struct Proof {
 
 pub(super) struct Attempt {
     mode: Mode,
+    code_id: Option<String>,
     key: String,
     transcript: String,
+}
+
+#[derive(Debug, PartialEq)]
+pub(super) enum Rejected {
+    Code,
+    Expired,
+    Authentication,
+    Storage(String),
 }
 
 impl Pairing {
@@ -132,16 +159,19 @@ impl Pairing {
         self.repair
     }
 
-    pub(super) fn issue(&mut self, owner: u32, now: Instant) -> Result<String, Failure> {
-        // The server proof lets a peer guess the code offline. Keep 128 bits of entropy;
-        // a shorter human-entered code would require a PAKE.
-        let value = random()?;
+    pub(super) fn issue(&mut self, owner: u32, now: Instant) -> Result<PairCode, Failure> {
+        let value = digits()?;
         self.code = Some(Code {
             owner,
+            id: random()?,
             value: value.clone(),
             expires: now + CODE_LIFETIME,
+            failures: 0,
         });
-        Ok(value)
+        Ok(PairCode {
+            code: value,
+            expires_in_ms: CODE_LIFETIME.as_secs() * 1000,
+        })
     }
 
     pub(super) fn cancel(&mut self, owner: u32) {
@@ -150,11 +180,10 @@ impl Pairing {
         }
     }
 
-    fn code(&self, now: Instant) -> Option<&str> {
+    fn code(&self, now: Instant) -> Option<&Code> {
         self.code
             .as_ref()
-            .filter(|code| code.expires > now)
-            .map(|code| code.value.as_str())
+            .filter(|code| code.expires > now && code.failures < MAX_ATTEMPTS)
     }
 
     fn auth_keys(&self, extension: &str) -> impl Iterator<Item = &str> {
@@ -172,34 +201,43 @@ impl Pairing {
         extension: &str,
         now: Instant,
     ) -> Result<(Attempt, Challenge), Failure> {
-        if !hex(&hello.nonce, 32) {
+        if hello.v != VERSION || !hex(&hello.nonce, 32) {
             return Err("Invalid browser nonce");
         }
-        let (mode, key) = match (hello.mode, hello.key_id.as_deref()) {
-            (Mode::Pair, None) => ("pair", self.code(now)),
-            // Previously installed extensions omit the key ID and try the current credential.
-            (Mode::Auth, None) => ("auth", self.auth_keys(extension).next()),
-            (Mode::Auth, Some(id)) if hex(id, 64) => (
-                "auth",
-                self.auth_keys(extension)
-                    .find(|key| sha256_hex(key.as_bytes()).is_ok_and(|found| found == id)),
-            ),
+        let (mode, code_id, key) = match (hello.mode, hello.key_id.as_deref()) {
+            (Mode::Pair, None) => {
+                let code = self.code(now);
+                (
+                    "pair",
+                    code.map(|code| code.id.clone()),
+                    code.map(|code| code.value.as_str()),
+                )
+            }
+            (Mode::Auth, Some(id)) if hex(id, 64) => {
+                let key = self
+                    .auth_keys(extension)
+                    .find(|key| sha256_hex(key.as_bytes()).is_ok_and(|found| found == id));
+                ("auth", None, key)
+            }
             _ => return Err("Invalid browser credential ID"),
         };
-        let key = key.ok_or("Browser pairing required")?.to_owned();
+        let key = match key {
+            Some(key) => key.to_owned(),
+            None => random()?,
+        };
         let nonce = random()?;
         let transcript = format!(
-            "supadashboard-browser-v2:{mode}:{extension}:{}:{nonce}",
+            "supadashboard-browser-v{VERSION}:{mode}:{extension}:{}:{nonce}",
             hello.nonce
         );
-        let proof = sign(&key, &format!("server:{transcript}"))?;
         Ok((
             Attempt {
                 mode: hello.mode,
+                code_id,
                 key,
                 transcript,
             },
-            Challenge { nonce, proof },
+            Challenge { nonce },
         ))
     }
 
@@ -209,24 +247,43 @@ impl Pairing {
         extension: &str,
         proof: Proof,
         now: Instant,
-    ) -> Result<Mode, String> {
+    ) -> Result<(Mode, Ready), Rejected> {
         let key = attempt.key.as_str();
-        let still_valid = match attempt.mode {
-            Mode::Pair => self.code(now) == Some(key),
-            Mode::Auth => self.auth_keys(extension).any(|secret| secret == key),
-        };
-        if !still_valid || !verify(key, &format!("client:{}", attempt.transcript), &proof.proof) {
-            return Err("Invalid browser proof".into());
-        }
+        let valid = verify(key, &format!("client:{}", attempt.transcript), &proof.proof);
         if attempt.mode == Mode::Pair {
-            let secret = sign(key, &format!("credential:{}", attempt.transcript))?;
+            let issued = attempt.code_id.as_deref();
+            if self
+                .code(now)
+                .is_none_or(|code| Some(code.id.as_str()) != issued)
+            {
+                return Err(Rejected::Expired);
+            }
+            if !valid {
+                if let Some(code) = &mut self.code {
+                    code.failures += 1;
+                    if code.failures >= MAX_ATTEMPTS {
+                        self.code = None;
+                        return Err(Rejected::Expired);
+                    }
+                }
+                return Err(Rejected::Code);
+            }
+        } else if !valid || !self.auth_keys(extension).any(|secret| secret == key) {
+            return Err(Rejected::Authentication);
+        }
+        let proof = sign(key, &format!("server:{}", attempt.transcript))
+            .map_err(|error| Rejected::Storage(error.into()))?;
+        if attempt.mode == Mode::Pair {
+            let secret = sign(key, &format!("credential:{}", attempt.transcript))
+                .map_err(|error| Rejected::Storage(error.into()))?;
             self.save(Credentials {
                 current: self.credentials.current.clone(),
                 pending: Some(Credential {
                     extension: extension.into(),
                     secret,
                 }),
-            })?;
+            })
+            .map_err(Rejected::Storage)?;
             self.code = None;
         } else if let Some(pending) = self
             .credentials
@@ -238,9 +295,16 @@ impl Pairing {
             self.save(Credentials {
                 current: Some(pending.clone()),
                 pending: None,
-            })?;
+            })
+            .map_err(Rejected::Storage)?;
         }
-        Ok(attempt.mode)
+        Ok((
+            attempt.mode,
+            Ready {
+                kind: "ready",
+                proof,
+            },
+        ))
     }
 
     fn save(&mut self, credentials: Credentials) -> Result<(), String> {
@@ -251,6 +315,16 @@ impl Pairing {
         self.credentials = credentials;
         self.repair = false;
         Ok(())
+    }
+}
+
+fn digits() -> Result<String, Failure> {
+    loop {
+        let value = CryptographicBuffer::GenerateRandomNumber()
+            .map_err(|_| "Could not generate browser pairing data")?;
+        if value < 4_294_000_000 {
+            return Ok(format!("{:06}", value % 1_000_000));
+        }
     }
 }
 
@@ -304,9 +378,10 @@ mod tests {
 
     fn hello(mode: Mode) -> Hello {
         Hello {
+            v: VERSION,
             mode,
             nonce: "0".repeat(32),
-            key_id: None,
+            key_id: (mode == Mode::Auth).then(|| "0".repeat(64)),
         }
     }
 
@@ -317,7 +392,7 @@ mod tests {
     }
 
     fn pair(pairing: &mut Pairing, now: Instant) -> String {
-        let code = pairing.issue(1, now).unwrap();
+        let code = pairing.issue(1, now).unwrap().code;
         let (attempt, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
         let secret = sign(&code, &format!("credential:{}", attempt.transcript)).unwrap();
         let proof = response(&attempt, &code);
@@ -325,12 +400,12 @@ mod tests {
         secret
     }
 
-    fn login(pairing: &mut Pairing, key: &str, now: Instant) -> Result<Mode, String> {
+    fn login(pairing: &mut Pairing, key: &str, now: Instant) -> Result<(Mode, Ready), Rejected> {
         let hello = Hello {
-            key_id: Some(sha256_hex(key.as_bytes())?),
+            key_id: Some(sha256_hex(key.as_bytes()).unwrap()),
             ..hello(Mode::Auth)
         };
-        let (attempt, _) = pairing.begin(hello, ID, now)?;
+        let (attempt, _) = pairing.begin(hello, ID, now).unwrap();
         let proof = response(&attempt, key);
         pairing.finish(attempt, ID, proof, now)
     }
@@ -341,15 +416,22 @@ mod tests {
         let path = folder.join(".browser.json");
         let mut pairing = Pairing::open(path.clone());
         let now = Instant::now();
-        assert!(pairing.begin(hello(Mode::Auth), ID, now).is_err());
-        assert!(pairing.begin(hello(Mode::Pair), ID, now).is_err());
-        let code = pairing.issue(1, now).unwrap();
+        let (attempt, decoy) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
+        let wrong = response(&attempt, "000000");
+        assert_eq!(
+            pairing.finish(attempt, ID, wrong, now).unwrap_err(),
+            Rejected::Expired
+        );
+        let code = pairing.issue(1, now).unwrap().code;
+        assert_eq!(code.len(), 6);
+        assert!(code.bytes().all(|byte| byte.is_ascii_digit()));
         let (attempt, challenge) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-        assert!(verify(
-            &code,
-            &format!("server:{}", attempt.transcript),
-            &challenge.proof
-        ));
+        for challenge in [decoy, challenge] {
+            assert_eq!(
+                serde_json::to_value(&challenge).unwrap(),
+                serde_json::json!({"nonce": challenge.nonce})
+            );
+        }
         let wrong = response(&attempt, "wrong");
         assert!(pairing.finish(attempt, ID, wrong, now).is_err());
         let (attempt, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
@@ -364,20 +446,48 @@ mod tests {
         let (replay, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
         let secret = sign(&code, &format!("credential:{}", attempt.transcript)).unwrap();
         let proof = response(&attempt, &code);
-        pairing.finish(attempt, ID, proof, now).unwrap();
+        let transcript = attempt.transcript.clone();
+        let (_, ready) = pairing.finish(attempt, ID, proof, now).unwrap();
+        assert!(verify(&code, &format!("server:{transcript}"), &ready.proof));
         let old = response(&replay, &code);
         assert!(pairing.finish(replay, ID, old, now).is_err());
         assert!(!std::fs::read_to_string(&path).unwrap().contains(&secret));
         let mut reopened = Pairing::open(path);
-        assert!(
-            reopened
-                .begin(hello(Mode::Auth), "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", now)
-                .is_err()
-        );
-        let (attempt, _) = reopened.begin(hello(Mode::Auth), ID, now).unwrap();
+        let other = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let greeting = || Hello {
+            key_id: Some(sha256_hex(secret.as_bytes()).unwrap()),
+            ..hello(Mode::Auth)
+        };
+        let (attempt, _) = reopened.begin(greeting(), other, now).unwrap();
+        let proof = response(&attempt, &secret);
+        assert!(reopened.finish(attempt, other, proof, now).is_err());
+        let (attempt, _) = reopened.begin(greeting(), ID, now).unwrap();
         let proof = response(&attempt, &secret);
         reopened.finish(attempt, ID, proof, now).unwrap();
         std::fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn three_wrong_proofs_burn_even_an_already_challenged_code() {
+        let folder = temp("browser-code-limit");
+        let mut pairing = Pairing::open(folder.join(".browser.json"));
+        let now = Instant::now();
+        let code = pairing.issue(1, now).unwrap().code;
+        let (correct, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
+        for expected in [Rejected::Code, Rejected::Code, Rejected::Expired] {
+            let (attempt, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
+            let wrong = response(&attempt, "wrong");
+            assert_eq!(
+                pairing.finish(attempt, ID, wrong, now).unwrap_err(),
+                expected
+            );
+        }
+        let proof = response(&correct, &code);
+        assert_eq!(
+            pairing.finish(correct, ID, proof, now).unwrap_err(),
+            Rejected::Expired
+        );
+        assert!(!folder.join(".browser.json").exists());
     }
 
     #[test]

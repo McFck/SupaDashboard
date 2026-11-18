@@ -24,7 +24,7 @@ describe('now playing options', () => {
   it('upgrades v6 keeping every setting and giving the widget the All filter', () => {
     const v6 = withWidget(6);
     const migrated = migrate(v6);
-    expect(migrated.version).toBe(20);
+    expect(migrated.version).toBe(21);
     expect(widget(migrated)?.options).toEqual({ sources: [] });
     expect({ ...migrated, version: 6, controls: migrated.controls.slice(0, -1) }).toEqual({
       ...v6,

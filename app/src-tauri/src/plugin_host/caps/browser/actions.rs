@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{
-    view::Selection,
-    wire::{Failure, State},
-};
+use super::wire::{Failure, State};
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -15,21 +12,9 @@ pub enum Destination {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "phase", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ScrollFrame {
-    Hold {
-        #[serde(default)]
-        outline: bool,
-        tab: Option<i32>,
-    },
-    Move {
-        dx: i32,
-        dy: i32,
-        tab: Option<i32>,
-    },
-    Release {
-        vx: f32,
-        vy: f32,
-        tab: Option<i32>,
-    },
+    Hold { tab: Option<i32> },
+    Move { dx: i32, dy: i32, tab: Option<i32> },
+    Release { vx: f32, vy: f32, tab: Option<i32> },
 }
 
 impl ScrollFrame {
@@ -41,7 +26,7 @@ impl ScrollFrame {
 
     pub(super) fn validate(&self) -> Result<(), Failure> {
         let valid = match self {
-            Self::Hold { outline, tab } => !outline || tab.is_none(),
+            Self::Hold { .. } => true,
             Self::Move { dx, dy, .. } => [dx, dy].into_iter().all(|d| d.unsigned_abs() <= 4096),
             Self::Release { vx, vy, .. } => [vx, vy].into_iter().all(|v| v.abs() <= 10000.0),
         };
@@ -58,25 +43,38 @@ pub enum PageInput {
     PageDown {},
     Top {},
     Bottom {},
-    Preview {
-        selection: Selection,
-    },
-    ClearPreview {
-        selection: Selection,
-    },
-    Press {
-        selection: Selection,
-        background: bool,
-    },
+    Back {},
+    Forward {},
+    Reload {},
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MediaInput {
+    Play {},
+    Pause {},
     Toggle {},
     Seek { seconds: i32 },
     Speed { rate: f64 },
     Fullscreen {},
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TabInput {
+    Next,
+    Previous,
+    New,
+    Close,
+    Reopen,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SuspendMode {
+    Toggle,
+    On,
+    Off,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -108,11 +106,8 @@ impl PointerInput {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
-    Activate {
-        tab: i32,
-    },
-    Close {
-        tab: i32,
+    Tab {
+        input: TabInput,
     },
     Open {
         url: String,
@@ -124,6 +119,10 @@ pub enum Action {
     Media {
         input: MediaInput,
     },
+    Suspend {
+        mode: SuspendMode,
+    },
+    WindowFullscreen {},
     Pointer {
         tab: i32,
         input: PointerInput,
@@ -146,25 +145,10 @@ pub(super) fn web_url(value: &str, max: usize) -> bool {
 }
 
 impl Action {
-    pub(super) fn selection(&self) -> Option<&Selection> {
-        match self {
-            Self::Page {
-                input: PageInput::Preview { selection } | PageInput::Press { selection, .. },
-            } => Some(selection),
-            _ => None,
-        }
-    }
-
     pub(super) fn validate_input(&self) -> Result<(), Failure> {
         match self {
             Self::Pointer { tab, .. } if *tab < 0 => Err("Invalid browser tab"),
             Self::Pointer { input, .. } => input.validate(),
-            Self::Page {
-                input:
-                    PageInput::Preview { selection }
-                    | PageInput::ClearPreview { selection }
-                    | PageInput::Press { selection, .. },
-            } => selection.validate(),
             Self::Open { url, .. } if !web_url(url, 2048) => Err("Enter a valid HTTP or HTTPS URL"),
             Self::Media {
                 input: MediaInput::Seek { seconds },
@@ -178,9 +162,9 @@ impl Action {
 
     pub(super) fn validate_target(&self, state: &State) -> Result<(), Failure> {
         match self {
-            Self::Activate { tab } | Self::Close { tab } if !state.contains(*tab) => {
-                Err("Tab closed")
-            }
+            Self::Tab {
+                input: TabInput::Next | TabInput::Previous | TabInput::Close,
+            } if state.active_tab.is_none() => Err("No active browser tab"),
             Self::Open {
                 destination: Destination::Current,
                 ..
@@ -198,15 +182,12 @@ impl Action {
 
     pub(super) fn failure(&self) -> Failure {
         match self {
-            Self::Activate { .. } => "Could not select tab",
-            Self::Close { .. } => "Could not close tab",
+            Self::Tab { .. } => "Could not control browser tab",
             Self::Open { .. } => "Could not open website",
-            Self::Page {
-                input:
-                    PageInput::Preview { .. } | PageInput::ClearPreview { .. } | PageInput::Press { .. },
-            } => "Page element is unavailable",
-            Self::Page { .. } => "Could not scroll this tab",
+            Self::Page { .. } => "Could not control this page",
             Self::Media { .. } => "Could not control browser media",
+            Self::Suspend { .. } => "Could not change browser media suspension",
+            Self::WindowFullscreen { .. } => "Could not change browser fullscreen",
             Self::Pointer { .. } => "Browser touchpad unavailable",
         }
     }
@@ -262,8 +243,9 @@ mod tests {
                 .validate_input()
         };
         for value in [
-            json!({"kind": "close", "tab": 1, "window": 0}),
-            json!({"kind": "close", "tab": 1.5}),
+            json!({"kind": "tab", "input": "close", "window": 0}),
+            json!({"kind": "tab", "input": "activate"}),
+            json!({"kind": "suspend", "mode": "invalid"}),
             json!({"kind": "open", "url": "https://example.org", "destination": "popup"}),
             json!({"kind": "page", "input": {"kind": "top", "extra": 0}}),
             json!({"kind": "media", "input": {"kind": "speed", "rate": 0}}),
@@ -275,9 +257,8 @@ mod tests {
             assert!(validate(value.clone()).is_err(), "{value}");
         }
         for (value, allowed) in [
-            (json!({"kind": "activate", "tab": 0}), false),
-            (json!({"kind": "close", "tab": -1}), false),
-            (json!({"kind": "close", "tab": 1}), true),
+            (json!({"kind": "tab", "input": "close"}), true),
+            (json!({"kind": "suspend", "mode": "off"}), true),
             (
                 json!({"kind": "pointer", "tab": 2, "input": {"kind": "click"}}),
                 false,

@@ -11,7 +11,6 @@ use tokio_tungstenite::{
 use super::{
     actions::{Action, valid_rate, web_url},
     stream::ScrollOut,
-    view::{Outline, VIEW_LIMIT},
 };
 
 pub(super) const ADDRESS: &str = "127.0.0.1:43822";
@@ -67,6 +66,8 @@ pub struct State {
     tabs: Vec<Tab>,
     pub(super) active_tab: Option<i32>,
     media: Option<MediaState>,
+    #[serde(default)]
+    suspended: bool,
 }
 
 impl State {
@@ -91,10 +92,6 @@ impl State {
         Ok(())
     }
 
-    pub(super) fn contains(&self, id: i32) -> bool {
-        self.tabs.iter().any(|tab| tab.id == id)
-    }
-
     pub(super) fn has_media(&self) -> bool {
         self.media.is_some()
     }
@@ -105,7 +102,6 @@ impl State {
 pub(super) enum Outgoing<'a> {
     Command { id: u32, action: &'a Action },
     Scroll(ScrollOut),
-    Outline { enabled: bool },
 }
 
 #[derive(Deserialize)]
@@ -114,16 +110,11 @@ pub(super) enum Reply {
     State {
         state: State,
     },
-    Outline {
-        view: Option<Outline>,
-    },
     Done {
         id: u32,
         ok: bool,
         #[serde(default)]
         gone: bool,
-        #[serde(default)]
-        covered: bool,
     },
 }
 
@@ -151,15 +142,6 @@ async fn read_text(
 
 pub(super) async fn read<T: DeserializeOwned>(socket: &mut Socket) -> Result<T, Failure> {
     decode(&read_text(socket).await?)
-}
-
-pub(super) async fn read_reply(socket: &mut Socket) -> Result<Reply, Failure> {
-    let text = read_text(socket).await?;
-    let reply = decode(&text)?;
-    if matches!(reply, Reply::Outline { .. }) && text.len() > VIEW_LIMIT {
-        return Err("Page outline is too large");
-    }
-    Ok(reply)
 }
 
 pub(super) async fn send(socket: &mut Socket, frame: &impl Serialize) -> Result<(), Failure> {

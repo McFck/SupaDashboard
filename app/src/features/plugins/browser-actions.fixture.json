@@ -1,7 +1,14 @@
 [
-  { "kind": "activate", "tab": 1 },
-  { "kind": "close", "tab": 1 },
+  { "kind": "tab", "input": "next" },
+  { "kind": "tab", "input": "previous" },
+  { "kind": "tab", "input": "new" },
+  { "kind": "tab", "input": "close" },
+  { "kind": "tab", "input": "reopen" },
   { "kind": "open", "url": "https://example.org/", "destination": "new" },
+  { "kind": "window_fullscreen" },
+  { "kind": "suspend", "mode": "toggle" },
+  { "kind": "suspend", "mode": "on" },
+  { "kind": "suspend", "mode": "off" },
   { "kind": "pointer", "tab": 1, "input": { "kind": "begin" } },
   { "kind": "pointer", "tab": 1, "input": { "kind": "move", "dx": 12, "dy": -8 } },
   { "kind": "pointer", "tab": 1, "input": { "kind": "click" } },
@@ -12,53 +19,12 @@
   { "kind": "page", "input": { "kind": "bottom" } },
   { "kind": "page", "input": { "kind": "page_up" } },
   { "kind": "page", "input": { "kind": "page_down" } },
-  {
-    "kind": "page",
-    "input": {
-      "kind": "preview",
-      "selection": {
-        "tab": 1,
-        "doc": "00000000000000000000000000000000",
-        "seq": 1,
-        "target": 1,
-        "x": 2,
-        "y": 3,
-        "token": "00000000000000000000000000000001"
-      }
-    }
-  },
-  {
-    "kind": "page",
-    "input": {
-      "kind": "clear_preview",
-      "selection": {
-        "tab": 1,
-        "doc": "00000000000000000000000000000000",
-        "seq": 1,
-        "target": 1,
-        "x": 2,
-        "y": 3,
-        "token": "00000000000000000000000000000001"
-      }
-    }
-  },
-  {
-    "kind": "page",
-    "input": {
-      "kind": "press",
-      "selection": {
-        "tab": 1,
-        "doc": "00000000000000000000000000000000",
-        "seq": 1,
-        "target": 1,
-        "x": 2,
-        "y": 3,
-        "token": "00000000000000000000000000000001"
-      },
-      "background": false
-    }
-  },
+  { "kind": "page", "input": { "kind": "back" } },
+  { "kind": "page", "input": { "kind": "forward" } },
+  { "kind": "page", "input": { "kind": "reload" } },
   { "kind": "media", "input": { "kind": "toggle" } },
+  { "kind": "media", "input": { "kind": "play" } },
+  { "kind": "media", "input": { "kind": "pause" } },
   { "kind": "media", "input": { "kind": "seek", "seconds": -10 } },
   { "kind": "media", "input": { "kind": "speed", "rate": 1.5 } },
   { "kind": "media", "input": { "kind": "fullscreen" } }

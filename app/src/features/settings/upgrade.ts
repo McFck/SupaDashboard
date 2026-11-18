@@ -117,7 +117,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 20) {
+  if (typeof saved.version === 'number' && saved.version > 21) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -197,14 +197,10 @@ export function upgrade(input: Record<string, unknown>) {
     };
   }
   // v6 was briefly emitted by a development build with the v5 shape; v7 adds the nowPlaying `sources` option.
-  if (
-    ![3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(
-      saved.version as number,
-    )
-  ) {
+  if (typeof saved.version !== 'number' || !Number.isInteger(saved.version) || saved.version < 3) {
     throw new Error(`Unsupported settings version ${saved.version}`);
   } // never let an unknown file fall back to defaults and get saved over
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(saved.version as number)) {
+  if (saved.version < 8) {
     saved = toV8(saved);
   }
   if (saved.version === 8) {
@@ -336,6 +332,22 @@ export function upgrade(input: Record<string, unknown>) {
   if (saved.version === 19) {
     // v20 renamed variables of a plugin that is no longer part of the app; its users' settings are past v20.
     saved = { ...saved, version: 20 };
+  }
+  if (saved.version === 20) {
+    const retired = new Map([
+      ['browserRemoteTabs', 'WebCompanion'],
+      ['webcompanionPageOutline', 'Page Outline'],
+    ]);
+    for (const control of rawControls) {
+      const oldTitle = retired.get(control.type);
+      if (oldTitle) {
+        control.type = 'webcompanionTouchpad';
+        if (control.name === oldTitle) {
+          control.name = 'Browser Touchpad';
+        }
+      }
+    }
+    saved = { ...saved, version: 21 };
   }
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {
     throw new Error('Monitor label must be text');
