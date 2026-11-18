@@ -10,7 +10,7 @@
     nativePlugins,
     pluginState,
     setPluginEnabled,
-    verifiedPlugin,
+    pluginTrust,
   } from '../registry';
   import Section from '../../../panel/ui/Section.svelte';
   import PluginAuthor from './PluginAuthor.svelte';
@@ -85,7 +85,7 @@
                 </div>
                 <PluginAuthor
                   class="justify-self-start text-xs leading-normal text-muted-foreground"
-                  verified={verifiedPlugin(p.id)}
+                  trust={pluginTrust(p.id)}
                 />
                 {#if p.description}
                   <p
@@ -101,12 +101,14 @@
                 >
               {/if}
             </button>
-            <Switch
-              aria-label={`Enable ${p.title}`}
-              checked={p.default || !$pluginState.uninstalled.includes(p.id)}
-              disabled={p.default || changing}
-              onCheckedChange={(enabled) => setEnabled(p.id, enabled)}
-            />
+            {#if pluginTrust(p.id) !== 'dev'}
+              <Switch
+                aria-label={`Enable ${p.title}`}
+                checked={p.default || !$pluginState.uninstalled.includes(p.id)}
+                disabled={p.default || changing}
+                onCheckedChange={(enabled) => setEnabled(p.id, enabled)}
+              />
+            {/if}
           </div>
         {/each}
       </div>

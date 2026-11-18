@@ -129,6 +129,7 @@ impl PluginHost {
                 return Err("Plugin id does not match".to_owned());
             }
             supported(&plugin.manifest)?;
+            self.require_installed_source(&plugin.manifest.id)?;
             accept(&plugin).map(|()| plugin)
         };
         let id = match load(staged).and_then(check) {
@@ -227,6 +228,7 @@ pub async fn plugin_catalogue(window: WebviewWindow) -> Result<Vec<Entry>, Strin
 #[tauri::command]
 pub async fn plugin_install(host: State<'_, PluginHost>, id: String) -> Result<(), String> {
     let _changing = host.changing.lock().await;
+    host.require_installed_source(&id)?;
     let source = Source::new();
     let entries = source.catalogue().await?;
     let entry = entries
@@ -308,6 +310,7 @@ pub async fn plugin_uninstall(
         return Err("Invalid plugin id".into());
     }
     let _changing = host.changing.lock().await;
+    host.require_installed_source(&id)?;
     host.take(&id);
     let path = installed(&host.root(), &id);
     let removed = remove_file(&path);
@@ -343,6 +346,8 @@ mod tests {
     fn a_confirmed_file_installs_the_inspected_bytes_and_never_another_plugin_api() {
         let host = PluginHost {
             plugins: Default::default(),
+            #[cfg(debug_assertions)]
+            dev: Default::default(),
             legacy: temp("host"),
             changing: Default::default(),
             caps: Default::default(),

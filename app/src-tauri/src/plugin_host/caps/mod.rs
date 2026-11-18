@@ -127,10 +127,7 @@ pub fn release_webview(app: &AppHandle, label: &str) {
 impl PluginHost {
     /// The installed plugin a capability call names.
     fn installed(&self, id: &str) -> Result<Arc<Plugin>, String> {
-        self.lock()
-            .get(id)
-            .cloned()
-            .ok_or_else(|| "Plugin is not installed".into())
+        self.get(id).ok_or_else(|| "Plugin is not installed".into())
     }
 }
 

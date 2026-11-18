@@ -10,7 +10,7 @@
     pluginState,
     removePlugin,
     setPluginEnabled,
-    verifiedPlugin,
+    pluginTrust,
   } from '../registry';
   import type { Param, Plugin } from '../contracts';
   import { formatDate, formatSize } from './about';
@@ -124,16 +124,18 @@
         icon={plugin.icon}
         version={listed?.version}
         applet={pluginApplets.length > 0}
-        verified={verifiedPlugin(plugin.id)}
+        trust={pluginTrust(plugin.id)}
         description={plugin.description}
         guide={plugin.guide}
       >
-        <Switch
-          aria-label={`Enable ${plugin.title}`}
-          checked={plugin.default || !$pluginState.uninstalled.includes(plugin.id)}
-          disabled={plugin.default || changing}
-          onCheckedChange={setEnabled}
-        />
+        {#if listed?.trust !== 'dev'}
+          <Switch
+            aria-label={`Enable ${plugin.title}`}
+            checked={plugin.default || !$pluginState.uninstalled.includes(plugin.id)}
+            disabled={plugin.default || changing}
+            onCheckedChange={setEnabled}
+          />
+        {/if}
       </PluginHeader>
     </div>
     <div
@@ -197,13 +199,15 @@
           <Section title="About">
             <Row label="Last update"><span class="text-sm">{formatDate(listed?.updated)}</span></Row
             >
-            <Row label="Installed"
-              ><span class="text-sm">{formatDate($pluginState.installed[plugin.id])}</span></Row
-            >
-            <Row label="Size"
-              ><span class="text-sm tabular-nums">{formatSize(listed?.size)}</span></Row
-            >
-            {#if !plugin.default && !plugin.builtin}
+            {#if listed?.trust !== 'dev'}
+              <Row label="Installed"
+                ><span class="text-sm">{formatDate($pluginState.installed[plugin.id])}</span></Row
+              >
+              <Row label="Size"
+                ><span class="text-sm tabular-nums">{formatSize(listed?.size)}</span></Row
+              >
+            {/if}
+            {#if !plugin.default && !plugin.builtin && listed?.trust !== 'dev'}
               <Row label="Remove plugin">
                 <Button
                   variant="destructive"

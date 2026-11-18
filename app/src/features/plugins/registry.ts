@@ -56,8 +56,8 @@ export const bundledPlugins: Plugin[] = [];
 export const compiledPlugins = new Set<string>();
 /** `plugin_list` at start-up by id: native parts and external plugins on disk, with version, size and trust. */
 export const nativePlugins = new Map<string, NativePlugin>();
-export const verifiedPlugin = (id: string) =>
-  compiledPlugins.has(id) || nativePlugins.get(id)?.trust === 'verified';
+export const pluginTrust = (id: string): NativePlugin['trust'] =>
+  nativePlugins.get(id)?.trust ?? (compiledPlugins.has(id) ? 'verified' : 'unverified');
 export const pluginState = writable<PluginState>(normalizePluginState(null));
 const variableDefinitions = new Map<string, { owner: string; definition: PluginVariableDef }>();
 const eventDefinitions = new Map<string, EventDef>();
@@ -350,12 +350,19 @@ export async function installEnabled(
     }
   }
   const state = normalizePluginState(saved);
-  for (const plugin of list)
-    if (!state.installed[plugin.id]) state.installed[plugin.id] = new Date().toISOString();
+  for (const plugin of list) {
+    if (pluginTrust(plugin.id) !== 'dev' && !state.installed[plugin.id]) {
+      state.installed[plugin.id] = new Date().toISOString();
+    }
+  }
   await persistPlugins(state);
   installEach(
     list.filter(
-      (plugin) => plugin.builtin || plugin.default || !state.uninstalled.includes(plugin.id),
+      (plugin) =>
+        plugin.builtin ||
+        plugin.default ||
+        pluginTrust(plugin.id) === 'dev' ||
+        !state.uninstalled.includes(plugin.id),
     ),
   );
   if (pluginStore)
@@ -373,7 +380,9 @@ export async function installEnabled(
 
 export async function setPluginEnabled(id: string, enabled: boolean) {
   const plugin = bundledPlugins.find((p) => p.id === id);
-  if (!plugin || (!enabled && (plugin.builtin || plugin.default))) return;
+  if (!plugin || pluginTrust(id) === 'dev' || (!enabled && (plugin.builtin || plugin.default))) {
+    return;
+  }
   const state = structuredClone(get(pluginState));
   state.uninstalled = state.uninstalled.filter((entry) => entry !== id);
   if (!enabled) state.uninstalled.push(id);

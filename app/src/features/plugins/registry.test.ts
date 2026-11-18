@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { pluginPermissions } from './permissions';
 const store = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
@@ -14,6 +15,25 @@ beforeEach(() => {
 });
 
 describe('plugin bookkeeping', () => {
+  it('autoloads dev plugins without making former bundled plugins eligible for restore', async () => {
+    const registry = await import('./registry');
+    store.get.mockResolvedValue({ installed: {}, uninstalled: ['spotify'] });
+    const setup = vi.fn();
+    const permissions = pluginPermissions({});
+    if (!permissions) {
+      throw new Error('Invalid test permissions');
+    }
+    await registry.installEnabled(
+      [],
+      [{ id: 'spotify', title: 'Spotify', setup }],
+      [{ id: 'spotify', version: '2.0.0', api: 2, trust: 'dev', permissions, size: 0, updated: 0 }],
+    );
+    expect(setup).toHaveBeenCalledOnce();
+    expect(store.set.mock.calls[0][1]).toEqual({ installed: {}, uninstalled: ['spotify'] });
+    await registry.setPluginEnabled('spotify', true);
+    expect(store.set).toHaveBeenCalledOnce();
+  });
+
   it('protects plugin installation state and rejects applet ownership collisions', async () => {
     const registry = await import('./registry');
     const setup = vi.fn();

@@ -30,7 +30,7 @@ export interface NativePlugin {
   id: string;
   version: string;
   api: number;
-  trust: 'verified' | 'unverified';
+  trust: 'verified' | 'unverified' | 'dev';
   permissions: PluginPermissions;
   size: number;
   updated: number;
@@ -49,7 +49,7 @@ export function listedPlugins(raw: unknown): NativePlugin[] {
         PLUGIN_ID.test(entry.id) &&
         typeof entry.version === 'string' &&
         Number.isSafeInteger(entry.api) &&
-        (entry.trust === 'verified' || entry.trust === 'unverified') &&
+        (entry.trust === 'verified' || entry.trust === 'unverified' || entry.trust === 'dev') &&
         Number.isSafeInteger(entry.size) &&
         Number.isSafeInteger(entry.updated),
     )
