@@ -2,13 +2,16 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tokio::{net::TcpStream, time::timeout};
+use tokio::net::TcpStream;
 use tokio_tungstenite::{
     WebSocketStream,
     tungstenite::{Message, handshake::server::Request},
 };
 
-use super::actions::{Action, valid_rate, web_url};
+use super::{
+    actions::{Action, valid_rate, web_url},
+    stream::ScrollOut,
+};
 
 pub(super) const ADDRESS: &str = "127.0.0.1:43822";
 pub(super) const PATH: &str = "/browser";
@@ -91,45 +94,30 @@ impl State {
         self.tabs.iter().any(|tab| tab.id == id)
     }
 
-    pub(super) fn has_media(&self, id: i32) -> bool {
-        self.media_tab() == Some(id)
-    }
-
-    fn media_tab(&self) -> Option<i32> {
-        self.media.as_ref().map(|media| media.tab)
-    }
-
-    pub(super) fn same_targets(&self, other: &Self) -> bool {
-        self.active_tab == other.active_tab
-            && self.media_tab() == other.media_tab()
-            && self
-                .tabs
-                .iter()
-                .map(|tab| tab.id)
-                .eq(other.tabs.iter().map(|tab| tab.id))
+    pub(super) fn has_media(&self) -> bool {
+        self.media.is_some()
     }
 }
 
 #[derive(Serialize)]
-pub(super) struct Command<'a> {
-    pub id: u32,
-    pub action: &'a Action,
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub(super) enum Outgoing<'a> {
+    Command { id: u32, action: &'a Action },
+    Scroll(ScrollOut),
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase", deny_unknown_fields)]
 pub(super) enum Reply {
-    State { state: State },
-    Done { id: u32, ok: bool },
-}
-
-impl Reply {
-    pub(super) fn completion(self, request: u32) -> Result<bool, Failure> {
-        match self {
-            Self::Done { id, ok } if id == request => Ok(ok),
-            _ => Err("Unexpected browser reply"),
-        }
-    }
+    State {
+        state: State,
+    },
+    Done {
+        id: u32,
+        ok: bool,
+        #[serde(default)]
+        gone: bool,
+    },
 }
 
 fn decode<T: DeserializeOwned>(text: &str) -> Result<T, Failure> {
@@ -158,12 +146,6 @@ pub(super) async fn send(socket: &mut Socket, frame: &impl Serialize) -> Result<
         .send(Message::Text(text.into()))
         .await
         .map_err(|_| "Browser disconnected")
-}
-
-pub(super) async fn receive(socket: &mut Socket) -> Result<Reply, Failure> {
-    timeout(DEADLINE * 8, read(socket))
-        .await
-        .map_err(|_| "Browser disconnected")?
 }
 
 #[cfg(test)]
@@ -251,17 +233,21 @@ mod tests {
     }
 
     #[test]
-    fn only_a_well_formed_reply_to_the_in_flight_action_can_complete_it() {
-        let complete = |payload| decode::<Reply>(payload)?.completion(4);
-        assert_eq!(complete(r#"{"kind":"done","id":4,"ok":true}"#), Ok(true));
-        assert_eq!(complete(r#"{"kind":"done","id":4,"ok":false}"#), Ok(false));
+    fn completion_frames_require_a_valid_id_and_result() {
+        assert!(matches!(
+            decode::<Reply>(r#"{"kind":"done","id":4,"ok":false,"gone":true}"#),
+            Ok(Reply::Done {
+                id: 4,
+                ok: false,
+                gone: true
+            })
+        ));
         for payload in [
-            r#"{"kind":"done","id":3,"ok":true}"#,
             r#"{"kind":"done","id":4,"ok":"true"}"#,
             r#"{"kind":"done","id":4,"ok":true,"tab":9}"#,
             r#"{"kind":"done","id":-1,"ok":true}"#,
         ] {
-            assert!(complete(payload).is_err(), "{payload}");
+            assert!(decode::<Reply>(payload).is_err(), "{payload}");
         }
     }
 }

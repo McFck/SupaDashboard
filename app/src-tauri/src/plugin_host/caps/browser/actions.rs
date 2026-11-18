@@ -10,10 +10,27 @@ pub enum Destination {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(tag = "phase", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ScrollFrame {
+    Hold {},
+    Move { dx: i32, dy: i32 },
+    Release { vx: f32, vy: f32 },
+}
+
+impl ScrollFrame {
+    pub(super) fn validate(&self) -> Result<(), Failure> {
+        let valid = match self {
+            Self::Hold {} => true,
+            Self::Move { dx, dy } => [dx, dy].into_iter().all(|d| d.unsigned_abs() <= 4096),
+            Self::Release { vx, vy } => [vx, vy].into_iter().all(|v| v.abs() <= 10000.0),
+        };
+        valid.then_some(()).ok_or("Invalid scroll request")
+    }
+}
+
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum Scroll {
-    Drag { pixels: i32 },
-    Fling { pixels: i32 },
+pub enum PageInput {
     PageUp {},
     PageDown {},
     Top {},
@@ -22,10 +39,9 @@ pub enum Scroll {
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum Media {
+pub enum MediaInput {
     Toggle {},
-    Back {},
-    Forward {},
+    Seek { seconds: i32 },
     Speed { rate: f64 },
     Fullscreen {},
 }
@@ -43,13 +59,11 @@ pub enum Action {
         url: String,
         destination: Destination,
     },
-    Scroll {
-        tab: i32,
-        input: Scroll,
+    Page {
+        input: PageInput,
     },
     Media {
-        tab: i32,
-        input: Media,
+        input: MediaInput,
     },
 }
 
@@ -69,13 +83,15 @@ pub(super) fn web_url(value: &str, max: usize) -> bool {
 }
 
 impl Action {
-    pub(super) fn validate_input(&self, revision: Option<u32>) -> Result<(), Failure> {
+    pub(super) fn validate_input(&self) -> Result<(), Failure> {
         match self {
             Self::Open { url, .. } if !web_url(url, 2048) => Err("Enter a valid HTTP or HTTPS URL"),
-            Self::Open { .. } => Ok(()),
-            _ if revision.is_none() => Err("Browser snapshot is missing"),
-            Self::Scroll { input, .. } if !input.valid() => Err("Invalid scroll request"),
-            Self::Media { input, .. } if !input.valid() => Err("Invalid media request"),
+            Self::Media {
+                input: MediaInput::Seek { seconds },
+            } if !(-600..=600).contains(seconds) => Err("Invalid media request"),
+            Self::Media {
+                input: MediaInput::Speed { rate },
+            } if !(0.25..=4.0).contains(rate) => Err("Invalid media request"),
             _ => Ok(()),
         }
     }
@@ -83,16 +99,14 @@ impl Action {
     pub(super) fn validate_target(&self, state: &State) -> Result<(), Failure> {
         match self {
             Self::Activate { tab } | Self::Close { tab } if !state.contains(*tab) => {
-                Err("Browser tabs changed")
+                Err("Tab closed")
             }
             Self::Open {
                 destination: Destination::Current,
                 ..
             } if state.active_tab.is_none() => Err("No active browser tab"),
-            Self::Scroll { tab, .. } if Some(*tab) != state.active_tab => {
-                Err("Browser scroll unavailable")
-            }
-            Self::Media { tab, .. } if !state.has_media(*tab) => Err("Browser media unavailable"),
+            Self::Page { .. } if state.active_tab.is_none() => Err("No active browser tab"),
+            Self::Media { .. } if !state.has_media() => Err("Browser media unavailable"),
             _ => Ok(()),
         }
     }
@@ -102,7 +116,7 @@ impl Action {
             Self::Activate { .. } => "Could not select tab",
             Self::Close { .. } => "Could not close tab",
             Self::Open { .. } => "Could not open website",
-            Self::Scroll { .. } => "Could not scroll this tab",
+            Self::Page { .. } => "Could not scroll this tab",
             Self::Media { .. } => "Could not control browser media",
         }
     }
@@ -120,7 +134,7 @@ mod tests {
                 "kind": "open", "url": url, "destination": "new"
             }))
             .unwrap()
-            .validate_input(None)
+            .validate_input()
         };
         assert_eq!(parse("http://127.0.0.1:5481/page?a=b#c"), Ok(()));
         assert_eq!(parse("https://example.org/путь"), Ok(()));
@@ -152,50 +166,32 @@ mod tests {
             "media": {"tab": 2, "paused": false, "rate": 1, "fullscreen": false}
         }))
         .unwrap();
-        let validate = |value: Value, revision| {
+        let validate = |value: Value| {
             serde_json::from_value::<Action>(value)
                 .map_err(|_| "Invalid action")?
-                .validate_input(revision)
+                .validate_input()
         };
         for value in [
             json!({"kind": "close", "tab": 1, "window": 0}),
             json!({"kind": "close", "tab": 1.5}),
             json!({"kind": "open", "url": "https://example.org", "destination": "popup"}),
-            json!({"kind": "scroll", "tab": 1, "input": {"kind": "drag", "pixels": 2049}}),
-            json!({"kind": "scroll", "tab": 1, "input": {"kind": "fling", "pixels": -6001}}),
-            json!({"kind": "scroll", "tab": 1, "input": {"kind": "top", "extra": 0}}),
-            json!({"kind": "media", "tab": 2, "input": {"kind": "speed", "rate": 0}}),
-            json!({"kind": "media", "tab": 2, "input": {"kind": "fullscreen", "window": 2}}),
+            json!({"kind": "page", "input": {"kind": "top", "extra": 0}}),
+            json!({"kind": "media", "input": {"kind": "speed", "rate": 0}}),
+            json!({"kind": "media", "input": {"kind": "seek", "seconds": -601}}),
+            json!({"kind": "media", "input": {"kind": "fullscreen", "window": 2}}),
         ] {
-            assert!(validate(value.clone(), Some(4)).is_err(), "{value}");
+            assert!(validate(value.clone()).is_err(), "{value}");
         }
-        assert!(validate(json!({"kind": "close", "tab": 1}), None).is_err());
         for (value, allowed) in [
             (json!({"kind": "activate", "tab": 0}), false),
             (json!({"kind": "close", "tab": -1}), false),
             (json!({"kind": "close", "tab": 1}), true),
             (
-                json!({"kind": "scroll", "tab": 2, "input": {"kind": "bottom"}}),
-                false,
-            ),
-            (
-                json!({"kind": "scroll", "tab": 1, "input": {"kind": "page_down"}}),
+                json!({"kind": "page", "input": {"kind": "page_down"}}),
                 true,
             ),
             (
-                json!({"kind": "media", "tab": 1, "input": {"kind": "toggle"}}),
-                false,
-            ),
-            (
-                json!({"kind": "media", "tab": 2, "input": {"kind": "back"}}),
-                true,
-            ),
-            (
-                json!({"kind": "media", "tab": 2, "input": {"kind": "forward"}}),
-                true,
-            ),
-            (
-                json!({"kind": "media", "tab": 2, "input": {"kind": "fullscreen"}}),
+                json!({"kind": "media", "input": {"kind": "fullscreen"}}),
                 true,
             ),
         ] {
@@ -203,27 +199,50 @@ mod tests {
             assert_eq!(action.validate_target(&state).is_ok(), allowed, "{value}");
         }
     }
-}
 
-impl Scroll {
-    fn valid(&self) -> bool {
-        match self {
-            Self::Drag { pixels } => (1..=2048).contains(&pixels.unsigned_abs()),
-            Self::Fling { pixels } => (1..=6000).contains(&pixels.unsigned_abs()),
-            _ => true,
+    #[test]
+    fn kit_fixture_is_accepted_by_the_native_action_boundary() {
+        let fixture =
+            include_str!("../../../../../src/features/plugins/browser-actions.fixture.json");
+        for action in serde_json::from_str::<Vec<Action>>(fixture).unwrap() {
+            assert_eq!(action.validate_input(), Ok(()));
         }
+    }
+
+    #[test]
+    fn scroll_frames_reject_extra_fields_and_out_of_range_axes() {
+        for input in [
+            json!({"phase": "hold", "dx": 1}),
+            json!({"phase": "move", "dx": 0.5, "dy": 0}),
+            json!({"phase": "move", "dx": -2147483648i32, "dy": 0}),
+            json!({"phase": "release", "vx": 0, "vy": 10001}),
+        ] {
+            assert!(
+                serde_json::from_value::<ScrollFrame>(input)
+                    .map_err(|_| "Invalid scroll request")
+                    .and_then(|frame| frame.validate())
+                    .is_err()
+            );
+        }
+        assert!(
+            ScrollFrame::Move {
+                dx: -4096,
+                dy: 4096
+            }
+            .validate()
+            .is_ok()
+        );
+        assert!(
+            ScrollFrame::Release {
+                vx: 10000.0,
+                vy: -10000.0
+            }
+            .validate()
+            .is_ok()
+        );
     }
 }
 
 pub(super) fn valid_rate(rate: f64) -> bool {
     (0.0625..=16.0).contains(&rate)
-}
-
-impl Media {
-    fn valid(&self) -> bool {
-        match self {
-            Self::Speed { rate } => valid_rate(*rate),
-            _ => true,
-        }
-    }
 }

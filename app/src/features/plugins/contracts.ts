@@ -11,22 +11,27 @@ export type PluginBrowserSnapshot =
   | { kind: 'repair' }
   | {
       kind: 'connected';
-      revision: number;
       tabs: { id: number; title: string; active: boolean; favicon: string | null }[];
       activeTab: number | null;
       media: { tab: number; paused: boolean; rate: number; fullscreen: boolean } | null;
     };
 
-export type PluginBrowserScroll =
-  { kind: 'drag' | 'fling'; pixels: number } | { kind: 'page_up' | 'page_down' | 'top' | 'bottom' };
-
-export type PluginBrowserMedia =
-  { kind: 'toggle' | 'back' | 'forward' | 'fullscreen' } | { kind: 'speed'; rate: number };
+export type PluginBrowserScrollFrame =
+  | { phase: 'hold' }
+  | { phase: 'move'; dx: number; dy: number }
+  | { phase: 'release'; vx: number; vy: number };
 
 export type PluginBrowserAction =
   | { kind: 'activate' | 'close'; tab: number }
-  | { kind: 'scroll'; tab: number; input: PluginBrowserScroll }
-  | { kind: 'media'; tab: number; input: PluginBrowserMedia };
+  | { kind: 'open'; url: string; destination: 'new' | 'current' }
+  | { kind: 'page'; input: { kind: 'page_up' | 'page_down' | 'top' | 'bottom' } }
+  | {
+      kind: 'media';
+      input:
+        | { kind: 'toggle' | 'fullscreen' }
+        | { kind: 'seek'; seconds: number }
+        | { kind: 'speed'; rate: number };
+    };
 
 /** A reference to an action plus its arguments, as stored in settings. */
 export type ActionRef = { id: string; args?: Record<string, unknown> };

@@ -2,6 +2,7 @@
 mod actions;
 mod pairing;
 mod server;
+mod stream;
 mod wire;
 
 use std::sync::{Arc, Weak};
@@ -15,7 +16,7 @@ use tokio::{
 
 use crate::plugin_host::PluginHost;
 
-use actions::Action;
+use actions::{Action, ScrollFrame};
 use server::{Bridge, RequestAction, Snapshot};
 
 #[derive(Default)]
@@ -152,21 +153,29 @@ pub async fn plugin_browser_action(
     webview: Webview,
     plugin: String,
     watch: u32,
-    revision: Option<u32>,
     action: Action,
 ) -> Result<(), String> {
-    action.validate_input(revision)?;
+    action.validate_input()?;
     let (reply, result) = oneshot::channel();
     watched(&webview, &plugin, watch, |watcher| {
-        watcher.bridge.send(RequestAction {
-            revision,
-            action,
-            reply,
-        })
+        watcher.bridge.send(RequestAction { action, reply })
     })?;
     timeout(wire::DEADLINE * 2, result)
         .await
         .map_err(|_| "Browser did not respond")?
-        .map_err(|_| "Browser disconnected")?
+        .map_err(|_| "Browser is offline")?
         .map_err(String::from)
+}
+
+#[tauri::command]
+pub fn plugin_browser_scroll(
+    webview: Webview,
+    plugin: String,
+    watch: u32,
+    frame: ScrollFrame,
+) -> Result<(), String> {
+    frame.validate()?;
+    watched(&webview, &plugin, watch, |watcher| {
+        watcher.bridge.scroll(frame)
+    })
 }

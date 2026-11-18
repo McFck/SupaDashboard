@@ -1,22 +1,20 @@
 use super::{
-    actions::Action,
+    actions::{Action, ScrollFrame},
     pairing::{Hello, Mode, Pairing, Proof},
-    wire::{self, ADDRESS, Command, DEADLINE, Failure, LIMIT, LOGIN_LIMIT, Reply, Socket, State},
+    stream::{MAX_PENDING, Pending, ScrollQueue},
+    wire::{self, ADDRESS, DEADLINE, Failure, LIMIT, LOGIN_LIMIT, Outgoing, Reply, Socket, State},
 };
 use serde::Serialize;
 use std::{
     path::PathBuf,
-    sync::{
-        Arc, Mutex, MutexGuard, PoisonError,
-        atomic::{AtomicU32, Ordering},
-    },
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::{Duration, Instant},
 };
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch},
+    sync::{Notify, OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch},
     task::{AbortHandle, JoinHandle, JoinSet},
-    time::timeout,
+    time::{sleep_until, timeout},
 };
 use tokio_tungstenite::{
     WebSocketStream, accept_hdr_async_with_config,
@@ -32,14 +30,12 @@ pub enum Snapshot {
     Offline,
     Repair,
     Connected {
-        revision: u32,
         #[serde(flatten)]
         state: State,
     },
 }
 
 pub(super) struct RequestAction {
-    pub revision: Option<u32>,
     pub action: Action,
     pub reply: oneshot::Sender<Result<(), Failure>>,
 }
@@ -60,9 +56,19 @@ struct Server {
     extension: String,
     pairing: Mutex<Pairing>,
     admission: tokio::sync::Mutex<()>,
-    commands: Mutex<Option<mpsc::Sender<RequestAction>>>,
+    session: Mutex<Option<SessionInput>>,
     snapshots: watch::Sender<Snapshot>,
-    revision: AtomicU32,
+}
+
+struct SessionInput {
+    commands: mpsc::Sender<RequestAction>,
+    scroll: Arc<ScrollLane>,
+}
+
+#[derive(Default)]
+struct ScrollLane {
+    queue: Mutex<ScrollQueue>,
+    ready: Notify,
 }
 
 impl Bridge {
@@ -85,9 +91,8 @@ impl Bridge {
             extension,
             pairing: Mutex::new(pairing),
             admission: tokio::sync::Mutex::new(()),
-            commands: Mutex::new(None),
+            session: Mutex::new(None),
             snapshots: watch::Sender::new(snapshot),
-            revision: AtomicU32::default(),
         });
         let task = tokio::spawn(serve(listener, state.clone()));
         let bridge = Self {
@@ -120,11 +125,23 @@ impl Bridge {
     }
 
     pub(super) fn send(&self, action: RequestAction) -> Result<(), Failure> {
-        lock(&self.state.commands)
+        lock(&self.state.session)
             .as_ref()
             .ok_or("Browser is offline")?
+            .commands
             .try_send(action)
-            .map_err(|_| "Browser is busy")
+            .map_err(|error| match error {
+                mpsc::error::TrySendError::Full(_) => "Browser is busy",
+                mpsc::error::TrySendError::Closed(_) => "Browser is offline",
+            })
+    }
+
+    pub(super) fn scroll(&self, frame: ScrollFrame) -> Result<(), Failure> {
+        let session = lock(&self.state.session);
+        let lane = &session.as_ref().ok_or("Browser is offline")?.scroll;
+        lock(&lane.queue).push(frame);
+        lane.ready.notify_one();
+        Ok(())
     }
 }
 
@@ -234,12 +251,16 @@ async fn connect(stream: TcpStream, state: Arc<Server>, slot: OwnedSemaphorePerm
     ) {
         return;
     }
-    let (send, receive) = mpsc::channel(4);
-    *lock(&state.commands) = Some(send);
-    if let Err(error) = session(socket, &state, receive).await {
+    let (commands, receive) = mpsc::channel(MAX_PENDING);
+    let scroll = Arc::new(ScrollLane::default());
+    *lock(&state.session) = Some(SessionInput {
+        commands,
+        scroll: scroll.clone(),
+    });
+    if let Err(error) = session(socket, &state, receive, &scroll).await {
         log::debug!("Browser bridge session: {error}");
     }
-    *lock(&state.commands) = None;
+    *lock(&state.session) = None;
     state.snapshots.send_replace(Snapshot::Offline);
 }
 
@@ -247,18 +268,38 @@ async fn session(
     mut socket: Socket,
     state: &Server,
     mut actions: mpsc::Receiver<RequestAction>,
+    scroll: &ScrollLane,
 ) -> Result<(), Failure> {
-    let mut request = 0u32;
+    let mut pending = Pending::default();
+    let mut idle = tokio::time::Instant::now() + DEADLINE * 8;
     loop {
+        let deadline = pending
+            .expire(tokio::time::Instant::now())
+            .unwrap_or(idle)
+            .min(idle);
         tokio::select! {
             Some(action) = actions.recv() => {
-                request = request.wrapping_add(1);
-                dispatch(&mut socket, state, request, action).await?;
+                dispatch(&mut socket, state, &mut pending, action).await?;
             }
-            frame = wire::receive(&mut socket) => {
+            _ = scroll.ready.notified() => {
+                let frame = lock(&scroll.queue).take();
+                if let Some(frame) = frame {
+                    write(&mut socket, &Outgoing::Scroll(frame)).await?;
+                }
+            }
+            frame = wire::read(&mut socket) => {
+                idle = tokio::time::Instant::now() + DEADLINE * 8;
                 match frame? {
                     Reply::State { state: update } => publish(state, update)?,
-                    Reply::Done { .. } => return Err("Unexpected browser reply"),
+                    Reply::Done { id, ok, gone } => {
+                        pending.expire(tokio::time::Instant::now());
+                        pending.complete(id, ok, gone);
+                    }
+                }
+            }
+            _ = sleep_until(deadline) => {
+                if tokio::time::Instant::now() >= idle {
+                    return Err("Browser is offline");
                 }
             }
         }
@@ -268,40 +309,26 @@ async fn session(
 fn publish(server: &Server, state: State) -> Result<(), Failure> {
     state.validate()?;
     server.snapshots.send_if_modified(|snapshot| {
-        let revision = match snapshot {
-            Snapshot::Connected { state: old, .. } if *old == state => return false,
-            Snapshot::Connected {
-                revision,
-                state: old,
-            } if old.same_targets(&state) => *revision,
-            _ => server
-                .revision
-                .fetch_add(1, Ordering::Relaxed)
-                .wrapping_add(1),
-        };
-        *snapshot = Snapshot::Connected { revision, state };
+        if matches!(snapshot, Snapshot::Connected { state: old } if *old == state) {
+            return false;
+        }
+        *snapshot = Snapshot::Connected { state };
         true
     });
     Ok(())
 }
 
 fn validate(snapshot: &Snapshot, request: &RequestAction) -> Result<(), Failure> {
-    let Snapshot::Connected { revision, state } = snapshot else {
+    let Snapshot::Connected { state } = snapshot else {
         return Err("Browser is offline");
     };
-    if request
-        .revision
-        .is_some_and(|expected| *revision != expected)
-    {
-        return Err("Browser tabs changed");
-    }
     request.action.validate_target(state)
 }
 
 async fn dispatch(
     socket: &mut Socket,
     state: &Server,
-    request: u32,
+    pending: &mut Pending,
     action: RequestAction,
 ) -> Result<(), Failure> {
     if action.reply.is_closed() {
@@ -311,30 +338,30 @@ async fn dispatch(
         let _ = action.reply.send(Err(error));
         return Ok(());
     }
-    let result = timeout(DEADLINE, exchange(socket, state, request, &action.action))
-        .await
-        .unwrap_or(Err("Browser did not respond"));
-    let _ = action.reply.send(result.and_then(|ok| {
-        if ok {
-            Ok(())
-        } else {
-            Err(action.action.failure())
+    match pending.insert(
+        action.reply,
+        action.action.failure(),
+        tokio::time::Instant::now(),
+    ) {
+        Ok(id) => {
+            write(
+                socket,
+                &Outgoing::Command {
+                    id,
+                    action: &action.action,
+                },
+            )
+            .await
         }
-    }));
-    result.map(|_| ())
-}
-
-async fn exchange(
-    socket: &mut Socket,
-    state: &Server,
-    id: u32,
-    action: &Action,
-) -> Result<bool, Failure> {
-    wire::send(socket, &Command { id, action }).await?;
-    loop {
-        match wire::read(socket).await? {
-            Reply::State { state: update } => publish(state, update)?,
-            reply => return reply.completion(id),
+        Err(reply) => {
+            let _ = reply.send(Err("Browser is busy"));
+            Ok(())
         }
     }
+}
+
+async fn write(socket: &mut Socket, frame: &Outgoing<'_>) -> Result<(), Failure> {
+    timeout(DEADLINE, wire::send(socket, frame))
+        .await
+        .map_err(|_| "Browser did not respond")?
 }

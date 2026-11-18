@@ -58,8 +58,7 @@ export type {
   Plugin,
   PluginApi,
   PluginBrowserAction,
-  PluginBrowserMedia,
-  PluginBrowserScroll,
+  PluginBrowserScrollFrame,
   PluginBrowserSnapshot,
   SettingsGroup,
 } from './features/plugins/contracts';

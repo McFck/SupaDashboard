@@ -1,7 +1,11 @@
 // Native capabilities for plugins, each bound to the plugin id passed first and limited to what its manifest's
 // `permissions` declare (`plugin_host/caps/` in Rust). Tokens never reach JS: a header carries `{{secret:<client>}}`.
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { PluginBrowserAction, PluginBrowserSnapshot } from '../features/plugins/contracts';
+import type {
+  PluginBrowserAction,
+  PluginBrowserScrollFrame,
+  PluginBrowserSnapshot,
+} from '../features/plugins/contracts';
 
 /** A file directly in a listed folder; `modified` in Unix milliseconds. */
 export interface PluginFile {
@@ -147,26 +151,29 @@ export const pluginAutomation = {
     invoke<void>('plugin_automation_invoke', { plugin, snapshot, index }),
 };
 
+const scrollGestures = new Map<number, { reported: boolean }>();
+
 /** Connects a page to the plugin's declared Chromium extension. */
 export const pluginBrowser = {
   watch: (plugin: string, onSnapshot: (snapshot: PluginBrowserSnapshot) => void) =>
     invoke<number>('plugin_browser_watch', { plugin, events: new Channel(onSnapshot) }),
-  unwatch: (plugin: string, watch: number) =>
-    invoke<void>('plugin_browser_unwatch', { plugin, watch }),
+  unwatch: (plugin: string, watch: number) => {
+    scrollGestures.delete(watch);
+    return invoke<void>('plugin_browser_unwatch', { plugin, watch });
+  },
   pair: (plugin: string, watch: number) => invoke<string>('plugin_browser_pair', { plugin, watch }),
-  activate: (plugin: string, watch: number, revision: number, tab: number) =>
-    invoke<void>('plugin_browser_action', {
-      plugin,
-      watch,
-      revision,
-      action: { kind: 'activate', tab },
-    }),
-  action: (plugin: string, watch: number, revision: number, action: PluginBrowserAction) =>
-    invoke<void>('plugin_browser_action', { plugin, watch, revision, action }),
-  open: (plugin: string, watch: number, url: string, destination: 'new' | 'current') =>
-    invoke<void>('plugin_browser_action', {
-      plugin,
-      watch,
-      action: { kind: 'open', url, destination },
-    }),
+  action: (plugin: string, watch: number, action: PluginBrowserAction) =>
+    invoke<void>('plugin_browser_action', { plugin, watch, action }),
+  scroll: (plugin: string, watch: number, frame: PluginBrowserScrollFrame) => {
+    if (frame.phase === 'hold') {
+      scrollGestures.set(watch, { reported: false });
+    }
+    const gesture = scrollGestures.get(watch);
+    void invoke<void>('plugin_browser_scroll', { plugin, watch, frame }).catch((error: unknown) => {
+      if (gesture && !gesture.reported && scrollGestures.has(watch)) {
+        gesture.reported = true;
+        console.warn('WebCompanion scroll', error);
+      }
+    });
+  },
 };

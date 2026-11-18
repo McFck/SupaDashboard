@@ -1,0 +1,13 @@
+[
+  { "kind": "activate", "tab": 1 },
+  { "kind": "close", "tab": 1 },
+  { "kind": "open", "url": "https://example.org/", "destination": "new" },
+  { "kind": "page", "input": { "kind": "top" } },
+  { "kind": "page", "input": { "kind": "bottom" } },
+  { "kind": "page", "input": { "kind": "page_up" } },
+  { "kind": "page", "input": { "kind": "page_down" } },
+  { "kind": "media", "input": { "kind": "toggle" } },
+  { "kind": "media", "input": { "kind": "seek", "seconds": -10 } },
+  { "kind": "media", "input": { "kind": "speed", "rate": 1.5 } },
+  { "kind": "media", "input": { "kind": "fullscreen" } }
+]
