@@ -4,6 +4,7 @@
 //! a window watcher) belong to the plugin and the webview that started them, and go when that webview navigates or
 //! closes, or when the plugin is removed.
 pub mod automation;
+pub mod browser;
 pub mod http;
 pub mod oauth;
 pub mod open;
@@ -34,6 +35,7 @@ struct Owned {
     /// The command to run when the PC sleeps or shuts down.
     power_off: Option<process::Armed>,
     watcher: Option<automation::Watcher>,
+    browser: Option<browser::Watcher>,
 }
 
 impl Drop for Owned {
@@ -56,6 +58,7 @@ pub struct Caps {
     signed_in: Mutex<HashMap<(String, String), signin::Session>>,
     /// The plugin's sign-in window, shared by the sign-ins using it; it closes with the last one.
     signin_windows: Mutex<HashMap<String, std::sync::Weak<signin::Window>>>,
+    browser: Mutex<std::sync::Weak<browser::Bridge>>,
     /// Handles of pipes and processes.
     next: AtomicU32,
 }

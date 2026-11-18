@@ -6,6 +6,10 @@ import type { AppletDef } from '../applets/contracts';
 import type { Trigger } from '../automation/scenario';
 import type { VariableDefinition, VariableRecord, VariableValue } from '../automation/variables';
 
+export type PluginBrowserSnapshot =
+  | { kind: 'offline' }
+  | { kind: 'connected'; revision: number; tabs: { id: number; title: string; active: boolean }[] };
+
 /** A reference to an action plus its arguments, as stored in settings. */
 export type ActionRef = { id: string; args?: Record<string, unknown> };
 

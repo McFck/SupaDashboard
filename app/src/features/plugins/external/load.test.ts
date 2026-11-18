@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { permissionRows } from '../permissions';
 import { listedPlugins, pluginExport } from './load';
 
 describe('external plugin boundary', () => {
@@ -42,5 +43,22 @@ describe('external plugin boundary', () => {
     expect(listed.map((entry) => [entry.id, entry.permissions.http])).toEqual([
       ['spike', ['example.com']],
     ]);
+  });
+
+  it('shows the granted browser extension in the permissions UI', () => {
+    const browser = 'cnojhdmglpjodgblffallbibdifemkop';
+    const entry = {
+      id: 'browser-remote',
+      version: '0.1.0',
+      api: 2,
+      trust: 'dev',
+      size: 0,
+      updated: 0,
+    };
+    const rows = listedPlugins([
+      { ...entry, permissions: { browser } },
+      { ...entry, permissions: { browser: `chrome-extension://${browser}` } },
+    ]).flatMap((plugin) => permissionRows(plugin.permissions));
+    expect(rows).toEqual([{ label: 'Browser tabs', value: browser }]);
   });
 });
