@@ -4,6 +4,8 @@
 mod archive;
 pub mod caps;
 mod catalogue;
+#[cfg(any(debug_assertions, test))]
+mod dev;
 mod http;
 pub mod install;
 mod job;
@@ -29,14 +31,22 @@ use trust::Trust;
 
 pub struct Plugin {
     manifest: Manifest,
-    archive: Archive,
+    source: Source,
     trust: Trust,
     /// Unix milliseconds of the file's last change.
     updated: u64,
 }
 
+enum Source {
+    Archive(Archive),
+    #[cfg(debug_assertions)]
+    Folder(PathBuf),
+}
+
 pub struct PluginHost {
     plugins: Mutex<HashMap<String, Arc<Plugin>>>,
+    #[cfg(debug_assertions)]
+    dev: Mutex<HashMap<String, Arc<Plugin>>>,
     /// The app data root: plugins live in `plugins/`, their data in `plugin-data/`.
     legacy: PathBuf,
     /// One install or removal at a time, so two never share a staging file.
@@ -63,7 +73,7 @@ fn load(path: &Path) -> Result<Plugin, String> {
         .map_or(0, |since| since.as_millis() as u64);
     Ok(Plugin {
         manifest,
-        archive,
+        source: Source::Archive(archive),
         trust,
         updated,
     })
@@ -75,6 +85,8 @@ impl PluginHost {
     pub fn discover(app: &AppHandle) -> Result<Self, String> {
         let host = Self {
             plugins: Mutex::default(),
+            #[cfg(debug_assertions)]
+            dev: Mutex::default(),
             legacy: app.path().app_data_dir().map_err(|e| e.to_string())?,
             changing: tokio::sync::Mutex::default(),
             caps: caps::Caps::default(),
@@ -96,8 +108,38 @@ impl PluginHost {
         Ok(host)
     }
 
+    #[cfg(debug_assertions)]
+    pub fn watch_dev(app: &AppHandle) -> std::io::Result<()> {
+        dev::start(app)
+    }
+
     fn lock(&self) -> MutexGuard<'_, HashMap<String, Arc<Plugin>>> {
         self.plugins.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn get(&self, id: &str) -> Option<Arc<Plugin>> {
+        #[cfg(debug_assertions)]
+        if let Some(plugin) = self
+            .dev
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(id)
+        {
+            return Some(plugin.clone());
+        }
+        self.lock().get(id).cloned()
+    }
+
+    fn require_installed_source(&self, id: &str) -> Result<(), String> {
+        #[cfg(debug_assertions)]
+        if self
+            .get(id)
+            .is_some_and(|plugin| plugin.trust == Trust::Dev)
+        {
+            return Err("Plugin is loaded from a development folder".into());
+        }
+        let _ = id;
+        Ok(())
     }
 
     /// `<app data>/plugins`, where installs go.
@@ -127,12 +169,15 @@ impl PluginHost {
     }
 
     /// Only the UI bundle and assets are served. Reads outside the lock: an entry read goes to disk.
-    fn ui_file(&self, id: &str, file: &str) -> Option<Vec<u8>> {
+    fn ui_file(&self, id: &str, file: &str) -> Option<(Vec<u8>, bool)> {
         if !file.starts_with("ui/") && !file.starts_with("assets/") {
             return None;
         }
-        let plugin = self.lock().get(id)?.clone();
-        plugin.archive.read(file)
+        match &self.get(id)?.source {
+            Source::Archive(archive) => Some((archive.read(file)?, false)),
+            #[cfg(debug_assertions)]
+            Source::Folder(path) => Some((dev::read(path, file)?, true)),
+        }
     }
 }
 
@@ -156,7 +201,11 @@ impl Listed {
             api: plugin.manifest.api,
             trust: plugin.trust,
             permissions: plugin.manifest.permissions.clone(),
-            size: plugin.archive.size(),
+            size: match &plugin.source {
+                Source::Archive(archive) => archive.size(),
+                #[cfg(debug_assertions)]
+                Source::Folder(_) => 0,
+            },
             updated: plugin.updated,
         }
     }
@@ -164,8 +213,13 @@ impl Listed {
 
 #[tauri::command]
 pub fn plugin_list(host: State<'_, PluginHost>) -> Vec<Listed> {
-    host.lock()
+    #[cfg(debug_assertions)]
+    let dev = host.dev.lock().unwrap_or_else(PoisonError::into_inner);
+    let installed = host.lock();
+    let plugins = installed.values();
+    #[cfg(debug_assertions)]
+    let plugins = dev
         .values()
-        .map(|plugin| Listed::of(plugin))
-        .collect()
+        .chain(plugins.filter(|plugin| !dev.contains_key(&plugin.manifest.id)));
+    plugins.map(|plugin| Listed::of(plugin)).collect()
 }

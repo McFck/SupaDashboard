@@ -9,10 +9,12 @@ use tauri::{AppHandle, Manager, WebviewWindow};
 static COPYING: Mutex<()> = Mutex::new(());
 
 pub fn context(mut context: tauri::Context<tauri::Wry>) -> tauri::Context<tauri::Wry> {
-    context.config_mut().app.app_directories_override =
-        Some(tauri::utils::config::AppDirectoriesOverride::Root(
-            format!("$DATA/{}.dev", context.config().identifier).into(),
-        ));
+    if context.config().app.app_directories_override.is_none() {
+        context.config_mut().app.app_directories_override =
+            Some(tauri::utils::config::AppDirectoriesOverride::Root(
+                format!("$DATA/{}.dev", context.config().identifier).into(),
+            ));
+    }
     context
 }
 

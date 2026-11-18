@@ -1,8 +1,8 @@
 //! The `plugin` URI scheme (`http://plugin.localhost/<id>/ui/index.js`, `/<id>/assets/<path>`): serves the UI bundle
-//! and assets of a discovered plugin from its open `.sdplugin`, nothing else.
+//! and assets of a discovered plugin from its archive or debug staging folder.
 use std::borrow::Cow;
 
-use tauri::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE};
+use tauri::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CACHE_CONTROL, CONTENT_TYPE};
 use tauri::http::{Request, Response, StatusCode};
 use tauri::{AppHandle, Manager};
 
@@ -30,11 +30,15 @@ pub fn serve(app: &AppHandle, request: &Request<Vec<u8>>) -> Response<Cow<'stati
         .and_then(|host| host.ui_file(id, file));
     let response = Response::builder();
     match found {
-        // The app's origin is not plugin.localhost, and plugins fetch their assets and draw them on canvases.
-        Some(bytes) => response
-            .header(CONTENT_TYPE, content_type(file))
-            .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-            .body(bytes.into()),
+        Some((bytes, from_dev_folder)) => {
+            let mut response = response
+                .header(CONTENT_TYPE, content_type(file))
+                .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+            if from_dev_folder {
+                response = response.header(CACHE_CONTROL, "no-store");
+            }
+            response.body(bytes.into())
+        }
         None => response
             .status(StatusCode::NOT_FOUND)
             .body(Cow::Borrowed(&[][..])),

@@ -3,6 +3,7 @@
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import { Button } from '$lib/components/ui/button';
   import type { CatalogEntry } from '../plugin-store';
+  import { nativePlugins } from '../registry';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
   import { followLink, formatDate, formatSize } from './about';
@@ -21,12 +22,11 @@
     onclick={onback}><ArrowLeft />Market</Button
   >
   <div class="grid gap-3">
-    <!-- Every catalogue entry is signed by SupaDashboard. -->
     <PluginHeader
       title={entry.title}
       icon={entry.icon}
       version={entry.version}
-      verified
+      trust={nativePlugins.get(entry.id)?.trust === 'dev' ? 'dev' : 'verified'}
       description={entry.description}
       guide={entry.guide || undefined}
     >

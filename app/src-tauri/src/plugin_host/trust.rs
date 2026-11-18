@@ -25,6 +25,8 @@ const RELEASE: [&str; 2] = ["release.json", "release.sig"];
 pub enum Trust {
     Verified,
     Unverified,
+    #[cfg(debug_assertions)]
+    Dev,
 }
 
 #[derive(Deserialize)]

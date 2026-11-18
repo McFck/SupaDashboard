@@ -21,7 +21,7 @@ pub struct Archive {
 }
 
 /// `/`-separated segments of `[A-Za-z0-9._-]`, none empty or starting with `.`; ustar names hold 99 bytes.
-fn valid_entry_name(path: &str) -> bool {
+pub(super) fn valid_entry_name(path: &str) -> bool {
     path.len() <= 99
         && path.split('/').all(|segment| {
             !segment.is_empty()
@@ -33,7 +33,7 @@ fn valid_entry_name(path: &str) -> bool {
 }
 
 /// The layout of a plugin: the manifest and release pair at the top, the UI bundle in `ui/`, static files in `assets/`.
-fn allowed(name: &str) -> bool {
+pub(super) fn allowed(name: &str) -> bool {
     matches!(name, "plugin.json" | "release.json" | "release.sig")
         || name
             .strip_prefix("ui/")

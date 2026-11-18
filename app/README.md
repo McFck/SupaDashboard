@@ -12,6 +12,15 @@ pnpm format:check   # Prettier (pnpm format to apply)
 pnpm tauri build    # installer in target/release/bundle
 ```
 
+## Development modes
+
+- `pnpm tauri dev` uses installed `.sdplugin` files and supports Market installs and updates. Set
+  `SUPADASHBOARD_PLUGIN_SOURCE` to a local catalogue and release asset directory while the repositories are private.
+- `pnpm tauri:dev:plugins` builds and loads the plugins from sibling checkouts, reloading both windows after a UI
+  rebuild. Install dependencies in both plugin repositories first. Defaults are
+  `../../supadashboard-plugins/plugins` from `app/`. Set
+  `SUPADASHBOARD_PLUGIN_FOLDERS` to a semicolon-separated list of plugin parent directories to override them.
+
 ## Source layout
 
 ```text

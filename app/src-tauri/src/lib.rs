@@ -57,6 +57,8 @@ pub fn run() {
             app.manage(
                 plugin_host::PluginHost::discover(app.handle()).map_err(std::io::Error::other)?,
             );
+            #[cfg(debug_assertions)]
+            plugin_host::PluginHost::watch_dev(app.handle())?;
             app.manage(apps::watch::AppsHub::default());
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());

@@ -1,10 +1,13 @@
 <script lang="ts">
   import BadgeCheck from '@lucide/svelte/icons/badge-check';
-  let { verified, class: className = '' }: { verified: boolean; class?: string } = $props();
+  import type { NativePlugin } from '../external/load';
+  let { trust, class: className = '' }: { trust: NativePlugin['trust']; class?: string } = $props();
 </script>
 
 <span class="inline-flex items-center gap-1 font-semibold {className}">
-  {#if verified}
+  {#if trust === 'dev'}
+    Dev
+  {:else if trust === 'verified'}
     SupaDashboard<BadgeCheck
       class="size-3.5 shrink-0 text-primary"
       role="img"

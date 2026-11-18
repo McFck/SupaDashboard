@@ -43,7 +43,11 @@
   /** Compiled plugins update with the app; a listed one with another version can update. */
   function actionOf(entry: CatalogEntry) {
     const listed = nativePlugins.get(entry.id);
-    if (compiledPlugins.has(entry.id) || listed?.version === entry.version) {
+    if (
+      compiledPlugins.has(entry.id) ||
+      listed?.trust === 'dev' ||
+      listed?.version === entry.version
+    ) {
       return 'Open';
     }
     return listed ? 'Update' : 'Install';
@@ -141,7 +145,7 @@
                 <span class="text-sm font-semibold">{entry.title}</span>
                 <PluginAuthor
                   class="text-xs text-muted-foreground"
-                  verified
+                  trust={nativePlugins.get(entry.id)?.trust === 'dev' ? 'dev' : 'verified'}
                 />
               </span>
               {#if entry.description}

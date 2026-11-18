@@ -18,6 +18,12 @@ pnpm install
 pnpm tauri dev
 ```
 
+### Development modes
+
+Run `pnpm tauri dev` to use installed plugins and manage them in Market. Run
+`pnpm tauri:dev:plugins` to load and rebuild plugins from sibling work folders.
+See the [app README](app/README.md#development-modes) for setup.
+
 ## License
 
 The software is licensed under the [GNU General Public License v3.0 or later](LICENSE): anyone may use, study,

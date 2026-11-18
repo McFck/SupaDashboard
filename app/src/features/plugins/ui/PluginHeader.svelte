@@ -6,13 +6,14 @@
   import Icon, { iconOr } from '../../controls/ui/Icon.svelte';
   import GuideDialog from './GuideDialog.svelte';
   import PluginAuthor from './PluginAuthor.svelte';
+  import type { NativePlugin } from '../external/load';
 
   let {
     title,
     icon,
     version,
     applet = false,
-    verified,
+    trust,
     description,
     guide,
     children,
@@ -21,7 +22,7 @@
     icon?: string;
     version?: string;
     applet?: boolean;
-    verified: boolean;
+    trust: NativePlugin['trust'];
     description?: string;
     guide?: string;
     /** The page's own action, after How to use. */
@@ -63,7 +64,7 @@
 </div>
 <PluginAuthor
   class="text-sm"
-  {verified}
+  {trust}
 />
 {#if description}<p class="text-sm leading-relaxed text-muted-foreground">{description}</p>{/if}
 {#if guide}
