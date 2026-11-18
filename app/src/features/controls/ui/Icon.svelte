@@ -61,8 +61,8 @@
     width={size}
     height={size}
     viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
+    fill={icon === 'android' ? 'currentColor' : 'none'}
+    stroke={icon === 'android' ? 'none' : 'currentColor'}
     stroke-width="1.75"
     stroke-linecap="round"
     stroke-linejoin="round"

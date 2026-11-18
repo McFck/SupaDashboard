@@ -39,6 +39,10 @@
   >
   <div class="grid min-w-0 flex-1 gap-1.5">
     <h1 class="font-display text-2xl font-semibold tracking-wide">{title}</h1>
+    <PluginAuthor
+      class="text-sm"
+      {verified}
+    />
     {#if version || applet}
       <div class="plugin-badges flex flex-wrap items-center gap-1.5">
         {#if version}
@@ -61,10 +65,6 @@
   {/if}
   {@render children()}
 </div>
-<PluginAuthor
-  class="text-sm"
-  {verified}
-/>
 {#if description}<p class="text-sm leading-relaxed text-muted-foreground">{description}</p>{/if}
 {#if guide}
   <GuideDialog

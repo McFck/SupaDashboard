@@ -291,20 +291,25 @@ pub fn plugin_process_on_power_off(
         .map(|args| checked(&host, &plugin, &program, args))
         .transpose()?;
     if armed.is_some() {
-        power::watch(&app);
+        power::watch(&app)?;
     }
-    host.caps.release_power_off(&plugin);
-    host.caps
-        .with(&plugin, webview.label(), |owned| owned.power_off = armed);
+    host.caps.set_power_off(&plugin, webview.label(), armed);
     Ok(())
 }
 
 impl Caps {
-    fn release_power_off(&self, plugin: &str) {
-        for ((owner, _), owned) in self.lock().iter_mut() {
+    fn set_power_off(&self, plugin: &str, label: &str, armed: Option<Armed>) {
+        let mut owners = self.lock();
+        for ((owner, _), owned) in owners.iter_mut() {
             if owner == plugin {
                 owned.power_off = None;
             }
+        }
+        if let Some(armed) = armed {
+            owners
+                .entry((plugin.to_owned(), label.to_owned()))
+                .or_default()
+                .power_off = Some(armed);
         }
     }
 
