@@ -24,6 +24,34 @@ pub struct Token {
     expires_at: u64,
 }
 
+pub enum Session {
+    Accepted(Token),
+    Rejected(Token),
+}
+
+impl Session {
+    fn valid_for(&self, now: u64, seconds: u64) -> Option<&Token> {
+        match self {
+            Self::Accepted(token) if token.expires_at > now + seconds => Some(token),
+            _ => None,
+        }
+    }
+
+    fn last_token(&self) -> &Token {
+        match self {
+            Self::Accepted(token) | Self::Rejected(token) => token,
+        }
+    }
+
+    fn reject(&mut self, access: &str) {
+        if let Self::Accepted(token) = self
+            && token.access == access
+        {
+            *self = Self::Rejected(token.clone());
+        }
+    }
+}
+
 fn declared(host: &PluginHost, plugin: &str, name: &str) -> Result<SignIn, String> {
     host.installed(plugin)?
         .manifest
@@ -43,9 +71,21 @@ pub fn token(host: &PluginHost, plugin: &str, name: &str) -> Result<String, Stri
         .unwrap_or_else(PoisonError::into_inner);
     signed_in
         .get(&(plugin.to_owned(), name.to_owned()))
-        .filter(|token| token.expires_at > now() + 60)
+        .and_then(|session| session.valid_for(now(), 60))
         .map(|token| token.access.clone())
         .ok_or_else(|| SIGNED_OUT.into())
+}
+
+/// A late HTTP response must not invalidate a newer token captured while the request was in flight.
+pub(super) fn reject(host: &PluginHost, plugin: &str, name: &str, access: &str) {
+    let mut signed_in = host
+        .caps
+        .signed_in
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if let Some(session) = signed_in.get_mut(&(plugin.to_owned(), name.to_owned())) {
+        session.reject(access);
+    }
 }
 
 /// `json` is ExecuteScript's JSON-encoded result: null, or the stored user as a JSON string.
@@ -186,13 +226,22 @@ pub async fn plugin_signin_open(
         return Err(SIGNED_OUT.into());
     }
     let key = (plugin.clone(), name.clone());
-    let previous = host
-        .caps
-        .signed_in
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .get(&key)
-        .map(|token| token.access.clone());
+    let previous = {
+        let signed_in = host
+            .caps
+            .signed_in
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let session = signed_in.get(&key);
+        // The dashboard service can restart while the native session is still valid.
+        if !visible
+            && let Some(token) =
+                session.and_then(|session| session.valid_for(now(), MIN_LIFETIME_S))
+        {
+            return Ok(token.expires_at.saturating_mul(1000));
+        }
+        session.map(|session| session.last_token().access.clone())
+    };
     // Taken before the previous sign-in from this webview is cancelled, so the window stays open for this one.
     let window = window(&app, &plugin, &signin, visible)?;
     let label = webview.label().to_owned();
@@ -210,7 +259,7 @@ pub async fn plugin_signin_open(
                 .signed_in
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .insert(key, token);
+                .insert(key, Session::Accepted(token));
             Ok::<_, String>(expires_at)
         }
     });
@@ -268,6 +317,22 @@ mod tests {
 
     fn stored(user: Value) -> String {
         serde_json::to_string(&user.to_string()).unwrap()
+    }
+
+    #[test]
+    fn a_cached_portal_session_survives_reload_but_cannot_reuse_a_rejected_token() {
+        let now = 1_900_000_000;
+        let legacy = stored(serde_json::json!({
+            "access_token": "eyJ.abc.def",
+            "expires_at": now + 3600,
+            "profile": {"sub": "work\\user"}
+        }));
+        let mut session = Session::Accepted(fresh(&legacy, None, now).unwrap());
+        session.reject("older-token");
+        assert!(session.valid_for(now, MIN_LIFETIME_S).is_some());
+        session.reject("eyJ.abc.def");
+        assert!(session.valid_for(now, MIN_LIFETIME_S).is_none());
+        assert!(fresh(&legacy, Some(&session.last_token().access), now).is_none());
     }
 
     #[test]

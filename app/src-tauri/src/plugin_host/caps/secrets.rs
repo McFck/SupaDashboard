@@ -162,7 +162,8 @@ mod tests {
         legacy(
             &data,
             "discord",
-            serde_json::json!({"clientId": "123456789012345678", "tokens": tokens(),
+            serde_json::json!({"clientId": "123456789012345678",
+                "tokens": {"accessToken": "private-access", "refreshToken": "private-refresh", "expiresAt": 999},
                 "lastChannel": {"id": "2", "name": "Voice", "kind": "guild", "guildId": "3"}}),
         );
         let spotify =
@@ -173,8 +174,13 @@ mod tests {
                 "signedIn": true, "expiresAt": 999_000})
         );
         let discord =
-            serde_json::to_string(&show(Secret::open(&data, "discord").unwrap().record)).unwrap();
-        assert!(discord.contains("\"name\":\"Voice\"") && !discord.contains("private"));
+            serde_json::to_value(show(Secret::open(&data, "discord").unwrap().record)).unwrap();
+        assert_eq!(
+            discord,
+            serde_json::json!({"fields": {"clientId": "123456789012345678",
+                "lastChannel": {"id": "2", "name": "Voice", "kind": "guild", "guildId": "3"}},
+                "signedIn": true, "expiresAt": 999_000})
+        );
 
         // A logged-out Spotify record (`tokens: null`) keeps its client id.
         legacy(

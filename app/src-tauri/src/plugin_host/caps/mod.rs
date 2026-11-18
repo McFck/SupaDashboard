@@ -53,7 +53,7 @@ pub struct Caps {
     secrets: tokio::sync::Mutex<()>,
     /// Web sign-in tokens by (plugin id, sign-in name), in memory only: the session itself lives in the sign-in
     /// window's profile.
-    signed_in: Mutex<HashMap<(String, String), signin::Token>>,
+    signed_in: Mutex<HashMap<(String, String), signin::Session>>,
     /// The plugin's sign-in window, shared by the sign-ins using it; it closes with the last one.
     signin_windows: Mutex<HashMap<String, std::sync::Weak<signin::Window>>>,
     /// Handles of pipes and processes.

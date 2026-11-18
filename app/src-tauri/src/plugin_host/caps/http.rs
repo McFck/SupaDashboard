@@ -8,7 +8,7 @@ use tauri::State;
 use windows::Foundation::Uri;
 use windows::core::HSTRING;
 
-use super::token;
+use super::{signin, token};
 use crate::plugin_host::PluginHost;
 use crate::plugin_host::http::{Response, send};
 use crate::plugin_host::permissions::Permissions;
@@ -90,16 +90,26 @@ pub async fn plugin_http_request(
     let installed = host.installed(&plugin)?;
     check(&installed.manifest.permissions, &request)?;
     let mut headers = Vec::with_capacity(request.headers.len());
+    let mut sessions = Vec::new();
     for (name, original) in &request.headers {
         let mut value = original.clone();
         for secret in placeholders(original)? {
             let token = token(&host, &plugin, secret).await?;
             value = value.replace(&format!("{PLACEHOLDER}{secret}}}}}"), &token);
+            if installed.manifest.permissions.signin.contains_key(secret) {
+                sessions.push((secret, token));
+            }
         }
         headers.push((name.as_str(), value));
     }
     let headers: Vec<(&str, &str)> = headers.iter().map(|(n, v)| (*n, v.as_str())).collect();
-    send(&request.method, &request.url, &headers, None).await
+    let response = send(&request.method, &request.url, &headers, None).await?;
+    if response.status == 401 {
+        for (name, access) in sessions {
+            signin::reject(&host, &plugin, name, &access);
+        }
+    }
+    Ok(response)
 }
 
 #[cfg(test)]
