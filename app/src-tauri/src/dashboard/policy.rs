@@ -4,6 +4,7 @@ use super::backdrop::Backdrop;
 use super::events::Events;
 use super::geometry::{Geometry, ResizeHit, resize_hit};
 use super::monitor_guard::MonitorGuard;
+use super::z_order;
 use std::cell::Cell;
 use std::mem::size_of;
 use std::rc::Rc;
@@ -26,7 +27,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetPropW, SetWindowLongPtrW,
     SetWindowPos, ShowWindow, WINDOWPOS, WM_CANCELMODE, WM_DISPLAYCHANGE, WM_ENTERSIZEMOVE,
     WM_EXITSIZEMOVE, WM_MOUSEACTIVATE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
-    WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND,
+    WM_POINTERACTIVATE, WM_SHOWWINDOW, WM_SIZE, WM_STYLECHANGING, WM_SYSCOMMAND, WM_TIMER,
     WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WS_CAPTION, WS_EX_NOACTIVATE,
     WS_EX_NOREDIRECTIONBITMAP, WS_MAXIMIZEBOX, WindowFromPoint,
 };
@@ -53,6 +54,9 @@ struct PolicyState {
 pub fn set_shown(window: &WebviewWindow, shown: bool) -> Result<(), String> {
     let hwnd = hwnd_of(window)?;
     let _ = unsafe { ShowWindow(hwnd, if shown { SW_SHOWNOACTIVATE } else { SW_HIDE }) };
+    if shown && z_order::visible_topmost(hwnd) {
+        z_order::raise(hwnd)?;
+    }
     Ok(())
 }
 
@@ -105,6 +109,7 @@ pub fn install(window: &WebviewWindow) -> Result<(), String> {
         return Err(error);
     }
     hide_tauri_resize_border(hwnd);
+    z_order::watch(hwnd);
     Ok(())
 }
 
@@ -283,6 +288,10 @@ unsafe extern "system" fn dashboard_subclass(
             policy.backdrop.sync();
             None
         }
+        WM_TIMER if wparam.0 == z_order::TIMER => {
+            z_order::check(hwnd);
+            Some(LRESULT(0))
+        }
         WM_MOUSEACTIVATE => Some(LRESULT(MA_NOACTIVATE as isize)),
         WM_POINTERACTIVATE => Some(LRESULT(PA_NOACTIVATE as isize)),
         WM_SYSCOMMAND => on_syscommand(policy, wparam),
@@ -444,6 +453,7 @@ fn on_destroy(
     policy.events.hover(false, true);
     policy.resize_hit_test.set(false);
     policy.events.resize(false);
+    z_order::unwatch(hwnd);
     let _ = unsafe { RemoveWindowSubclass(hwnd, Some(dashboard_subclass), subclass_id) };
     let result = unsafe { DefSubclassProc(hwnd, WM_NCDESTROY, wparam, lparam) };
     unsafe { drop(Box::from_raw(reference_data as *mut PolicyState)) };
