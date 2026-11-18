@@ -57,6 +57,9 @@ pub fn run() {
             app.manage(
                 plugin_host::PluginHost::discover(app.handle()).map_err(std::io::Error::other)?,
             );
+            if let Err(error) = plugin_host::power::watch(app.handle()) {
+                log::warn!("Could not watch PC power events: {error}");
+            }
             #[cfg(debug_assertions)]
             plugin_host::PluginHost::watch_dev(app.handle())?;
             app.manage(apps::watch::AppsHub::default());
