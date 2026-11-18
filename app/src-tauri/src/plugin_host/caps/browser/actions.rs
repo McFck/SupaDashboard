@@ -109,6 +109,16 @@ pub enum Action {
     Tab {
         input: TabInput,
     },
+    SelectTab {
+        tab: i32,
+    },
+    CloseTab {
+        tab: i32,
+    },
+    Group {
+        group: i32,
+        collapsed: bool,
+    },
     Open {
         url: String,
         destination: Destination,
@@ -147,7 +157,12 @@ pub(super) fn web_url(value: &str, max: usize) -> bool {
 impl Action {
     pub(super) fn validate_input(&self) -> Result<(), Failure> {
         match self {
-            Self::Pointer { tab, .. } if *tab < 0 => Err("Invalid browser tab"),
+            Self::Pointer { tab, .. } | Self::SelectTab { tab } | Self::CloseTab { tab }
+                if *tab < 0 =>
+            {
+                Err("Invalid browser tab")
+            }
+            Self::Group { group, .. } if *group < 0 => Err("Invalid browser tab group"),
             Self::Pointer { input, .. } => input.validate(),
             Self::Open { url, .. } if !web_url(url, 2048) => Err("Enter a valid HTTP or HTTPS URL"),
             Self::Media {
@@ -162,6 +177,10 @@ impl Action {
 
     pub(super) fn validate_target(&self, state: &State) -> Result<(), Failure> {
         match self {
+            Self::SelectTab { tab } | Self::CloseTab { tab } if !state.has_tab(*tab) => {
+                Err("Tab closed")
+            }
+            Self::Group { group, .. } if !state.has_group(*group) => Err("Tab group closed"),
             Self::Tab {
                 input: TabInput::Next | TabInput::Previous | TabInput::Close,
             } if state.active_tab.is_none() => Err("No active browser tab"),
@@ -183,6 +202,9 @@ impl Action {
     pub(super) fn failure(&self) -> Failure {
         match self {
             Self::Tab { .. } => "Could not control browser tab",
+            Self::SelectTab { .. } => "Could not select tab",
+            Self::CloseTab { .. } => "Could not close tab",
+            Self::Group { .. } => "Could not change tab group",
             Self::Open { .. } => "Could not open website",
             Self::Page { .. } => "Could not control this page",
             Self::Media { .. } => "Could not control browser media",
@@ -259,6 +281,12 @@ mod tests {
         for (value, allowed) in [
             (json!({"kind": "tab", "input": "close"}), true),
             (json!({"kind": "suspend", "mode": "off"}), true),
+            (json!({"kind": "select_tab", "tab": 2}), true),
+            (json!({"kind": "close_tab", "tab": 9}), false),
+            (
+                json!({"kind": "group", "group": 9, "collapsed": true}),
+                false,
+            ),
             (
                 json!({"kind": "pointer", "tab": 2, "input": {"kind": "click"}}),
                 false,

@@ -49,6 +49,35 @@ pub struct Tab {
     title: String,
     active: bool,
     favicon: Option<String>,
+    #[serde(default)]
+    window: i32,
+    group: Option<i32>,
+    #[serde(default)]
+    pinned: bool,
+}
+
+#[derive(Clone, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum GroupColor {
+    Grey,
+    Blue,
+    Red,
+    Yellow,
+    Green,
+    Pink,
+    Purple,
+    Cyan,
+    Orange,
+}
+
+#[derive(Clone, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Group {
+    id: i32,
+    window: i32,
+    title: String,
+    color: GroupColor,
+    collapsed: bool,
 }
 
 #[derive(Clone, Deserialize, PartialEq, Serialize)]
@@ -64,6 +93,8 @@ struct MediaState {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct State {
     tabs: Vec<Tab>,
+    #[serde(default)]
+    groups: Vec<Group>,
     pub(super) active_tab: Option<i32>,
     media: Option<MediaState>,
     #[serde(default)]
@@ -73,9 +104,21 @@ pub struct State {
 impl State {
     pub(super) fn validate(&self) -> Result<(), Failure> {
         let mut ids = std::collections::HashSet::new();
+        let mut groups = std::collections::HashMap::new();
         if self.tabs.len() > 256
+            || self.groups.len() > self.tabs.len()
+            || !self.groups.iter().all(|group| {
+                group.id >= 0
+                    && group.window >= 0
+                    && group.title.len() <= 256
+                    && groups.insert(group.id, group.window).is_none()
+            })
             || !self.tabs.iter().all(|tab| {
                 tab.id >= 0
+                    && tab.window >= 0
+                    && tab
+                        .group
+                        .is_none_or(|id| !tab.pinned && groups.get(&id) == Some(&tab.window))
                     && tab.title.len() <= 256
                     && tab.favicon.as_deref().is_none_or(|url| web_url(url, 512))
                     && ids.insert(tab.id)
@@ -94,6 +137,14 @@ impl State {
 
     pub(super) fn has_media(&self) -> bool {
         self.media.is_some()
+    }
+
+    pub(super) fn has_tab(&self, id: i32) -> bool {
+        self.tabs.iter().any(|tab| tab.id == id)
+    }
+
+    pub(super) fn has_group(&self, id: i32) -> bool {
+        self.groups.iter().any(|group| group.id == id)
     }
 }
 
@@ -233,6 +284,30 @@ mod tests {
             r#"{"kind":"state","state":{"tabs":[],"extra":true}}"#.into(),
         ] {
             assert!(parse(&payload).is_err(), "{:.240}", payload);
+        }
+    }
+
+    #[test]
+    fn grouped_tabs_cannot_reference_missing_or_other_window_groups() {
+        let good = json!({
+            "tabs": [{"id": 1, "title": "One", "active": true, "window": 2, "group": 3}],
+            "groups": [{"id": 3, "window": 2, "title": "Work", "color": "blue", "collapsed": true}],
+            "activeTab": 1
+        });
+        let check = |input| {
+            serde_json::from_value::<State>(input)
+                .map_err(|_| "Invalid browser message")?
+                .validate()
+        };
+        assert_eq!(check(good.clone()), Ok(()));
+        for (field, value) in [
+            ("window", json!(42)),
+            ("id", json!(4)),
+            ("color", json!("plaid")),
+        ] {
+            let mut bad = good.clone();
+            bad["groups"][0][field] = value;
+            assert!(check(bad).is_err(), "{field}");
         }
     }
 

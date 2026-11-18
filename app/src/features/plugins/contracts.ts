@@ -11,7 +11,22 @@ export type PluginBrowserSnapshot =
   | { kind: 'repair' }
   | {
       kind: 'connected';
-      tabs: { id: number; title: string; active: boolean; favicon: string | null }[];
+      tabs: {
+        id: number;
+        title: string;
+        active: boolean;
+        favicon: string | null;
+        window: number;
+        group: number | null;
+        pinned: boolean;
+      }[];
+      groups: {
+        id: number;
+        window: number;
+        title: string;
+        color: 'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange';
+        collapsed: boolean;
+      }[];
       activeTab: number | null;
       media: { tab: number; paused: boolean; rate: number; fullscreen: boolean } | null;
       suspended: boolean;
@@ -24,6 +39,8 @@ export type PluginBrowserScrollFrame =
 
 export type PluginBrowserAction =
   | { kind: 'tab'; input: 'next' | 'previous' | 'new' | 'close' | 'reopen' }
+  | { kind: 'select_tab' | 'close_tab'; tab: number }
+  | { kind: 'group'; group: number; collapsed: boolean }
   | { kind: 'open'; url: string; destination: 'new' | 'current' }
   | { kind: 'window_fullscreen' }
   | { kind: 'suspend'; mode: 'toggle' | 'on' | 'off' }

@@ -11,6 +11,7 @@ export { KineticScroll } from '$lib/kinetic-scroll';
 export { storeIsReadable } from '$lib/store';
 export { default as Section } from './panel/ui/Section.svelte';
 export { default as Row } from './panel/ui/Row.svelte';
+export { default as ColorField } from '$lib/components/ColorField.svelte';
 export { default as Icon } from './features/controls/ui/Icon.svelte';
 export { default as ContentTile } from './features/controls/ui/ContentTile.svelte';
 export { default as Choice } from './features/plugins/ui/Choice.svelte';
