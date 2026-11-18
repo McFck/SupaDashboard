@@ -9,6 +9,7 @@ export type PluginPermissions = {
   pipes: string[];
   process: string[];
   automation: string[];
+  browser: string | null;
   open: string[];
   /** OAuth clients and web sign-ins by secret name. */
   logins: Login[];
@@ -31,6 +32,10 @@ export function pluginPermissions(raw: unknown): PluginPermissions | null {
   }
   const lists = LISTS.map((key) => raw[key] ?? []);
   const maps = [raw.oauth ?? {}, raw.signin ?? {}];
+  const browser = raw.browser ?? null;
+  if (browser !== null && (typeof browser !== 'string' || !/^[a-p]{32}$/.test(browser))) {
+    return null;
+  }
   if (!lists.every(strings) || !maps.every(isRecord)) {
     return null;
   }
@@ -39,7 +44,7 @@ export function pluginPermissions(raw: unknown): PluginPermissions | null {
     return null;
   }
   const [http, pipes, process, automation, open] = lists;
-  return { http, pipes, process, automation, open, logins };
+  return { http, pipes, process, automation, browser, open, logins };
 }
 
 function host(url: string | undefined) {
@@ -62,6 +67,7 @@ export function permissionRows(permissions: PluginPermissions): PermissionRow[] 
     ['Local app', permissions.pipes],
     ['Runs', permissions.process],
     ['Controls', permissions.automation],
+    ['Browser tabs', permissions.browser ? [permissions.browser] : []],
     ['Opens', permissions.open.map((scheme) => `${scheme}: links`)],
   ];
   return rows

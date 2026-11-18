@@ -25,9 +25,16 @@ pub struct Permissions {
     /// Executable file names whose windows the plugin may read and press buttons in.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub automation: Vec<String>,
+    /// Chromium extension ID allowed to pair with the loopback browser bridge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser: Option<String>,
     /// URL schemes the plugin may open with their registered app.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub open: Vec<String>,
+}
+
+pub fn valid_extension_id(id: &str) -> bool {
+    id.len() == 32 && id.bytes().all(|byte| (b'a'..=b'p').contains(&byte))
 }
 
 /// One OAuth client; its tokens stay native and are sent only to the `send` targets.
@@ -172,6 +179,13 @@ impl Permissions {
         if !self.open.iter().all(|scheme| valid_scheme(scheme)) || !unique(&self.open) {
             return fail("open");
         }
+        if self
+            .browser
+            .as_deref()
+            .is_some_and(|id| !valid_extension_id(id))
+        {
+            return fail("browser");
+        }
         // Each OAuth client and sign-in is a secret named after its key; they share one namespace.
         let secrets: Vec<&String> = self.oauth.keys().chain(self.signin.keys()).collect();
         if !secrets.iter().all(|name| valid_id(name)) || !unique(secrets.iter().copied()) {
@@ -232,7 +246,14 @@ mod tests {
 
     #[test]
     fn a_manifest_cannot_grant_reach_beyond_what_its_permissions_name() {
-        for good in [SPOTIFY, DISCORD, SIGNIN, r#"{"process":["adb.exe"]}"#, "{}"] {
+        for good in [
+            SPOTIFY,
+            DISCORD,
+            SIGNIN,
+            r#"{"process":["adb.exe"]}"#,
+            "{}",
+            r#"{"browser":"cnojhdmglpjodgblffallbibdifemkop"}"#,
+        ] {
             assert_eq!(parse(good), Ok(()), "{good}");
         }
         let bad: &[&str] = &[
@@ -286,6 +307,8 @@ mod tests {
             r#"{"open":["meet:"]}"#,
             r#"{"pipes":["Discord"]}"#,
             r#"{"camera":[]}"#,
+            r#"{"browser":true}"#,
+            r#"{"browser":"chrome-extension://cnojhdmglpjodgblffallbibdifemkop"}"#,
         ];
         for text in bad {
             assert!(parse(text).is_err(), "{text}");

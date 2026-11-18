@@ -1,6 +1,7 @@
 // Native capabilities for plugins, each bound to the plugin id passed first and limited to what its manifest's
 // `permissions` declare (`plugin_host/caps/` in Rust). Tokens never reach JS: a header carries `{{secret:<client>}}`.
 import { Channel, invoke } from '@tauri-apps/api/core';
+import type { PluginBrowserSnapshot } from '../features/plugins/contracts';
 
 /** A file directly in a listed folder; `modified` in Unix milliseconds. */
 export interface PluginFile {
@@ -144,4 +145,15 @@ export const pluginAutomation = {
   /** Fails when the snapshot is no longer current. */
   invoke: (plugin: string, snapshot: number, index: number) =>
     invoke<void>('plugin_automation_invoke', { plugin, snapshot, index }),
+};
+
+/** Connects a page to the plugin's declared Chromium extension. */
+export const pluginBrowser = {
+  watch: (plugin: string, onSnapshot: (snapshot: PluginBrowserSnapshot) => void) =>
+    invoke<number>('plugin_browser_watch', { plugin, events: new Channel(onSnapshot) }),
+  unwatch: (plugin: string, watch: number) =>
+    invoke<void>('plugin_browser_unwatch', { plugin, watch }),
+  pair: (plugin: string, watch: number) => invoke<string>('plugin_browser_pair', { plugin, watch }),
+  activate: (plugin: string, watch: number, revision: number, tab: number) =>
+    invoke<void>('plugin_browser_activate', { plugin, watch, revision, tab }),
 };

@@ -37,6 +37,7 @@ export {
 } from './platform/plugin-host';
 export {
   pluginAutomation,
+  pluginBrowser,
   pluginHttp,
   pluginOAuth,
   pluginOpen,
@@ -56,6 +57,7 @@ export type {
   Param,
   Plugin,
   PluginApi,
+  PluginBrowserSnapshot,
   SettingsGroup,
 } from './features/plugins/contracts';
 export type { ControlConfig } from './features/controls/model';

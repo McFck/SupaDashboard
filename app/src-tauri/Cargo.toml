@@ -25,7 +25,9 @@ tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 webview2-com = "0.39.1"
 windows-future = "0.3.2"
-tokio = { version = "1", features = ["io-util", "net", "rt", "sync", "time", "process"] }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "sync", "time", "process"] }
+futures-util = { version = "0.3", features = ["sink"], default-features = false }
+tokio-tungstenite = "0.29"
 windows = { version = "0.62", features = [
   "Foundation",
   "Media_Control",
