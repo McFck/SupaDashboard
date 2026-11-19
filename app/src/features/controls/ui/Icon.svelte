@@ -38,6 +38,8 @@
     icon && Object.hasOwn(icons, icon) ? icons[icon as keyof typeof icons] : undefined,
   );
   const custom = $derived(icon ? (brandIcons[icon] ?? customIcons.get(icon)) : undefined);
+  // A plugin icon given as an image URL keeps its own colours instead of the outline style.
+  const customImage = $derived(custom?.startsWith('data:image/') ? custom : undefined);
 </script>
 
 {#if image && image !== failed}
@@ -50,6 +52,14 @@
     onerror={() => {
       failed = image;
     }}
+  />
+{:else if customImage}
+  <img
+    src={customImage}
+    alt=""
+    width={size}
+    height={size}
+    class="shrink-0 object-contain"
   />
 {:else if Lucide}
   <Lucide
