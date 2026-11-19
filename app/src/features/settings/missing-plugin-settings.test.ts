@@ -3,7 +3,7 @@ import { serializeSettings } from './state.svelte';
 import { DEFAULTS } from './defaults';
 import { migrate } from './normalize';
 
-it('upgrades retired browser widgets in place without losing custom names or positions', () => {
+it('upgrades the retired page outline in place and leaves browser tabs tiles alone', () => {
   const saved = structuredClone(DEFAULTS);
   const placements = [
     { id: 'tabs-tile', control: 'tabs', x: 0, y: 0, w: 2, h: 2 },
@@ -19,7 +19,7 @@ it('upgrades retired browser widgets in place without losing custom names or pos
     ],
   });
   expect(loaded.controls).toMatchObject([
-    { id: 'tabs', type: 'webcompanionTouchpad', name: 'Browser Touchpad' },
+    { id: 'tabs', type: 'browserRemoteTabs', name: 'WebCompanion' },
     { id: 'outline', type: 'webcompanionTouchpad', name: 'Browser remote' },
   ]);
   expect(loaded.deck.pages[0].items).toEqual(placements);

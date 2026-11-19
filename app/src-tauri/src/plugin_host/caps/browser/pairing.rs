@@ -318,6 +318,7 @@ impl Pairing {
     }
 }
 
+// Six digits resist online guessing only (MAX_ATTEMPTS); a peer squatting the port can brute-force them offline without a PAKE.
 fn digits() -> Result<String, Failure> {
     loop {
         let value = CryptographicBuffer::GenerateRandomNumber()

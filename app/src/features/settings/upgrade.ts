@@ -334,15 +334,10 @@ export function upgrade(input: Record<string, unknown>) {
     saved = { ...saved, version: 20 };
   }
   if (saved.version === 20) {
-    const retired = new Map([
-      ['browserRemoteTabs', 'WebCompanion'],
-      ['webcompanionPageOutline', 'Page Outline'],
-    ]);
     for (const control of rawControls) {
-      const oldTitle = retired.get(control.type);
-      if (oldTitle) {
+      if (control.type === 'webcompanionPageOutline') {
         control.type = 'webcompanionTouchpad';
-        if (control.name === oldTitle) {
+        if (control.name === 'Page Outline') {
           control.name = 'Browser Touchpad';
         }
       }
