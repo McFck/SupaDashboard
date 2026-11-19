@@ -45,16 +45,17 @@ fn revocation_survives_restart_and_cannot_authenticate_a_browser() {
     let now = Instant::now();
     let current = pair(&mut pairing, now);
     assert!(login(&mut pairing, &current, now).is_ok());
+    let greeting = |key: &str| Hello {
+        key_id: Some(sha256_hex(key.as_bytes()).unwrap()),
+        ..hello(Mode::Auth)
+    };
+    let (in_flight, _) = pairing.begin(greeting(&current), ID, now).unwrap();
     let pending = pair(&mut pairing, now);
     pairing.revoke().unwrap();
     let mut reopened = Pairing::open(path);
     assert!(!reopened.is_paired());
-    for key in [current, pending] {
-        let hello = Hello {
-            key_id: Some(sha256_hex(key.as_bytes()).unwrap()),
-            ..hello(Mode::Auth)
-        };
-        let (attempt, _) = reopened.begin(hello, ID, now).unwrap();
+    let (after_restart, _) = reopened.begin(greeting(&pending), ID, now).unwrap();
+    for (key, attempt) in [(current, in_flight), (pending, after_restart)] {
         let transcript = attempt.transcript.clone();
         let proof = response(&attempt, &key);
         let Err(Rejected::Revoked(proof)) = reopened.finish(attempt, ID, proof, now) else {

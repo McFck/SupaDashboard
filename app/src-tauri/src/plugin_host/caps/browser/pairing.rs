@@ -114,9 +114,9 @@ pub(super) struct Proof {
 pub(super) struct Attempt {
     mode: Mode,
     code_id: Option<String>,
+    key_id: Option<String>,
     key: String,
     transcript: String,
-    revoked: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -261,16 +261,9 @@ impl Pairing {
             }
             _ => return Err("Invalid browser credential ID"),
         };
-        let revoked = self.credentials.revoked.iter().find(|item| {
-            hello.mode == Mode::Auth
-                && key.is_none()
-                && hello.key_id.as_deref() == Some(item.id.as_str())
-                && item.extension == extension
-        });
-        let key = match (key, revoked) {
-            (Some(key), _) => key.to_owned(),
-            (_, Some(item)) => item.key.clone(),
-            _ => random()?,
+        let key = match key {
+            Some(key) => key.to_owned(),
+            None => random()?,
         };
         let nonce = random()?;
         let transcript = format!(
@@ -281,9 +274,9 @@ impl Pairing {
             Attempt {
                 mode: hello.mode,
                 code_id,
+                key_id: hello.key_id,
                 key,
                 transcript,
-                revoked: revoked.is_some(),
             },
             Challenge { nonce },
         ))
@@ -297,15 +290,17 @@ impl Pairing {
         now: Instant,
     ) -> Result<(Mode, Ready), Rejected> {
         let key = attempt.key.as_str();
-        if attempt.revoked {
-            let proof = sign(key, &format!("revoked:{}", attempt.transcript))
-                .map_err(|error| Rejected::Storage(error.into()))?;
-            return Err(Rejected::Revoked(proof));
-        }
         let valid = verify(key, &format!("client:{}", attempt.transcript), &proof.proof);
         if attempt.mode == Mode::Pair {
             self.check_code(attempt.code_id.as_deref(), valid, now)?;
         } else if !valid || !self.auth_keys(extension).any(|secret| secret == key) {
+            if let Some(revoked) = self.credentials.revoked.iter().find(|item| {
+                attempt.key_id.as_deref() == Some(item.id.as_str()) && item.extension == extension
+            }) {
+                let proof = sign(&revoked.key, &format!("revoked:{}", attempt.transcript))
+                    .map_err(|error| Rejected::Storage(error.into()))?;
+                return Err(Rejected::Revoked(proof));
+            }
             return Err(Rejected::Authentication);
         }
         let proof = sign(key, &format!("server:{}", attempt.transcript))
