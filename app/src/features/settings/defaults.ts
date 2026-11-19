@@ -30,7 +30,7 @@ export const DEFAULT_PAGE: Page = {
 };
 
 export const DEFAULTS: Settings = {
-  version: 21,
+  version: 22,
   display: {
     monitor: null,
     monitorLabel: null,

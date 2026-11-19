@@ -43,14 +43,6 @@ struct Credentials {
     pending: Option<Credential>,
 }
 
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum Stored {
-    Rotation(Credentials),
-    /// Stores written before credential rotation hold one bare credential.
-    Legacy(Credential),
-}
-
 struct Code {
     owner: u32,
     id: String,
@@ -125,13 +117,13 @@ pub(super) enum Rejected {
 
 impl Pairing {
     pub(super) fn open(path: PathBuf) -> Self {
-        let inspected = ProtectedFile::inspect::<Stored>(path, "Browser bridge");
+        let inspected = ProtectedFile::inspect::<Credentials>(path, "Browser bridge");
         let (file, stored) = match inspected {
             Ok((file, stored)) => (Ok(file), stored),
             Err(error) => (Err(error.clone()), Err(error)),
         };
         let credentials = match stored {
-            Ok(Some(Stored::Rotation(credentials)))
+            Ok(Some(credentials))
                 if (credentials.current.is_some() || credentials.pending.is_some())
                     && credentials
                         .current
@@ -141,10 +133,6 @@ impl Pairing {
             {
                 Some(credentials)
             }
-            Ok(Some(Stored::Legacy(credential))) if credential.valid() => Some(Credentials {
-                current: Some(credential),
-                pending: None,
-            }),
             Ok(None) => Some(Credentials::default()),
             _ => None,
         };
@@ -510,16 +498,10 @@ mod tests {
     fn a_replacement_cannot_strand_the_old_extension_before_the_new_login() {
         let folder = temp("browser-rotation");
         let path = folder.join(".browser.json");
-        let (mut file, _) =
-            ProtectedFile::open::<Credential>(path.clone(), "Browser bridge").unwrap();
-        let old = "1".repeat(64);
-        file.save(Some(&Credential {
-            extension: ID.into(),
-            secret: old.clone(),
-        }))
-        .unwrap();
         let now = Instant::now();
         let mut pairing = Pairing::open(path.clone());
+        let old = pair(&mut pairing, now);
+        login(&mut pairing, &old, now).unwrap();
         let new = pair(&mut pairing, now);
 
         let mut reopened = Pairing::open(path.clone());

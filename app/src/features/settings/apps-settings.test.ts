@@ -44,7 +44,7 @@ describe('saved apps', () => {
       ],
     };
     const saved = migrate(input);
-    expect(saved.version).toBe(21);
+    expect(saved.version).toBe(22);
     expect(saved.controls[0].stateBindings?.[0].variableId).toBe(
       appVariable('chat', 'focused', { windows: 'main', title: '' }),
     );

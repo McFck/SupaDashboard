@@ -1,5 +1,5 @@
 import { firstFree, type Item } from '../layout/grid';
-import { DEFAULT_PAGE } from './defaults';
+import { DEFAULT_PAGE, DEFAULTS } from './defaults';
 import { isRecord } from '../automation/plain-data';
 import { normalizeControl } from '../automation/normalize-control';
 import { actionRef, walkSteps } from '../automation/scenario';
@@ -117,7 +117,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
-  if (typeof saved.version === 'number' && saved.version > 21) {
+  if (typeof saved.version === 'number' && saved.version > DEFAULTS.version) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
   const rawControls = savedControls(saved.controls);
@@ -343,6 +343,14 @@ export function upgrade(input: Record<string, unknown>) {
       }
     }
     saved = { ...saved, version: 21 };
+  }
+  if (saved.version === 21) {
+    for (const control of rawControls) {
+      if (control.type === 'browserRemoteTabs') {
+        control.type = 'webcompanionTabs';
+      }
+    }
+    saved = { ...saved, version: 22 };
   }
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {
     throw new Error('Monitor label must be text');

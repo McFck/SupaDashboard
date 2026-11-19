@@ -100,7 +100,7 @@ describe('settings v18 Spotify launch actions', () => {
         });
       }
     }
-    expect(saved.version).toBe(21);
+    expect(saved.version).toBe(22);
     expect(actions).toEqual([
       { id: 'open', args: { url: 'spotify:' } },
       { id: 'open', args: { url: 'spotify:' } },
