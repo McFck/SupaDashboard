@@ -163,8 +163,25 @@ export const pluginBrowser = {
   },
   pair: (plugin: string, watch: number) =>
     invoke<{ code: string; expiresInMs: number }>('plugin_browser_pair', { plugin, watch }),
-  action: (plugin: string, watch: number, action: PluginBrowserAction) =>
-    invoke<void>('plugin_browser_action', { plugin, watch, action }),
+  action: (plugin: string, watch: number, action: PluginBrowserAction) => {
+    if (action.kind !== 'pointer') {
+      return invoke<void>('plugin_browser_action', { plugin, watch, action });
+    }
+    return new Promise<void>((resolve, reject) => {
+      // WebView2 can defer an invoke response past the touchpad's next input sample.
+      const completion = new Channel<string | null>((error) => {
+        if (error === null) {
+          resolve();
+        } else {
+          reject(error);
+        }
+      });
+      void invoke<void>('plugin_browser_action', { plugin, watch, action, completion }).then(
+        resolve,
+        reject,
+      );
+    });
+  },
   scroll: (plugin: string, watch: number, frame: PluginBrowserScrollFrame) => {
     if (frame.phase === 'hold') {
       scrollGestures.set(watch, { reported: false });

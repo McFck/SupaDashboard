@@ -7,7 +7,10 @@ mod wire;
 
 use std::sync::{Arc, Weak};
 
-use tauri::{Manager, Webview, ipc::Channel};
+use tauri::{
+    Manager, Webview,
+    ipc::{Channel, JavaScriptChannelId},
+};
 use tokio::{
     sync::oneshot,
     task::{AbortHandle, JoinHandle},
@@ -158,17 +161,27 @@ pub async fn plugin_browser_action(
     plugin: String,
     watch: u32,
     action: Action,
+    completion: Option<JavaScriptChannelId>,
 ) -> Result<(), String> {
-    action.validate_input()?;
-    let (reply, result) = oneshot::channel();
-    watched(&webview, &plugin, watch, |watcher| {
-        watcher.bridge.send(RequestAction { action, reply })
-    })?;
-    timeout(wire::DEADLINE * 2, result)
-        .await
-        .map_err(|_| "Browser did not respond")?
-        .map_err(|_| "Browser is offline")?
-        .map_err(String::from)
+    let completion = completion.map(|id| id.channel_on(webview.clone()));
+    let result = async {
+        action.validate_input()?;
+        let (reply, result) = oneshot::channel();
+        watched(&webview, &plugin, watch, |watcher| {
+            watcher.bridge.send(RequestAction { action, reply })
+        })?;
+        timeout(wire::DEADLINE * 2, result)
+            .await
+            .map_err(|_| "Browser did not respond")?
+            .map_err(|_| "Browser is offline")?
+            .map_err(String::from)
+    }
+    .await;
+    if let Some(completion) = completion {
+        // The invoke response also carries the result if the channel could not deliver it.
+        let _ = completion.send(result.as_ref().err());
+    }
+    result
 }
 
 #[tauri::command]
