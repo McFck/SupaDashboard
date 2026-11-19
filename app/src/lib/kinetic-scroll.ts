@@ -203,6 +203,11 @@ export class KineticScroll {
   #move = (event: PointerEvent) => {
     let motion = this.#motion;
     if (motion.kind === 'press' && motion.pointerId === event.pointerId) {
+      // Without capture, a mouse released outside the viewport never sends its pointerup here.
+      if (event.buttons === 0) {
+        this.#release(event, false);
+        return;
+      }
       const along = Math.abs(this.#pointer(event) - motion.along);
       const across = Math.abs(this.#cross(event) - motion.across);
       if (Math.max(along, across) < this.#dragThreshold) {
@@ -254,8 +259,13 @@ export class KineticScroll {
   #release(event: PointerEvent, fling: boolean) {
     const motion = this.#motion;
     if (motion.kind === 'press' && motion.pointerId === event.pointerId) {
-      this.scrollTo(this.#y, false);
-      this.#host.onRest();
+      // A tap that caught an overscrolled band lets it spring back instead of jumping.
+      if (this.#clamp(this.#y) === this.#y) {
+        this.scrollTo(this.#y, false);
+        this.#host.onRest();
+      } else {
+        this.#spring(this.#clamp(this.#y), BOUNCE_W, true, 0);
+      }
       return;
     }
     if (motion.kind !== 'drag' || motion.pointerId !== event.pointerId) {
