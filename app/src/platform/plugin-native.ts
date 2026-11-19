@@ -151,7 +151,6 @@ export const pluginAutomation = {
     invoke<void>('plugin_automation_invoke', { plugin, snapshot, index }),
 };
 
-/** Connects a page to the plugin's declared Chromium extension. */
 export const pluginBrowser = {
   watch: (plugin: string, onSnapshot: (snapshot: PluginBrowserSnapshot) => void) =>
     invoke<number>('plugin_browser_watch', { plugin, events: new Channel(onSnapshot) }),
@@ -179,8 +178,11 @@ export const pluginBrowser = {
     });
   },
   scroll: (plugin: string, watch: number, frame: PluginBrowserScrollFrame) => {
-    void invoke<void>('plugin_browser_scroll', { plugin, watch, frame }).catch(() => {
+    void invoke<void>('plugin_browser_scroll', { plugin, watch, frame }).catch((error) => {
       // A frame for a closed session or a tab that just changed is dropped; the next gesture starts fresh.
+      if (error !== 'Browser is offline' && error !== 'Browser tab changed') {
+        console.error('Browser scroll failed:', error);
+      }
     });
   },
 };
