@@ -1,11 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { emptyScenario } from '../automation/scenario';
 import { controlTypes } from '../plugins/registry';
 import { settings } from '../settings/state.svelte';
-import { DEFAULTS } from '../settings/defaults';
+import { DEFAULT_PAGE, DEFAULTS } from '../settings/defaults';
 import type { ControlConfig } from '../controls/model';
 import { deletePage } from './page-commands';
 import { hasPlacement } from './placements';
-import { finishGridResize, pasteInSlot } from './slot-edits';
+import { findSlotPlacement, finishGridResize, pasteInSlot } from './slot-edits';
 
 const button = (id: string): ControlConfig => ({
   id,
@@ -92,5 +93,60 @@ describe('paste over a widget', () => {
     } finally {
       Object.assign(settings, before);
     }
+  });
+});
+
+describe('new widget placement', () => {
+  const type = 'test-widget';
+  const target = { appletId: 'deck', pageId: DEFAULT_PAGE.id, slotId: 'main' };
+  const initialPages = settings.deck.pages;
+  const obstacle = { id: 'occupied', control: 'existing', x: 1, y: 1, w: 2, h: 3 };
+
+  beforeEach(() => {
+    controlTypes.set(type, {
+      type,
+      title: 'Widget',
+      icon: 'Square',
+      component: () => ({}),
+      size: { w: 3, h: 3 },
+      minSize: { w: 1, h: 2 },
+      create: () => ({ name: 'Widget', scenario: emptyScenario(), variants: [] }),
+    });
+    settings.deck.pages = [{ ...DEFAULT_PAGE, rows: 4, cols: 4, items: [obstacle] }];
+  });
+
+  afterEach(() => {
+    settings.deck.pages = initialPages;
+    controlTypes.delete(type);
+  });
+
+  it('spawns the largest remaining size when the default is blocked', () => {
+    settings.deck.pages[0].cols = 5;
+    settings.deck.pages[0].items = [{ ...obstacle, x: 2 }];
+    expect(findSlotPlacement(target, type, { cell: { x: 4, y: 0 } })).toEqual({
+      x: 0,
+      y: 0,
+      w: 2,
+      h: 3,
+    });
+  });
+
+  it('keeps the default size when it fits anywhere in the slot', () => {
+    settings.deck.pages[0].cols = 6;
+    expect(findSlotPlacement(target, type, { cell: { x: 0, y: 0 } })).toEqual({
+      x: 3,
+      y: 0,
+      w: 3,
+      h: 3,
+    });
+  });
+
+  it('rejects a new widget when even its minimum cannot fit', () => {
+    settings.deck.pages[0].items = [{ ...obstacle, x: 0, w: 4 }];
+    expect(findSlotPlacement(target, type)).toBeNull();
+  });
+
+  it('keeps explicit placement sizes exact when duplicating widgets', () => {
+    expect(findSlotPlacement(target, type, { size: { w: 2, h: 2 } })).toBeNull();
   });
 });

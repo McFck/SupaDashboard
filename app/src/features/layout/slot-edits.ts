@@ -3,7 +3,7 @@
 import type { ControlConfig } from '../controls/model';
 import { newId, settings } from '../settings/state.svelte';
 import { commit } from './history.svelte';
-import { firstFree, fits, inside, type Item } from './grid';
+import { clampResizeRect, firstFree, fits, inside, type Item, type Rect } from './grid';
 import { pageItems, removePlacement } from './placements';
 import { removeItem } from './removal';
 import {
@@ -26,8 +26,8 @@ const slotOf = (target: LayoutTarget) =>
   layoutFor(settings, target.appletId, target.pageId, target.slotId);
 
 /**
- * Where a widget of `typeId` can go in the slot: on `cell` when it fits there, else the first free spot. The size
- * defaults to the type's default for this slot.
+ * An explicit size must fit as given. For a new widget, try its default throughout the slot before
+ * shrinking to the largest free rectangle. Prefer the requested cell among equally sized fits.
  */
 export function findSlotPlacement(
   target: LayoutTarget,
@@ -57,7 +57,31 @@ export function findSlotPlacement(
     cell && fits(occupied, { ...cell, w, h }, geometry)
       ? cell
       : firstFree(occupied, w, h, geometry);
-  return at ? { ...at, w, h } : null;
+  if (at) {
+    return { ...at, w, h };
+  }
+  if (options.size) {
+    return null;
+  }
+
+  const { min } = bounds;
+  const largestAt = ({ x, y }: Cell) =>
+    clampResizeRect(
+      { x, y, w: Math.min(w, geometry.cols - x), h: Math.min(h, geometry.rows - y) },
+      occupied,
+      'se',
+      min,
+    );
+  let best: Rect | null = cell && inside({ ...cell, ...min }, geometry) ? largestAt(cell) : null;
+  for (let y = 0; y + min.h <= geometry.rows; y++) {
+    for (let x = 0; x + min.w <= geometry.cols; x++) {
+      const candidate = largestAt({ x, y });
+      if (candidate && (!best || candidate.w * candidate.h > best.w * best.h)) {
+        best = candidate;
+      }
+    }
+  }
+  return best;
 }
 
 /** Replaces the slot's placements, adding `addedControl` with them, if the result is a valid layout. */

@@ -14,6 +14,13 @@ const OBSERVED_ATTRIBUTES = [
   'style',
 ];
 
+function inputSurfaces(root: HTMLElement) {
+  // The tile owns its input footprint. A clipped scroller's buttons can have boxes far outside it.
+  return [...root.querySelectorAll(EXCLUDED)].filter(
+    (node) => !node.parentElement?.closest('[data-dashboard-tile]'),
+  );
+}
+
 export class DragGaps {
   rects = $state<Geometry[]>([]);
   private frame = 0;
@@ -70,7 +77,9 @@ export class DragGaps {
       ...(appletRoot ? [appletRoot] : []),
       ...this.shell.ownerDocument.querySelectorAll(CHROME),
     ]);
-    appletRoot?.querySelectorAll(EXCLUDED).forEach((node) => next.add(node));
+    if (appletRoot) {
+      inputSurfaces(appletRoot).forEach((node) => next.add(node));
+    }
     for (const node of this.observed) {
       if (!next.has(node)) {
         this.resizeObserver.unobserve(node);
@@ -112,8 +121,7 @@ export class DragGaps {
         excluded.push(rect);
       }
     };
-    appletRoot.querySelectorAll('[data-dashboard-tile]').forEach(exclude);
-    appletRoot.querySelectorAll(EXCLUDED).forEach(exclude);
+    inputSurfaces(appletRoot).forEach(exclude);
     // The resize grips sit outside the shell (its rounded clip would cut the corners), so look document-wide.
     this.shell.ownerDocument.querySelectorAll(CHROME).forEach(exclude);
     this.rects = complementRectangles(
