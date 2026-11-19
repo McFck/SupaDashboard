@@ -253,6 +253,13 @@ async fn connect(stream: TcpStream, state: Arc<Server>, slot: OwnedSemaphorePerm
     drop(slot);
     if mode == Mode::Pair {
         drop(permit);
+        state.snapshots.send_if_modified(|snapshot| {
+            let repaired = matches!(snapshot, Snapshot::Repair);
+            if repaired {
+                *snapshot = Snapshot::Offline;
+            }
+            repaired
+        });
         // Give the extension time to save the credential and close this socket before logging in.
         let _ = timeout(DEADLINE, async {
             wire::send(&mut socket, &ready).await?;

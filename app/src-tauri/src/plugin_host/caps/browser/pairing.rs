@@ -47,6 +47,7 @@ struct Credentials {
 #[serde(untagged)]
 enum Stored {
     Rotation(Credentials),
+    /// Stores written before credential rotation hold one bare credential.
     Legacy(Credential),
 }
 
@@ -251,30 +252,51 @@ impl Pairing {
         let key = attempt.key.as_str();
         let valid = verify(key, &format!("client:{}", attempt.transcript), &proof.proof);
         if attempt.mode == Mode::Pair {
-            let issued = attempt.code_id.as_deref();
-            if self
-                .code(now)
-                .is_none_or(|code| Some(code.id.as_str()) != issued)
-            {
-                return Err(Rejected::Expired);
-            }
-            if !valid {
-                if let Some(code) = &mut self.code {
-                    code.failures += 1;
-                    if code.failures >= MAX_ATTEMPTS {
-                        self.code = None;
-                        return Err(Rejected::Expired);
-                    }
-                }
-                return Err(Rejected::Code);
-            }
+            self.check_code(attempt.code_id.as_deref(), valid, now)?;
         } else if !valid || !self.auth_keys(extension).any(|secret| secret == key) {
             return Err(Rejected::Authentication);
         }
         let proof = sign(key, &format!("server:{}", attempt.transcript))
             .map_err(|error| Rejected::Storage(error.into()))?;
+        self.store(&attempt, extension)?;
+        Ok((
+            attempt.mode,
+            Ready {
+                kind: "ready",
+                proof,
+            },
+        ))
+    }
+
+    fn check_code(
+        &mut self,
+        issued: Option<&str>,
+        valid: bool,
+        now: Instant,
+    ) -> Result<(), Rejected> {
+        if self
+            .code(now)
+            .is_none_or(|code| Some(code.id.as_str()) != issued)
+        {
+            return Err(Rejected::Expired);
+        }
+        if valid {
+            return Ok(());
+        }
+        if let Some(code) = &mut self.code {
+            code.failures += 1;
+            if code.failures >= MAX_ATTEMPTS {
+                self.code = None;
+                return Err(Rejected::Expired);
+            }
+        }
+        Err(Rejected::Code)
+    }
+
+    /// A pairing saves its credential as pending; only a login with it proves the extension saved it too.
+    fn store(&mut self, attempt: &Attempt, extension: &str) -> Result<(), Rejected> {
         if attempt.mode == Mode::Pair {
-            let secret = sign(key, &format!("credential:{}", attempt.transcript))
+            let secret = sign(&attempt.key, &format!("credential:{}", attempt.transcript))
                 .map_err(|error| Rejected::Storage(error.into()))?;
             self.save(Credentials {
                 current: self.credentials.current.clone(),
@@ -289,22 +311,15 @@ impl Pairing {
             .credentials
             .pending
             .as_ref()
-            .filter(|item| item.secret == key)
+            .filter(|item| item.secret == attempt.key)
         {
-            // Only a login with the replacement proves that the extension could save it.
             self.save(Credentials {
                 current: Some(pending.clone()),
                 pending: None,
             })
             .map_err(Rejected::Storage)?;
         }
-        Ok((
-            attempt.mode,
-            Ready {
-                kind: "ready",
-                proof,
-            },
-        ))
+        Ok(())
     }
 
     fn save(&mut self, credentials: Credentials) -> Result<(), String> {

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     fs,
-    io::{ErrorKind, Write},
+    io::{ErrorKind, Read, Write},
     os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
 };
@@ -102,7 +102,7 @@ impl ProtectedFile {
         let value = original
             .as_ref()
             .map(|bytes| -> Result<T, String> {
-                if bytes.len() > 131_072 {
+                if bytes.len() as u64 > MAX_STORE {
                     return Err(format!("Unreadable {label} store"));
                 }
                 let envelope: Envelope = serde_json::from_slice(bytes)
@@ -191,9 +191,13 @@ pub fn replace(from: &Path, to: &Path) -> windows::core::Result<()> {
     }
 }
 
+const MAX_STORE: u64 = 131_072;
+
+/// Reads at most one byte past the limit, so an oversized store is rejected without loading it.
 fn read(path: &Path, label: &str) -> Result<Option<Vec<u8>>, String> {
-    match fs::read(path) {
-        Ok(bytes) => Ok(Some(bytes)),
+    let mut bytes = Vec::new();
+    match fs::File::open(path).and_then(|file| file.take(MAX_STORE + 1).read_to_end(&mut bytes)) {
+        Ok(_) => Ok(Some(bytes)),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         _ => Err(format!("Could not read {label} store")),
     }
