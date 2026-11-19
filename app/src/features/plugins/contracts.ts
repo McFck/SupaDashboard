@@ -238,7 +238,7 @@ export type PluginApi = {
   registerVariable(def: PluginVariableDef): void;
   listVariables(): VariableRecord[];
   setVariable(id: string, value: VariableValue): Promise<boolean>;
-  /** A custom icon (24×24 SVG path, drawn as an outline) usable anywhere icons are chosen. */
+  /** A custom icon usable anywhere icons are chosen: a 24×24 SVG path drawn as an outline, or a `data:image/` URL. */
   registerIcon(name: string, path: string): void;
   /** Icon shown for an app in the volume mixer, keyed by process name ("spotify"). */
   registerAppIcon(app: string, icon: string): void;
