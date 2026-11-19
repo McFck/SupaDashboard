@@ -162,11 +162,14 @@ impl State {
 pub(super) enum Outgoing<'a> {
     Command { id: u32, action: &'a Action },
     Scroll(ScrollOut),
+    Unpaired,
+    UnpairFailed,
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase", deny_unknown_fields)]
 pub(super) enum Reply {
+    Unpair {},
     State {
         state: State,
     },
@@ -338,5 +341,15 @@ mod tests {
         ] {
             assert!(decode::<Reply>(payload).is_err(), "{payload}");
         }
+    }
+
+    #[test]
+    fn unpair_frames_cannot_carry_extra_fields() {
+        assert!(matches!(
+            decode::<Reply>(r#"{"kind":"unpair"}"#),
+            Ok(Reply::Unpair {})
+        ));
+        assert!(decode::<Reply>(r#"{"kind":"unpair","id":4}"#).is_err());
+        assert!(decode::<Reply>(r#"{"kind":"unpaired"}"#).is_err());
     }
 }

@@ -41,6 +41,17 @@ impl Credential {
 struct Credentials {
     current: Option<Credential>,
     pending: Option<Credential>,
+    // A separate key can confirm revocation after a lost acknowledgement, but cannot log in.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    revoked: Vec<Revoked>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Revoked {
+    extension: String,
+    id: String,
+    key: String,
 }
 
 struct Code {
@@ -105,6 +116,7 @@ pub(super) struct Attempt {
     code_id: Option<String>,
     key: String,
     transcript: String,
+    revoked: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -112,6 +124,7 @@ pub(super) enum Rejected {
     Code,
     Expired,
     Authentication,
+    Revoked(String),
     Storage(String),
 }
 
@@ -124,12 +137,17 @@ impl Pairing {
         };
         let credentials = match stored {
             Ok(Some(credentials))
-                if (credentials.current.is_some() || credentials.pending.is_some())
-                    && credentials
-                        .current
-                        .iter()
-                        .chain(&credentials.pending)
-                        .all(Credential::valid) =>
+                if credentials
+                    .current
+                    .iter()
+                    .chain(&credentials.pending)
+                    .all(Credential::valid)
+                    && credentials.revoked.len() <= 2
+                    && credentials.revoked.iter().all(|item| {
+                        valid_extension_id(&item.extension)
+                            && hex(&item.id, 64)
+                            && hex(&item.key, 64)
+                    }) =>
             {
                 Some(credentials)
             }
@@ -146,6 +164,39 @@ impl Pairing {
 
     pub(super) fn needs_repair(&self) -> bool {
         self.repair
+    }
+
+    pub(super) fn is_paired(&self) -> bool {
+        self.credentials.current.is_some() || self.credentials.pending.is_some()
+    }
+
+    pub(super) fn revoke(&mut self) -> Result<(), Failure> {
+        if self.is_paired() {
+            let revoked = self
+                .credentials
+                .current
+                .iter()
+                .chain(&self.credentials.pending)
+                .map(|credential| {
+                    Ok(Revoked {
+                        extension: credential.extension.clone(),
+                        id: sha256_hex(credential.secret.as_bytes())
+                            .map_err(|_| "Could not hash browser credential")?,
+                        key: sign(&credential.secret, "revocation")?,
+                    })
+                })
+                .collect::<Result<Vec<_>, Failure>>()?;
+            self.save(Credentials {
+                revoked,
+                ..Credentials::default()
+            })
+            .map_err(|error| {
+                log::warn!("Browser bridge revocation: {error}");
+                "Could not revoke browser credentials"
+            })?;
+        }
+        self.code = None;
+        Ok(())
     }
 
     pub(super) fn issue(&mut self, owner: u32, now: Instant) -> Result<PairCode, Failure> {
@@ -210,9 +261,16 @@ impl Pairing {
             }
             _ => return Err("Invalid browser credential ID"),
         };
-        let key = match key {
-            Some(key) => key.to_owned(),
-            None => random()?,
+        let revoked = self.credentials.revoked.iter().find(|item| {
+            hello.mode == Mode::Auth
+                && key.is_none()
+                && hello.key_id.as_deref() == Some(item.id.as_str())
+                && item.extension == extension
+        });
+        let key = match (key, revoked) {
+            (Some(key), _) => key.to_owned(),
+            (_, Some(item)) => item.key.clone(),
+            _ => random()?,
         };
         let nonce = random()?;
         let transcript = format!(
@@ -225,6 +283,7 @@ impl Pairing {
                 code_id,
                 key,
                 transcript,
+                revoked: revoked.is_some(),
             },
             Challenge { nonce },
         ))
@@ -238,6 +297,11 @@ impl Pairing {
         now: Instant,
     ) -> Result<(Mode, Ready), Rejected> {
         let key = attempt.key.as_str();
+        if attempt.revoked {
+            let proof = sign(key, &format!("revoked:{}", attempt.transcript))
+                .map_err(|error| Rejected::Storage(error.into()))?;
+            return Err(Rejected::Revoked(proof));
+        }
         let valid = verify(key, &format!("client:{}", attempt.transcript), &proof.proof);
         if attempt.mode == Mode::Pair {
             self.check_code(attempt.code_id.as_deref(), valid, now)?;
@@ -292,6 +356,7 @@ impl Pairing {
                     extension: extension.into(),
                     secret,
                 }),
+                revoked: self.credentials.revoked.clone(),
             })
             .map_err(Rejected::Storage)?;
             self.code = None;
@@ -304,6 +369,7 @@ impl Pairing {
             self.save(Credentials {
                 current: Some(pending.clone()),
                 pending: None,
+                revoked: self.credentials.revoked.clone(),
             })
             .map_err(Rejected::Storage)?;
         }
@@ -374,165 +440,4 @@ fn verify(key: &str, data: &str, proof: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::plugin_host::archive::tests::temp;
-
-    const ID: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-
-    fn hello(mode: Mode) -> Hello {
-        Hello {
-            v: VERSION,
-            mode,
-            nonce: "0".repeat(32),
-            key_id: (mode == Mode::Auth).then(|| "0".repeat(64)),
-        }
-    }
-
-    fn response(attempt: &Attempt, key: &str) -> Proof {
-        Proof {
-            proof: sign(key, &format!("client:{}", attempt.transcript)).unwrap(),
-        }
-    }
-
-    fn pair(pairing: &mut Pairing, now: Instant) -> String {
-        let code = pairing.issue(1, now).unwrap().code;
-        let (attempt, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-        let secret = sign(&code, &format!("credential:{}", attempt.transcript)).unwrap();
-        let proof = response(&attempt, &code);
-        pairing.finish(attempt, ID, proof, now).unwrap();
-        secret
-    }
-
-    fn login(pairing: &mut Pairing, key: &str, now: Instant) -> Result<(Mode, Ready), Rejected> {
-        let hello = Hello {
-            key_id: Some(sha256_hex(key.as_bytes()).unwrap()),
-            ..hello(Mode::Auth)
-        };
-        let (attempt, _) = pairing.begin(hello, ID, now).unwrap();
-        let proof = response(&attempt, key);
-        pairing.finish(attempt, ID, proof, now)
-    }
-
-    #[test]
-    fn pairing_rejects_wrong_expired_and_replayed_proofs_and_restores_only_the_paired_id() {
-        let folder = temp("browser-pairing");
-        let path = folder.join(".browser.json");
-        let mut pairing = Pairing::open(path.clone());
-        let now = Instant::now();
-        let (attempt, decoy) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-        let wrong = response(&attempt, "000000");
-        assert_eq!(
-            pairing.finish(attempt, ID, wrong, now).unwrap_err(),
-            Rejected::Expired
-        );
-        let code = pairing.issue(1, now).unwrap().code;
-        assert_eq!(code.len(), 6);
-        assert!(code.bytes().all(|byte| byte.is_ascii_digit()));
-        let (attempt, challenge) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-        for challenge in [decoy, challenge] {
-            assert_eq!(
-                serde_json::to_value(&challenge).unwrap(),
-                serde_json::json!({"nonce": challenge.nonce})
-            );
-        }
-        let wrong = response(&attempt, "wrong");
-        assert!(pairing.finish(attempt, ID, wrong, now).is_err());
-        let (attempt, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-        let proof = response(&attempt, &code);
-        assert!(
-            pairing
-                .finish(attempt, ID, proof, now + CODE_LIFETIME)
-                .is_err()
-        );
-        assert!(!path.exists());
-        let (attempt, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-        let (replay, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-        let secret = sign(&code, &format!("credential:{}", attempt.transcript)).unwrap();
-        let proof = response(&attempt, &code);
-        let transcript = attempt.transcript.clone();
-        let (_, ready) = pairing.finish(attempt, ID, proof, now).unwrap();
-        assert!(verify(&code, &format!("server:{transcript}"), &ready.proof));
-        let old = response(&replay, &code);
-        assert!(pairing.finish(replay, ID, old, now).is_err());
-        assert!(!std::fs::read_to_string(&path).unwrap().contains(&secret));
-        let mut reopened = Pairing::open(path);
-        let other = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        let greeting = || Hello {
-            key_id: Some(sha256_hex(secret.as_bytes()).unwrap()),
-            ..hello(Mode::Auth)
-        };
-        let (attempt, _) = reopened.begin(greeting(), other, now).unwrap();
-        let proof = response(&attempt, &secret);
-        assert!(reopened.finish(attempt, other, proof, now).is_err());
-        let (attempt, _) = reopened.begin(greeting(), ID, now).unwrap();
-        let proof = response(&attempt, &secret);
-        reopened.finish(attempt, ID, proof, now).unwrap();
-        std::fs::remove_dir_all(folder).unwrap();
-    }
-
-    #[test]
-    fn three_wrong_proofs_burn_even_an_already_challenged_code() {
-        let folder = temp("browser-code-limit");
-        let mut pairing = Pairing::open(folder.join(".browser.json"));
-        let now = Instant::now();
-        let code = pairing.issue(1, now).unwrap().code;
-        let (correct, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-        for expected in [Rejected::Code, Rejected::Code, Rejected::Expired] {
-            let (attempt, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-            let wrong = response(&attempt, "wrong");
-            assert_eq!(
-                pairing.finish(attempt, ID, wrong, now).unwrap_err(),
-                expected
-            );
-        }
-        let proof = response(&correct, &code);
-        assert_eq!(
-            pairing.finish(correct, ID, proof, now).unwrap_err(),
-            Rejected::Expired
-        );
-        assert!(!folder.join(".browser.json").exists());
-    }
-
-    #[test]
-    fn a_replacement_cannot_strand_the_old_extension_before_the_new_login() {
-        let folder = temp("browser-rotation");
-        let path = folder.join(".browser.json");
-        let now = Instant::now();
-        let mut pairing = Pairing::open(path.clone());
-        let old = pair(&mut pairing, now);
-        login(&mut pairing, &old, now).unwrap();
-        let new = pair(&mut pairing, now);
-
-        let mut reopened = Pairing::open(path.clone());
-        assert!(login(&mut reopened, &old, now).is_ok());
-        assert!(login(&mut reopened, &new, now).is_ok());
-
-        let mut reopened = Pairing::open(path);
-        assert!(login(&mut reopened, &old, now).is_err());
-        assert!(login(&mut reopened, &new, now).is_ok());
-        std::fs::remove_dir_all(folder).unwrap();
-    }
-
-    #[test]
-    fn damaged_credentials_stay_untouched_until_the_browser_proves_the_pairing_code() {
-        let folder = temp("browser-repair");
-        let path = folder.join(".browser.json");
-        std::fs::create_dir_all(&folder).unwrap();
-        std::fs::write(&path, b"old unreadable data").unwrap();
-        let now = Instant::now();
-        let mut pairing = Pairing::open(path.clone());
-        assert!(pairing.needs_repair());
-        pairing.issue(1, now).unwrap();
-        let (attempt, _) = pairing.begin(hello(Mode::Pair), ID, now).unwrap();
-        let wrong = response(&attempt, "wrong");
-        assert!(pairing.finish(attempt, ID, wrong, now).is_err());
-        assert_eq!(std::fs::read(&path).unwrap(), b"old unreadable data");
-
-        let secret = pair(&mut pairing, now);
-        let mut reopened = Pairing::open(path);
-        assert!(!reopened.needs_repair());
-        assert!(login(&mut reopened, &secret, now).is_ok());
-        std::fs::remove_dir_all(folder).unwrap();
-    }
-}
+mod tests;

@@ -158,6 +158,8 @@ export const pluginBrowser = {
     invoke<void>('plugin_browser_unwatch', { plugin, watch }),
   pair: (plugin: string, watch: number) =>
     invoke<{ code: string; expiresInMs: number }>('plugin_browser_pair', { plugin, watch }),
+  unpair: (plugin: string, watch: number) =>
+    invoke<void>('plugin_browser_unpair', { plugin, watch }),
   action: (plugin: string, watch: number, action: PluginBrowserAction) => {
     if (action.kind !== 'pointer') {
       return invoke<void>('plugin_browser_action', { plugin, watch, action });

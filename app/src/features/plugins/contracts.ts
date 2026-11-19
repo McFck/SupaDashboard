@@ -8,6 +8,7 @@ import type { VariableDefinition, VariableRecord, VariableValue } from '../autom
 
 export type PluginBrowserSnapshot =
   | { kind: 'offline' }
+  | { kind: 'paired' }
   | { kind: 'repair' }
   | {
       kind: 'connected';
