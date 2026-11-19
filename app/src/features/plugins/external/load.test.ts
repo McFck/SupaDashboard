@@ -45,7 +45,7 @@ describe('external plugin boundary', () => {
     ]);
   });
 
-  it('shows the granted browser extension in the permissions UI', () => {
+  it('shows browser control only for a valid extension grant', () => {
     const browser = 'cnojhdmglpjodgblffallbibdifemkop';
     const entry = {
       id: 'webcompanion',
@@ -59,6 +59,6 @@ describe('external plugin boundary', () => {
       { ...entry, permissions: { browser } },
       { ...entry, permissions: { browser: `chrome-extension://${browser}` } },
     ]).flatMap((plugin) => permissionRows(plugin.permissions));
-    expect(rows).toEqual([{ label: 'Browser control', value: browser }]);
+    expect(rows).toEqual([{ label: 'Browser control', value: 'Paired browser extension' }]);
   });
 });
