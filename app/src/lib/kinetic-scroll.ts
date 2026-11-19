@@ -12,7 +12,7 @@ type Host = {
 };
 type Options = {
   axis?: 'x' | 'y';
-  /** Delay capture on interactive content so a tap reaches the original button. */
+  /** Px a press must travel before the scroll captures the pointer, so a tap reaches the button under it. 0 captures at once. */
   dragThreshold?: number;
   /** Px the content rests on a multiple of; each wheel notch moves one. 0 rests anywhere. */
   snap?: number;

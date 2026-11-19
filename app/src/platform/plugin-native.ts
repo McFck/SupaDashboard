@@ -151,16 +151,12 @@ export const pluginAutomation = {
     invoke<void>('plugin_automation_invoke', { plugin, snapshot, index }),
 };
 
-const scrollGestures = new Map<number, { reported: boolean }>();
-
 /** Connects a page to the plugin's declared Chromium extension. */
 export const pluginBrowser = {
   watch: (plugin: string, onSnapshot: (snapshot: PluginBrowserSnapshot) => void) =>
     invoke<number>('plugin_browser_watch', { plugin, events: new Channel(onSnapshot) }),
-  unwatch: (plugin: string, watch: number) => {
-    scrollGestures.delete(watch);
-    return invoke<void>('plugin_browser_unwatch', { plugin, watch });
-  },
+  unwatch: (plugin: string, watch: number) =>
+    invoke<void>('plugin_browser_unwatch', { plugin, watch }),
   pair: (plugin: string, watch: number) =>
     invoke<{ code: string; expiresInMs: number }>('plugin_browser_pair', { plugin, watch }),
   action: (plugin: string, watch: number, action: PluginBrowserAction) => {
@@ -183,15 +179,8 @@ export const pluginBrowser = {
     });
   },
   scroll: (plugin: string, watch: number, frame: PluginBrowserScrollFrame) => {
-    if (frame.phase === 'hold') {
-      scrollGestures.set(watch, { reported: false });
-    }
-    const gesture = scrollGestures.get(watch);
-    void invoke<void>('plugin_browser_scroll', { plugin, watch, frame }).catch((error: unknown) => {
-      if (gesture && !gesture.reported && scrollGestures.has(watch)) {
-        gesture.reported = true;
-        console.warn('WebCompanion scroll', error);
-      }
+    void invoke<void>('plugin_browser_scroll', { plugin, watch, frame }).catch(() => {
+      // A frame for a closed session or a tab that just changed is dropped; the next gesture starts fresh.
     });
   },
 };

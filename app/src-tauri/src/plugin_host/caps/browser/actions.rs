@@ -404,7 +404,3 @@ mod tests {
         );
     }
 }
-
-pub(super) fn valid_rate(rate: f64) -> bool {
-    (0.0625..=16.0).contains(&rate)
-}

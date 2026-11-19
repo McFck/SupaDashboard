@@ -9,7 +9,7 @@ use tokio_tungstenite::{
 };
 
 use super::{
-    actions::{Action, valid_rate, web_url},
+    actions::{Action, web_url},
     stream::ScrollOut,
 };
 
@@ -127,7 +127,8 @@ impl State {
                 .active_tab
                 .is_some_and(|id| !self.tabs.iter().any(|tab| tab.id == id && tab.active))
             || self.media.as_ref().is_some_and(|media| {
-                !ids.contains(&media.tab) || (media.rate != 0.0 && !valid_rate(media.rate))
+                !ids.contains(&media.tab)
+                    || (media.rate != 0.0 && !(0.0625..=16.0).contains(&media.rate))
             })
         {
             return Err("Invalid browser state");

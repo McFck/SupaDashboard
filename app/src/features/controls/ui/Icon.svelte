@@ -38,7 +38,6 @@
     icon && Object.hasOwn(icons, icon) ? icons[icon as keyof typeof icons] : undefined,
   );
   const custom = $derived(icon ? (brandIcons[icon] ?? customIcons.get(icon)) : undefined);
-  // A plugin icon given as an image URL keeps its own colours instead of the outline style.
   const customImage = $derived(custom?.startsWith('data:image/') ? custom : undefined);
 </script>
 

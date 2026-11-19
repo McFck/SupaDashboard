@@ -201,7 +201,7 @@ impl Pairing {
         extension: &str,
         now: Instant,
     ) -> Result<(Attempt, Challenge), Failure> {
-        if hello.v != VERSION || !hex(&hello.nonce, 32) {
+        if !hex(&hello.nonce, 32) {
             return Err("Invalid browser nonce");
         }
         let (mode, code_id, key) = match (hello.mode, hello.key_id.as_deref()) {
