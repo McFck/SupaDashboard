@@ -52,6 +52,11 @@
       failed = image;
     }}
   />
+{:else if Lucide}
+  <Lucide
+    {size}
+    strokeWidth={1.75}
+  />
 {:else if customImage}
   <img
     src={customImage}
@@ -59,11 +64,6 @@
     width={size}
     height={size}
     class="shrink-0 object-contain"
-  />
-{:else if Lucide}
-  <Lucide
-    {size}
-    strokeWidth={1.75}
   />
 {:else if custom}
   <svg
