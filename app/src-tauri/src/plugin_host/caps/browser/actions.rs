@@ -12,13 +12,13 @@ pub enum Destination {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "phase", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ScrollFrame {
-    Hold { tab: Option<i32> },
-    Move { dx: i32, dy: i32, tab: Option<i32> },
-    Release { vx: f32, vy: f32, tab: Option<i32> },
+    Hold { tab: i32 },
+    Move { dx: i32, dy: i32, tab: i32 },
+    Release { vx: f32, vy: f32, tab: i32 },
 }
 
 impl ScrollFrame {
-    pub(super) fn tab(&self) -> Option<i32> {
+    pub(super) fn tab(&self) -> i32 {
         match self {
             Self::Hold { tab, .. } | Self::Move { tab, .. } | Self::Release { tab, .. } => *tab,
         }
@@ -30,7 +30,7 @@ impl ScrollFrame {
             Self::Move { dx, dy, .. } => [dx, dy].into_iter().all(|d| d.unsigned_abs() <= 4096),
             Self::Release { vx, vy, .. } => [vx, vy].into_iter().all(|v| v.abs() <= 10000.0),
         };
-        (valid && self.tab().is_none_or(|tab| tab >= 0))
+        (valid && self.tab() >= 0)
             .then_some(())
             .ok_or("Invalid scroll request")
     }
@@ -375,6 +375,7 @@ mod tests {
             json!({"phase": "move", "dx": -2147483648i32, "dy": 0}),
             json!({"phase": "release", "vx": 0, "vy": 10001}),
             json!({"phase": "hold", "tab": -1}),
+            json!({"phase": "move", "dx": 1, "dy": 0}),
             json!({"phase": "hold", "outline": true, "tab": 1}),
         ] {
             assert!(
@@ -388,7 +389,7 @@ mod tests {
             ScrollFrame::Move {
                 dx: -4096,
                 dy: 4096,
-                tab: Some(1),
+                tab: 1,
             }
             .validate()
             .is_ok()
@@ -397,7 +398,7 @@ mod tests {
             ScrollFrame::Release {
                 vx: 10000.0,
                 vy: -10000.0,
-                tab: Some(1),
+                tab: 1,
             }
             .validate()
             .is_ok()

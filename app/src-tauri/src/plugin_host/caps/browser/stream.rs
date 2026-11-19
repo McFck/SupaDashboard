@@ -12,7 +12,7 @@ type Response = oneshot::Sender<Result<(), Failure>>;
 
 #[derive(Default, serde::Serialize)]
 pub(super) struct ScrollOut {
-    tab: Option<i32>,
+    tab: i32,
     hold: bool,
     dx: i32,
     dy: i32,
@@ -129,14 +129,14 @@ mod tests {
         queue.push(ScrollFrame::Release {
             vx: 100.0,
             vy: -200.0,
-            tab: None,
+            tab: 1,
         });
-        queue.push(ScrollFrame::Hold { tab: None });
+        queue.push(ScrollFrame::Hold { tab: 1 });
         for _ in 0..10 {
             queue.push(ScrollFrame::Move {
                 dx: 4096,
                 dy: -4096,
-                tab: None,
+                tab: 1,
             });
         }
         let out = queue.take().unwrap();
@@ -148,7 +148,7 @@ mod tests {
         queue.push(ScrollFrame::Release {
             vx: 0.0,
             vy: 0.0,
-            tab: None,
+            tab: 1,
         });
         let out = queue.take().unwrap();
         assert!(!out.hold);
@@ -162,16 +162,16 @@ mod tests {
         queue.push(ScrollFrame::Move {
             dx: 100,
             dy: 0,
-            tab: Some(1),
+            tab: 1,
         });
-        queue.push(ScrollFrame::Hold { tab: Some(2) });
+        queue.push(ScrollFrame::Hold { tab: 2 });
         queue.push(ScrollFrame::Move {
             dx: 0,
             dy: 20,
-            tab: Some(2),
+            tab: 2,
         });
         let out = queue.take().unwrap();
-        assert_eq!((out.tab, out.hold, out.dx, out.dy), (Some(2), true, 0, 20));
+        assert_eq!((out.tab, out.hold, out.dx, out.dy), (2, true, 0, 20));
     }
 
     #[test]

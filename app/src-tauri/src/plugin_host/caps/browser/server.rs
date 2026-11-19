@@ -139,14 +139,12 @@ impl Bridge {
     pub(super) fn scroll(&self, frame: ScrollFrame) -> Result<(), Failure> {
         let session = lock(&self.state.session);
         let lane = &session.as_ref().ok_or("Browser is offline")?.scroll;
-        if let Some(tab) = frame.tab() {
-            let active = match &*self.state.snapshots.borrow() {
-                Snapshot::Connected { state, .. } => state.active_tab,
-                _ => None,
-            };
-            if active != Some(tab) {
-                return Err("Browser tab changed");
-            }
+        let active = match &*self.state.snapshots.borrow() {
+            Snapshot::Connected { state, .. } => state.active_tab,
+            _ => None,
+        };
+        if active != Some(frame.tab()) {
+            return Err("Browser tab changed");
         }
         lock(&lane.queue).push(frame);
         lane.ready.notify_one();

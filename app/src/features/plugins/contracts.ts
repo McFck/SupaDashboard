@@ -33,9 +33,9 @@ export type PluginBrowserSnapshot =
     };
 
 export type PluginBrowserScrollFrame =
-  | { phase: 'hold'; tab?: number }
-  | { phase: 'move'; dx: number; dy: number; tab?: number }
-  | { phase: 'release'; vx: number; vy: number; tab?: number };
+  | { phase: 'hold'; tab: number }
+  | { phase: 'move'; dx: number; dy: number; tab: number }
+  | { phase: 'release'; vx: number; vy: number; tab: number };
 
 export type PluginBrowserAction =
   | { kind: 'tab'; input: 'next' | 'previous' | 'new' | 'close' | 'reopen' }
