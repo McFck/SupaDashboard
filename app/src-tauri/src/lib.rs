@@ -13,6 +13,7 @@ mod monitors;
 mod panel;
 mod plugin_host;
 mod tray;
+mod updater;
 
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, WindowEvent};
@@ -31,6 +32,8 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_uri_scheme_protocol("plugin", |context, request| {
             plugin_host::protocol::serve(context.app_handle(), &request)
         })
@@ -66,6 +69,7 @@ pub fn run() {
             app.manage(media::MediaHub::new(app.handle()).map_err(std::io::Error::other)?);
             media::grant_saved_files(app.handle());
             tray::install(app)?;
+            updater::start(app.handle());
             let args: Vec<String> = std::env::args().collect();
             plugin_host::opened::opened(app.handle(), &args, &std::env::current_dir()?);
             Ok(())
@@ -99,6 +103,8 @@ pub fn run() {
             content::content_frames_ready,
             panel::panel_bootstrap,
             panel::panel_ready,
+            updater::update_check,
+            updater::update_install,
             panel::snap::panel_snap_button,
             monitors::monitor_names,
             autostart::autostart_get,

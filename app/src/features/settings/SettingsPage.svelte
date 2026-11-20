@@ -14,6 +14,7 @@
   import Choice from '../plugins/ui/Choice.svelte';
   import Row from '../../panel/ui/Row.svelte';
   import Section from '../../panel/ui/Section.svelte';
+  import AppUpdates from './AppUpdates.svelte';
   import { matchMonitor } from '../display/monitor-identity';
   import {
     buildMonitorOptions,
@@ -181,6 +182,8 @@
       /></Row
     >
   </Section>
+
+  <AppUpdates />
 
   <Section title="Advanced">
     <Row label="Reset everything">

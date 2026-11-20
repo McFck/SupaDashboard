@@ -1,6 +1,6 @@
 [package]
 name = "supadashboard"
-version = "0.1.0"
+version = "0.2.0"
 description = "Customizable second-screen dashboard"
 license = "GPL-3.0-or-later"
 edition = "2024"
@@ -22,7 +22,9 @@ tauri-plugin-log = "2"
 tauri-plugin-store = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-process = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
 webview2-com = "0.39.1"
 windows-future = "0.3.2"
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "sync", "time", "process"] }
