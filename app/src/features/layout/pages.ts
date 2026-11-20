@@ -92,18 +92,14 @@ export function duplicatePage(
   const ids = allIds(pages, controls, appletLayouts);
   const id = newGlobalId('page', ids);
   if (!id) return undefined;
-  const copiedControls: ControlConfig[] = [];
   const copiedItems: Item[] = [];
   const copyItems = (items: readonly Item[]) => {
     const copied: Item[] = [];
     for (const item of items) {
-      const control = sourceControls.get(item.control);
-      if (!control) return undefined;
-      const controlId = newGlobalId(control.id, ids),
-        itemId = newGlobalId('item', ids);
-      if (!controlId || !itemId) return undefined;
-      copiedControls.push({ ...clonePlain(control), id: controlId });
-      copied.push({ ...item, id: itemId, control: controlId });
+      if (!sourceControls.has(item.control)) return undefined;
+      const itemId = newGlobalId('item', ids);
+      if (!itemId) return undefined;
+      copied.push({ ...item, id: itemId });
     }
     return copied;
   };
@@ -128,7 +124,7 @@ export function duplicatePage(
   return {
     pages: [...pages, page],
     page,
-    controls: [...controls, ...copiedControls],
+    controls: [...controls],
     variants: { ...variants },
     appletLayouts: nextAppletLayouts,
   };

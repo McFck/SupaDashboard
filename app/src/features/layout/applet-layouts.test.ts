@@ -118,7 +118,10 @@ describe('applet layout storage', () => {
         first,
         { ...second, control: 'a' },
       ]),
-    ).toBe(false);
+    ).toBe(true);
+    expect(
+      setLayoutItems(source, { appletId, pageId: 'page-1', slotId: 'main' }, [first, second]),
+    ).toBe(true);
     expect(
       setLayoutItems(source, { appletId, pageId: 'page-1', slotId: 'main' }, [
         first,
@@ -129,6 +132,11 @@ describe('applet layout storage', () => {
     source.appletLayouts.unavailable = { 'page-1': { hidden: [item('hidden-item', 'a', 0)] } };
     expect(
       setLayoutItems(source, { appletId, pageId: 'page-1', slotId: 'main' }, [first, second]),
+    ).toBe(true);
+    expect(
+      setLayoutItems(source, { appletId, pageId: 'page-1', slotId: 'main' }, [
+        item('hidden-item', 'a', 0),
+      ]),
     ).toBe(false);
     const impossible = { ...applet.slots[0], size: { w: 2, h: 1 } };
     expect(effectiveSize(appletId, impossible, typeId)).toBeUndefined();

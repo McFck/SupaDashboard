@@ -42,6 +42,25 @@ export function hasPlacement(source: PlacementSource, controlId: string) {
   return storedPlacements(source).some((placement) => placement.item.control === controlId);
 }
 
+export function controlUseCounts(source: PlacementSource): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const placement of storedPlacements(source)) {
+    const id = placement.item.control;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export function controlUseCount(source: PlacementSource, controlId: string) {
+  let count = 0;
+  for (const placement of storedPlacements(source)) {
+    if (placement.item.control === controlId) {
+      count++;
+    }
+  }
+  return count;
+}
+
 /** Removes one placement; `orphanControl` names its control when no other placement uses it. */
 export function removePlacement(
   pages: readonly Page[],

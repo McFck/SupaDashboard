@@ -21,6 +21,9 @@ import { runtimeView } from '../../../app/runtime/state';
 import { controlTriggers, controlTypes, registeredEvents } from '../../plugins/registry';
 import { controlById, settings } from '../../settings/state.svelte';
 import { commit } from '../../layout/history.svelte';
+import { layoutFor, placementById } from '../../layout/applet-layouts';
+import { controlUseCount } from '../../layout/placements';
+import { newControlId, writeSlotItems } from '../../layout/slot-edits';
 import {
   createScenarioDraft,
   listOf,
@@ -167,16 +170,8 @@ export class ScenarioDraftEditor {
     return true;
   }
 
-  /** Writes the draft back as one undo step. Returns whether it saved. */
-  save() {
-    const controlId = this.controlId();
-    const latest = controlById(controlId);
-    const draft = this.draft;
-    if (!latest || !draft || !this.canSave) {
-      return false;
-    }
-    commit('Edit scenario');
-    const replacement = $state.snapshot(latest) as ControlConfig;
+  private buildReplacement(latest: ControlConfig, draft: ScenarioDraft, id: string): ControlConfig {
+    const replacement = { ...($state.snapshot(latest) as ControlConfig), id };
     replacement.scenario = clonePlain(draft.scenario);
     for (const trigger of TRIGGERS) {
       if (isEmptyList(replacement.scenario.triggers[trigger])) {
@@ -194,21 +189,76 @@ export class ScenarioDraftEditor {
     } else {
       delete replacement.stateRoles;
     }
-    settings.controls = settings.controls.map((value) =>
-      value.id === controlId ? replacement : value,
-    );
+    return replacement;
+  }
 
+  private resolvedStateIndex(latest: ControlConfig, replacement: ControlConfig) {
     // Keep the button on its live state, or on the fallback chosen when that state was deleted.
-    const liveStateId = stateIdAt(latest, settings.variants[controlId] ?? 0);
+    const liveStateId = stateIdAt(latest, settings.variants[latest.id] ?? 0);
     const liveStateKept = replacement.variants.some(
       (_, index) => stateIdAt(replacement, index) === liveStateId,
     );
     const stateId = liveStateKept ? liveStateId : this.manualFallbackStateId || liveStateId;
-    const index = replacement.variants.findIndex(
+    return replacement.variants.findIndex(
       (_, position) => stateIdAt(replacement, position) === stateId,
     );
+  }
+
+  /** Writes the draft back as one undo step. Returns whether it saved. */
+  save() {
+    const controlId = this.controlId();
+    const latest = controlById(controlId);
+    const draft = this.draft;
+    if (!latest || !draft || !this.canSave) {
+      return false;
+    }
+    commit('Edit scenario');
+    const replacement = this.buildReplacement(latest, draft, controlId);
+    settings.controls = settings.controls.map((value) =>
+      value.id === controlId ? replacement : value,
+    );
+    const index = this.resolvedStateIndex(latest, replacement);
     if (index >= 0) {
       settings.variants = { ...settings.variants, [controlId]: index };
+    }
+    return true;
+  }
+
+  /** Detaches `itemId` into a new control with the draft applied, as one undo step. */
+  saveAsUnique(itemId: string) {
+    const controlId = this.controlId();
+    const latest = controlById(controlId);
+    const draft = this.draft;
+    const placement = placementById(settings, itemId);
+    if (
+      !latest ||
+      !draft ||
+      !this.canSave ||
+      !placement ||
+      placement.item.control !== controlId ||
+      controlUseCount(settings, controlId) < 2
+    ) {
+      return false;
+    }
+    const target = {
+      appletId: placement.appletId,
+      pageId: placement.pageId,
+      slotId: placement.slotId,
+    };
+    const current = layoutFor(settings, target.appletId, target.pageId, target.slotId);
+    if (!current) {
+      return false;
+    }
+    const replacement = this.buildReplacement(latest, draft, newControlId(latest.name));
+    const nextItems = current.items.map((entry) =>
+      entry.id === itemId ? { ...entry, control: replacement.id } : entry,
+    );
+    if (!writeSlotItems(target, nextItems, 'Save scenario as unique', replacement)) {
+      return false;
+    }
+    const index = this.resolvedStateIndex(latest, replacement);
+    if (index >= 0) {
+      settings.variants = { ...settings.variants, [replacement.id]: index };
     }
     return true;
   }

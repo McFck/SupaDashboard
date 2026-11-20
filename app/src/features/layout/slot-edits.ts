@@ -4,7 +4,7 @@ import type { ControlConfig } from '../controls/model';
 import { newId, settings } from '../settings/state.svelte';
 import { commit } from './history.svelte';
 import { clampResizeRect, firstFree, fits, inside, type Item, type Rect } from './grid';
-import { pageItems, removePlacement } from './placements';
+import { controlUseCount, pageItems, removePlacement } from './placements';
 import { removeItem } from './removal';
 import {
   canSetLayoutItems,
@@ -121,12 +121,52 @@ export function placeControl(
   return writeSlotItems(target, items, label, control) ? id : undefined;
 }
 
+/** Adds a linked placement of an existing control at `at`; returns the placement ID, or undefined if refused. */
+export function placeLinkedControl(
+  target: LayoutTarget,
+  controlId: string,
+  at: Cell & Size,
+  label: string,
+) {
+  if (!settings.controls.some((entry) => entry.id === controlId)) {
+    return undefined;
+  }
+  const takenIds = pageItems(settings.deck.pages, settings.appletLayouts).map((item) => item.id);
+  const id = newId('i', takenIds);
+  const items = [...(slotOf(target)?.items ?? []), { id, control: controlId, ...at }];
+  return writeSlotItems(target, items, label) ? id : undefined;
+}
+
 /** A control ID derived from `base` that no control uses yet. */
 export function newControlId(base: string) {
   return newId(
     base,
     settings.controls.map((control) => control.id),
   );
+}
+
+/** Detaches a linked placement into its own copy of the control; returns the new control ID, or undefined. */
+export function unlinkPlacement(target: LayoutTarget, itemId: string) {
+  const current = slotOf(target);
+  const item = current?.items.find((entry) => entry.id === itemId);
+  const control = item && settings.controls.find((entry) => entry.id === item.control);
+  if (!current || !item || !control || controlUseCount(settings, control.id) < 2) {
+    return undefined;
+  }
+  const copy: ControlConfig = {
+    ...clonePlain(control),
+    id: newControlId(control.name),
+  };
+  const nextItems = current.items.map((entry) =>
+    entry.id === item.id ? { ...entry, control: copy.id } : entry,
+  );
+  if (!writeSlotItems(target, nextItems, `Make ${control.name} unique`, copy)) {
+    return undefined;
+  }
+  if (Object.hasOwn(settings.variants, control.id)) {
+    settings.variants[copy.id] = settings.variants[control.id];
+  }
+  return copy.id;
 }
 
 export function resizeInSlot(target: LayoutTarget, itemId: string, size: Size) {
@@ -151,7 +191,7 @@ export function resizeInSlot(target: LayoutTarget, itemId: string, size: Size) {
   return writeSlotItems(target, next, 'Resize widget');
 }
 
-/** Copies a placement and its control into a free spot of the same slot; returns the new placement ID. */
+/** Places a linked copy of a widget into a free spot of the same slot; returns the new placement ID. */
 export function duplicateInSlot(target: LayoutTarget, itemId: string) {
   const item = slotOf(target)?.items.find((entry) => entry.id === itemId);
   const control = item && settings.controls.find((entry) => entry.id === item.control);
@@ -160,25 +200,21 @@ export function duplicateInSlot(target: LayoutTarget, itemId: string) {
   if (!control || !at) {
     return undefined;
   }
-  const copy = {
-    ...clonePlain(control),
-    id: newControlId(control.name),
-    name: `${control.name} copy`,
-  };
-  return placeControl(target, copy, at, `Duplicate ${control.name}`);
+  return placeLinkedControl(target, control.id, at, `Duplicate ${control.name}`);
 }
 
-/** Pastes a fresh copy on an empty cell or over the placement it replaces; returns the new placement ID. */
+/** Pastes a widget on an empty cell or over the placement it replaces; returns the new placement ID. */
 export function pasteInSlot(
   target: LayoutTarget,
   copy: WidgetCopy,
   at: InsertTarget,
   label: string,
+  mode: 'copy' | 'link' = 'copy',
 ) {
   // The plan and the insertion use one plain snapshot: the insertion writes into the slot maps it is given.
   const source = clonePlain(settings);
   const plan = planInsertion(source, copy, at, target);
-  const result = plan && insertWidget(source, copy, plan, target);
+  const result = plan && insertWidget(source, copy, plan, target, mode);
   if (!result) {
     return undefined;
   }

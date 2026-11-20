@@ -15,7 +15,7 @@ export function migrate(input: unknown): Settings {
   if (!isRecord(input)) {
     throw new Error('Settings must be an object');
   }
-  const { saved, rawControls } = upgrade(input);
+  const { saved, rawControls, splitSharedControls } = upgrade(input);
   // Preserve explicit colours and empty labels while canonicalizing every control once.
   for (const control of rawControls) {
     for (const variant of control.variants) {
@@ -40,7 +40,7 @@ export function migrate(input: unknown): Settings {
   const pages = deck.pages;
   const appletSettings = normalizeAppletSettings(saved.appletSettings);
 
-  // Placements used to share one control (and its state); give every extra placement its own copy.
+  // Pre-v23 files had no explicit linked widgets; keep splitting legacy duplicates while v23+ preserves links.
   const variants: Settings['variants'] = {};
   for (const [id, index] of Object.entries(object(saved.variants))) {
     if (typeof index !== 'number' || !Number.isSafeInteger(index) || index < 0) {
@@ -48,36 +48,38 @@ export function migrate(input: unknown): Settings {
     }
     variants[id] = index;
   }
-  const seen = new Set<string>(),
-    globalIds = new Set([...pageIds, ...itemIds, ...controls.map((c) => c.id)]);
-  const placementLists = [
-    ...pages.map((page) => page.items),
-    ...Object.values(appletLayouts).flatMap((applet) =>
-      Object.values(applet).flatMap((page) => Object.values(page)),
-    ),
-  ];
-  for (const items of placementLists) {
-    for (let index = 0; index < items.length; index++) {
-      const item = items[index];
-      if (!seen.has(item.control)) {
-        seen.add(item.control);
-        continue;
+  if (splitSharedControls) {
+    const seen = new Set<string>(),
+      globalIds = new Set([...pageIds, ...itemIds, ...controls.map((c) => c.id)]);
+    const placementLists = [
+      ...pages.map((page) => page.items),
+      ...Object.values(appletLayouts).flatMap((applet) =>
+        Object.values(applet).flatMap((page) => Object.values(page)),
+      ),
+    ];
+    for (const items of placementLists) {
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index];
+        if (!seen.has(item.control)) {
+          seen.add(item.control);
+          continue;
+        }
+        const source = controls.find((c) => c.id === item.control);
+        if (!source) {
+          continue;
+        }
+        let id = `${source.id}-2`,
+          suffix = 3;
+        while (globalIds.has(id)) {
+          id = `${source.id}-${suffix++}`;
+        }
+        globalIds.add(id);
+        controls.push({ ...structuredClone(source), id });
+        if (Object.hasOwn(variants, source.id)) {
+          variants[id] = variants[source.id];
+        }
+        items[index] = { ...item, control: id };
       }
-      const source = controls.find((c) => c.id === item.control);
-      if (!source) {
-        continue;
-      }
-      let id = `${source.id}-2`,
-        suffix = 3;
-      while (globalIds.has(id)) {
-        id = `${source.id}-${suffix++}`;
-      }
-      globalIds.add(id);
-      controls.push({ ...structuredClone(source), id });
-      if (Object.hasOwn(variants, source.id)) {
-        variants[id] = variants[source.id];
-      }
-      items[index] = { ...item, control: id };
     }
   }
 

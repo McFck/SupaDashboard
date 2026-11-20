@@ -58,20 +58,26 @@ export function insertWidget(
   copy: WidgetCopy,
   plan: InsertionPlan,
   slot: LayoutTarget,
+  mode: 'copy' | 'link' = 'copy',
 ) {
-  const control = {
-    ...clonePlain(copy.control),
-    id: newId(
-      copy.control.id,
-      source.controls.map((entry) => entry.id),
-    ),
-  };
+  const linkExisting =
+    mode === 'link' && source.controls.some((entry) => entry.id === copy.control.id);
+  const control = linkExisting
+    ? undefined
+    : {
+        ...clonePlain(copy.control),
+        id: newId(
+          copy.control.id,
+          source.controls.map((entry) => entry.id),
+        ),
+      };
+  const controlId = control ? control.id : copy.control.id;
   const item = {
     id: newId(
       'i',
       pageItems(source.deck.pages, source.appletLayouts).map((entry) => entry.id),
     ),
-    control: control.id,
+    control: controlId,
     ...plan.at,
     w: copy.w,
     h: copy.h,
@@ -88,7 +94,7 @@ export function insertWidget(
     }
     pages = removed.pages;
     appletLayouts = removed.appletLayouts;
-    if (removed.orphanControl) {
+    if (removed.orphanControl && removed.orphanControl !== controlId) {
       controls = controls.filter((entry) => entry.id !== removed.orphanControl);
       delete variants[removed.orphanControl];
     }
@@ -98,7 +104,7 @@ export function insertWidget(
     ...source,
     deck: { ...source.deck, pages: pages.map((page) => ({ ...page, items: [...page.items] })) },
     appletLayouts,
-    controls: [...controls, control],
+    controls: control ? [...controls, control] : [...controls],
     variants,
   };
   const destination = layoutFor(draft, slot.appletId, slot.pageId, slot.slotId);

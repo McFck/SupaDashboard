@@ -44,7 +44,7 @@ describe('settings migration', () => {
       slots: { 'bottom-strip': ['prev'], dock: ['prev'] },
     };
     const s = migrate(v1);
-    expect(s.version).toBe(22);
+    expect(s.version).toBe(23);
     expect(s.deck.pages[0].applet).toBe('subway');
     expect(s.display).toMatchObject({
       monitor: 'X',
@@ -161,40 +161,6 @@ describe('settings migration', () => {
     ]);
   });
 
-  it('gives cross-applet copies independent item and control IDs during normalization', () => {
-    const saved = structuredClone(DEFAULTS) as any;
-    saved.controls[0].options = { locale: '日本語' };
-    saved.controls[0].scenario = {
-      triggers: {
-        press: {
-          steps: [
-            {
-              id: 'kept-step',
-              kind: 'action',
-              action: { id: 'media.toggle', args: { source: 'system' } },
-            },
-          ],
-        },
-      },
-      events: [],
-    };
-    saved.appletLayouts.subway = {
-      [saved.deck.pages[0].id]: {
-        strip: [{ id: 'applet-item', control: 'prev', x: 0, y: 0, w: 1, h: 1 }],
-      },
-    };
-    const original = structuredClone(saved);
-    const migrated = migrate(saved);
-    const item = migrated.appletLayouts.subway['page-1'].strip[0];
-    expect(item.id).toBe('applet-item');
-    expect(item.control).not.toBe('prev');
-    expect(migrated.controls.find((control) => control.id === item.control)).toMatchObject({
-      options: { locale: '日本語' },
-      scenario: { triggers: { press: { steps: [{ id: 'kept-step' }] } } },
-    });
-    expect(saved).toEqual(original);
-  });
-
   it('keeps valid old display and page settings and defaults malformed ones', () => {
     const old = (display: object, page: object): any => {
       const defaults = structuredClone(DEFAULTS);
@@ -299,6 +265,7 @@ describe('settings migration', () => {
       ],
       activePage: 'missing',
     };
+    saved.version = 22;
     saved.variants.prev = 1;
     const source = structuredClone(saved);
     const migrated = migrate(saved);
@@ -346,7 +313,7 @@ describe('settings migration', () => {
       pageRotation: { intervalSeconds: 10 },
     };
     const migrated = migrate(interrupted);
-    expect(migrated).toMatchObject({ version: 22, deck: { pages: [{ applet: 'subway' }] } });
+    expect(migrated).toMatchObject({ version: 23, deck: { pages: [{ applet: 'subway' }] } });
     expect(migrated).not.toHaveProperty('pageRotation');
   });
 
@@ -424,7 +391,7 @@ describe('settings v7 to v8', () => {
     'moves skin %s to the pages and the settings and layouts to the applet keys',
     (_, skin, applets) => {
       const migrated = migrate(v7File(skin));
-      expect(migrated.version).toBe(22);
+      expect(migrated.version).toBe(23);
       expect(migrated).not.toHaveProperty('skin');
       expect(migrated).not.toHaveProperty('skinSettings');
       expect(migrated).not.toHaveProperty('skinLayouts');
@@ -487,7 +454,7 @@ describe('settings v9 to v10', () => {
       },
     };
     const migrated = migrate(file);
-    expect(migrated.version).toBe(22);
+    expect(migrated.version).toBe(23);
     expect(migrated.appletLayouts.subway['page-1']).toEqual({
       strip: [
         ...strip,

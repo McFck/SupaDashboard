@@ -123,10 +123,7 @@ export class EffectRuntime {
       return;
     }
     const tileId = packet.itemId || packet.controlId;
-    // Settings give every placement its own control, including events captured without an item ID.
-    const sameTile = [...this.active.values()].filter(
-      (entry) => entry.value.controlId === packet.controlId,
-    );
+    const sameTile = [...this.active.values()].filter((entry) => entry.value.tileId === tileId);
     if (sameTile.length >= 2) {
       this.remove(sameTile[0].value.id);
     }

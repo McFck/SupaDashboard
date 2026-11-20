@@ -53,10 +53,15 @@ export class LayoutMenu {
     });
   }
 
-  private pasteClipboard(target: Target, pageId: string, slot: LayoutTarget) {
+  private pasteClipboard(
+    target: Target,
+    pageId: string,
+    slot: LayoutTarget,
+    mode: 'copy' | 'link' = 'copy',
+  ) {
     const latest = clipboard.value;
     if (latest) {
-      void this.paste($state.snapshot(latest), target, pageId, slot);
+      void this.paste($state.snapshot(latest), target, pageId, slot, mode);
     }
   }
 
@@ -91,7 +96,7 @@ export class LayoutMenu {
       y,
       actions: layoutMenuActions(snapshot, this.editor.page.id, layoutTarget, {
         editor: this.editor,
-        paste: (target, pageId, slot) => this.pasteClipboard(target, pageId, slot),
+        paste: (target, pageId, slot, mode) => this.pasteClipboard(target, pageId, slot, mode),
         placed: (id, slot) => this.placed(id, slot),
         remove: (id, target) => this.removeItemFromPage(id, target),
         openScenario: this.host.openScenario,
@@ -133,20 +138,34 @@ export class LayoutMenu {
     pageId: string,
     slot: LayoutTarget,
     label = 'Paste widget',
+    mode: 'copy' | 'link' = 'copy',
   ) {
     this.placed(
-      this.editor.shows(pageId, slot) ? pasteInSlot(slot, copy, target, label) : undefined,
+      this.editor.shows(pageId, slot) ? pasteInSlot(slot, copy, target, label, mode) : undefined,
       slot,
     );
   }
 
-  async paste(copy: WidgetCopy, target: Target, pageId: string, slot: LayoutTarget) {
+  async paste(
+    copy: WidgetCopy,
+    target: Target,
+    pageId: string,
+    slot: LayoutTarget,
+    mode: 'copy' | 'link' = 'copy',
+  ) {
     if (!this.editor.shows(pageId, slot) || !planInsertion(settings, copy, target, slot)) {
       toast.error(NO_ROOM);
       return;
     }
     if (!('item' in target)) {
-      this.insert(copy, target, pageId, slot);
+      this.insert(
+        copy,
+        target,
+        pageId,
+        slot,
+        mode === 'link' ? 'Paste linked widget' : 'Paste widget',
+        mode,
+      );
       return;
     }
     const id = target.item;
@@ -157,7 +176,14 @@ export class LayoutMenu {
     if (this.editor.page.id !== pageId || !current?.items.some((item) => item.id === id)) {
       return;
     }
-    this.insert(copy, target, pageId, slot, 'Paste over widget');
+    this.insert(
+      copy,
+      target,
+      pageId,
+      slot,
+      mode === 'link' ? 'Paste linked over widget' : 'Paste over widget',
+      mode,
+    );
   }
 
   async simulate(controlId: string, itemId: string, trigger: Trigger) {

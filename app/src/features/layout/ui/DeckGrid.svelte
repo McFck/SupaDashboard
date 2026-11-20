@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Component } from 'svelte';
   import { onDestroy } from 'svelte';
+  import Link2 from '@lucide/svelte/icons/link-2';
   import type { ControlConfig, ControlFaceProps, TilePresentation } from '../../controls/model';
   import { commit } from '../history.svelte';
   import {
@@ -25,7 +26,7 @@
   import type { EffectiveSize, LayoutTarget } from '../applet-layouts';
   import { runtimeView } from '../../../app/runtime/state';
   import { registerRemovalNode, removeItem } from '../removal';
-  import { storedPlacements } from '../placements';
+  import { controlUseCounts, storedPlacements } from '../placements';
   import { DeckDrag } from './deck-drag.svelte';
   import { prefersReducedMotion } from 'svelte/motion';
   import { TileMotion } from './tile-motion.svelte';
@@ -112,6 +113,7 @@
       ? items.find((entry) => entry.item.id === selected.item)
       : undefined,
   );
+  const useCounts = $derived(editing ? controlUseCounts(settings) : undefined);
 
   let grid = $state<HTMLElement>();
   const tileNodes = new Map<string, HTMLElement>();
@@ -398,6 +400,15 @@
           {/if}
         </div>
         {#if editing}
+          {#if (useCounts?.get(control.id) ?? 0) > 1}
+            <span
+              data-linked-indicator
+              aria-hidden="true"
+              class="pointer-events-none absolute right-2 top-2 z-20 grid size-5 place-items-center rounded-md bg-black/45 text-white/80"
+            >
+              <Link2 class="size-3.5" />
+            </span>
+          {/if}
           {#if isSelected(selected, item.id)}
             <div
               data-selection

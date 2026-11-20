@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The inspector for an empty cell: add a new widget of any type, or place a copy of an existing control.
+  // The inspector for an empty cell: add a new widget of any type, or place a linked instance of an existing control.
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import { toast } from 'svelte-sonner';
   import { Input } from '$lib/components/ui/input';
@@ -12,7 +12,13 @@
   import { buildExistingControlRows, searchExistingControls } from '../existing-controls';
   import { pageItems } from '../placements';
   import { effectiveSize, layoutFor, type LayoutTarget } from '../applet-layouts';
-  import { findSlotPlacement, newControlId, NO_ROOM, placeControl } from '../slot-edits';
+  import {
+    findSlotPlacement,
+    newControlId,
+    NO_ROOM,
+    placeControl,
+    placeLinkedControl,
+  } from '../slot-edits';
   import type { Selection } from '../grid';
 
   let {
@@ -64,13 +70,19 @@
     place(control, `Add ${type.title}`);
   }
 
-  /** Places an independent copy: each placed widget keeps its own state. */
+  /** Places a linked instance sharing the existing control's configuration and state. */
   function placeExisting(controlId: string) {
     const existing = settings.controls.find((control) => control.id === controlId);
     if (!existing || !controlTypes.has(existing.type)) {
       return;
     }
-    place({ ...$state.snapshot(existing), id: newControlId(existing.id) }, 'Add widget');
+    const at = fitFor(existing.type);
+    const id = at && placeLinkedControl(layoutTarget, existing.id, at, `Link ${existing.name}`);
+    if (!id) {
+      toast.error(NO_ROOM);
+      return;
+    }
+    onselect({ item: id }, layoutTarget);
   }
 
   function rowLabel(row: (typeof filteredRows)[number], providerTitle: string | undefined) {

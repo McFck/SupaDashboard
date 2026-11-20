@@ -6,7 +6,14 @@ import { DEFAULT_PAGE, DEFAULTS } from '../settings/defaults';
 import type { ControlConfig } from '../controls/model';
 import { deletePage } from './page-commands';
 import { hasPlacement } from './placements';
-import { findSlotPlacement, finishGridResize, pasteInSlot } from './slot-edits';
+import {
+  duplicateInSlot,
+  findSlotPlacement,
+  finishGridResize,
+  pasteInSlot,
+  placeLinkedControl,
+  unlinkPlacement,
+} from './slot-edits';
 
 const button = (id: string): ControlConfig => ({
   id,
@@ -148,5 +155,70 @@ describe('new widget placement', () => {
 
   it('keeps explicit placement sizes exact when duplicating widgets', () => {
     expect(findSlotPlacement(target, type, { size: { w: 2, h: 2 } })).toBeNull();
+  });
+});
+
+describe('linked widget placements', () => {
+  const typeId = 'linked-test-button';
+  afterEach(() => controlTypes.delete(typeId));
+
+  it('links via placeLinkedControl and duplicateInSlot, and detaches only one placement on unlink', () => {
+    const before = structuredClone(settings);
+    try {
+      controlTypes.set(typeId, { type: typeId, title: 'Button', size: { w: 1, h: 1 } } as never);
+      const target = { appletId: 'deck', pageId: 'page', slotId: 'main' };
+      settings.deck.pages = [
+        {
+          ...structuredClone(DEFAULTS.deck.pages[0]),
+          id: 'page',
+          cols: 4,
+          rows: 2,
+          items: [{ id: 'first', control: 'shared', x: 0, y: 0, w: 1, h: 1 }],
+        },
+      ];
+      settings.appletLayouts = {};
+      settings.controls = [{ ...button('shared'), type: typeId }];
+      settings.variants = { shared: 1 };
+
+      // Cannot unlink a control that is only placed once.
+      expect(unlinkPlacement(target, 'first')).toBeUndefined();
+
+      const linked = placeLinkedControl(target, 'shared', { x: 1, y: 0, w: 1, h: 1 }, 'Link');
+      const dup = duplicateInSlot(target, 'first');
+      expect(linked).toBeTruthy();
+      expect(dup).toBeTruthy();
+      expect(settings.controls).toHaveLength(1);
+      expect(settings.deck.pages[0].items.map((item) => item.control)).toEqual([
+        'shared',
+        'shared',
+        'shared',
+      ]);
+
+      const uniqueId = unlinkPlacement(target, linked!);
+      expect(uniqueId).toBeTruthy();
+      expect(uniqueId).not.toBe('shared');
+      expect(settings.controls).toHaveLength(2);
+      expect(settings.variants[uniqueId!]).toBe(1);
+      expect(settings.deck.pages[0].items.find((item) => item.id === linked)?.control).toBe(
+        uniqueId,
+      );
+      expect(settings.deck.pages[0].items.find((item) => item.id === 'first')?.control).toBe(
+        'shared',
+      );
+      expect(settings.deck.pages[0].items.find((item) => item.id === dup)?.control).toBe('shared');
+
+      // Replacing a linked placement with a linked paste of the same control keeps the control alive.
+      const pasted = pasteInSlot(
+        target,
+        { control: settings.controls[0], w: 1, h: 1 },
+        { item: 'first' },
+        'Paste linked over widget',
+        'link',
+      );
+      expect(pasted).toBeTruthy();
+      expect(settings.controls.some((entry) => entry.id === 'shared')).toBe(true);
+    } finally {
+      Object.assign(settings, before);
+    }
   });
 });

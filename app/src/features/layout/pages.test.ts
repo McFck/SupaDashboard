@@ -91,7 +91,7 @@ describe('page helpers', () => {
     expect(layouts.subway[second.id].strip[0].id).toBe('second-applet-item');
   });
 
-  it('deep-copies a populated page with globally new IDs while preserving local and explicit references', () => {
+  it('duplicates a populated page with fresh item IDs linked to the same controls', () => {
     const self = control('button');
     const explicit = control('other', 'external-control');
     const source = page(
@@ -104,9 +104,6 @@ describe('page helpers', () => {
       'Studio',
     );
     const copied = duplicatePage([source], source.id, [self, explicit], { [self.id]: 1 })!;
-    const clone = copied.page.items.map((item) =>
-      copied.controls.find((entry) => entry.id === item.control)!,
-    );
     expect(copied.page).toMatchObject({
       name: 'Studio copy',
       rows: source.rows,
@@ -117,7 +114,8 @@ describe('page helpers', () => {
     expect(copied.page.items.map((item) => item.id)).not.toEqual(
       source.items.map((item) => item.id),
     );
-    expect(clone.map((entry) => entry.id)).not.toContain(self.id);
+    expect(copied.page.items.map((item) => item.control)).toEqual([self.id, explicit.id]);
+    expect(copied.controls.map((entry) => entry.id)).toEqual([self.id, explicit.id]);
     expect(
       new Set([
         ...copied.pages.map((p) => p.id),
@@ -129,21 +127,11 @@ describe('page helpers', () => {
         copied.pages.reduce((n, p) => n + p.items.length, 0) +
         copied.controls.length,
     );
-    expect(clone[0].scenario?.triggers.press?.steps[0]).toMatchObject({
-      action: { args: { target: 'self', variant: 'state-b' } },
-    });
-    expect(clone[1].scenario?.triggers.press?.steps[0]).toMatchObject({
-      action: { args: { target: 'external-control' } },
-    });
-    expect(clone[0].variants.map((v) => v.id)).toEqual(['state-a', 'state-b']);
     expect(copied.variants).toEqual({ button: 1 });
-    clone[0].variants[0].label = 'Changed copy';
-    expect(self.variants[0].label).toBe('A');
-    expect(copied.controls.some((entry) => entry.id === 'external-control')).toBe(false);
     expect(duplicatePage([source], source.id, [], {})).toBeUndefined();
   });
 
-  it('duplicates and deletes per-applet layouts by stable page ID with independent controls and items', () => {
+  it('duplicates and deletes per-applet layouts by stable page ID while keeping linked controls alive', () => {
     const source = page('page-layout-source', 4, [
       { id: 'deck-owned', control: 'deck-control', x: 0, y: 0, w: 1, h: 1 },
     ]);
@@ -167,7 +155,7 @@ describe('page helpers', () => {
     const copiedItems = copied.appletLayouts.subway[copied.page.id].strip;
     expect(copiedItems).toHaveLength(1);
     expect(copiedItems[0].id).not.toBe('applet-owned');
-    expect(copiedItems[0].control).not.toBe('applet-control');
+    expect(copiedItems[0].control).toBe('applet-control');
     expect(copied.appletLayouts.unavailable?.[copied.page.id]?.removed).toEqual([]);
     expect(layouts.subway[source.id].strip[0]).toEqual({
       id: 'applet-owned',
@@ -190,7 +178,11 @@ describe('page helpers', () => {
     )!;
     expect(deleted.appletLayouts.subway).not.toHaveProperty(source.id);
     expect(deleted.appletLayouts.subway).toHaveProperty('page-other');
-    expect(deleted.controls.some((entry) => entry.id === 'retained-control')).toBe(true);
+    expect(deleted.controls.map((entry) => entry.id)).toEqual([
+      'deck-control',
+      'applet-control',
+      'retained-control',
+    ]);
   });
 
   it('deletes only unused controls and their variants, preserves controls referenced by other pages', () => {

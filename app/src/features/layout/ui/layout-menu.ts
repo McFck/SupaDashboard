@@ -7,7 +7,8 @@ import type { Selection } from '../grid';
 import { moveOptions, type MoveMode } from '../move-options';
 import { appletById } from '../../applets/deck';
 import { layoutFor, type LayoutTarget } from '../applet-layouts';
-import { duplicateInSlot } from '../slot-edits';
+import { duplicateInSlot, unlinkPlacement } from '../slot-edits';
+import { controlUseCount } from '../placements';
 import { clipboard } from '../widget-clipboard.svelte';
 import { clonePlain } from '../../automation/plain-data';
 import type { MenuAction } from '../../../panel/ui/ContextMenu.svelte';
@@ -16,7 +17,7 @@ import type { LayoutEditorState } from './editor-state.svelte';
 type Target = NonNullable<Selection>;
 type LayoutMenuHost = {
   editor: LayoutEditorState;
-  paste(target: Target, pageId: string, slot: LayoutTarget): void;
+  paste(target: Target, pageId: string, slot: LayoutTarget, mode?: 'copy' | 'link'): void;
   placed(id: string | undefined, slot: LayoutTarget): void;
   remove(id: string, target: LayoutTarget): void;
   openScenario(controlId: string, itemId: string, trigger: Trigger): void;
@@ -38,14 +39,22 @@ export function layoutMenuActions(
   }
   const item = 'item' in target ? source.items.find((i) => i.id === target.item) : undefined;
   const control = item ? controlById(item.control) : undefined;
+  const hasPasteTarget = 'cell' in target ? !!target.cell : !!item;
   const pasteAction: MenuAction = {
     label: 'Paste',
-    disabled: !clipboard.value || !('cell' in target ? target.cell : item),
-    run: () => host.paste(target, pageId, slot),
+    disabled: !clipboard.value || !hasPasteTarget,
+    run: () => host.paste(target, pageId, slot, 'copy'),
   };
+  const canPasteLinked =
+    !!clipboard.value &&
+    hasPasteTarget &&
+    settings.controls.some((entry) => entry.id === clipboard.value?.control.id);
+  const pasteActions: MenuAction[] = canPasteLinked
+    ? [pasteAction, { label: 'Paste linked', run: () => host.paste(target, pageId, slot, 'link') }]
+    : [pasteAction];
   const edit: MenuAction = { label: 'Edit', run: () => host.editor.select(target, slot) };
   if (!item || !control) {
-    return 'cell' in target ? [edit, pasteAction] : [];
+    return 'cell' in target ? [edit, ...pasteActions] : [];
   }
   const applet = appletById(slot.appletId);
 
@@ -77,7 +86,19 @@ export function layoutMenuActions(
         void navigator.clipboard?.writeText(JSON.stringify(clipboard.value)).catch(() => {});
       },
     },
-    pasteAction,
+    ...pasteActions,
+    ...(controlUseCount(settings, control.id) > 1
+      ? [
+          {
+            label: 'Make unique',
+            run: () => {
+              if (host.editor.shows(pageId, slot)) {
+                unlinkPlacement(slot, item.id);
+              }
+            },
+          },
+        ]
+      : []),
     {
       label: 'Move to page…',
       disabled: !moveOptions(settings, applet, 'page', slot, item.id).some(

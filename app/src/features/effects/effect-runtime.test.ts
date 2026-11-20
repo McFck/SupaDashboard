@@ -84,6 +84,21 @@ describe('tile effect ownership', () => {
     runtime.clear();
   });
 
+  it('caps effects per tile so linked placements on the same page do not evict each other', () => {
+    vi.useFakeTimers();
+    const runtime = new EffectRuntime(() => {});
+    const tileA = { ...packet('press'), itemId: 'tile-a', interactionId: 'a' };
+    const tileB = { ...packet('press'), itemId: 'tile-b', interactionId: 'b' };
+    runtime.start(tileA, 'hearts');
+    runtime.start(tileA, 'fire');
+    runtime.start(tileB, 'snow');
+    runtime.start(tileB, 'sparkles');
+    expect(runtime.snapshot()).toHaveLength(4);
+    expect(runtime.snapshot().filter((entry) => entry.tileId === 'tile-a')).toHaveLength(2);
+    expect(runtime.snapshot().filter((entry) => entry.tileId === 'tile-b')).toHaveLength(2);
+    runtime.clear();
+  });
+
   it.each(['swipeUp', 'swipeDown', 'swipeLeft', 'swipeRight'] as const)(
     'previews action effects for an armed %s without duplicate loops',
     (trigger) => {

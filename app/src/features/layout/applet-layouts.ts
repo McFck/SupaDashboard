@@ -95,9 +95,7 @@ export function canSetLayoutItems(source: Settings, target: LayoutTarget, items:
   if (!current || !sameTarget(target, current)) return false;
   const elsewhere = storedPlacements(source).filter((placement) => !sameTarget(target, placement));
   const otherItemIds = new Set(elsewhere.map((placement) => placement.item.id));
-  const otherControlIds = new Set(elsewhere.map((placement) => placement.item.control));
-  if (items.some((item) => otherItemIds.has(item.id) || otherControlIds.has(item.control)))
-    return false;
+  if (items.some((item) => otherItemIds.has(item.id))) return false;
   return (
     !!current.slot &&
     !!current.geometry &&
@@ -271,11 +269,10 @@ function validSlotItems(
   const grid: Grid = { rows: geometry.rows, cols: geometry.cols };
   if (slot.max !== undefined && items.length > slot.max) return false;
   const seenItems = new Set<string>(),
-    seenControls = new Set<string>(),
     accepted = slot.accepts && new Set(slot.accepts);
   const placed: Item[] = [];
   for (const item of items) {
-    if (!validItem(item) || seenItems.has(item.id) || seenControls.has(item.control)) return false;
+    if (!validItem(item) || seenItems.has(item.id)) return false;
     const control: ControlConfig | undefined = source.controls.find(
       (entry) => entry.id === item.control,
     );
@@ -291,7 +288,6 @@ function validSlotItems(
       return false;
     if (!fits(placed, item, grid)) return false;
     seenItems.add(item.id);
-    seenControls.add(item.control);
     placed.push(item);
   }
   return true;

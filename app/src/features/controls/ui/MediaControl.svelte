@@ -151,15 +151,16 @@
     const next = nextIndex >= 0 ? options.sources[nextIndex] : undefined;
     const nextUrl =
       next?.kind === 'url' ? mediaUrl(next.value) : mediaFileUrl(next, convertFileSrc);
+    const preloadOwner = itemId ?? control.id;
     const nextKey =
       visible && nextUrl && next
-        ? JSON.stringify([control.id, mediaSourceKey(next), nextUrl, isVideoSource(next)])
+        ? JSON.stringify([preloadOwner, mediaSourceKey(next), nextUrl, isVideoSource(next)])
         : '';
     if (nextKey === preloadIdentity) return;
     preloadIdentity = nextKey;
     releasePreload();
     releasePreload = () => {};
-    if (nextKey) releasePreload = preloadNextMedia(control.id, nextUrl!, isVideoSource(next!));
+    if (nextKey) releasePreload = preloadNextMedia(preloadOwner, nextUrl!, isVideoSource(next!));
   });
 
   $effect(() => {

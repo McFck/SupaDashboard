@@ -117,6 +117,7 @@ function savedControls(raw: unknown): (Record<string, unknown> & {
 
 export function upgrade(input: Record<string, unknown>) {
   let saved = structuredClone(input);
+  const sourceVersion = typeof saved.version === 'number' ? saved.version : 0;
   if (typeof saved.version === 'number' && saved.version > DEFAULTS.version) {
     throw new Error(`Settings version ${saved.version} is newer than this app supports`);
   }
@@ -352,11 +353,14 @@ export function upgrade(input: Record<string, unknown>) {
     }
     saved = { ...saved, version: 22 };
   }
+  if (saved.version === 22) {
+    saved = { ...saved, version: 23 };
+  }
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {
     throw new Error('Monitor label must be text');
   }
 
-  return { saved, rawControls };
+  return { saved, rawControls, splitSharedControls: sourceVersion < 23 };
 }
 
 /** v8: the global `skin` became `Page.applet`, and applet settings gained a shared/per-page scope. */

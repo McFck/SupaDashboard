@@ -1,6 +1,7 @@
 <script lang="ts">
   // The inspector for a selected placement: name, size, the type's own editor and its scenario triggers.
   import Copy from '@lucide/svelte/icons/copy';
+  import Link2 from '@lucide/svelte/icons/link-2';
   import Trash from '@lucide/svelte/icons/trash-2';
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
@@ -17,7 +18,14 @@
   import type { Item, Selection } from '../grid';
   import { effectiveSize, layoutFor, type LayoutTarget } from '../applet-layouts';
   import { settings } from '../../settings/state.svelte';
-  import { duplicateInSlot, NO_ROOM, removeWithDust, resizeInSlot } from '../slot-edits';
+  import {
+    duplicateInSlot,
+    NO_ROOM,
+    removeWithDust,
+    resizeInSlot,
+    unlinkPlacement,
+  } from '../slot-edits';
+  import { controlUseCount } from '../placements';
   import VariantList from './VariantList.svelte';
   import EffectMark from '../../effects/EffectMark.svelte';
   import { hasEffects } from '../../effects/scenario-effects';
@@ -44,6 +52,7 @@
   } = $props();
 
   const title = $derived(controlTypes.get(control.type)?.title ?? control.type);
+  const uses = $derived(controlUseCount(settings, control.id));
   const bounds = $derived.by(() => {
     const slot = layoutFor(
       settings,
@@ -83,6 +92,10 @@
     if (removed) {
       onselect(null, layoutTarget);
     }
+  }
+
+  function unlink() {
+    unlinkPlacement(layoutTarget, item.id);
   }
 
   const editScenario = (trigger?: Trigger) => oneditScenario(control.id, item.id, trigger);
@@ -131,6 +144,22 @@
 <div
   class="grid min-h-0 min-w-0 flex-1 content-start gap-7 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]"
 >
+  {#if uses > 1}
+    <div class="flex items-center justify-between gap-2">
+      <span class="flex items-center gap-2 text-sm">
+        <Link2 class="size-4 text-muted-foreground" />
+        <span>Linked</span>
+        <span class="tabular-nums text-muted-foreground">{uses}</span>
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        onclick={unlink}
+      >
+        Make unique
+      </Button>
+    </div>
+  {/if}
   <div class="grid gap-1.5">
     <label
       class="section-label"

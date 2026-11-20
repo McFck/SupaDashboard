@@ -6,6 +6,7 @@
   import { availableGestures } from '../../controls/model';
   import { settings } from '../../settings/state.svelte';
   import { placementById } from '../../layout/applet-layouts';
+  import { controlUseCount } from '../../layout/placements';
   import Choice from '../../plugins/ui/Choice.svelte';
   import StateViewEditor from '../../controls/editor/StateViewEditor.svelte';
   import StateBindingEditor from '../../controls/editor/StateBindingEditor.svelte';
@@ -35,6 +36,11 @@
   const editor = new ScenarioDraftEditor(() => controlId);
   const control = $derived(editor.control);
   const placement = $derived(placementById(settings, itemId));
+  const isLinked = $derived(
+    !!control &&
+      placement?.item.control === control.id &&
+      controlUseCount(settings, control.id) > 1,
+  );
 
   // A slider's own value axis cannot also be a pull: those triggers stay visible but disabled.
   const blockedTriggers = $derived.by(() => {
@@ -105,6 +111,12 @@
 
   function save() {
     if (editor.save()) {
+      open = false;
+    }
+  }
+
+  function saveAsUnique() {
+    if (editor.saveAsUnique(itemId)) {
       open = false;
     }
   }
@@ -239,6 +251,16 @@
             Cancel
           </Button>
         </Dialog.Close>
+        {#if isLinked}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!editor.canSave}
+            onclick={saveAsUnique}
+          >
+            Save as unique
+          </Button>
+        {/if}
         <Button
           size="sm"
           disabled={!editor.canSave}
