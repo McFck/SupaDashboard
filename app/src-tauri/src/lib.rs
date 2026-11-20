@@ -145,6 +145,7 @@ pub fn run() {
             plugin_host::caps::browser::plugin_browser_watch,
             plugin_host::caps::browser::plugin_browser_unwatch,
             plugin_host::caps::browser::plugin_browser_pair,
+            plugin_host::caps::browser::plugin_browser_unpair,
             plugin_host::caps::browser::plugin_browser_action,
             plugin_host::caps::browser::plugin_browser_scroll,
             apps::apps_list,

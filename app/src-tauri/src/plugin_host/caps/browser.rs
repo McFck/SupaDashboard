@@ -156,6 +156,14 @@ pub fn plugin_browser_pair(
 }
 
 #[tauri::command]
+pub fn plugin_browser_unpair(webview: Webview, plugin: String, watch: u32) -> Result<(), String> {
+    if webview.label() != "panel" {
+        return Err("Unpair WebCompanion from the control panel".into());
+    }
+    watched(&webview, &plugin, watch, |watcher| watcher.bridge.unpair())
+}
+
+#[tauri::command]
 pub async fn plugin_browser_action(
     webview: Webview,
     plugin: String,

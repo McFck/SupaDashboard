@@ -28,6 +28,7 @@ use tokio_tungstenite::{
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Snapshot {
     Offline,
+    Paired,
     Repair,
     Connected {
         #[serde(flatten)]
@@ -56,6 +57,7 @@ struct Server {
     extension: String,
     pairing: Mutex<Pairing>,
     admission: tokio::sync::Mutex<()>,
+    revoked: watch::Sender<()>,
     session: Mutex<Option<SessionInput>>,
     snapshots: watch::Sender<Snapshot>,
 }
@@ -63,6 +65,26 @@ struct Server {
 struct SessionInput {
     commands: mpsc::Sender<RequestAction>,
     scroll: Arc<ScrollLane>,
+}
+
+impl Server {
+    fn unpair(&self) -> Result<(), Failure> {
+        let mut pairing = lock(&self.pairing);
+        pairing.revoke()?;
+        self.snapshots.send_replace(disconnected(&pairing));
+        self.revoked.send_replace(());
+        Ok(())
+    }
+}
+
+fn disconnected(pairing: &Pairing) -> Snapshot {
+    if pairing.needs_repair() {
+        Snapshot::Repair
+    } else if pairing.is_paired() {
+        Snapshot::Paired
+    } else {
+        Snapshot::Offline
+    }
 }
 
 #[derive(Default)]
@@ -78,11 +100,7 @@ impl Bridge {
         path: PathBuf,
     ) -> Result<(Self, JoinHandle<()>), String> {
         let pairing = Pairing::open(path);
-        let snapshot = if pairing.needs_repair() {
-            Snapshot::Repair
-        } else {
-            Snapshot::Offline
-        };
+        let snapshot = disconnected(&pairing);
         let bind_error = |_| "WebCompanion port 43822 is unavailable";
         let listener = std::net::TcpListener::bind(ADDRESS).map_err(bind_error)?;
         listener.set_nonblocking(true).map_err(bind_error)?;
@@ -91,6 +109,7 @@ impl Bridge {
             extension,
             pairing: Mutex::new(pairing),
             admission: tokio::sync::Mutex::new(()),
+            revoked: watch::channel(()).0,
             session: Mutex::new(None),
             snapshots: watch::Sender::new(snapshot),
         });
@@ -122,6 +141,10 @@ impl Bridge {
 
     pub(super) fn cancel(&self, watch: u32) {
         lock(&self.state.pairing).cancel(watch);
+    }
+
+    pub(super) fn unpair(&self) -> Result<(), Failure> {
+        self.state.unpair()
     }
 
     pub(super) fn send(&self, action: RequestAction) -> Result<(), Failure> {
@@ -199,11 +222,18 @@ async fn upgrade(stream: TcpStream, extension: &str) -> Result<(Socket, Hello), 
     Ok((socket, hello))
 }
 
+struct Authenticated<'a> {
+    mode: Mode,
+    ready: Ready,
+    permit: tokio::sync::MutexGuard<'a, ()>,
+    revoked: watch::Receiver<()>,
+}
+
 async fn authenticate<'a>(
     socket: &mut Socket,
     hello: Hello,
     state: &'a Server,
-) -> Result<(Mode, Ready, tokio::sync::MutexGuard<'a, ()>), Failure> {
+) -> Result<Authenticated<'a>, Failure> {
     if hello.v != VERSION {
         auth_error(socket, "update").await?;
         return Err("Update the browser extension");
@@ -216,14 +246,33 @@ async fn authenticate<'a>(
         .admission
         .try_lock()
         .map_err(|_| "Browser is already connected")?;
-    let result = lock(&state.pairing).finish(attempt, &state.extension, proof, Instant::now());
+    let (result, revoked) = {
+        let mut pairing = lock(&state.pairing);
+        (
+            pairing.finish(attempt, &state.extension, proof, Instant::now()),
+            state.revoked.subscribe(),
+        )
+    };
     match result {
-        Ok((mode, ready)) => Ok((mode, ready, permit)),
+        Ok((mode, ready)) => Ok(Authenticated {
+            mode,
+            ready,
+            permit,
+            revoked,
+        }),
         Err(rejection) => {
             let code = match rejection {
                 Rejected::Code => "code",
                 Rejected::Expired => "expired",
                 Rejected::Authentication => "auth",
+                Rejected::Revoked(proof) => {
+                    wire::send(
+                        socket,
+                        &serde_json::json!({"kind": "revoked", "proof": proof}),
+                    )
+                    .await?;
+                    return Err("Browser credentials were revoked");
+                }
                 Rejected::Storage(error) => {
                     log::warn!("Browser bridge authentication: {error}");
                     "storage"
@@ -245,21 +294,21 @@ async fn connect(stream: TcpStream, state: Arc<Server>, slot: OwnedSemaphorePerm
     else {
         return;
     };
-    let Ok(Ok((mode, ready, permit))) =
-        timeout(DEADLINE, authenticate(&mut socket, hello, &state)).await
+    let Ok(Ok(Authenticated {
+        mode,
+        ready,
+        permit,
+        revoked,
+    })) = timeout(DEADLINE, authenticate(&mut socket, hello, &state)).await
     else {
         return;
     };
     drop(slot);
     if mode == Mode::Pair {
+        state
+            .snapshots
+            .send_replace(disconnected(&lock(&state.pairing)));
         drop(permit);
-        state.snapshots.send_if_modified(|snapshot| {
-            let repaired = matches!(snapshot, Snapshot::Repair);
-            if repaired {
-                *snapshot = Snapshot::Offline;
-            }
-            repaired
-        });
         // Give the extension time to save the credential and close this socket before logging in.
         let _ = timeout(DEADLINE, async {
             wire::send(&mut socket, &ready).await?;
@@ -286,11 +335,13 @@ async fn connect(stream: TcpStream, state: Arc<Server>, slot: OwnedSemaphorePerm
         commands,
         scroll: scroll.clone(),
     });
-    if let Err(error) = session(socket, &state, receive, &scroll).await {
+    if let Err(error) = session(socket, &state, receive, &scroll, revoked).await {
         log::debug!("Browser bridge session: {error}");
     }
     *lock(&state.session) = None;
-    state.snapshots.send_replace(Snapshot::Offline);
+    state
+        .snapshots
+        .send_replace(disconnected(&lock(&state.pairing)));
 }
 
 async fn session(
@@ -298,6 +349,7 @@ async fn session(
     state: &Server,
     mut actions: mpsc::Receiver<RequestAction>,
     scroll: &ScrollLane,
+    mut revoked: watch::Receiver<()>,
 ) -> Result<(), Failure> {
     let mut pending = Pending::default();
     let mut idle = tokio::time::Instant::now() + DEADLINE * 8;
@@ -307,6 +359,9 @@ async fn session(
             .unwrap_or(idle)
             .min(idle);
         tokio::select! {
+            _ = revoked.changed() => {
+                return write(&mut socket, &Outgoing::Unpaired).await;
+            }
             Some(action) = actions.recv() => {
                 dispatch(&mut socket, state, &mut pending, action).await?;
             }
@@ -320,6 +375,12 @@ async fn session(
                 idle = tokio::time::Instant::now() + DEADLINE * 8;
                 match frame? {
                     Reply::State { state: update } => publish(state, update)?,
+                    Reply::Unpair {} => {
+                        if state.unpair().is_ok() {
+                            return write(&mut socket, &Outgoing::Unpaired).await;
+                        }
+                        write(&mut socket, &Outgoing::UnpairFailed).await?;
+                    }
                     Reply::Done { id, ok, gone } => {
                         pending.expire(tokio::time::Instant::now());
                         pending.complete(id, ok, gone.then_some("Tab closed"));
@@ -337,6 +398,10 @@ async fn session(
 
 fn publish(server: &Server, state: State) -> Result<(), Failure> {
     state.validate()?;
+    let pairing = lock(&server.pairing);
+    if !pairing.is_paired() {
+        return Ok(());
+    }
     server.snapshots.send_if_modified(|snapshot| {
         if matches!(snapshot, Snapshot::Connected { state: old } if *old == state) {
             return false;
