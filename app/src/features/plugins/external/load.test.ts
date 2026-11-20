@@ -38,10 +38,30 @@ describe('external plugin boundary', () => {
       { ...spike, trust: 'tampered' },
       { ...spike, version: undefined },
       { ...spike, permissions: undefined },
+      { ...spike, newPermissions: { displays: 'true' } },
       null,
     ]);
     expect(listed.map((entry) => [entry.id, entry.permissions.http])).toEqual([
       ['spike', ['example.com']],
+    ]);
+  });
+
+  it('keeps pending metadata and shows only the new permissions in the consent dialog', () => {
+    const [plugin] = listedPlugins([
+      {
+        id: 'spike',
+        version: '2.0.0',
+        api: 2,
+        trust: 'verified',
+        permissions: { http: ['example.com'], displays: true },
+        newPermissions: { displays: true },
+        size: 3,
+        updated: 0,
+      },
+    ]);
+    expect(plugin.consent?.added).toEqual({ displays: true });
+    expect(plugin.consent && permissionRows(plugin.consent.permissions, true)).toEqual([
+      { label: 'Displays', value: 'Names and geometry' },
     ]);
   });
 

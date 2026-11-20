@@ -1,6 +1,6 @@
 //! Native capabilities for plugin JS: `plugin_<capability>_*(plugin, ...)` commands. Every plugin shares one JS realm,
-//! so a call is bound to the plugin id it names: each command checks that the plugin is installed and declared the
-//! reach it asks for. Native resources (a pending PKCE verifier, a sign-in in progress, an open pipe, a child process,
+//! so a call is bound to the plugin id it names: each grant checks the approved manifest for the reach it asks for.
+//! Native resources (a pending PKCE verifier, a sign-in in progress, an open pipe, a child process,
 //! a window watcher) belong to the plugin and the webview that started them, and go when that webview navigates or
 //! closes, or when the plugin is removed.
 pub mod automation;
@@ -17,12 +17,12 @@ pub mod storage;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use tauri::{AppHandle, Manager};
 use tokio::task::AbortHandle;
 
-use super::{Plugin, PluginHost};
+use super::PluginHost;
 
 /// What one plugin started from one webview.
 #[derive(Default)]
@@ -126,13 +126,6 @@ async fn token(host: &PluginHost, plugin: &str, name: &str) -> Result<String, St
 pub fn release_webview(app: &AppHandle, label: &str) {
     if let Some(host) = app.try_state::<PluginHost>() {
         host.caps.release(|_, owner| owner == label);
-    }
-}
-
-impl PluginHost {
-    /// The installed plugin a capability call names.
-    fn installed(&self, id: &str) -> Result<Arc<Plugin>, String> {
-        self.get(id).ok_or_else(|| "Plugin is not installed".into())
     }
 }
 

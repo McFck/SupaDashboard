@@ -2,7 +2,7 @@ export type ConfirmOptions = {
   title: string;
   action: string;
   destructive?: boolean;
-  cancel?: false;
+  cancel?: false | string;
   /** Label and value rows under the title. */
   details?: readonly { label: string; value: string }[];
 };

@@ -120,6 +120,9 @@ export const pluginCatalogue = () => invoke<unknown>('plugin_catalogue');
 /** Installs or updates a verified release from the catalogue. */
 export const installPlugin = (id: string) => invoke<void>('plugin_install', { id });
 
+export const approvePluginPermissions = (id: string, added: Record<string, unknown>) =>
+  invoke<void>('plugin_approve_permissions', { id, added });
+
 /** Raw `{id, version, trust, permissions, sha256}` of a `.sdplugin`; `features/plugins/file-install.ts` validates it. */
 export const inspectPluginFile = (path: string) => invoke<unknown>('plugin_inspect_file', { path });
 

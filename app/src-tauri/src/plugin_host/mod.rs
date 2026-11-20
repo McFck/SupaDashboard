@@ -1,9 +1,10 @@
 //! Plugin host: plugins are JS/TS bundles in one `.sdplugin` file each (`<app data>/plugins/<id>.sdplugin`), checked
 //! and kept open from discovery on and served by the `plugin` scheme. What a plugin may reach natively is declared in
-//! its manifest's `permissions`.
+//! its manifest's `permissions`, subject to the owner's saved approval.
 mod archive;
 pub mod caps;
 mod catalogue;
+mod consent;
 #[cfg(any(debug_assertions, test))]
 mod dev;
 mod http;
@@ -22,9 +23,10 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 use archive::Archive;
+use consent::Approvals;
 use manifest::{Manifest, valid_id};
 use permissions::Permissions;
 use trust::Trust;
@@ -49,6 +51,7 @@ pub struct PluginHost {
     dev: Mutex<HashMap<String, Arc<Plugin>>>,
     /// The app data root: plugins live in `plugins/`, their data in `plugin-data/`.
     legacy: PathBuf,
+    approvals: Mutex<Result<Approvals, String>>,
     /// One install or removal at a time, so two never share a staging file.
     changing: tokio::sync::Mutex<()>,
     caps: caps::Caps,
@@ -83,16 +86,10 @@ impl PluginHost {
     /// The plugins in `<app data>/plugins/<id>.sdplugin`; files that do not check out are skipped. Folders are the
     /// version 1 install form and are ignored.
     pub fn discover(app: &AppHandle) -> Result<Self, String> {
-        let host = Self {
-            plugins: Mutex::default(),
-            #[cfg(debug_assertions)]
-            dev: Mutex::default(),
-            legacy: app.path().app_data_dir().map_err(|e| e.to_string())?,
-            changing: tokio::sync::Mutex::default(),
-            caps: caps::Caps::default(),
-        };
-        let root = host.root();
+        let legacy = app.path().app_data_dir().map_err(|e| e.to_string())?;
+        let root = legacy.join("plugins");
         install::recover(&root);
+        let mut plugins = HashMap::new();
         let entries = std::fs::read_dir(&root).into_iter().flatten().flatten();
         for name in entries.filter_map(|entry| entry.file_name().into_string().ok()) {
             // Dot files are an install's staging and kept copies.
@@ -100,10 +97,42 @@ impl PluginHost {
                 continue;
             };
             match load(&root.join(&name)) {
-                Ok(plugin) if plugin.manifest.id == id => host.add(plugin),
+                Ok(plugin) if plugin.manifest.id == id => {
+                    plugins.insert(id.to_owned(), plugin);
+                }
                 Ok(_) => log::warn!("Skipped plugin {name}: its id differs from the file name"),
                 Err(error) => log::warn!("Skipped plugin {name}: {error}"),
             }
+        }
+        #[cfg(debug_assertions)]
+        let dev = dev::discover();
+        let approvals = Approvals::load(&legacy, || {
+            let installed = plugins.values();
+            #[cfg(debug_assertions)]
+            let installed = installed.chain(dev.values().map(Arc::as_ref));
+            installed
+                .map(|plugin| {
+                    (
+                        plugin.manifest.id.clone(),
+                        plugin.manifest.permissions.clone(),
+                    )
+                })
+                .collect()
+        });
+        if let Err(error) = &approvals {
+            log::warn!("Could not read plugin approvals: {error}");
+        }
+        let host = Self {
+            plugins: Mutex::default(),
+            #[cfg(debug_assertions)]
+            dev: Mutex::new(dev),
+            legacy,
+            approvals: Mutex::new(approvals),
+            changing: tokio::sync::Mutex::default(),
+            caps: caps::Caps::default(),
+        };
+        for plugin in plugins.into_values() {
+            host.add(plugin);
         }
         Ok(host)
     }
@@ -128,6 +157,40 @@ impl PluginHost {
             return Some(plugin.clone());
         }
         self.lock().get(id).cloned()
+    }
+
+    fn approvals(&self) -> MutexGuard<'_, Result<Approvals, String>> {
+        self.approvals
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn pending(plugin: &Plugin, approvals: Option<&Approvals>) -> Option<Permissions> {
+        let empty = Permissions::default();
+        let approved = approvals
+            .and_then(|store| store.get(&plugin.manifest.id))
+            .unwrap_or(&empty);
+        let added = plugin.manifest.permissions.added_since(approved);
+        (added != empty).then_some(added)
+    }
+
+    /// Every native grant comes from the current manifest after checking it is covered by approval.
+    fn installed(&self, id: &str) -> Result<Arc<Plugin>, String> {
+        let plugin = self.get(id).ok_or("Plugin is not installed")?;
+        if Self::pending(&plugin, self.approvals().as_ref().ok()).is_some() {
+            return Err("Plugin permissions need approval".into());
+        }
+        Ok(plugin)
+    }
+
+    fn approve(&self, id: &str, added: &Permissions) -> Result<(), String> {
+        let plugin = self.get(id).ok_or("Plugin is not installed")?;
+        let mut approvals = self.approvals();
+        let store = approvals.as_mut().map_err(|error| error.clone())?;
+        if Self::pending(&plugin, Some(store)).as_ref() != Some(added) {
+            return Err("Plugin permission request changed".into());
+        }
+        store.approve(&self.legacy, id, &plugin.manifest.permissions)
     }
 
     fn require_installed_source(&self, id: &str) -> Result<(), String> {
@@ -173,7 +236,7 @@ impl PluginHost {
         if !file.starts_with("ui/") && !file.starts_with("assets/") {
             return None;
         }
-        match &self.get(id)?.source {
+        match &self.installed(id).ok()?.source {
             Source::Archive(archive) => Some((archive.read(file)?, false)),
             #[cfg(debug_assertions)]
             Source::Folder(path) => Some((dev::read(path, file)?, true)),
@@ -189,18 +252,21 @@ pub struct Listed {
     api: u32,
     trust: Trust,
     permissions: Permissions,
+    #[serde(rename = "newPermissions", skip_serializing_if = "Option::is_none")]
+    new_permissions: Option<Permissions>,
     size: u64,
     updated: u64,
 }
 
 impl Listed {
-    fn of(plugin: &Plugin) -> Self {
+    fn of(plugin: &Plugin, approvals: Option<&Approvals>) -> Self {
         Self {
             id: plugin.manifest.id.clone(),
             version: plugin.manifest.version.clone(),
             api: plugin.manifest.api,
             trust: plugin.trust,
             permissions: plugin.manifest.permissions.clone(),
+            new_permissions: PluginHost::pending(plugin, approvals),
             size: match &plugin.source {
                 Source::Archive(archive) => archive.size(),
                 #[cfg(debug_assertions)]
@@ -221,5 +287,26 @@ pub fn plugin_list(host: State<'_, PluginHost>) -> Vec<Listed> {
     let plugins = dev
         .values()
         .chain(plugins.filter(|plugin| !dev.contains_key(&plugin.manifest.id)));
-    plugins.map(|plugin| Listed::of(plugin)).collect()
+    let approvals = host.approvals();
+    plugins
+        .map(|plugin| Listed::of(plugin, approvals.as_ref().ok()))
+        .collect()
+}
+
+#[tauri::command]
+pub async fn plugin_approve_permissions(
+    window: WebviewWindow,
+    host: State<'_, PluginHost>,
+    id: String,
+    added: Permissions,
+) -> Result<(), String> {
+    crate::panel::require_panel(&window)?;
+    let _changing = host.changing.lock().await;
+    host.approve(&id, &added)?;
+    if let Some(main) = window.app_handle().get_webview_window("main")
+        && let Err(error) = main.reload()
+    {
+        log::warn!("Could not reload main: {error}");
+    }
+    Ok(())
 }

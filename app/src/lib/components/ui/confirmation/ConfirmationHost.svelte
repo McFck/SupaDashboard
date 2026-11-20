@@ -95,7 +95,7 @@
       {/if}
       <AlertDialog.Footer>
         {#if request.cancel !== false}
-          <AlertDialog.Cancel bind:ref={cancelButton} onclick={() => settle(false)}>Cancel</AlertDialog.Cancel>
+          <AlertDialog.Cancel bind:ref={cancelButton} onclick={() => settle(false)}>{request.cancel ?? 'Cancel'}</AlertDialog.Cancel>
         {/if}
         <AlertDialog.Action bind:ref={actionButton} class={buttonVariants({ variant: request.destructive ? 'destructive' : 'default' })}
           onclick={() => settle(true)}>{request.action}</AlertDialog.Action>

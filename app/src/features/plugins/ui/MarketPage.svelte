@@ -6,6 +6,7 @@
   import { Button } from '$lib/components/ui/button';
   import Icon, { iconOr } from '../../controls/ui/Icon.svelte';
   import { installPluginFromFile } from '../file-install';
+  import { reviewPluginPermissions } from '../permission-consent';
   import { catalogEntries, type CatalogEntry } from '../plugin-store';
   import { compiledPlugins, nativePlugins, pluginsInstalled } from '../registry';
   import { installPlugin, pluginCatalogue } from '../../../platform/plugin-host';
@@ -76,7 +77,12 @@
   function run(entry: CatalogEntry) {
     const action = actionOf(entry);
     if (action === 'Open') {
-      onopen(entry.id);
+      const listed = nativePlugins.get(entry.id);
+      if (listed?.consent) {
+        void reviewPluginPermissions(listed);
+      } else {
+        onopen(entry.id);
+      }
       return;
     }
     void installing(async () => {

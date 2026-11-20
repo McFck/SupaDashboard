@@ -156,6 +156,53 @@ fn unique<'a>(values: impl IntoIterator<Item = &'a String>) -> bool {
 }
 
 impl Permissions {
+    /// The reach added by this manifest, relative to the owner's last approval.
+    pub(super) fn added_since(&self, approved: &Self) -> Self {
+        fn added<T: Clone + PartialEq>(requested: &[T], approved: &[T]) -> Vec<T> {
+            requested
+                .iter()
+                .filter(|value| !approved.contains(value))
+                .cloned()
+                .collect()
+        }
+
+        let oauth = self.oauth.iter().filter(|(name, login)| {
+            approved.oauth.get(*name).is_none_or(|old| {
+                login.authorize.is_some() && login.authorize != old.authorize
+                    || login.token != old.token
+                    || login.redirect != old.redirect
+                    || login.scopes.iter().any(|scope| !old.scopes.contains(scope))
+                    || login.send.iter().any(|target| !old.send.contains(target))
+            })
+        });
+        let signin = self.signin.iter().filter(|(name, login)| {
+            approved.signin.get(*name).is_none_or(|old| {
+                login.url != old.url
+                    || login.storage != old.storage
+                    || login.profile != old.profile
+                    || login.send.iter().any(|target| !old.send.contains(target))
+            })
+        });
+        Self {
+            http: added(&self.http, &approved.http),
+            oauth: oauth
+                .map(|(name, login)| (name.clone(), login.clone()))
+                .collect(),
+            pipes: added(&self.pipes, &approved.pipes),
+            process: added(&self.process, &approved.process),
+            signin: signin
+                .map(|(name, login)| (name.clone(), login.clone()))
+                .collect(),
+            automation: added(&self.automation, &approved.automation),
+            browser: self
+                .browser
+                .clone()
+                .filter(|_| self.browser != approved.browser),
+            displays: self.displays && !approved.displays,
+            open: added(&self.open, &approved.open),
+        }
+    }
+
     /// Whether the token of OAuth client or sign-in `secret` may go to `target`, a host or `pipe:<prefix>`.
     pub fn sends(&self, secret: &str, target: &str) -> bool {
         let send = match (self.oauth.get(secret), self.signin.get(secret)) {
@@ -246,6 +293,25 @@ mod tests {
     const SIGNIN: &str = r#"{"http":["portal.example.com"],"signin":{"staff":{"url":"https://portal.example.com",
         "storage":"oidc.user:https://login.example.com:portal","profile":"portal-web",
         "send":["portal.example.com"]}},"automation":["meet.exe"],"open":["meet"]}"#;
+
+    #[test]
+    fn login_scope_removal_needs_no_consent_but_new_scope_or_token_destination_does() {
+        let approved: Permissions = serde_json::from_str(SPOTIFY).unwrap();
+        let mut narrower: Permissions =
+            serde_json::from_str(&SPOTIFY.replace(r#"["user-library-read"]"#, "[]")).unwrap();
+        narrower.oauth.get_mut("spotify").unwrap().authorize = None;
+        assert_eq!(narrower.added_since(&approved), Permissions::default());
+        for expanded in [
+            SPOTIFY.replace("user-library-read", "user-library-modify"),
+            SPOTIFY.replace(r#""send":["api.spotify.com"]"#, r#""send":["lrclib.net"]"#),
+            SPOTIFY.replace("/api/token", "/other/token"),
+        ] {
+            let requested: Permissions = serde_json::from_str(&expanded).unwrap();
+            let added = requested.added_since(&approved);
+            assert_eq!(added.oauth, requested.oauth);
+            assert!(added.http.is_empty());
+        }
+    }
 
     #[test]
     fn a_manifest_cannot_grant_reach_beyond_what_its_permissions_name() {

@@ -117,6 +117,7 @@ pub fn run() {
             plugin_host::install::plugin_uninstall,
             plugin_host::opened::plugin_opened_file,
             plugin_host::plugin_list,
+            plugin_host::plugin_approve_permissions,
             plugin_host::caps::storage::plugin_storage_read,
             plugin_host::caps::storage::plugin_storage_write,
             plugin_host::caps::storage::plugin_storage_remove,

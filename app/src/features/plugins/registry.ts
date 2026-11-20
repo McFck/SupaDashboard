@@ -380,7 +380,12 @@ export async function installEnabled(
 
 export async function setPluginEnabled(id: string, enabled: boolean) {
   const plugin = bundledPlugins.find((p) => p.id === id);
-  if (!plugin || pluginTrust(id) === 'dev' || (!enabled && (plugin.builtin || plugin.default))) {
+  const pending = nativePlugins.get(id)?.consent;
+  if (
+    (!plugin && !pending) ||
+    pluginTrust(id) === 'dev' ||
+    (!enabled && (plugin?.builtin || plugin?.default))
+  ) {
     return;
   }
   const state = structuredClone(get(pluginState));

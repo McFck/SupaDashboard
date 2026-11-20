@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { Window } from '@tauri-apps/api/window';
   import { toast } from 'svelte-sonner';
@@ -16,6 +17,7 @@
   import SettingsPage from '../features/settings/SettingsPage.svelte';
   import MarketPage from '../features/plugins/ui/MarketPage.svelte';
   import { PluginFileIntake } from '../features/plugins/file-intake';
+  import { promptForPluginPermissions } from '../features/plugins/permission-consent';
   import ConfirmationHost from '$lib/components/ui/confirmation/ConfirmationHost.svelte';
   import { confirmationState } from '$lib/components/ui/confirmation/confirm.svelte';
   import TitleBar from './TitleBar.svelte';
@@ -31,6 +33,8 @@
     { id: 'plugins', label: 'Plugins', icon: Puzzle },
     { id: 'market', label: 'Market', icon: Store },
   ];
+
+  onMount(promptForPluginPermissions);
 
   $effect(() => {
     if (!isTauri()) {

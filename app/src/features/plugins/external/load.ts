@@ -32,6 +32,7 @@ export interface NativePlugin {
   api: number;
   trust: 'verified' | 'unverified' | 'dev';
   permissions: PluginPermissions;
+  consent?: { permissions: PluginPermissions; added: Record<string, unknown> };
   size: number;
   updated: number;
 }
@@ -43,7 +44,12 @@ export function listedPlugins(raw: unknown): NativePlugin[] {
   }
   return raw
     .filter(
-      (entry): entry is Omit<NativePlugin, 'permissions'> & { permissions: unknown } =>
+      (
+        entry,
+      ): entry is Omit<NativePlugin, 'permissions' | 'consent'> & {
+        permissions: unknown;
+        newPermissions?: unknown;
+      } =>
         isRecord(entry) &&
         typeof entry.id === 'string' &&
         PLUGIN_ID.test(entry.id) &&
@@ -53,9 +59,21 @@ export function listedPlugins(raw: unknown): NativePlugin[] {
         Number.isSafeInteger(entry.size) &&
         Number.isSafeInteger(entry.updated),
     )
-    .flatMap((entry) => {
+    .flatMap(({ newPermissions, ...entry }): NativePlugin[] => {
       const permissions = pluginPermissions(entry.permissions);
-      return permissions ? [{ ...entry, permissions }] : [];
+      if (!permissions) {
+        return [];
+      }
+      if (newPermissions === undefined) {
+        return [{ ...entry, permissions }];
+      }
+      if (!isRecord(newPermissions)) {
+        return [];
+      }
+      const added = pluginPermissions(newPermissions);
+      return added
+        ? [{ ...entry, permissions, consent: { permissions: added, added: newPermissions } }]
+        : [];
     });
 }
 
@@ -125,7 +143,10 @@ export async function loadExternalPlugins(): Promise<{
   };
   const loaded: Plugin[] = [];
   const listed = listedPlugins(await listPlugins());
-  for (const { id, api } of listed) {
+  for (const { id, api, consent } of listed) {
+    if (consent) {
+      continue;
+    }
     if (api !== kit.PLUGIN_API) {
       console.warn(`Plugin ${id} needs plugin API ${api}`);
       continue;

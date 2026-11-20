@@ -11,7 +11,7 @@ fn folders(debug: bool, value: Option<OsString>) -> Vec<PathBuf> {
 }
 
 #[cfg(debug_assertions)]
-pub(super) use debug::{read, start};
+pub(super) use debug::{discover, read, start};
 
 #[cfg(debug_assertions)]
 mod debug {
@@ -64,10 +64,10 @@ mod debug {
         fs::metadata(path.join("ui/index.js")).ok()?.modified().ok()
     }
 
-    fn refresh(host: &PluginHost, paths: &[PathBuf], stamps: &[Option<SystemTime>]) {
+    fn discover_paths(paths: &[PathBuf]) -> HashMap<String, Arc<Plugin>> {
         let mut plugins = HashMap::new();
-        for (path, changed) in paths.iter().zip(stamps) {
-            match load(path, *changed) {
+        for path in paths {
+            match load(path, stamp(path)) {
                 Ok(plugin) => {
                     let id = plugin.manifest.id.clone();
                     if let std::collections::hash_map::Entry::Vacant(entry) = plugins.entry(id) {
@@ -79,7 +79,23 @@ mod debug {
                 Err(error) => log::warn!("Skipped dev plugin {}: {error}", path.display()),
             }
         }
-        *host.dev.lock().unwrap_or_else(PoisonError::into_inner) = plugins;
+        plugins
+    }
+
+    pub(in crate::plugin_host) fn discover() -> HashMap<String, Arc<Plugin>> {
+        discover_paths(&super::folders(
+            true,
+            std::env::var_os("SUPADASHBOARD_DEV_PLUGINS"),
+        ))
+    }
+
+    fn refresh(host: &PluginHost, paths: &[PathBuf]) {
+        let plugins = discover_paths(paths);
+        let mut dev = host.dev.lock().unwrap_or_else(PoisonError::into_inner);
+        for id in dev.keys().chain(plugins.keys()) {
+            host.caps.forget(id);
+        }
+        *dev = plugins;
     }
 
     pub(in crate::plugin_host) fn start(app: &AppHandle) -> std::io::Result<()> {
@@ -87,9 +103,21 @@ mod debug {
         if paths.is_empty() {
             return Ok(());
         }
-        let stamps = || paths.iter().map(|path| stamp(path)).collect::<Vec<_>>();
-        let mut previous = stamps();
-        refresh(&app.state::<PluginHost>(), &paths, &previous);
+        let stamps = |paths: &[PathBuf]| {
+            paths
+                .iter()
+                .map(|path| {
+                    (
+                        stamp(path),
+                        fs::metadata(path.join("plugin.json"))
+                            .and_then(|meta| meta.modified())
+                            .ok(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut previous = stamps(&paths);
+        refresh(&app.state::<PluginHost>(), &paths);
         let app = app.clone();
         thread::Builder::new()
             .name("dev-plugins".into())
@@ -97,7 +125,7 @@ mod debug {
                 let mut changed = None;
                 loop {
                     thread::sleep(Duration::from_millis(125));
-                    let now: Vec<_> = paths.iter().map(|path| stamp(path)).collect();
+                    let now = stamps(&paths);
                     if now != previous {
                         previous = now;
                         changed = Some(Instant::now());
@@ -107,7 +135,7 @@ mod debug {
                         let host = app.state::<PluginHost>();
                         {
                             let _changing = host.changing.blocking_lock();
-                            refresh(&host, &paths, &previous);
+                            refresh(&host, &paths);
                         }
                         for label in ["main", "panel"] {
                             if let Some(window) = app.get_webview_window(label)

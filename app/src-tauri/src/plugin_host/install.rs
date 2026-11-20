@@ -33,6 +33,10 @@ fn installed(root: &Path, id: &str) -> PathBuf {
     root.join(format!("{id}.sdplugin"))
 }
 
+fn previous(root: &Path, id: &str) -> PathBuf {
+    root.join(format!(".old-{id}.sdplugin"))
+}
+
 /// Repairs what an install the app exited during left behind: a kept copy whose installed file is gone comes back,
 /// and staged files go.
 pub(super) fn recover(root: &Path) {
@@ -65,10 +69,7 @@ fn place<T>(
     staged: &Path,
     open: impl FnOnce(&Path) -> Result<T, String>,
 ) -> Result<T, String> {
-    let (target, old) = (
-        installed(root, id),
-        root.join(format!(".old-{id}.sdplugin")),
-    );
+    let (target, old) = (installed(root, id), previous(root, id));
     // An install interrupted between the two renames left only the kept copy.
     if !target.exists() && old.exists() {
         fs::rename(&old, &target).map_err(|e| format!("Could not restore {id}: {e}"))?;
@@ -122,6 +123,7 @@ impl PluginHost {
         &self,
         staged: &Path,
         id: Option<&str>,
+        approve_initial: bool,
         accept: impl Fn(&Plugin) -> Result<(), String>,
     ) -> Result<String, String> {
         let check = |plugin: Plugin| {
@@ -140,9 +142,23 @@ impl PluginHost {
             }
         };
         let root = self.root();
+        let fresh = approve_initial
+            && self.get(&id).is_none()
+            && !installed(&root, &id).exists()
+            && !previous(&root, &id).exists();
         // Closes the current file, unless a scheme read holds it a moment longer; then the swap fails cleanly.
         self.take(&id);
-        match place(&root, &id, staged, |path| load(path).and_then(check)) {
+        match place(&root, &id, staged, |path| {
+            let plugin = load(path).and_then(check)?;
+            if fresh {
+                let mut approvals = self.approvals();
+                let store = approvals.as_mut().map_err(|error| error.clone())?;
+                if store.get(&id).is_none() {
+                    store.approve(&self.legacy, &id, &plugin.manifest.permissions)?;
+                }
+            }
+            Ok(plugin)
+        }) {
             Ok(plugin) => self.add(plugin),
             Err(error) => {
                 // Back in the host: the file the swap restored.
@@ -196,7 +212,7 @@ impl PluginHost {
         if !staged.exists() {
             return Err("Plugin file was not inspected".into());
         }
-        self.put(&staged, None, |_| Ok(()))
+        self.put(&staged, None, true, |_| Ok(()))
     }
 }
 
@@ -226,7 +242,11 @@ pub async fn plugin_catalogue(window: WebviewWindow) -> Result<Vec<Entry>, Strin
 /// the dashboard owner restores former bundled plugins at start-up, and a signed catalogue release is all this can
 /// install.
 #[tauri::command]
-pub async fn plugin_install(host: State<'_, PluginHost>, id: String) -> Result<(), String> {
+pub async fn plugin_install(
+    window: WebviewWindow,
+    host: State<'_, PluginHost>,
+    id: String,
+) -> Result<(), String> {
     let _changing = host.changing.lock().await;
     host.require_installed_source(&id)?;
     let source = Source::new();
@@ -240,9 +260,12 @@ pub async fn plugin_install(host: State<'_, PluginHost>, id: String) -> Result<(
         return Err("Plugin file does not match the catalogue".into());
     }
     let staged = host.stage(&bytes, ".staging.sdplugin")?;
-    host.put(&staged, Some(&id), |plugin| {
-        matches_catalogue(entry, &plugin.manifest, plugin.trust)
-    })
+    host.put(
+        &staged,
+        Some(&id),
+        require_panel(&window).is_ok(),
+        |plugin| matches_catalogue(entry, &plugin.manifest, plugin.trust),
+    )
     .map(|_| ())
 }
 
@@ -330,7 +353,13 @@ mod tests {
     use std::os::windows::fs::OpenOptionsExt;
 
     fn plugin(version: &str, api: u32) -> Vec<u8> {
-        let manifest = format!(r#"{{"id":"spike","version":"{version}","api":{api}}}"#);
+        with_permissions(version, api, "{}")
+    }
+
+    fn with_permissions(version: &str, api: u32, permissions: &str) -> Vec<u8> {
+        let manifest = format!(
+            r#"{{"id":"spike","version":"{version}","api":{api},"permissions":{permissions}}}"#
+        );
         archive(&[
             ("plugin.json", manifest.as_bytes()),
             ("ui/index.css", b""),
@@ -342,16 +371,67 @@ mod tests {
         Some(host.lock().get("spike")?.manifest.version.clone())
     }
 
-    #[test]
-    fn a_confirmed_file_installs_the_inspected_bytes_and_never_another_plugin_api() {
-        let host = PluginHost {
+    fn host(legacy: PathBuf) -> PluginHost {
+        PluginHost {
             plugins: Default::default(),
             #[cfg(debug_assertions)]
             dev: Default::default(),
-            legacy: temp("host"),
+            approvals: std::sync::Mutex::new(super::super::Approvals::load(
+                &legacy,
+                Default::default,
+            )),
+            legacy,
             changing: Default::default(),
             caps: Default::default(),
+        }
+    }
+
+    #[test]
+    fn an_update_cannot_load_or_get_a_native_grant_until_its_additions_are_approved() {
+        let legacy = temp("approval-boundary");
+        let mut host = host(legacy.clone());
+        let install = |host: &PluginHost, version, permissions| {
+            let bytes = with_permissions(version, PLUGIN_API, permissions);
+            let staged = host.stage(&bytes, ".staging.sdplugin").unwrap();
+            host.put(&staged, None, true, |_| Ok(())).unwrap();
         };
+        install(&host, "1.0.0", r#"{"http":["example.com"]}"#);
+        assert!(host.installed("spike").is_ok());
+        install(
+            &host,
+            "2.0.0",
+            r#"{"http":["example.com"],"displays":true}"#,
+        );
+        let displays = Permissions {
+            displays: true,
+            ..Default::default()
+        };
+        assert!(host.installed("spike").is_err());
+        assert!(host.ui_file("spike", "ui/index.js").is_none());
+        assert!(host.approve("spike", &Permissions::default()).is_err());
+
+        install(&host, "3.0.0", r#"{"displays":true,"process":["app.exe"]}"#);
+        assert!(host.approve("spike", &displays).is_err());
+        install(&host, "4.0.0", r#"{"displays":true}"#);
+        assert!(host.installed("spike").is_err());
+        assert_eq!(host.approve("spike", &displays), Ok(()));
+        let store = super::super::Approvals::load(&legacy, || panic!("already migrated"));
+        *host.approvals.get_mut().unwrap() = store;
+        let granted = host.installed("spike").unwrap();
+        assert!(granted.manifest.permissions.displays);
+        drop(granted);
+        assert!(host.ui_file("spike", "ui/index.js").is_some());
+        install(&host, "5.0.0", "{}");
+        let granted = host.installed("spike").unwrap();
+        assert!(!granted.manifest.permissions.displays);
+        drop(granted);
+        drop(host);
+        fs::remove_dir_all(legacy).unwrap();
+    }
+
+    #[test]
+    fn a_confirmed_file_installs_the_inspected_bytes_and_never_another_plugin_api() {
+        let host = host(temp("host"));
         fs::create_dir_all(&host.legacy).unwrap();
         let picked = host.legacy.join("picked.sdplugin");
         let path = picked.to_str().unwrap();
@@ -369,7 +449,7 @@ mod tests {
         fs::write(&picked, &other).unwrap();
         assert!(host.inspect(path).is_err());
         let staged = host.stage(&other, ".staging.sdplugin").unwrap();
-        assert!(host.put(&staged, None, |_| Ok(())).is_err());
+        assert!(host.put(&staged, None, true, |_| Ok(())).is_err());
         assert_eq!(version(&host).as_deref(), Some("1.0.0"));
         let legacy = host.legacy.clone();
         drop(host);

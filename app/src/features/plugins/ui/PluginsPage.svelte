@@ -1,6 +1,7 @@
 <script lang="ts">
   import Boxes from '@lucide/svelte/icons/boxes';
   import { toast } from 'svelte-sonner';
+  import { badgeVariants } from '$lib/components/ui/badge/badge.svelte';
   import { Switch } from '$lib/components/ui/switch';
   import { Hint } from '$lib/components/ui/tooltip';
   import Icon from '../../controls/ui/Icon.svelte';
@@ -13,10 +14,12 @@
     pluginTrust,
   } from '../registry';
   import Section from '../../../panel/ui/Section.svelte';
+  import { reviewPluginPermissions } from '../permission-consent';
   import PluginAuthor from './PluginAuthor.svelte';
   import PluginPage from './PluginPage.svelte';
   let { selected = $bindable(null) }: { selected: string | null } = $props();
   const packages = bundledPlugins.filter((p) => !p.builtin);
+  const pending = [...nativePlugins.values()].filter((p) => p.consent);
   const appletPlugins = new Set([...applets.values()].map((applet) => applet.plugin));
   let changing = $state(false);
   const plugin = $derived(packages.find((p) => p.id === selected));
@@ -47,6 +50,32 @@
     <h1 class="font-display text-xl font-semibold tracking-wide">Plugins</h1>
     <Section title="Installed">
       <div class="grid grid-cols-1 gap-2">
+        {#each pending as p (p.id)}
+          <div class="flex items-center gap-3 rounded-xl bg-white/[.03] px-3 py-2">
+            <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-white/[.06]">
+              <Icon
+                name="Puzzle"
+                size={20}
+              />
+            </span>
+            <div class="grid min-w-0 flex-1">
+              <span class="text-base font-medium wrap-anywhere">{p.id}</span>
+              <PluginAuthor
+                class="text-xs text-muted-foreground"
+                trust={p.trust}
+              />
+            </div>
+            <span class="text-xs text-muted-foreground tabular-nums">{p.version}</span>
+            <button
+              type="button"
+              class={badgeVariants({ variant: 'destructive' })}
+              aria-label={`New permissions for ${p.id}`}
+              onclick={() => reviewPluginPermissions(p)}
+            >
+              New permissions
+            </button>
+          </div>
+        {/each}
         {#each packages as p (p.id)}
           <div
             class="flex items-center gap-3 rounded-xl bg-white/[.03] pr-3 transition-colors hover:bg-accent"
