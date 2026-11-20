@@ -96,6 +96,17 @@ struct Display {
     name: String,
     /// Browser windows whose centre lies on this display.
     windows: Vec<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bounds: Option<DisplayBounds>,
+}
+
+#[derive(Clone, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DisplayBounds {
+    left: i32,
+    top: i32,
+    width: u32,
+    height: u32,
 }
 
 pub(super) fn display_id(value: &str) -> bool {
@@ -161,6 +172,10 @@ impl State {
             && self.displays.iter().all(|display| {
                 display_id(&display.id)
                     && display.name.len() <= 256
+                    && display.bounds.as_ref().is_none_or(|bounds| {
+                        (1..=i32::MAX as u32).contains(&bounds.width)
+                            && (1..=i32::MAX as u32).contains(&bounds.height)
+                    })
                     && display.windows.len() <= 256
                     && display.windows.iter().all(|window| *window >= 0)
                     && ids.insert(display.id.as_str())
@@ -369,6 +384,11 @@ mod tests {
         };
         let good = json!({"id": "2528732444", "name": "DELL U2720Q", "windows": [1, 2]});
         assert_eq!(check(json!([good])), Ok(()));
+        let mut positioned = good.clone();
+        positioned["bounds"] = json!({"left": -1920, "top": 0, "width": 1920, "height": 1080});
+        assert_eq!(check(json!([positioned])), Ok(()));
+        positioned["bounds"]["width"] = json!(0);
+        assert!(check(json!([positioned])).is_err());
         for bad in [
             json!([good, good]),
             json!([{"id": "", "name": "A", "windows": []}]),

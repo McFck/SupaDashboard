@@ -28,6 +28,9 @@ pub struct Permissions {
     /// Chromium extension ID allowed to pair with the loopback browser bridge.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub browser: Option<String>,
+    /// Read the connected displays' names, bounds and scale factors.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub displays: bool,
     /// URL schemes the plugin may open with their registered app.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub open: Vec<String>,
@@ -308,6 +311,7 @@ mod tests {
             r#"{"pipes":["Discord"]}"#,
             r#"{"camera":[]}"#,
             r#"{"browser":true}"#,
+            r#"{"displays":"true"}"#,
             r#"{"browser":"chrome-extension://cnojhdmglpjodgblffallbibdifemkop"}"#,
         ];
         for text in bad {

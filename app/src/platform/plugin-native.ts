@@ -77,6 +77,19 @@ export const pluginOAuth = {
 export const pluginOpen = (plugin: string, url: string) =>
   invoke<void>('plugin_open', { plugin, url });
 
+export type PluginDisplay = {
+  label: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  scaleFactor: number;
+};
+
+/** Display settings labels, physical pixel bounds and per-display scale for a plugin with the displays grant. */
+export const pluginDisplays = (plugin: string) =>
+  invoke<PluginDisplay[]>('plugin_displays_list', { plugin });
+
 /** A message from a local app's pipe; after `closed` the handle is gone. */
 export type PluginPipeEvent = { kind: 'frame'; op: number; data: unknown } | { kind: 'closed' };
 

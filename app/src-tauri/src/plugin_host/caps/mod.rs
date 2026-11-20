@@ -5,6 +5,7 @@
 //! closes, or when the plugin is removed.
 pub mod automation;
 pub mod browser;
+pub mod displays;
 pub mod http;
 pub mod oauth;
 pub mod open;

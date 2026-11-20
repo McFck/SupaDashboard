@@ -58,13 +58,14 @@ fn choose_friendly_name(
     display_config: Option<&str>,
     enum_display: Option<&str>,
     raw: &str,
+    index: usize,
 ) -> String {
     display_config
         .map(str::trim)
         .filter(|name| !name.is_empty())
         .or_else(|| enum_display.map(str::trim).filter(|name| !name.is_empty()))
-        .unwrap_or(raw)
-        .to_owned()
+        .filter(|name| *name != raw)
+        .map_or_else(|| format!("Display {index}"), str::to_owned)
 }
 
 fn map_monitor_names(
@@ -83,6 +84,7 @@ fn map_monitor_names(
                     display_config.get(&key).map(|info| info.friendly.as_str()),
                     enum_display.get(&key).map(String::as_str),
                     name,
+                    index + 1,
                 ),
                 path: display_config
                     .get(&key)
@@ -311,6 +313,13 @@ pub(crate) fn forget_descriptions() {
 
 #[tauri::command]
 pub async fn monitor_names(app: AppHandle) -> Result<Vec<MonitorName>, String> {
+    Ok(named_monitors(&app)?
+        .into_iter()
+        .map(|(_, name)| name)
+        .collect())
+}
+
+pub(crate) fn named_monitors(app: &AppHandle) -> Result<Vec<(Monitor, MonitorName)>, String> {
     let monitors = app
         .available_monitors()
         .map_err(|error| error.to_string())?;
@@ -335,11 +344,12 @@ pub async fn monitor_names(app: AppHandle) -> Result<Vec<MonitorName>, String> {
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(describe(&names)
+    Ok(monitors
         .into_iter()
-        .map(|row| MonitorName {
-            primary: primary_name == Some(row.name.as_str()),
-            ..row
+        .zip(describe(&names))
+        .map(|(monitor, mut row)| {
+            row.primary = primary_name == Some(row.name.as_str());
+            (monitor, row)
         })
         .collect())
 }

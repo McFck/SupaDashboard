@@ -39,6 +39,7 @@ export {
 export {
   pluginAutomation,
   pluginBrowser,
+  pluginDisplays,
   pluginHttp,
   pluginOAuth,
   pluginOpen,
@@ -67,6 +68,7 @@ export type { ControlConfig } from './features/controls/model';
 export type { PluginService } from './platform/plugin-host';
 export type {
   PluginAutomationSnapshot,
+  PluginDisplay,
   PluginFile,
   PluginHttpRequest,
   PluginHttpResponse,

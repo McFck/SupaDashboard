@@ -148,6 +148,7 @@ pub fn run() {
             plugin_host::caps::browser::plugin_browser_unpair,
             plugin_host::caps::browser::plugin_browser_action,
             plugin_host::caps::browser::plugin_browser_scroll,
+            plugin_host::caps::displays::plugin_displays_list,
             apps::apps_list,
             apps::apps_icon,
             apps::app_command,

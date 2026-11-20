@@ -32,7 +32,13 @@ export type PluginBrowserSnapshot =
       media: { tab: number; paused: boolean; rate: number; fullscreen: boolean } | null;
       suspended: boolean;
       /** Displays of the browser's machine; `windows` are the browser windows centred on each. */
-      displays: { id: string; name: string; windows: number[] }[];
+      displays: {
+        id: string;
+        name: string;
+        windows: number[];
+        /** Chromium bounds in device-independent pixels, absent with older extensions. */
+        bounds?: { left: number; top: number; width: number; height: number };
+      }[];
     };
 
 export type PluginBrowserScrollFrame =
