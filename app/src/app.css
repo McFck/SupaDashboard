@@ -445,7 +445,55 @@ html.transparent #app {
 }
 @media (prefers-reduced-motion: reduce) {
   .modal-overlay,
-  .modal-content {
+  .modal-content,
+  .panel-page-enter-down,
+  .panel-page-enter-up,
+  .panel-drill-in,
+  .panel-drill-out {
     animation: none !important;
   }
+  .panel-nav-indicator {
+    transition-duration: 0ms !important;
+  }
+}
+
+/* Control-panel navigation transitions: short directional micro-slides without overlapping duplicate DOM. */
+@keyframes panel-enter-down {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes panel-enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes panel-drill-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+@keyframes panel-drill-out {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+.panel-page-enter-down {
+  animation: panel-enter-down 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.panel-page-enter-up {
+  animation: panel-enter-up 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.panel-drill-in {
+  animation: panel-drill-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.panel-drill-out {
+  animation: panel-drill-out 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.panel-nav-indicator {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }

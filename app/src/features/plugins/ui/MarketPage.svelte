@@ -1,56 +1,66 @@
 <script lang="ts">
   import FileUp from '@lucide/svelte/icons/file-up';
-  import { isTauri } from '@tauri-apps/api/core';
+  import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import { open } from '@tauri-apps/plugin-dialog';
+  import { tick } from 'svelte';
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/components/ui/button';
-  import Skeleton from '$lib/components/ui/skeleton/Skeleton.svelte';
+  import { Hint } from '$lib/components/ui/tooltip';
   import Icon, { iconOr } from '../../controls/ui/Icon.svelte';
   import { installPluginFromFile } from '../file-install';
   import { reviewPluginPermissions } from '../permission-consent';
-  import { catalogEntries, type CatalogEntry } from '../plugin-store';
+  import type { CatalogEntry } from '../plugin-store';
+  import { marketCatalogue } from '../market-catalogue.svelte';
   import { compiledPlugins, nativePlugins, refreshPlugins } from '../lifecycle';
-  import { installPlugin, pluginCatalogue } from '../../../platform/plugin-host';
+  import { installPlugin } from '../../../platform/plugin-host';
   import Section from '../../../panel/ui/Section.svelte';
   import MarketDetails from './MarketDetails.svelte';
   import PluginAuthor from './PluginAuthor.svelte';
 
   let { onopen }: { onopen: (id: string) => void } = $props();
-  type Catalogue =
-    { kind: 'loading' } | { kind: 'ready'; entries: CatalogEntry[] } | { kind: 'failed' };
-  let catalogue = $state<Catalogue>({ kind: 'loading' });
-  /** Bumped by Retry to fetch the catalogue again. */
-  let attempt = $state(0);
   let selected = $state<string | null>(null);
+  let drill = $state<'in' | 'out' | null>(null);
   let busy = $state(false);
+  let root = $state<HTMLElement>();
+  let savedScroll = 0;
+
   const details = $derived(
-    catalogue.kind === 'ready'
-      ? catalogue.entries.find((entry) => entry.id === selected)
+    marketCatalogue.hasData
+      ? marketCatalogue.entries.find((entry) => entry.id === selected)
       : undefined,
   );
+  const listMotion = $derived(drill === 'out' ? 'panel-drill-out' : '');
+  const detailMotion = $derived(drill === 'in' ? 'panel-drill-in' : '');
 
   $effect(() => {
-    void attempt;
-    if (!isTauri()) {
-      catalogue = { kind: 'ready', entries: [] };
-      return;
-    }
-    catalogue = { kind: 'loading' };
-    const abort = new AbortController();
-    pluginCatalogue()
-      .then((raw) => {
-        if (!abort.signal.aborted) {
-          catalogue = { kind: 'ready', entries: catalogEntries(raw) };
-        }
-      })
-      .catch((error) => {
-        if (!abort.signal.aborted) {
-          console.error(error);
-          catalogue = { kind: 'failed' };
-        }
-      });
-    return () => abort.abort();
+    void marketCatalogue.ensureLoaded();
   });
+
+  function scrollHost() {
+    return root?.parentElement ?? null;
+  }
+
+  function openDetails(id: string) {
+    const host = scrollHost();
+    savedScroll = host?.scrollTop ?? 0;
+    drill = 'in';
+    selected = id;
+    if (host) {
+      host.scrollTop = 0;
+    }
+  }
+
+  function closeDetails() {
+    drill = 'out';
+    selected = null;
+    void tick().then(() => {
+      const host = scrollHost();
+      if (host) {
+        host.scrollTop = savedScroll;
+      }
+    });
+  }
 
   /** Compiled plugins update with the app; a listed one with another version can update. */
   function actionOf(entry: CatalogEntry) {
@@ -123,62 +133,81 @@
 {/snippet}
 
 {#if details}
-  <MarketDetails
-    entry={details}
-    onback={() => (selected = null)}
+  <div
+    bind:this={root}
+    class={detailMotion}
   >
-    {@render action(details, '')}
-  </MarketDetails>
+    <MarketDetails
+      entry={details}
+      onback={closeDetails}
+    >
+      {@render action(details, '')}
+    </MarketDetails>
+  </div>
 {:else}
-  <div class="mx-auto grid max-w-[960px] gap-10 px-6 py-9">
+  <div
+    bind:this={root}
+    class="mx-auto grid max-w-[960px] gap-10 px-6 py-9 {listMotion}"
+  >
     <div class="flex items-center justify-between gap-4">
       <h1 class="font-display text-xl font-semibold tracking-wide">Market</h1>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={busy}
-        onclick={installFile}><FileUp />Install from file</Button
-      >
+      <div class="flex items-center gap-2">
+        <Hint text="Refresh catalog">
+          {#snippet children(props)}
+            <Button
+              {...props}
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Refresh catalog"
+              disabled={marketCatalogue.loading}
+              onclick={() => {
+                void marketCatalogue.ensureLoaded({ force: true });
+              }}
+            >
+              <RefreshCw class={marketCatalogue.loading ? 'animate-spin' : ''} />
+            </Button>
+          {/snippet}
+        </Hint>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onclick={installFile}><FileUp />Install from file</Button
+        >
+      </div>
     </div>
     <Section>
-      {#if catalogue.kind === 'loading'}
-        <!-- Shown only after 150 ms, so a quick answer never flashes it. -->
-        <div
-          class="grid animate-in grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-3 fade-in fill-mode-backwards delay-150"
-        >
-          {#each { length: 6 }, index (index)}
-            <div class="flex flex-col items-start gap-3 rounded-xl bg-white/[.03] p-4">
-              <Skeleton class="size-10 rounded-lg" />
-              <span class="grid gap-0.5">
-                <Skeleton class="h-5 w-24" />
-                <Skeleton class="h-4 w-16" />
-              </span>
-              <Skeleton class="h-8 w-full" />
-              <Skeleton class="mt-auto h-7 w-full" />
-            </div>
-          {/each}
-        </div>
-      {:else if catalogue.kind === 'failed'}
+      {#if !marketCatalogue.hasData && marketCatalogue.failed}
         <div class="grid justify-items-center gap-3 py-10">
           <p class="text-sm font-semibold">Could not load catalog</p>
           <Button
             variant="outline"
             size="sm"
-            onclick={() => attempt++}>Retry</Button
+            onclick={() => {
+              void marketCatalogue.ensureLoaded({ force: true });
+            }}>Retry</Button
           >
         </div>
-      {:else}
+      {:else if !marketCatalogue.hasData}
+        <!-- Shown only after 200 ms on an empty cold start, so fast responses never flash a loader. -->
         <div
-          class="grid animate-in grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-3 fade-in"
+          role="status"
+          aria-label="Loading catalog"
+          data-market-loading
+          class="grid animate-in place-items-center py-16 text-muted-foreground fade-in fill-mode-backwards delay-200"
         >
-          {#each catalogue.entries as entry (entry.id)}
+          <LoaderCircle class="size-5 animate-spin" />
+        </div>
+      {:else}
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-3">
+          {#each marketCatalogue.entries as entry (entry.id)}
             <article
               class="flex min-w-0 flex-col items-start gap-3 rounded-xl bg-white/[.03] p-4 transition-colors hover:bg-white/[.05]"
             >
               <button
                 type="button"
                 class="grid w-full justify-items-start gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onclick={() => (selected = entry.id)}
+                onclick={() => openDetails(entry.id)}
               >
                 <span class="grid size-10 place-items-center rounded-lg bg-accent"
                   ><Icon

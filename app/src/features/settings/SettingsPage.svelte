@@ -2,13 +2,12 @@
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import { primaryMonitor, type Monitor } from '@tauri-apps/api/window';
   import Star from '@lucide/svelte/icons/star';
   import { Button } from '$lib/components/ui/button';
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Switch } from '$lib/components/ui/switch';
-  import { monitors } from '../../platform/window';
   import { settings } from './state.svelte';
+  import { settingsSystem } from './system-state.svelte';
   import { DEFAULTS } from './defaults';
   import { commit } from '../layout/history.svelte';
   import Choice from '../plugins/ui/Choice.svelte';
@@ -22,22 +21,22 @@
     monitorSelectOptions,
   } from '../display/monitor-options';
 
-  let screens = $state<Monitor[]>([]);
-  let nativeNames = $state<unknown[]>([]);
-  let primaryScreen = $state<Monitor | null>(null);
   let resetting = $state(false);
-  /** Read from the Run key; stays undefined (switch disabled) where there is no native side. */
-  let autostart = $state<boolean>();
   let copying = $state(false);
-  let alive = false;
-  let refreshGeneration = 0;
 
-  const monitorOptions = $derived(buildMonitorOptions(screens, nativeNames, primaryScreen));
+  const monitorOptions = $derived(
+    buildMonitorOptions(
+      settingsSystem.screens,
+      settingsSystem.nativeNames,
+      settingsSystem.primaryScreen,
+    ),
+  );
   const screenOptions = $derived(
     monitorSelectOptions(
       monitorOptions,
       settings.display.monitor,
       settings.display.monitorLabel,
+      !settingsSystem.monitorsLoaded,
     ).map((option) => ({
       ...option,
       icon: option.primary ? Star : undefined,
@@ -54,45 +53,9 @@
     commit('Choose monitor');
   }
 
-  async function refreshMonitors() {
-    const generation = ++refreshGeneration;
-    const [monitorResult, nativeResult, primaryResult] = await Promise.allSettled([
-      monitors(),
-      invoke<unknown[]>('monitor_names'),
-      primaryMonitor(),
-    ]);
-    if (!alive || generation !== refreshGeneration) {
-      return;
-    }
-    screens = monitorResult.status === 'fulfilled' ? monitorResult.value : [];
-    nativeNames =
-      nativeResult.status === 'fulfilled' && Array.isArray(nativeResult.value)
-        ? nativeResult.value
-        : [];
-    primaryScreen = primaryResult.status === 'fulfilled' ? primaryResult.value : null;
-  }
-
-  async function setAutostart(enabled: boolean) {
-    autostart = enabled;
-    try {
-      await invoke('autostart_set', { enabled });
-    } catch (error) {
-      console.error(error);
-      autostart = !enabled;
-      toast.error('Could not change start with Windows');
-    }
-  }
-
   onMount(() => {
-    alive = true;
-    void refreshMonitors();
-    invoke<boolean>('autostart_get')
-      .then((enabled) => (autostart = enabled))
-      .catch((error) => console.warn('autostart', error));
-    return () => {
-      alive = false;
-      refreshGeneration++;
-    };
+    void settingsSystem.refreshMonitors();
+    void settingsSystem.refreshAutostart();
   });
 
   async function copyToRelease() {
@@ -150,7 +113,7 @@
         value={selectedMonitor?.value ?? settings.display.monitor ?? CURRENT_POSITION}
         onchange={chooseMonitor}
         onopen={() => {
-          void refreshMonitors();
+          void settingsSystem.refreshMonitors();
         }}
         options={screenOptions}
       />
@@ -176,9 +139,11 @@
       for="autostart"
       ><Switch
         id="autostart"
-        disabled={autostart === undefined}
-        checked={autostart ?? false}
-        onCheckedChange={setAutostart}
+        disabled={settingsSystem.autostart === undefined}
+        checked={settingsSystem.autostart ?? false}
+        onCheckedChange={(enabled) => {
+          void settingsSystem.setAutostart(enabled);
+        }}
       /></Row
     >
   </Section>

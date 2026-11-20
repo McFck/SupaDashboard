@@ -97,6 +97,7 @@ export function monitorSelectOptions(
   options: readonly MonitorOption[],
   selected: string | null,
   savedLabel: string | null = null,
+  pending = false,
 ): MonitorOption[] {
   const local: MonitorOption[] = [
     { value: CURRENT_POSITION, label: 'Current position', ordinal: 0, primary: false },
@@ -105,7 +106,7 @@ export function monitorSelectOptions(
     local.push({
       value: selected,
       label: savedLabel || 'Display',
-      unavailable: true,
+      unavailable: !pending,
       ordinal: 0,
       primary: false,
       disabled: true,

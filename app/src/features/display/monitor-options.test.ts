@@ -17,6 +17,13 @@ it('keeps a readable disconnected selection and uses the device path after GDI r
   expect(monitorSelectOptions([], 'monitor#stable', options[0].label)[1]).toMatchObject({
     value: 'monitor#stable',
     label: 'DELL U2723QE',
+    unavailable: true,
+    disabled: true,
+  });
+  expect(monitorSelectOptions([], 'monitor#stable', options[0].label, true)[1]).toMatchObject({
+    value: 'monitor#stable',
+    label: 'DELL U2723QE',
+    unavailable: false,
     disabled: true,
   });
   expect(

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Boxes from '@lucide/svelte/icons/boxes';
+  import { tick } from 'svelte';
   import { toast } from 'svelte-sonner';
   import { badgeVariants } from '$lib/components/ui/badge/badge.svelte';
   import { Switch } from '$lib/components/ui/switch';
@@ -12,6 +13,9 @@
   import PluginAuthor from './PluginAuthor.svelte';
   import PluginPage from './PluginPage.svelte';
   let { selected = $bindable(null) }: { selected: string | null } = $props();
+  let drill = $state<'in' | 'out' | null>(null);
+  let root = $state<HTMLElement>();
+  let savedScroll = 0;
   const packages = $derived([...nativePlugins.values()].filter((p) => !p.consent));
   const pending = $derived([...nativePlugins.values()].filter((p) => p.consent));
   const appletPlugins = $derived(new Set([...applets.values()].map((applet) => applet.plugin)));
@@ -19,6 +23,33 @@
   const plugin = $derived(
     selected && packages.some((p) => p.id === selected) ? pluginInfo(selected) : undefined,
   );
+  const listMotion = $derived(drill === 'out' ? 'panel-drill-out' : '');
+  const detailMotion = $derived(drill === 'in' ? 'panel-drill-in' : '');
+
+  function scrollHost() {
+    return root?.parentElement ?? null;
+  }
+
+  function openPlugin(id: string) {
+    const host = scrollHost();
+    savedScroll = host?.scrollTop ?? 0;
+    drill = 'in';
+    selected = id;
+    if (host) {
+      host.scrollTop = 0;
+    }
+  }
+
+  function closePlugin() {
+    drill = 'out';
+    selected = null;
+    void tick().then(() => {
+      const host = scrollHost();
+      if (host) {
+        host.scrollTop = savedScroll;
+      }
+    });
+  }
 
   async function setEnabled(id: string, enabled: boolean) {
     if (changing) {
@@ -37,12 +68,20 @@
 </script>
 
 {#if plugin}
-  <PluginPage
-    {plugin}
-    onback={() => (selected = null)}
-  />
+  <div
+    bind:this={root}
+    class={detailMotion}
+  >
+    <PluginPage
+      {plugin}
+      onback={closePlugin}
+    />
+  </div>
 {:else}
-  <div class="mx-auto grid max-w-[740px] grid-cols-1 gap-10 px-6 py-9">
+  <div
+    bind:this={root}
+    class="mx-auto grid max-w-[740px] grid-cols-1 gap-10 px-6 py-9 {listMotion}"
+  >
     <h1 class="font-display text-xl font-semibold tracking-wide">Plugins</h1>
     <Section title="Installed">
       <div class="grid grid-cols-1 gap-2">
@@ -79,7 +118,7 @@
           >
             <button
               type="button"
-              onclick={() => (selected = p.id)}
+              onclick={() => openPlugin(p.id)}
               class="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-white/[.06]"

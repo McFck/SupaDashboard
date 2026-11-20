@@ -24,6 +24,7 @@
 
   type Page = 'layout' | 'settings' | 'plugins' | 'market';
   let page = $state<Page>('layout');
+  let navDirection = $state<'up' | 'down' | null>(null);
   let pluginId = $state<string | null>(null);
   const confirmationActive = $derived(confirmationState.current !== null);
   const NAV: { id: Page; label: string; icon: typeof LayoutGrid }[] = [
@@ -32,6 +33,35 @@
     { id: 'plugins', label: 'Plugins', icon: Puzzle },
     { id: 'market', label: 'Market', icon: Store },
   ];
+  const activeNavIndex = $derived(
+    Math.max(
+      0,
+      NAV.findIndex((item) => item.id === page),
+    ),
+  );
+  const pageEnterClass = $derived(
+    navDirection === 'down'
+      ? 'panel-page-enter-down'
+      : navDirection === 'up'
+        ? 'panel-page-enter-up'
+        : '',
+  );
+
+  function navigate(next: Page) {
+    if (next === page) {
+      if (next === 'plugins') {
+        pluginId = null;
+      }
+      return;
+    }
+    const prevIndex = NAV.findIndex((item) => item.id === page);
+    const nextIndex = NAV.findIndex((item) => item.id === next);
+    navDirection = nextIndex >= prevIndex ? 'down' : 'up';
+    page = next;
+    if (next === 'plugins') {
+      pluginId = null;
+    }
+  }
 
   $effect(promptForPluginPermissions);
 
@@ -120,38 +150,44 @@
             {/snippet}
           </Hint>
         </div>
-        {#each NAV as n (n.id)}
-          <Hint
-            text={n.label}
-            side="right"
+        <div class="relative flex flex-col gap-1">
+          <span
+            aria-hidden="true"
+            style:transform="translateY({activeNavIndex * 44}px)"
+            class="panel-nav-indicator pointer-events-none absolute top-0 left-2 h-10 w-12 rounded-lg bg-white/[.08]"
           >
-            {#snippet children(props)}
-              <button
-                {...props}
-                type="button"
-                onclick={() => {
-                  page = n.id;
-                  if (n.id === 'plugins') {
-                    pluginId = null;
-                  }
-                }}
-                aria-label={n.label}
-                aria-current={page === n.id ? 'page' : undefined}
-                class="relative ml-2 grid h-10 w-12 shrink-0 place-items-center rounded-lg text-left text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring
-              {page === n.id
-                  ? 'bg-white/[.08] text-foreground'
-                  : 'text-muted-foreground hover:bg-white/[.04] hover:text-foreground'}"
-              >
-                <span class="flex h-10 w-12 items-center justify-center"
-                  ><n.icon
-                    size={17}
-                    class="shrink-0"
-                  /></span
+            <span
+              class="absolute top-1/2 -left-2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+            ></span>
+          </span>
+          {#each NAV as n (n.id)}
+            <Hint
+              text={n.label}
+              side="right"
+            >
+              {#snippet children(props)}
+                <button
+                  {...props}
+                  type="button"
+                  onclick={() => navigate(n.id)}
+                  aria-label={n.label}
+                  aria-current={page === n.id ? 'page' : undefined}
+                  class="relative ml-2 grid h-10 w-12 shrink-0 place-items-center rounded-lg text-left text-[15px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring
+                {page === n.id
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:bg-white/[.04] hover:text-foreground'}"
                 >
-              </button>
-            {/snippet}
-          </Hint>
-        {/each}
+                  <span class="flex h-10 w-12 items-center justify-center"
+                    ><n.icon
+                      size={17}
+                      class="shrink-0"
+                    /></span
+                  >
+                </button>
+              {/snippet}
+            </Hint>
+          {/each}
+        </div>
       </div>
     </nav>
     <main class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -159,9 +195,9 @@
         class="absolute bottom-0 left-2 right-0 top-2 min-h-0 min-w-0 overflow-hidden rounded-tl-xl border-t border-l border-border bg-background"
       >
         <div
-          class="absolute inset-0 min-h-0 min-w-0"
-          style:display={page === 'layout' ? undefined : 'none'}
-          class:pointer-events-none={page !== 'layout'}
+          class="absolute inset-0 min-h-0 min-w-0 {page === 'layout'
+            ? pageEnterClass
+            : 'invisible pointer-events-none opacity-0'}"
           inert={page !== 'layout'}
           aria-hidden={page !== 'layout'}
         >
@@ -169,21 +205,21 @@
             active={page === 'layout'}
             onopenplugin={(id) => {
               pluginId = id;
-              page = 'plugins';
+              navigate('plugins');
             }}
           />
         </div>
         {#if page !== 'layout'}
           {#key page}
             <div
-              class="absolute inset-0 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]"
+              class="absolute inset-0 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] {pageEnterClass}"
             >
               {#if page === 'settings'}<SettingsPage />
               {:else if page === 'plugins'}<PluginsPage bind:selected={pluginId} />
               {:else}<MarketPage
                   onopen={(id) => {
                     pluginId = id;
-                    page = 'plugins';
+                    navigate('plugins');
                   }}
                 />{/if}
             </div>

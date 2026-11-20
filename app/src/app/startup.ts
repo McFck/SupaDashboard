@@ -16,6 +16,7 @@ import { installPlugin } from '../platform/plugin-host';
 import { whileOwner } from '../plugins/owner';
 import { redo, startHistory, undo } from '../features/layout/history.svelte';
 import { loadSettings } from '../features/settings/persistence.svelte';
+import { settingsSystem } from '../features/settings/system-state.svelte';
 import { startAppIcons } from '../features/apps/icons.svelte';
 import { initVolumeSync } from '../features/media/volume';
 import { followRemovals } from '../features/layout/removal';
@@ -159,6 +160,7 @@ export async function startApp() {
   if (view === 'panel') {
     startHistory();
     document.addEventListener('keydown', handleUndoShortcut);
+    settingsSystem.preload();
   }
   followRemovals();
   restoreFormerBundled();
