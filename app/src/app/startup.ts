@@ -6,16 +6,14 @@ import { get } from 'svelte/store';
 import { toast } from 'svelte-sonner';
 import {
   compiledPlugins,
-  installEach,
-  installEnabled,
   nativePlugins,
-  pluginsInstalled,
   pluginState,
-} from '../features/plugins/registry';
+  startPlugins,
+  stopPlugins,
+} from '../features/plugins/lifecycle';
 import { formerBundledDue } from '../features/plugins/former-bundled';
 import { installPlugin } from '../platform/plugin-host';
 import { whileOwner } from '../plugins/owner';
-import { loadExternalPlugins } from '../features/plugins/external/load';
 import { redo, startHistory, undo } from '../features/layout/history.svelte';
 import { loadSettings } from '../features/settings/persistence.svelte';
 import { startAppIcons } from '../features/apps/icons.svelte';
@@ -50,6 +48,7 @@ function dispose() {
   disposed = true;
   stopAppIcons?.();
   void stopRuntimeServices();
+  stopPlugins();
 }
 
 /** The native panel handshake: the shell shows the panel window once it reports ready. */
@@ -64,19 +63,6 @@ async function panelGeneration() {
     console.warn('panel bootstrap', error);
   }
   return undefined;
-}
-
-async function installPlugins() {
-  const { listed, plugins: external } = await loadExternalPlugins().catch((error) => {
-    console.warn('external plugins', error);
-    return { listed: [], plugins: [] };
-  });
-  try {
-    await installEnabled(BUNDLED_PLUGINS, external, listed);
-  } catch (error) {
-    console.warn('plugins', error);
-    installEach([...BUNDLED_PLUGINS, ...external]);
-  }
 }
 
 /** The dashboard owner installs former bundled plugins from the catalogue once; a failed one retries next launch. */
@@ -97,18 +83,13 @@ function restoreFormerBundled() {
 }
 
 async function reinstall(ids: string[]) {
-  const installed: string[] = [];
   for (const id of ids) {
     try {
       await installPlugin(id);
-      installed.push(id);
     } catch (error) {
       console.warn(`Plugin ${id}`, error);
       toast.error(`Could not install ${id}`);
     }
-  }
-  if (installed.length) {
-    await pluginsInstalled(installed).catch((error) => console.warn('plugins', error));
   }
 }
 
@@ -152,7 +133,7 @@ export async function startApp() {
     return;
   }
 
-  await installPlugins();
+  await startPlugins(BUNDLED_PLUGINS).catch((error) => console.warn('Plugins', error));
   try {
     await loadSettings();
   } catch (error) {

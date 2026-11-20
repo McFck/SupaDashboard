@@ -2,6 +2,7 @@
 import { currentRuntime } from '../app/runtime/session.svelte';
 import { runtimeView } from '../app/runtime/state';
 import type { ActionContext } from '../features/plugins/contracts';
+import { ownSetupCleanup } from '../features/plugins/setup-scope';
 
 /** Runs `start` while this window owns the dashboard, and its returned stop when ownership ends. Returns the dispose. */
 export function whileOwner(start: () => () => void) {
@@ -29,6 +30,7 @@ export function whileOwner(start: () => () => void) {
     window.removeEventListener('pagehide', dispose);
   };
   window.addEventListener('pagehide', dispose, { once: true });
+  ownSetupCleanup(dispose);
   return dispose;
 }
 

@@ -57,11 +57,13 @@ pub async fn plugin_browser_watch(
     events: Channel<Snapshot>,
 ) -> Result<u32, String> {
     let host = webview.state::<PluginHost>();
+    let changing = host.changing.lock().await;
     grant(&host, &plugin)?;
     let id = host.caps.handle();
     host.caps.with(&plugin, webview.label(), |owned| {
         owned.browser_start = Some(id)
     });
+    drop(changing);
     let mut active = host.caps.browser.lock().await;
     let bridge = active.bridge.upgrade();
     if bridge.is_none() {

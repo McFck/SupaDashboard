@@ -2,13 +2,11 @@
   lang="ts"
   module
 >
-  import { bundledPlugins, plugins } from '../registry';
+  import { pluginInfo } from '../lifecycle';
 
   export function pluginTitle(id?: string) {
     if (!id || id === 'user') return undefined;
-    const provider =
-      plugins.find((plugin) => plugin.id === id) ??
-      bundledPlugins.find((plugin) => plugin.id === id);
+    const provider = pluginInfo(id);
     if (!provider || provider.builtin) return undefined;
     return provider.title || id;
   }

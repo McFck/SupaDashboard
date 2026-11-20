@@ -203,11 +203,13 @@ export class RuntimeSession {
     );
     this.detachRegistry = setRegistryRuntime({
       variables: this.variables,
-      registerEvent: (definition) => {
-        this.events.register(definition);
+      registerEvent: (definition) => this.events.register(definition),
+      unregisterEvent: (id) => this.events.unregister(id),
+      registrationsChanged: () => {
+        this.applets.start(settings.deck.pages.map((page) => page.applet));
+        this.reconcile(settings.controls);
+        this.publish();
       },
-      emitEvent: (id, parameter, payload, ancestry) =>
-        this.emitEvent(id, parameter, payload, ancestry),
     });
     this.applets.start(settings.deck.pages.map((page) => page.applet));
     this.stopRemoteSettings = onRemoteSettings((next) => {

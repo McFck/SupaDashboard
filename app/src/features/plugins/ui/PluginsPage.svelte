@@ -5,24 +5,20 @@
   import { Switch } from '$lib/components/ui/switch';
   import { Hint } from '$lib/components/ui/tooltip';
   import Icon from '../../controls/ui/Icon.svelte';
-  import {
-    applets,
-    bundledPlugins,
-    nativePlugins,
-    pluginState,
-    setPluginEnabled,
-    pluginTrust,
-  } from '../registry';
+  import { nativePlugins, pluginInfo, setPluginEnabled } from '../lifecycle';
+  import { applets } from '../registry';
   import Section from '../../../panel/ui/Section.svelte';
   import { reviewPluginPermissions } from '../permission-consent';
   import PluginAuthor from './PluginAuthor.svelte';
   import PluginPage from './PluginPage.svelte';
   let { selected = $bindable(null) }: { selected: string | null } = $props();
-  const packages = bundledPlugins.filter((p) => !p.builtin);
-  const pending = [...nativePlugins.values()].filter((p) => p.consent);
-  const appletPlugins = new Set([...applets.values()].map((applet) => applet.plugin));
+  const packages = $derived([...nativePlugins.values()].filter((p) => !p.consent));
+  const pending = $derived([...nativePlugins.values()].filter((p) => p.consent));
+  const appletPlugins = $derived(new Set([...applets.values()].map((applet) => applet.plugin)));
   let changing = $state(false);
-  const plugin = $derived(packages.find((p) => p.id === selected));
+  const plugin = $derived(
+    selected && packages.some((p) => p.id === selected) ? pluginInfo(selected) : undefined,
+  );
 
   async function setEnabled(id: string, enabled: boolean) {
     if (changing) {
@@ -76,7 +72,8 @@
             </button>
           </div>
         {/each}
-        {#each packages as p (p.id)}
+        {#each packages as listed (listed.id)}
+          {@const p = pluginInfo(listed.id) ?? { id: listed.id, title: listed.id }}
           <div
             class="flex items-center gap-3 rounded-xl bg-white/[.03] pr-3 transition-colors hover:bg-accent"
           >
@@ -114,7 +111,7 @@
                 </div>
                 <PluginAuthor
                   class="justify-self-start text-xs leading-normal text-muted-foreground"
-                  trust={pluginTrust(p.id)}
+                  trust={listed.trust}
                 />
                 {#if p.description}
                   <p
@@ -124,16 +121,14 @@
                   </p>
                 {/if}
               </div>
-              {#if nativePlugins.has(p.id)}
-                <span class="shrink-0 text-xs text-muted-foreground tabular-nums"
-                  >{nativePlugins.get(p.id)?.version}</span
-                >
-              {/if}
+              <span class="shrink-0 text-xs text-muted-foreground tabular-nums"
+                >{listed.version}</span
+              >
             </button>
-            {#if pluginTrust(p.id) !== 'dev'}
+            {#if listed.trust !== 'dev'}
               <Switch
                 aria-label={`Enable ${p.title}`}
-                checked={p.default || !$pluginState.uninstalled.includes(p.id)}
+                checked={p.default || listed.enabled}
                 disabled={p.default || changing}
                 onCheckedChange={(enabled) => setEnabled(p.id, enabled)}
               />

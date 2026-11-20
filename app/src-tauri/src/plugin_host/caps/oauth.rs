@@ -319,6 +319,7 @@ pub async fn plugin_oauth_sign_in(
     client_id: String,
 ) -> Result<(), String> {
     let host = app.state::<PluginHost>();
+    let changing = host.changing.lock().await;
     let oauth = client(&host, &plugin, &name)?;
     let authorize = oauth
         .authorize
@@ -367,18 +368,20 @@ pub async fn plugin_oauth_sign_in(
     let abort = task.inner().abort_handle();
     host.caps
         .with(&plugin, &label, |owned| owned.signins.insert(name, abort));
+    drop(changing);
     task.await.map_err(|_| "Sign-in cancelled".to_owned())?
 }
 
 /// Starts a sign-in whose code arrives another way: returns the S256 challenge and keeps the verifier for
 /// `exchange` from the same webview.
 #[tauri::command]
-pub fn plugin_oauth_pkce(
+pub async fn plugin_oauth_pkce(
     webview: Webview,
     host: State<'_, PluginHost>,
     plugin: String,
     name: String,
 ) -> Result<String, String> {
+    let _changing = host.changing.lock().await;
     client(&host, &plugin, &name)?;
     let (verifier, challenge) = pkce()?;
     host.caps.with(&plugin, webview.label(), |owned| {

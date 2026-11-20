@@ -5,7 +5,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { toast } from 'svelte-sonner';
 import { takeOpenedPluginFile } from '../../platform/plugin-host';
 import { installPluginFromFile } from './file-install';
-import { pluginsInstalled } from './registry';
+import { refreshPlugins } from './lifecycle';
 
 export class PluginFileIntake {
   #stops: (() => void)[] = [];
@@ -51,7 +51,7 @@ export class PluginFileIntake {
     try {
       const id = await installPluginFromFile(path);
       if (id !== null) {
-        await pluginsInstalled([id]);
+        await refreshPlugins();
       }
     } catch (error) {
       console.error(error);

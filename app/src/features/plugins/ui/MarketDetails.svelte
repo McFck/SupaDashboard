@@ -3,7 +3,7 @@
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import { Button } from '$lib/components/ui/button';
   import type { CatalogEntry } from '../plugin-store';
-  import { nativePlugins } from '../registry';
+  import { nativePlugins } from '../lifecycle';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
   import { followLink, formatDate, formatSize } from './about';

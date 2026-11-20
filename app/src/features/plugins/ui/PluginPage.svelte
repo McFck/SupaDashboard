@@ -5,13 +5,13 @@
   import { confirm } from '$lib/components/ui/confirmation/confirm.svelte';
   import { Switch } from '$lib/components/ui/switch';
   import {
-    applets,
     nativePlugins,
     pluginState,
     removePlugin,
     setPluginEnabled,
     pluginTrust,
-  } from '../registry';
+  } from '../lifecycle';
+  import { applets } from '../registry';
   import type { Param, Plugin } from '../contracts';
   import { formatDate, formatSize } from './about';
   import ParamControl from './ParamControl.svelte';
@@ -30,7 +30,7 @@
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
 
-  let { plugin, onback }: { plugin: Plugin; onback: () => void } = $props();
+  let { plugin, onback }: { plugin: Omit<Plugin, 'setup'>; onback: () => void } = $props();
   const pluginApplets = $derived(
     [...applets.values()].filter((applet) => applet.plugin === plugin.id),
   );
@@ -98,6 +98,7 @@
         return;
       }
       await removePlugin(plugin.id);
+      onback();
     } catch (error) {
       console.error(error);
       toast.error(`Could not remove ${plugin.title}`);
@@ -131,7 +132,7 @@
         {#if listed?.trust !== 'dev'}
           <Switch
             aria-label={`Enable ${plugin.title}`}
-            checked={plugin.default || !$pluginState.uninstalled.includes(plugin.id)}
+            checked={plugin.default || listed?.enabled}
             disabled={plugin.default || changing}
             onCheckedChange={setEnabled}
           />
@@ -201,7 +202,9 @@
             >
             {#if listed?.trust !== 'dev'}
               <Row label="Installed"
-                ><span class="text-sm">{formatDate($pluginState.installed[plugin.id])}</span></Row
+                ><span class="text-sm"
+                  >{formatDate($pluginState.installed[plugin.id] ?? listed?.updated)}</span
+                ></Row
               >
               <Row label="Size"
                 ><span class="text-sm tabular-nums">{formatSize(listed?.size)}</span></Row

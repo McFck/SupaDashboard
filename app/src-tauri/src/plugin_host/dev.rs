@@ -18,7 +18,10 @@ mod debug {
     use std::collections::HashMap;
     use std::fs;
     use std::path::{Path, PathBuf};
-    use std::sync::{Arc, PoisonError};
+    use std::sync::{
+        Arc, PoisonError,
+        atomic::{AtomicU32, Ordering},
+    };
     use std::thread;
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -26,7 +29,7 @@ mod debug {
 
     use super::super::archive::{MAX_PLUGIN, allowed, valid_entry_name};
     use super::super::manifest::{Manifest, PLUGIN_API};
-    use super::super::{Plugin, PluginHost, Source, Trust};
+    use super::super::{NEXT_REVISION, Plugin, PluginHost, Source, Trust, notify_changed};
 
     pub(in crate::plugin_host) fn read(root: &Path, name: &str) -> Option<Vec<u8>> {
         if !valid_entry_name(name) || !allowed(name) {
@@ -57,6 +60,7 @@ mod debug {
             source: Source::Folder(path),
             trust: Trust::Dev,
             updated,
+            revision: AtomicU32::new(NEXT_REVISION.fetch_add(1, Ordering::Relaxed)),
         })
     }
 
@@ -91,11 +95,19 @@ mod debug {
 
     fn refresh(host: &PluginHost, paths: &[PathBuf]) {
         let plugins = discover_paths(paths);
-        let mut dev = host.dev.lock().unwrap_or_else(PoisonError::into_inner);
-        for id in dev.keys().chain(plugins.keys()) {
-            host.caps.forget(id);
+        let affected = {
+            let mut dev = host.dev.lock().unwrap_or_else(PoisonError::into_inner);
+            let affected = dev
+                .keys()
+                .chain(plugins.keys())
+                .cloned()
+                .collect::<std::collections::HashSet<_>>();
+            *dev = plugins;
+            affected
+        };
+        for id in affected {
+            host.caps.forget(&id);
         }
-        *dev = plugins;
     }
 
     pub(in crate::plugin_host) fn start(app: &AppHandle) -> std::io::Result<()> {
@@ -133,17 +145,9 @@ mod debug {
                     if changed.is_some_and(|time| time.elapsed() >= Duration::from_millis(250)) {
                         changed = None;
                         let host = app.state::<PluginHost>();
-                        {
-                            let _changing = host.changing.blocking_lock();
-                            refresh(&host, &paths);
-                        }
-                        for label in ["main", "panel"] {
-                            if let Some(window) = app.get_webview_window(label)
-                                && let Err(error) = window.reload()
-                            {
-                                log::warn!("Could not reload {label}: {error}");
-                            }
-                        }
+                        let _changing = host.changing.blocking_lock();
+                        refresh(&host, &paths);
+                        notify_changed(&app);
                     }
                 }
             })?;

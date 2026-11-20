@@ -17,19 +17,26 @@ mod permissions;
 pub mod power;
 pub mod protocol;
 mod secure;
+mod state;
 mod trust;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{
+    Arc, Mutex, MutexGuard, PoisonError,
+    atomic::{AtomicU32, Ordering},
+};
 
-use tauri::{AppHandle, Manager, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 
 use archive::Archive;
 use consent::Approvals;
 use manifest::{Manifest, valid_id};
 use permissions::Permissions;
+use state::PluginState;
 use trust::Trust;
+
+static NEXT_REVISION: AtomicU32 = AtomicU32::new(1);
 
 pub struct Plugin {
     manifest: Manifest,
@@ -37,6 +44,17 @@ pub struct Plugin {
     trust: Trust,
     /// Unix milliseconds of the file's last change.
     updated: u64,
+    revision: AtomicU32,
+}
+
+impl Plugin {
+    fn is_dev(&self) -> bool {
+        match self.source {
+            Source::Archive(_) => false,
+            #[cfg(debug_assertions)]
+            Source::Folder(_) => true,
+        }
+    }
 }
 
 enum Source {
@@ -52,6 +70,7 @@ pub struct PluginHost {
     /// The app data root: plugins live in `plugins/`, their data in `plugin-data/`.
     legacy: PathBuf,
     approvals: Mutex<Result<Approvals, String>>,
+    state: Mutex<Result<PluginState, String>>,
     /// One install or removal at a time, so two never share a staging file.
     changing: tokio::sync::Mutex<()>,
     caps: caps::Caps,
@@ -79,6 +98,7 @@ fn load(path: &Path) -> Result<Plugin, String> {
         source: Source::Archive(archive),
         trust,
         updated,
+        revision: AtomicU32::new(NEXT_REVISION.fetch_add(1, Ordering::Relaxed)),
     })
 }
 
@@ -122,12 +142,17 @@ impl PluginHost {
         if let Err(error) = &approvals {
             log::warn!("Could not read plugin approvals: {error}");
         }
+        let state = PluginState::load(&legacy);
+        if let Err(error) = &state {
+            log::warn!("{error}");
+        }
         let host = Self {
             plugins: Mutex::default(),
             #[cfg(debug_assertions)]
             dev: Mutex::new(dev),
             legacy,
             approvals: Mutex::new(approvals),
+            state: Mutex::new(state),
             changing: tokio::sync::Mutex::default(),
             caps: caps::Caps::default(),
         };
@@ -165,6 +190,23 @@ impl PluginHost {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
+    fn state(&self) -> MutexGuard<'_, Result<PluginState, String>> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn change_state(
+        &self,
+        change: impl FnOnce(&mut PluginState) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let mut state = self.state();
+        let current = state.as_mut().map_err(|error| error.clone())?;
+        let mut next = current.clone();
+        change(&mut next)?;
+        next.save(&self.legacy)?;
+        *current = next;
+        Ok(())
+    }
+
     fn pending(plugin: &Plugin, approvals: Option<&Approvals>) -> Option<Permissions> {
         let empty = Permissions::default();
         let approved = approvals
@@ -177,6 +219,12 @@ impl PluginHost {
     /// Every native grant comes from the current manifest after checking it is covered by approval.
     fn installed(&self, id: &str) -> Result<Arc<Plugin>, String> {
         let plugin = self.get(id).ok_or("Plugin is not installed")?;
+        if !plugin.is_dev() {
+            let state = self.state();
+            if !state.as_ref().map_err(|error| error.clone())?.enabled(id) {
+                return Err("Plugin is disabled".into());
+            }
+        }
         if Self::pending(&plugin, self.approvals().as_ref().ok()).is_some() {
             return Err("Plugin permissions need approval".into());
         }
@@ -232,14 +280,18 @@ impl PluginHost {
     }
 
     /// Only the UI bundle and assets are served. Reads outside the lock: an entry read goes to disk.
-    fn ui_file(&self, id: &str, file: &str) -> Option<(Vec<u8>, bool)> {
+    fn ui_file(&self, id: &str, file: &str, revision: Option<u32>) -> Option<Vec<u8>> {
         if !file.starts_with("ui/") && !file.starts_with("assets/") {
             return None;
         }
-        match &self.installed(id).ok()?.source {
-            Source::Archive(archive) => Some((archive.read(file)?, false)),
+        let plugin = self.installed(id).ok()?;
+        if revision.is_some_and(|revision| revision != plugin.revision.load(Ordering::Relaxed)) {
+            return None;
+        }
+        match &plugin.source {
+            Source::Archive(archive) => archive.read(file),
             #[cfg(debug_assertions)]
-            Source::Folder(path) => Some((dev::read(path, file)?, true)),
+            Source::Folder(path) => dev::read(path, file),
         }
     }
 }
@@ -256,10 +308,12 @@ pub struct Listed {
     new_permissions: Option<Permissions>,
     size: u64,
     updated: u64,
+    revision: u32,
+    enabled: bool,
 }
 
 impl Listed {
-    fn of(plugin: &Plugin, approvals: Option<&Approvals>) -> Self {
+    fn of(plugin: &Plugin, approvals: Option<&Approvals>, state: Option<&PluginState>) -> Self {
         Self {
             id: plugin.manifest.id.clone(),
             version: plugin.manifest.version.clone(),
@@ -273,12 +327,22 @@ impl Listed {
                 Source::Folder(_) => 0,
             },
             updated: plugin.updated,
+            revision: plugin.revision.load(Ordering::Relaxed),
+            enabled: plugin.is_dev()
+                || state.is_some_and(|state| state.enabled(&plugin.manifest.id)),
         }
     }
 }
 
+#[derive(serde::Serialize)]
+pub struct Inventory {
+    plugins: Vec<Listed>,
+    state: Option<PluginState>,
+}
+
 #[tauri::command]
-pub fn plugin_list(host: State<'_, PluginHost>) -> Vec<Listed> {
+pub async fn plugin_list(host: State<'_, PluginHost>) -> Result<Inventory, String> {
+    let _changing = host.changing.lock().await;
     #[cfg(debug_assertions)]
     let dev = host.dev.lock().unwrap_or_else(PoisonError::into_inner);
     let installed = host.lock();
@@ -288,9 +352,49 @@ pub fn plugin_list(host: State<'_, PluginHost>) -> Vec<Listed> {
         .values()
         .chain(plugins.filter(|plugin| !dev.contains_key(&plugin.manifest.id)));
     let approvals = host.approvals();
-    plugins
-        .map(|plugin| Listed::of(plugin, approvals.as_ref().ok()))
-        .collect()
+    let state = host.state();
+    let plugins = plugins
+        .map(|plugin| Listed::of(plugin, approvals.as_ref().ok(), state.as_ref().ok()))
+        .collect();
+    Ok(Inventory {
+        plugins,
+        state: state.as_ref().ok().cloned(),
+    })
+}
+
+#[tauri::command]
+pub async fn plugin_set_enabled(
+    window: WebviewWindow,
+    host: State<'_, PluginHost>,
+    id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    crate::panel::require_panel(&window)?;
+    let _changing = host.changing.lock().await;
+    host.require_installed_source(&id)?;
+    let plugin = host.get(&id).ok_or("Plugin is not installed")?;
+    if enabled && PluginHost::pending(&plugin, host.approvals().as_ref().ok()).is_some() {
+        return Err("Plugin permissions need approval".into());
+    }
+    host.change_state(|state| {
+        state.set_enabled(&id, enabled);
+        Ok(())
+    })?;
+    if !enabled {
+        host.caps.forget(&id);
+        plugin.revision.store(
+            NEXT_REVISION.fetch_add(1, Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+    }
+    notify_changed(window.app_handle());
+    Ok(())
+}
+
+fn notify_changed(app: &AppHandle) {
+    if let Err(error) = app.emit("plugins-changed", ()) {
+        log::warn!("Could not notify windows of plugin changes: {error}");
+    }
 }
 
 #[tauri::command]
@@ -303,10 +407,6 @@ pub async fn plugin_approve_permissions(
     crate::panel::require_panel(&window)?;
     let _changing = host.changing.lock().await;
     host.approve(&id, &added)?;
-    if let Some(main) = window.app_handle().get_webview_window("main")
-        && let Err(error) = main.reload()
-    {
-        log::warn!("Could not reload main: {error}");
-    }
+    notify_changed(window.app_handle());
     Ok(())
 }

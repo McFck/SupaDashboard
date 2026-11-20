@@ -80,15 +80,21 @@ export class AppletController {
   private startApplet(applet: AppletDef, start: NonNullable<AppletDef['start']>) {
     const stored = this.host.getSettings()[applet.id] ?? {};
     const config = writable<AppletConfig>(resolveAppletConfig(applet, stored));
+    const current = () => this.configs.get(applet.id) === config;
     const context: AppletRuntimeContext = {
       config,
       active: appletActive(applet.id),
-      getState: (key) => this.host.variables.getValue(`${applet.id}.${key}`),
-      setState: (key, value, ancestry) => this.setState(applet.id, key, value, ancestry),
-      setView: (viewId, ancestry) => this.setView(applet.id, viewId, ancestry),
-      setConfig: (values) => this.setConfig(applet.id, values),
-      emitEvent: (id, parameter, payload, ancestry) =>
-        this.emitEvent(applet.id, id, parameter, payload, ancestry),
+      getState: (key) =>
+        current() ? this.host.variables.getValue(`${applet.id}.${key}`) : undefined,
+      setState: async (key, value, ancestry) =>
+        current() && this.setState(applet.id, key, value, ancestry),
+      setView: async (viewId, ancestry) => current() && this.setView(applet.id, viewId, ancestry),
+      setConfig: (values) => current() && this.setConfig(applet.id, values),
+      emitEvent: async (id, parameter, payload, ancestry) => {
+        if (current()) {
+          await this.emitEvent(applet.id, id, parameter, payload, ancestry);
+        }
+      },
     };
     this.configs.set(applet.id, config);
     this.signatures.set(applet.id, JSON.stringify(stored));
