@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::wire::{Failure, State};
+use super::wire::{Failure, State, display_id};
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -131,6 +131,10 @@ pub enum Action {
         group: i32,
         collapsed: bool,
     },
+    MoveTabToDisplay {
+        tab: i32,
+        display: String,
+    },
     Open {
         url: String,
         destination: Destination,
@@ -169,7 +173,10 @@ pub(super) fn web_url(value: &str, max: usize) -> bool {
 impl Action {
     pub(super) fn validate_input(&self) -> Result<(), Failure> {
         match self {
-            Self::Pointer { tab, .. } | Self::SelectTab { tab } | Self::CloseTab { tab }
+            Self::Pointer { tab, .. }
+            | Self::SelectTab { tab }
+            | Self::CloseTab { tab }
+            | Self::MoveTabToDisplay { tab, .. }
                 if *tab < 0 =>
             {
                 Err("Invalid browser tab")
@@ -177,6 +184,9 @@ impl Action {
             Self::Group { group, .. } if *group < 0 => Err("Invalid browser tab group"),
             Self::MoveTab { tab, anchor, .. } if *tab < 0 || *anchor < 0 || tab == anchor => {
                 Err("Invalid tab move")
+            }
+            Self::MoveTabToDisplay { display, .. } if !display_id(display) => {
+                Err("Invalid display")
             }
             Self::Pointer { input, .. } => input.validate(),
             Self::Open { url, .. } if !web_url(url, 2048) => Err("Enter a valid HTTP or HTTPS URL"),
@@ -196,6 +206,10 @@ impl Action {
                 Err("Tab closed")
             }
             Self::Group { group, .. } if !state.has_group(*group) => Err("Tab group closed"),
+            Self::MoveTabToDisplay { tab, .. } if !state.has_tab(*tab) => Err("Tab closed"),
+            Self::MoveTabToDisplay { display, .. } if !state.has_display(display) => {
+                Err("Display disconnected")
+            }
             Self::MoveTab { tab, anchor, .. } if !state.can_move_tab(*tab, *anchor) => {
                 Err("Tab position changed")
             }
@@ -224,6 +238,7 @@ impl Action {
             Self::CloseTab { .. } => "Could not close tab",
             Self::MoveTab { .. } => "Could not move tab",
             Self::Group { .. } => "Could not change tab group",
+            Self::MoveTabToDisplay { .. } => "Could not move tab to display",
             Self::Open { .. } => "Could not open website",
             Self::Page { .. } => "Could not control this page",
             Self::Media { .. } => "Could not control browser media",
@@ -275,7 +290,8 @@ mod tests {
                 {"id": 2, "title": "Playing", "active": false},
             ],
             "activeTab": 1,
-            "media": {"tab": 2, "paused": false, "rate": 1, "fullscreen": false}
+            "media": {"tab": 2, "paused": false, "rate": 1, "fullscreen": false},
+            "displays": [{"id": "7", "name": "Left", "windows": [0]}]
         }))
         .unwrap();
         let validate = |value: Value| {
@@ -296,6 +312,9 @@ mod tests {
             json!({"kind": "media", "input": {"kind": "fullscreen", "window": 2}}),
             json!({"kind": "pointer", "tab": 1, "input": {"kind": "move", "dx": 2049, "dy": 0}}),
             json!({"kind": "pointer", "tab": 1, "input": {"kind": "click", "x": 4}}),
+            json!({"kind": "move_tab_to_display", "tab": -1, "display": "7"}),
+            json!({"kind": "move_tab_to_display", "tab": 1, "display": "7 "}),
+            json!({"kind": "move_tab_to_display", "tab": 1, "display": "7", "maximized": false}),
         ] {
             assert!(validate(value.clone()).is_err(), "{value}");
         }
@@ -304,6 +323,18 @@ mod tests {
             (json!({"kind": "suspend", "mode": "off"}), true),
             (json!({"kind": "select_tab", "tab": 2}), true),
             (json!({"kind": "close_tab", "tab": 9}), false),
+            (
+                json!({"kind": "move_tab_to_display", "tab": 2, "display": "7"}),
+                true,
+            ),
+            (
+                json!({"kind": "move_tab_to_display", "tab": 2, "display": "8"}),
+                false,
+            ),
+            (
+                json!({"kind": "move_tab_to_display", "tab": 9, "display": "7"}),
+                false,
+            ),
             (
                 json!({"kind": "group", "group": 9, "collapsed": true}),
                 false,

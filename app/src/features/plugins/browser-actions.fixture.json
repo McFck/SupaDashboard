@@ -8,6 +8,7 @@
   { "kind": "close_tab", "tab": 1 },
   { "kind": "move_tab", "tab": 1, "anchor": 2, "side": "after" },
   { "kind": "group", "group": 2, "collapsed": true },
+  { "kind": "move_tab_to_display", "tab": 1, "display": "7" },
   { "kind": "open", "url": "https://example.org/", "destination": "new" },
   { "kind": "window_fullscreen" },
   { "kind": "suspend", "mode": "toggle" },

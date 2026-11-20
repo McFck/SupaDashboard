@@ -45,6 +45,7 @@ it('keeps an action fixture for every browser command in the kit', () => {
     close_tab: [{ kind: 'close_tab', tab: 1 }],
     move_tab: [{ kind: 'move_tab', tab: 1, anchor: 2, side: 'after' }],
     group: [{ kind: 'group', group: 2, collapsed: true }],
+    move_tab_to_display: [{ kind: 'move_tab_to_display', tab: 1, display: '7' }],
     open: [{ kind: 'open', url: 'https://example.org/', destination: 'new' }],
     window_fullscreen: [{ kind: 'window_fullscreen' }],
     suspend: (['toggle', 'on', 'off'] as const).map((mode) => ({ kind: 'suspend', mode })),
