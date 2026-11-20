@@ -51,7 +51,7 @@ function validOperand(operand: unknown) {
   return operand.kind === 'state' && typeof operand.controlId === 'string' && !!operand.controlId;
 }
 
-function conditionIssue(condition: unknown): string | undefined {
+export function conditionIssue(condition: unknown): string | undefined {
   if (!isRecord(condition)) {
     return 'Condition is invalid';
   }

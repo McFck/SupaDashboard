@@ -24,7 +24,6 @@ type Host = {
   keys(): string[];
   selections?(): AppWindowSelection[];
   link(onState: (apps: WatchedApp[]) => void, onError: () => void): AppsLink;
-  onFocusedApps?(keys: ReadonlySet<string>): void;
   onError(): void;
 };
 
@@ -89,12 +88,6 @@ export class AppWatcher {
           this.defined.delete(id);
         }
       }
-      if (this.host.onFocusedApps) {
-        const focused = new Set(
-          apps.filter((app) => app.focused && !app.selection).map((app) => app.key),
-        );
-        this.host.onFocusedApps(focused);
-      }
     } catch {
       // A user variable already took a name such as `app.discord.running`.
       this.host.onError();
@@ -109,17 +102,12 @@ export class AppWatcher {
 }
 
 /** Starts watching the apps settings refer to; returns the stop function. */
-export function startAppWatcher(
-  variables: VariableStore,
-  onError: () => void,
-  onFocusedApps?: (keys: ReadonlySet<string>) => void,
-) {
+export function startAppWatcher(variables: VariableStore, onError: () => void) {
   const watcher = new AppWatcher({
     variables,
-    keys: () => watchedKeys(settings.controls, settings.apps, settings.deck.pages),
-    selections: () => watchedSelections(settings.controls),
+    keys: () => watchedKeys(settings.controls, settings.apps),
+    selections: () => watchedSelections(settings.controls, settings.deck.pages),
     link: appsLink,
-    onFocusedApps,
     onError,
   });
   return () => watcher.destroy();

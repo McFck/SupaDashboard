@@ -1,6 +1,14 @@
 // Persisted settings shape.
+import type { Predicate } from '../automation/scenario';
 import type { ControlConfig } from '../controls/model';
 import type { DeckSizing, Item } from '../layout/grid';
+
+export type PageAutoSwitch = {
+  /** Any matching rule switches the dashboard to this page. */
+  rules: Predicate[];
+  /** Return to the previous manual page when no rules match anymore. */
+  returnOnLeave: boolean;
+};
 
 export type Page = {
   id: string;
@@ -14,10 +22,10 @@ export type Page = {
   items: Item[];
   /** Applet shown on this page; absent means the built-in deck. Unknown ids are kept. */
   applet?: string;
-  /** Excluded from left/right swipe and page dots; entered via actions or app auto-switch. */
+  /** Excluded from left/right swipe and page dots; entered via actions or auto-switch rules. */
   hidden?: boolean;
-  /** App keys (`aumid:…` / `exe:…`) that automatically switch the dashboard to this page when focused. */
-  apps?: string[];
+  /** Condition rules that automatically switch the dashboard to this page. */
+  autoSwitch?: PageAutoSwitch;
 };
 
 export type AppletSettingsEntry = {

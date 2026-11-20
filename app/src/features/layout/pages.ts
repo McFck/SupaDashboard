@@ -1,6 +1,7 @@
 import type { Item } from './grid';
 import type { ControlConfig } from '../controls/model';
 import type { Page, Settings } from '../settings/schema';
+import { evaluatePredicate, type PredicateEnvironment } from '../automation/expression';
 import { clonePlain } from '../automation/plain-data';
 import { pageItems } from './placements';
 
@@ -180,15 +181,27 @@ export function swipeablePages(pages: readonly Page[]): Page[] {
   return visible.length ? visible : [...pages];
 }
 
-/** First page in tab order whose bound apps include any currently focused app key. */
-export function pageForFocusedApps(
+/** First page in tab order whose auto-switch ruleset has a matching rule. */
+export function matchedAutoSwitchPage(
   pages: readonly Page[],
-  focusedKeys: ReadonlySet<string>,
+  env: PredicateEnvironment,
 ): Page | undefined {
-  if (!focusedKeys.size) {
-    return undefined;
+  for (const page of pages) {
+    const rules = page.autoSwitch?.rules;
+    if (!rules?.length) {
+      continue;
+    }
+    for (const rule of rules) {
+      try {
+        if (evaluatePredicate(rule, env)) {
+          return page;
+        }
+      } catch {
+        /* An unavailable variable or app simply does not match. */
+      }
+    }
   }
-  return pages.find((page) => page.apps?.some((key) => focusedKeys.has(key)));
+  return undefined;
 }
 
 export function pageAfterRemoval(

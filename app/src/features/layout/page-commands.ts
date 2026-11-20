@@ -1,5 +1,6 @@
 // Page edits applied to the live settings as one undo step each. They return the page to select afterwards.
-import { isAppKey } from '../apps/keys';
+import { clonePlain } from '../automation/plain-data';
+import type { PageAutoSwitch } from '../settings/schema';
 import { settings } from '../settings/state.svelte';
 import { commit } from './history.svelte';
 import {
@@ -81,19 +82,21 @@ export function setPageHidden(pageId: string, hidden: boolean) {
   settings.deck.pages = settings.deck.pages.map((entry) => (entry.id === pageId ? next : entry));
 }
 
-/** Binds apps that automatically switch the dashboard to this page when focused. */
-export function setPageApps(pageId: string, apps: readonly string[]) {
+/** Sets or clears a page's auto-switch ruleset as one undo step. */
+export function setPageAutoSwitch(pageId: string, autoSwitch: PageAutoSwitch | undefined) {
   const page = settings.deck.pages.find((entry) => entry.id === pageId);
   if (!page) {
     return;
   }
-  const clean = [...new Set(apps.filter(isAppKey))];
-  if (JSON.stringify(page.apps ?? []) === JSON.stringify(clean)) {
+  const normalized = autoSwitch?.rules.length
+    ? { rules: clonePlain(autoSwitch.rules), returnOnLeave: autoSwitch.returnOnLeave }
+    : undefined;
+  if (JSON.stringify(page.autoSwitch) === JSON.stringify(normalized)) {
     return;
   }
-  commit('Page apps');
-  const { apps: _previous, ...rest } = page;
-  const next = clean.length ? { ...rest, apps: clean } : rest;
+  commit('Edit auto-switch');
+  const { autoSwitch: _previous, ...rest } = page;
+  const next = normalized ? { ...rest, autoSwitch: normalized } : rest;
   settings.deck.pages = settings.deck.pages.map((entry) => (entry.id === pageId ? next : entry));
 }
 

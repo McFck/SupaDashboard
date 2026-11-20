@@ -1,8 +1,9 @@
+import type { Predicate } from '../automation/scenario';
+import { conditionIssue } from '../automation/validate';
 import type { Item } from '../layout/grid';
-import type { AppletSettingsEntry, Page, Settings } from './schema';
+import type { AppletSettingsEntry, Page, PageAutoSwitch, Settings } from './schema';
 import { DEFAULT_PAGE } from './defaults';
 import { isRecord } from '../automation/plain-data';
-import { isAppKey } from '../apps/keys';
 import { object, positiveInteger } from './upgrade';
 
 function normalizeItems(raw: unknown, itemIds: Set<string>): Item[] {
@@ -77,14 +78,28 @@ function normalizePage(
     typeof source.name === 'string' && source.name.trim()
       ? source.name.trim()
       : `Page ${index + 1}`;
-  let apps: string[] | undefined;
-  if (source.apps !== undefined) {
-    if (!Array.isArray(source.apps) || !source.apps.every(isAppKey)) {
-      throw new Error('Page apps must be a list of app keys');
+  let autoSwitch: PageAutoSwitch | undefined;
+  if (source.autoSwitch !== undefined) {
+    if (!isRecord(source.autoSwitch) || !Array.isArray(source.autoSwitch.rules)) {
+      throw new Error('Page auto-switch rules must be an array');
     }
-    const unique = [...new Set(source.apps)];
-    if (unique.length) {
-      apps = unique;
+    if (
+      source.autoSwitch.returnOnLeave !== undefined &&
+      typeof source.autoSwitch.returnOnLeave !== 'boolean'
+    ) {
+      throw new Error('Page auto-switch return setting must be a boolean');
+    }
+    for (const rule of source.autoSwitch.rules) {
+      const issue = conditionIssue(rule);
+      if (issue) {
+        throw new Error(`Page auto-switch rule is invalid: ${issue}`);
+      }
+    }
+    if (source.autoSwitch.rules.length) {
+      autoSwitch = {
+        rules: structuredClone(source.autoSwitch.rules) as Predicate[],
+        returnOnLeave: source.autoSwitch.returnOnLeave !== false,
+      };
     }
   }
   return {
@@ -100,7 +115,7 @@ function normalizePage(
       ? { applet: source.applet }
       : {}),
     ...(source.hidden === true ? { hidden: true } : {}),
-    ...(apps ? { apps } : {}),
+    ...(autoSwitch ? { autoSwitch } : {}),
   };
 }
 

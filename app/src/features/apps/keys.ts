@@ -1,5 +1,5 @@
 // App keys and the arguments of app actions. The native side validates again; this fails early with a short title.
-import { walkSteps } from '../automation/scenario';
+import { walkSteps, type Predicate } from '../automation/scenario';
 import type { ControlConfig } from '../controls/model';
 import { readWindowSelection, type WindowSelection } from './window-selection';
 
@@ -85,8 +85,11 @@ export function validAppVariable(id: string) {
   );
 }
 
-/** Scoped variables used by saved conditions and bindings, deduplicated across controls. */
-export function watchedSelections(controls: readonly ControlConfig[]) {
+/** Scoped variables used by saved conditions, bindings, and page auto-switch rules. */
+export function watchedSelections(
+  controls: readonly ControlConfig[],
+  pages: readonly { autoSwitch?: { rules: readonly Predicate[] } }[] = [],
+) {
   const selections = new Map<string, WindowSelection & { slug: string }>();
   const add = (id: string) => {
     const parsed = parseAppVariable(id);
@@ -95,20 +98,30 @@ export function watchedSelections(controls: readonly ControlConfig[]) {
       selections.set(JSON.stringify(value), value);
     }
   };
+  const addPredicate = (condition: Predicate) => {
+    if (condition.kind === 'compare') {
+      for (const operand of [condition.left, condition.right]) {
+        if (operand.kind === 'variable') {
+          add(operand.id);
+        }
+      }
+    }
+  };
   for (const control of controls) {
     for (const binding of control.stateBindings ?? []) {
       add(binding.variableId);
     }
     if (control.scenario) {
       walkSteps(control.scenario, (step) => {
-        if (step.kind === 'if' && step.condition.kind === 'compare') {
-          for (const operand of [step.condition.left, step.condition.right]) {
-            if (operand.kind === 'variable') {
-              add(operand.id);
-            }
-          }
+        if (step.kind === 'if') {
+          addPredicate(step.condition);
         }
       });
+    }
+  }
+  for (const page of pages) {
+    for (const rule of page.autoSwitch?.rules ?? []) {
+      addPredicate(rule);
     }
   }
   return [...selections.values()];
@@ -195,15 +208,7 @@ export function usedApps(controls: readonly ControlConfig[]): string[] {
   return [...used];
 }
 
-/** Everything to watch: apps used by actions, page auto-switch rules, plus the ones added by hand. */
-export const watchedKeys = (
-  controls: readonly ControlConfig[],
-  manual: readonly string[],
-  pages: readonly { apps?: readonly string[] }[] = [],
-) => [
-  ...new Set([
-    ...usedApps(controls),
-    ...pages.flatMap((page) => (page.apps ?? []).filter(isAppKey)),
-    ...manual.filter(isAppKey),
-  ]),
+/** Everything to watch: apps used by actions, plus the ones added by hand. */
+export const watchedKeys = (controls: readonly ControlConfig[], manual: readonly string[]) => [
+  ...new Set([...usedApps(controls), ...manual.filter(isAppKey)]),
 ];

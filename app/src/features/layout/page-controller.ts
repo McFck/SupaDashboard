@@ -1,7 +1,8 @@
+import type { PredicateEnvironment } from '../automation/expression';
 import type { VariableStore } from '../automation/variables';
 import type { EventAncestry } from '../plugins/contracts';
 import type { Settings } from '../settings/schema';
-import { pageAfterRemoval, pageById, pageForFocusedApps, swipeablePages } from './pages';
+import { matchedAutoSwitchPage, pageAfterRemoval, pageById, swipeablePages } from './pages';
 
 export type PageChangeReason = 'action' | 'swipe' | 'dot' | 'reconcile' | 'app';
 
@@ -128,19 +129,20 @@ export class PageController {
     return this.change(pages[next].id, reason, ancestry);
   }
 
-  /** Switches to a page bound to a focused app, returning to the prior manual page when unfocused. */
-  syncFocusedApps(focusedKeys: ReadonlySet<string>) {
+  /** Evaluates page auto-switch rules, returning to the prior manual page when rules stop matching. */
+  syncAutoSwitch(env: PredicateEnvironment) {
     if (!this.host.isOwner()) {
       return false;
     }
     const pages = this.host.getDeck().pages;
-    const matched = pageForFocusedApps(pages, focusedKeys);
+    const matched = matchedAutoSwitchPage(pages, env);
     if (matched) {
       if (matched.id === this.lastAutoPage) {
         return false;
       }
       if (!this.lastAutoPage && matched.id !== this.activePage) {
-        this.autoReturnPage = this.activePage;
+        this.autoReturnPage =
+          matched.autoSwitch?.returnOnLeave !== false ? this.activePage : undefined;
       }
       this.lastAutoPage = matched.id;
       return this.change(matched.id, 'app');

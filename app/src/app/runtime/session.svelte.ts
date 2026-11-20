@@ -24,6 +24,7 @@ import {
   type VariableValue,
 } from '../../features/automation/variables';
 import { newId, type Trigger } from '../../features/automation/scenario';
+import type { PredicateEnvironment } from '../../features/automation/expression';
 import {
   PageController,
   syncActivePageVariable,
@@ -92,6 +93,7 @@ export class RuntimeSession {
   readonly effects = new EffectRuntime(() => this.publish());
   readonly execution: ExecutionEngine;
   private readonly runner: ScenarioRunner;
+  private readonly predicateEnv: PredicateEnvironment;
   private readonly quickActions = new Set<AbortController>();
   private readonly content: ContentController;
   private readonly status: StatusController;
@@ -153,13 +155,17 @@ export class RuntimeSession {
     });
     this.events.register({ id: 'variables.changed', title: 'Variable changed', plugin: 'core' });
     this.events.register({ id: 'page.changed', title: 'Page changed', plugin: 'core' });
-    this.runner = new ScenarioRunner({
-      effect: (packet, effect, signal) => this.effects.start(packet, effect, signal),
-      runAction: (ref, context) => runAction(ref, context),
+    const env: PredicateEnvironment = {
       getVariable: (id) => this.variables.getValue(id),
       findVariable: (name) => this.variables.findByName(name)?.value,
-      setVariable: async (id, value, ancestry) => this.setVariable(id, value, ancestry),
       getState: (id) => this.getState(id),
+    };
+    this.predicateEnv = env;
+    this.runner = new ScenarioRunner({
+      ...env,
+      effect: (packet, effect, signal) => this.effects.start(packet, effect, signal),
+      runAction: (ref, context) => runAction(ref, context),
+      setVariable: async (id, value, ancestry) => this.setVariable(id, value, ancestry),
       setState: (id, stateId) => this.setState(id, stateId),
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(id, parameter, payload, ancestry),
@@ -223,6 +229,7 @@ export class RuntimeSession {
         const pages = settings.deck.pages;
         this.pages.reconcile(pages);
         this.applets.sync(pages.map((page) => page.applet));
+        this.pages.syncAutoSwitch(this.predicateEnv);
       });
       $effect(() => {
         // Separate settings resolve per page, so the shown page decides the values the runtime sees.
@@ -233,9 +240,7 @@ export class RuntimeSession {
     syncActivePageVariable(this.variables, this.pages.activePage);
     this.publish();
     this.stopClock = startClock(this.variables);
-    this.stopApps = startAppWatcher(this.variables, this.onAppsFailed, (focused) =>
-      this.pages.syncFocusedApps(focused),
-    );
+    this.stopApps = startAppWatcher(this.variables, this.onAppsFailed);
     current = this;
   }
 
@@ -245,17 +250,16 @@ export class RuntimeSession {
     if (persistentChanged) {
       this.saver.schedule();
     }
+    this.pages.syncAutoSwitch(this.predicateEnv);
     for (const [id, record] of Object.entries(snapshot.records)) {
       if (Object.hasOwn(this.lastValues, id) && this.lastValues[id] !== record.value) {
-        const payload = {
+        const { value, definition } = record;
+        void this.emitEvent(
+          'variables.changed',
           id,
-          oldValue: this.lastValues[id],
-          value: record.value,
-          type: record.definition.type,
-        };
-        void this.emitEvent('variables.changed', id, payload, this.variableAncestry.get(id)).catch(
-          () => {},
-        );
+          { id, oldValue: this.lastValues[id], value, type: definition.type },
+          this.variableAncestry.get(id),
+        ).catch(() => {});
       }
     }
     this.lastValues = valuesOf(snapshot);
@@ -279,19 +283,17 @@ export class RuntimeSession {
     }
     const controller = new AbortController();
     this.quickActions.add(controller);
+    const packet: TriggerPacket = {
+      controlId: '',
+      itemId: '',
+      trigger: 'press',
+      interactionId: newId(),
+      sourceStateId: '',
+      capturedAt: Date.now(),
+      steps: [{ id: 'quick-action', kind: 'action', action: ref }],
+    };
     try {
-      const result = await this.runner.run(
-        {
-          controlId: '',
-          itemId: '',
-          trigger: 'press',
-          interactionId: newId(),
-          sourceStateId: '',
-          capturedAt: Date.now(),
-          steps: [{ id: 'quick-action', kind: 'action', action: ref }],
-        },
-        controller.signal,
-      );
+      const result = await this.runner.run(packet, controller.signal);
       if (result.status === 'failed' && result.failure) {
         this.onFailure(result.failure);
       }

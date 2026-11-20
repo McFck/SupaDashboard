@@ -1,13 +1,12 @@
 <script lang="ts">
   // The inspector with nothing selected: the page's applet, the canvas backdrop and the grid geometry of the page.
-  import X from '@lucide/svelte/icons/x';
+  import Workflow from '@lucide/svelte/icons/workflow';
+  import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
   import { Slider } from '$lib/components/ui/slider';
   import { Switch } from '$lib/components/ui/switch';
   import * as ToggleGroup from '$lib/components/ui/toggle-group';
   import Choice from '../../plugins/ui/Choice.svelte';
-  import ParamControl from '../../plugins/ui/ParamControl.svelte';
-  import type { Param } from '../../plugins/contracts';
   import { applets } from '../../plugins/registry';
   import { appletFor } from '../../applets/deck';
   import ColorField from '$lib/components/ColorField.svelte';
@@ -16,17 +15,9 @@
   import type { Page } from '../../settings/schema';
   import { commit, labelEdit } from '../history.svelte';
   import { ICON_SCALE, LABEL_SCALE } from '../../settings/defaults';
-  import { setPageApplet, setPageApps, setPageHidden } from '../page-commands';
+  import { setPageApplet, setPageHidden } from '../page-commands';
   import { finishGridResize } from '../slot-edits';
-  import { appLabel, isAppKey } from '../../apps/keys';
-  import {
-    appKeyForName,
-    appManual,
-    appOption,
-    appParam,
-    isOfferedApp,
-    rememberApp,
-  } from '../../apps/picker.svelte';
+  import AutoSwitchEditor from './AutoSwitchEditor.svelte';
   import Row from '../../../panel/ui/Row.svelte';
   import Section from '../../../panel/ui/Section.svelte';
 
@@ -92,30 +83,8 @@
     }
   }
 
-  let appDraft = $state('');
-
-  function addPageApp(raw: string) {
-    const key = isAppKey(raw) ? raw : appKeyForName(raw);
-    if (!key) {
-      return;
-    }
-    rememberApp(key);
-    appDraft = '';
-    setPageApps(page.id, [...(page.apps ?? []), key]);
-  }
-
-  function removePageApp(key: string) {
-    setPageApps(
-      page.id,
-      (page.apps ?? []).filter((entry) => entry !== key),
-    );
-  }
-
-  const pageAppParam: Param = {
-    ...appParam,
-    label: 'Add app',
-    manual: { browse: appManual.browse, keep: addPageApp },
-  };
+  let autoSwitchOpen = $state(false);
+  const autoSwitchCount = $derived(page.autoSwitch?.rules.length ?? 0);
 
   /** Grid size when the current slider gesture started. */
   let gridBefore: { rows: number; cols: number } | undefined;
@@ -169,45 +138,21 @@
         onCheckedChange={(checked) => setPageHidden(page.id, checked)}
       />
     </Row>
-    <Row
-      label="Auto-switch apps"
-      for="page-apps"
-      wide
-    >
-      <div class="grid min-w-0 gap-2">
-        <ParamControl
-          id="page-apps"
-          param={pageAppParam}
-          value={appDraft}
-          onchange={(next) => {
-            appDraft = String(next);
-            if (isOfferedApp(appDraft)) {
-              addPageApp(appDraft);
-            }
-          }}
-        />
-        {#if page.apps?.length}
-          <div class="grid gap-1">
-            {#each page.apps as key (key)}
-              {@const option = appOption(key)}
-              <div class="flex min-w-0 items-center gap-2 rounded-md bg-white/[.04] px-2.5 py-1.5">
-                <span class="min-w-0 flex-1 truncate text-sm">
-                  {option.label || appLabel(key)}
-                </span>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label="Remove {option.label || appLabel(key)}"
-                  onclick={() => removePageApp(key)}
-                >
-                  <X class="size-3.5" />
-                </Button>
-              </div>
-            {/each}
-          </div>
+    <div class="pt-1">
+      <Button
+        variant="secondary"
+        class="w-full justify-between"
+        onclick={() => (autoSwitchOpen = true)}
+      >
+        <span class="flex items-center gap-2"><Workflow />Auto-switch</span>
+        {#if autoSwitchCount > 0}
+          <Badge
+            variant="outline"
+            class="tabular-nums">{autoSwitchCount}</Badge
+          >
         {/if}
-      </div>
-    </Row>
+      </Button>
+    </div>
   </Section>
   <Section title="Canvas">
     <Row label="Background">
@@ -328,3 +273,7 @@
     </Section>
   {/if}
 </div>
+<AutoSwitchEditor
+  bind:open={autoSwitchOpen}
+  {page}
+/>
