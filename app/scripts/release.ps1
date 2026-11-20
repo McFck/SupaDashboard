@@ -8,7 +8,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Invoke-Checked($Command, [string[]]$CommandArgs) {
-    $native = Get-Command $Command -CommandType Application -ErrorAction Stop
+    # PATH can hold several copies of a tool (e.g. two git.exe); use the first, as the shell would.
+    $native = Get-Command $Command -CommandType Application -ErrorAction Stop | Select-Object -First 1
     # Windows PowerShell can emit normal native stderr as errors when output is redirected.
     $ErrorActionPreference = 'Continue'
     & $native @CommandArgs
