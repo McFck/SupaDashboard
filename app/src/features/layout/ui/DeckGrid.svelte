@@ -2,6 +2,7 @@
   import type { Component } from 'svelte';
   import { onDestroy } from 'svelte';
   import Link2 from '@lucide/svelte/icons/link-2';
+  import Puzzle from '@lucide/svelte/icons/puzzle';
   import type { ControlConfig, ControlFaceProps, TilePresentation } from '../../controls/model';
   import { commit } from '../history.svelte';
   import {
@@ -393,9 +394,15 @@
             />
           {:else}
             <div
-              class="grid h-full place-items-center rounded-[var(--tile-radius,22px)] bg-white/[.06] p-2 text-center text-sm text-muted-foreground"
+              class="unavailable-tile flex h-full w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[var(--tile-radius,22px)] border border-dashed border-white/15 bg-[#14161b] px-3 py-2 text-center"
             >
-              {control.name || control.type}<span>Plugin unavailable</span>
+              <Puzzle class="size-5 shrink-0 text-muted-foreground/65" />
+              <span class="max-w-full truncate text-xs font-medium text-foreground/80">
+                {control.name || control.type}
+              </span>
+              <span class="max-w-full truncate text-[11px] text-muted-foreground/70">
+                Plugin unavailable
+              </span>
             </div>
           {/if}
         </div>
@@ -458,6 +465,15 @@
 </div>
 
 <style>
+  .unavailable-tile {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 10px,
+      rgb(255 255 255 / 0.022) 10px,
+      rgb(255 255 255 / 0.022) 20px
+    );
+  }
   :global([data-dashboard-tile]),
   :global([data-dashboard-tile] *) {
     -webkit-app-region: no-drag;
