@@ -1,4 +1,5 @@
 // Page edits applied to the live settings as one undo step each. They return the page to select afterwards.
+import { isAppKey } from '../apps/keys';
 import { settings } from '../settings/state.svelte';
 import { commit } from './history.svelte';
 import {
@@ -65,6 +66,34 @@ export function setPageApplet(pageId: string, appletId: string | undefined) {
   commit('Change applet');
   const { applet: _previous, ...rest } = page;
   const next = appletId ? { ...rest, applet: appletId } : rest;
+  settings.deck.pages = settings.deck.pages.map((entry) => (entry.id === pageId ? next : entry));
+}
+
+/** Excludes or includes a page in swipe navigation and page dots. */
+export function setPageHidden(pageId: string, hidden: boolean) {
+  const page = settings.deck.pages.find((entry) => entry.id === pageId);
+  if (!page || Boolean(page.hidden) === hidden) {
+    return;
+  }
+  commit(hidden ? 'Hide page from swipe' : 'Show page in swipe');
+  const { hidden: _previous, ...rest } = page;
+  const next = hidden ? { ...rest, hidden: true } : rest;
+  settings.deck.pages = settings.deck.pages.map((entry) => (entry.id === pageId ? next : entry));
+}
+
+/** Binds apps that automatically switch the dashboard to this page when focused. */
+export function setPageApps(pageId: string, apps: readonly string[]) {
+  const page = settings.deck.pages.find((entry) => entry.id === pageId);
+  if (!page) {
+    return;
+  }
+  const clean = [...new Set(apps.filter(isAppKey))];
+  if (JSON.stringify(page.apps ?? []) === JSON.stringify(clean)) {
+    return;
+  }
+  commit('Page apps');
+  const { apps: _previous, ...rest } = page;
+  const next = clean.length ? { ...rest, apps: clean } : rest;
   settings.deck.pages = settings.deck.pages.map((entry) => (entry.id === pageId ? next : entry));
 }
 

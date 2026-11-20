@@ -29,7 +29,7 @@ describe('settings v23 linked widgets', () => {
     saved.variants.prev = 1;
 
     const loaded = migrate(saved);
-    expect(loaded.version).toBe(23);
+    expect(loaded.version).toBe(24);
     expect(loaded.deck.pages[0].items.map((item) => item.control)).toEqual(['prev', 'prev']);
     expect(loaded.deck.pages[1].items.map((item) => item.control)).toEqual(['prev']);
     expect(loaded.appletLayouts.subway['page-1'].strip[0].control).toBe('prev');

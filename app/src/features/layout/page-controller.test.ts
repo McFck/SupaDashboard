@@ -1,42 +1,77 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { DEFAULTS } from '../settings/defaults';
+import type { Page } from '../settings/schema';
 import { PageController } from './page-controller';
 
-function fixture() {
-  const deck = structuredClone(DEFAULTS.deck);
-  deck.pages = ['a', 'b', 'c'].map((id) => ({ ...deck.pages[0], id, items: [] }));
-  deck.activePage = 'a';
-  const pages = new PageController({
+const makePage = (id: string, extra: Partial<Page> = {}): Page => ({
+  ...structuredClone(DEFAULTS.deck.pages[0]),
+  id,
+  name: id,
+  items: [],
+  ...extra,
+});
+
+function createController(pages: Page[], activePage = pages[0].id) {
+  const deck = { pages, activePage };
+  const events: { page: string; reason: string }[] = [];
+  const controller = new PageController({
     getDeck: () => deck,
     isOwner: () => true,
     onChange: () => {},
-    emitEvent: async () => {},
+    emitEvent: async (_id, _param, payload) => {
+      const data = payload as { page: string; reason: string };
+      events.push({ page: data.page, reason: data.reason });
+    },
     onEventFailure: () => {},
   });
-  return { deck, pages };
+  return { deck, controller, events };
 }
 
-it('toggles back to the page left by real navigation without remembering no-op changes', () => {
-  const { pages } = fixture();
-  expect(pages.back()).toBe(false);
-  pages.changeInDirection('next', 'swipe');
-  pages.change('c', 'action');
-  expect(pages.change('c')).toBe(false);
-  expect(pages.change('missing')).toBe(false);
-  expect(pages.back()).toBe(true);
-  expect(pages.activePage).toBe('b');
-  expect(pages.back()).toBe(true);
-  expect(pages.activePage).toBe('c');
-});
+describe('page navigation controller', () => {
+  it('skips hidden sub-pages during directional navigation and unwinds nested back history', () => {
+    const { controller } = createController([
+      makePage('main'),
+      makePage('sub', { hidden: true }),
+      makePage('media'),
+      makePage('deep', { hidden: true }),
+    ]);
 
-it('ignores a deleted remembered page and remembers subsequent navigation', () => {
-  const { deck, pages } = fixture();
-  pages.change('b', 'swipe');
-  deck.pages = deck.pages.filter((page) => page.id !== 'a');
-  pages.reconcile();
-  expect(pages.back()).toBe(false);
-  expect(pages.activePage).toBe('b');
-  pages.change('c', 'action');
-  expect(pages.back()).toBe(true);
-  expect(pages.activePage).toBe('b');
+    expect(controller.activePage).toBe('main');
+    expect(controller.changeInDirection('next', 'action')).toBe(true);
+    expect(controller.activePage).toBe('media');
+
+    // Drill into nested hidden sub-pages and pop back step by step.
+    expect(controller.change('sub', 'action')).toBe(true);
+    expect(controller.change('deep', 'action')).toBe(true);
+    expect(controller.back()).toBe(true);
+    expect(controller.activePage).toBe('sub');
+    expect(controller.back()).toBe(true);
+    expect(controller.activePage).toBe('media');
+    expect(controller.back()).toBe(true);
+    expect(controller.activePage).toBe('main');
+    expect(controller.back()).toBe(false);
+  });
+
+  it('auto-switches on focused app, returns when unfocused, and never fights a manual swipe', () => {
+    const { controller } = createController([
+      makePage('main'),
+      makePage('work', { apps: ['exe:C:\\Apps\\Code.exe'] }),
+      makePage('media'),
+    ]);
+
+    // Focus bound app -> switches to work.
+    expect(controller.syncFocusedApps(new Set(['exe:C:\\Apps\\Code.exe']))).toBe(true);
+    expect(controller.activePage).toBe('work');
+
+    // Unfocus -> returns to main.
+    expect(controller.syncFocusedApps(new Set())).toBe(true);
+    expect(controller.activePage).toBe('main');
+
+    // Focus bound app again, then user manually swipes to media -> unfocusing must not snap back.
+    expect(controller.syncFocusedApps(new Set(['exe:C:\\Apps\\Code.exe']))).toBe(true);
+    expect(controller.activePage).toBe('work');
+    expect(controller.change('media', 'swipe')).toBe(true);
+    expect(controller.syncFocusedApps(new Set())).toBe(false);
+    expect(controller.activePage).toBe('media');
+  });
 });

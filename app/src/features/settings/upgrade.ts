@@ -356,6 +356,9 @@ export function upgrade(input: Record<string, unknown>) {
   if (saved.version === 22) {
     saved = { ...saved, version: 23 };
   }
+  if (saved.version === 23) {
+    saved = { ...saved, version: 24 };
+  }
   if (display.monitorLabel != null && typeof display.monitorLabel !== 'string') {
     throw new Error('Monitor label must be text');
   }

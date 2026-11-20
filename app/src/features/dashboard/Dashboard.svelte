@@ -6,7 +6,7 @@
   import AppletHost from '../applets/AppletHost.svelte';
   import { appletFor } from '../applets/deck';
   import { settings } from '../settings/state.svelte';
-  import { pageById } from '../layout/pages';
+  import { pageById, swipeablePages } from '../layout/pages';
   import { runtimeView } from '../../app/runtime/state';
   import { setMediaContentPages } from '../media/content-visibility';
   import { runtimeCommands } from '../../app/runtime/commands';
@@ -24,7 +24,11 @@
     pageById(settings.deck.pages, $runtimeView.activePage || settings.deck.activePage)!,
   );
   const bg = $derived(settings.display.background);
-  const showDots = $derived(settings.deck.pages.length > 1);
+  const carouselPages = $derived(swipeablePages(settings.deck.pages));
+  const pagerPages = $derived(
+    carouselPages.some((candidate) => candidate.id === page.id) ? carouselPages : [page],
+  );
+  const showDots = $derived(carouselPages.length > 1);
 
   let shell: HTMLDivElement;
   let pageHost: HTMLDivElement;
@@ -37,7 +41,7 @@
   );
   const pager = new Pager({
     shell: () => shell,
-    pages: () => settings.deck.pages,
+    pages: () => pagerPages,
     pageId: () => page.id,
     fullscreen: () => dashboard.appliedFullscreen,
     canDragWindow: () => isTauri() && !dashboard.appliedFullscreen,
@@ -172,7 +176,7 @@
   </div>
   {#if showDots}
     <PageDots
-      pages={settings.deck.pages}
+      pages={carouselPages}
       currentId={page.id}
       onselect={goToPage}
     />

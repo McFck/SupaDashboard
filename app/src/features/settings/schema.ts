@@ -14,6 +14,10 @@ export type Page = {
   items: Item[];
   /** Applet shown on this page; absent means the built-in deck. Unknown ids are kept. */
   applet?: string;
+  /** Excluded from left/right swipe and page dots; entered via actions or app auto-switch. */
+  hidden?: boolean;
+  /** App keys (`aumid:…` / `exe:…`) that automatically switch the dashboard to this page when focused. */
+  apps?: string[];
 };
 
 export type AppletSettingsEntry = {
@@ -26,7 +30,7 @@ export type AppletSettingsEntry = {
 export type Deck = { pages: Page[]; activePage: string };
 
 export type Settings = {
-  version: 23;
+  version: 24;
   display: {
     monitor: string | null;
     monitorLabel: string | null;

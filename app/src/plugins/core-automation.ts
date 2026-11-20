@@ -156,4 +156,12 @@ export function registerCoreAutomation(api: PluginApi) {
       readOnly: true,
     });
   }
+  api.registerVariable({
+    id: 'page.active',
+    name: 'Active page',
+    type: 'string',
+    initialValue: '',
+    persistent: false,
+    readOnly: true,
+  });
 }

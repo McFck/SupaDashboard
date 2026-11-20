@@ -195,7 +195,15 @@ export function usedApps(controls: readonly ControlConfig[]): string[] {
   return [...used];
 }
 
-/** Everything to watch: apps used by actions, plus the ones added by hand. */
-export const watchedKeys = (controls: readonly ControlConfig[], manual: readonly string[]) => [
-  ...new Set([...usedApps(controls), ...manual.filter(isAppKey)]),
+/** Everything to watch: apps used by actions, page auto-switch rules, plus the ones added by hand. */
+export const watchedKeys = (
+  controls: readonly ControlConfig[],
+  manual: readonly string[],
+  pages: readonly { apps?: readonly string[] }[] = [],
+) => [
+  ...new Set([
+    ...usedApps(controls),
+    ...pages.flatMap((page) => (page.apps ?? []).filter(isAppKey)),
+    ...manual.filter(isAppKey),
+  ]),
 ];

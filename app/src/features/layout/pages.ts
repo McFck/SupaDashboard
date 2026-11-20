@@ -174,6 +174,23 @@ export function pageById(pages: readonly Page[], id: string | undefined) {
   return pages.find((page) => page.id === id) ?? pages[0];
 }
 
+/** Pages included in swipe navigation and page dots; falls back to all pages if every page is hidden. */
+export function swipeablePages(pages: readonly Page[]): Page[] {
+  const visible = pages.filter((page) => !page.hidden);
+  return visible.length ? visible : [...pages];
+}
+
+/** First page in tab order whose bound apps include any currently focused app key. */
+export function pageForFocusedApps(
+  pages: readonly Page[],
+  focusedKeys: ReadonlySet<string>,
+): Page | undefined {
+  if (!focusedKeys.size) {
+    return undefined;
+  }
+  return pages.find((page) => page.apps?.some((key) => focusedKeys.has(key)));
+}
+
 export function pageAfterRemoval(
   pages: readonly Page[],
   removedId: string,

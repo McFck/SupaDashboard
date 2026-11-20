@@ -24,7 +24,11 @@ import {
   type VariableValue,
 } from '../../features/automation/variables';
 import { newId, type Trigger } from '../../features/automation/scenario';
-import { PageController, type PageChangeReason } from '../../features/layout/page-controller';
+import {
+  PageController,
+  syncActivePageVariable,
+  type PageChangeReason,
+} from '../../features/layout/page-controller';
 import { hasPlacement, storedPlacements } from '../../features/layout/placements';
 import { ContentController } from '../../features/media/content-controller';
 import { StatusController } from '../../features/media/status-controller';
@@ -123,18 +127,12 @@ export class RuntimeSession {
       isOwner: () => this.isOwner,
       onChange: () => {
         this.effects.clear();
+        syncActivePageVariable(this.variables, this.pages.activePage);
         this.publish();
       },
       emitEvent: (id, parameter, payload, ancestry) =>
         this.emitEvent(id, parameter, payload, ancestry),
-      onEventFailure: () =>
-        this.onFailure({
-          controlId: '',
-          itemId: '',
-          trigger: 'event',
-          stepId: 'page.changed',
-          kind: 'condition',
-        }),
+      onEventFailure: () => this.reportEventFailure('page.changed', 'condition'),
     });
     this.applets = new AppletController({
       definitions: registeredApplets,
@@ -207,6 +205,7 @@ export class RuntimeSession {
       unregisterEvent: (id) => this.events.unregister(id),
       registrationsChanged: () => {
         this.applets.start(settings.deck.pages.map((page) => page.applet));
+        syncActivePageVariable(this.variables, this.pages.activePage);
         this.reconcile(settings.controls);
         this.publish();
       },
@@ -231,9 +230,12 @@ export class RuntimeSession {
         this.applets.reconcile(runtimeAppletValues(settings, activePage));
       });
     });
+    syncActivePageVariable(this.variables, this.pages.activePage);
     this.publish();
     this.stopClock = startClock(this.variables);
-    this.stopApps = startAppWatcher(this.variables, this.onAppsFailed);
+    this.stopApps = startAppWatcher(this.variables, this.onAppsFailed, (focused) =>
+      this.pages.syncFocusedApps(focused),
+    );
     current = this;
   }
 
@@ -397,15 +399,12 @@ export class RuntimeSession {
         return this.dispatch(packet);
       },
       ancestry,
-      () =>
-        this.onFailure({
-          controlId: '',
-          itemId: '',
-          trigger: 'event',
-          stepId: 'cycle',
-          kind: 'cycle',
-        }),
+      () => this.reportEventFailure('cycle', 'cycle'),
     );
+  }
+
+  private reportEventFailure(stepId: string, kind: ScenarioFailure['kind']) {
+    this.onFailure({ controlId: '', itemId: '', trigger: 'event', stepId, kind });
   }
 
   reconcile(controls: Settings['controls']) {

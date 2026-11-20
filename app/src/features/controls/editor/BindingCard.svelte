@@ -11,6 +11,7 @@
   import { stateChoices } from '../variants';
   import type { Scalar, StateBinding } from '../../automation/scenario';
   import { runtimeView } from '../../../app/runtime/state';
+  import { settings } from '../../settings/state.svelte';
   import { parseVariableText, type VariableType } from '../../automation/variables';
   import Choice from '../../plugins/ui/Choice.svelte';
   import SuggestionInput from '../../plugins/ui/SuggestionInput.svelte';
@@ -77,7 +78,14 @@
           { value: 'true', label: 'True' },
         ],
   );
-  const valueOptions = $derived(variable?.definition.options);
+  const pageOptions = $derived(
+    binding.variableId === 'page.active'
+      ? settings.deck.pages.map((page) => ({ value: page.id, label: page.name }))
+      : undefined,
+  );
+  const valueOptions = $derived(
+    pageOptions ? pageOptions.map((option) => option.value) : variable?.definition.options,
+  );
 
   function setVariable(id: string) {
     if (id === (appField ? pendingAppVariable(appField) : binding.variableId)) return;
@@ -219,6 +227,18 @@
               options={booleanLabels}
               aria-label="Mapped value"
               onchange={(value) => updateCase(index, { value: value === 'true' })}
+            />
+          {:else if pageOptions}
+            <Choice
+              value={String(item.value)}
+              options={[
+                ...pageOptions,
+                ...(item.value && !pageOptions.some((option) => option.value === item.value)
+                  ? [{ value: String(item.value), label: String(item.value), unavailable: true }]
+                  : []),
+              ]}
+              aria-label="Mapped value"
+              onchange={(value) => updateCase(index, { value })}
             />
           {:else if valueOptions}
             <Choice

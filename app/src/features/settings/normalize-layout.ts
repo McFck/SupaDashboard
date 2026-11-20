@@ -2,6 +2,7 @@ import type { Item } from '../layout/grid';
 import type { AppletSettingsEntry, Page, Settings } from './schema';
 import { DEFAULT_PAGE } from './defaults';
 import { isRecord } from '../automation/plain-data';
+import { isAppKey } from '../apps/keys';
 import { object, positiveInteger } from './upgrade';
 
 function normalizeItems(raw: unknown, itemIds: Set<string>): Item[] {
@@ -76,6 +77,16 @@ function normalizePage(
     typeof source.name === 'string' && source.name.trim()
       ? source.name.trim()
       : `Page ${index + 1}`;
+  let apps: string[] | undefined;
+  if (source.apps !== undefined) {
+    if (!Array.isArray(source.apps) || !source.apps.every(isAppKey)) {
+      throw new Error('Page apps must be a list of app keys');
+    }
+    const unique = [...new Set(source.apps)];
+    if (unique.length) {
+      apps = unique;
+    }
+  }
   return {
     id,
     name,
@@ -88,6 +99,8 @@ function normalizePage(
     ...(typeof source.applet === 'string' && source.applet.length <= 128 && source.applet
       ? { applet: source.applet }
       : {}),
+    ...(source.hidden === true ? { hidden: true } : {}),
+    ...(apps ? { apps } : {}),
   };
 }
 

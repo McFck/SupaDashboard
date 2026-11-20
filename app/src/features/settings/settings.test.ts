@@ -44,7 +44,7 @@ describe('settings migration', () => {
       slots: { 'bottom-strip': ['prev'], dock: ['prev'] },
     };
     const s = migrate(v1);
-    expect(s.version).toBe(23);
+    expect(s.version).toBe(24);
     expect(s.deck.pages[0].applet).toBe('subway');
     expect(s.display).toMatchObject({
       monitor: 'X',
@@ -313,7 +313,7 @@ describe('settings migration', () => {
       pageRotation: { intervalSeconds: 10 },
     };
     const migrated = migrate(interrupted);
-    expect(migrated).toMatchObject({ version: 23, deck: { pages: [{ applet: 'subway' }] } });
+    expect(migrated).toMatchObject({ version: 24, deck: { pages: [{ applet: 'subway' }] } });
     expect(migrated).not.toHaveProperty('pageRotation');
   });
 
@@ -391,7 +391,7 @@ describe('settings v7 to v8', () => {
     'moves skin %s to the pages and the settings and layouts to the applet keys',
     (_, skin, applets) => {
       const migrated = migrate(v7File(skin));
-      expect(migrated.version).toBe(23);
+      expect(migrated.version).toBe(24);
       expect(migrated).not.toHaveProperty('skin');
       expect(migrated).not.toHaveProperty('skinSettings');
       expect(migrated).not.toHaveProperty('skinLayouts');
@@ -454,7 +454,7 @@ describe('settings v9 to v10', () => {
       },
     };
     const migrated = migrate(file);
-    expect(migrated.version).toBe(23);
+    expect(migrated.version).toBe(24);
     expect(migrated.appletLayouts.subway['page-1']).toEqual({
       strip: [
         ...strip,

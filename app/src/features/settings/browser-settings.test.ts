@@ -46,7 +46,7 @@ describe('settings v21 to v22', () => {
     const workTabs = { ...tabs, id: 'work-tabs', name: 'Work tabs' };
     const touchpad = { ...tabs, id: 'touchpad', type: 'webcompanionTouchpad', name: 'Touchpad' };
     const loaded = migrate({ ...saved, version: 21, controls: [tabs, workTabs, touchpad] });
-    expect(loaded.version).toBe(23);
+    expect(loaded.version).toBe(24);
     expect(loaded.controls).toEqual([
       { ...tabs, type: 'webcompanionTabs' },
       { ...workTabs, type: 'webcompanionTabs' },
