@@ -4,9 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const app = path.resolve(import.meta.dirname, '..');
-const roots = process.env.SUPADASHBOARD_PLUGIN_FOLDERS?.split(path.delimiter) ?? [
-  '../../supadashboard-plugins/plugins',
-];
+const roots =
+  process.env.SUPADASHBOARD_PLUGIN_FOLDERS?.split(path.delimiter) ?? (await siblingPluginFolders());
 const plugins = [];
 for (const root of roots.filter(Boolean)) {
   const directory = path.resolve(app, root);
@@ -32,6 +31,18 @@ const stopped = new Promise((resolve) => {
 });
 process.once('SIGINT', () => stop(130));
 process.once('SIGTERM', () => stop(143));
+
+/** The `plugins` folder of every sibling `supadashboard-*` checkout. */
+async function siblingPluginFolders() {
+  const projects = path.resolve(app, '../..');
+  const folders = (await readdir(projects))
+    .filter((name) => name.startsWith('supadashboard-'))
+    .map((name) => path.join(projects, name, 'plugins'));
+  const found = await Promise.all(
+    folders.map(async (folder) => (await stat(folder, { throwIfNoEntry: false }))?.isDirectory()),
+  );
+  return folders.filter((_, index) => found[index]);
+}
 
 async function run() {
   const staged = await Promise.all(
