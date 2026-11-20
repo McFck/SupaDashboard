@@ -321,4 +321,36 @@ describe('applet size overrides', () => {
     );
     expect(canSetLayoutItems(source, target, [{ ...item('fits', 'w', 0), w: 2, h: 2 }])).toBe(true);
   });
+
+  it('allows editing a page that already contains unavailable plugin widgets while rejecting new ones', () => {
+    controlTypes.set(deckTypeId, {
+      type: deckTypeId,
+      title: 'Button',
+      icon: 'Square',
+      component: {} as any,
+      size: { w: 1, h: 1 },
+      create: () => ({ name: 'Button', variants: [] }),
+    } as any);
+    const source = structuredClone(DEFAULTS);
+    const unavailable = { id: 'missing-item', control: 'missing-control', x: 0, y: 0, w: 3, h: 2 };
+    source.deck.pages[0].items = [unavailable];
+    source.controls = [
+      { id: 'missing-control', name: 'Tabs', type: 'unavailablePluginType', variants: [] },
+      { id: 'btn', name: 'Button', type: deckTypeId, variants: [] },
+    ] as any;
+    const target = { appletId: 'deck', pageId: source.deck.pages[0].id, slotId: 'main' };
+
+    expect(
+      setLayoutItems(source, target, [
+        unavailable,
+        { id: 'placed-btn', control: 'btn', x: 3, y: 0, w: 1, h: 1 },
+      ]),
+    ).toBe(true);
+    expect(
+      canSetLayoutItems(source, target, [
+        unavailable,
+        { id: 'new-missing', control: 'missing-control', x: 3, y: 0, w: 3, h: 2 },
+      ]),
+    ).toBe(false);
+  });
 });

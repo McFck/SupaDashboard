@@ -99,7 +99,7 @@ export function canSetLayoutItems(source: Settings, target: LayoutTarget, items:
   return (
     !!current.slot &&
     !!current.geometry &&
-    validSlotItems(source, target.appletId, current.slot, current.geometry, items)
+    validSlotItems(source, target.appletId, current.slot, current.geometry, items, current.items)
   );
 }
 
@@ -265,27 +265,43 @@ function validSlotItems(
   slot: AppletSlot,
   geometry: LayoutGeometry,
   items: readonly Item[],
+  existingItems: readonly Item[],
 ) {
   const grid: Grid = { rows: geometry.rows, cols: geometry.cols };
   if (slot.max !== undefined && items.length > slot.max) return false;
   const seenItems = new Set<string>(),
     accepted = slot.accepts && new Set(slot.accepts);
+  const existingById = new Map(existingItems.map((entry) => [entry.id, entry]));
   const placed: Item[] = [];
   for (const item of items) {
     if (!validItem(item) || seenItems.has(item.id)) return false;
     const control: ControlConfig | undefined = source.controls.find(
       (entry) => entry.id === item.control,
     );
-    if (!control || (accepted && !accepted.has(control.type))) return false;
-    const bounds = effectiveSize(appletId, slot, control.type);
-    if (
-      !bounds ||
-      item.w < bounds.min.w ||
-      item.h < bounds.min.h ||
-      item.w > bounds.max.w ||
-      item.h > bounds.max.h
-    )
-      return false;
+    if (!control) return false;
+    if (controlTypes.has(control.type)) {
+      if (accepted && !accepted.has(control.type)) return false;
+      const bounds = effectiveSize(appletId, slot, control.type);
+      if (
+        !bounds ||
+        item.w < bounds.min.w ||
+        item.h < bounds.min.h ||
+        item.w > bounds.max.w ||
+        item.h > bounds.max.h
+      )
+        return false;
+    } else {
+      // Keep already-placed unavailable plugin widgets intact so editing other widgets on the page still works.
+      const existing = existingById.get(item.id);
+      if (
+        !existing ||
+        existing.control !== item.control ||
+        existing.w !== item.w ||
+        existing.h !== item.h
+      ) {
+        return false;
+      }
+    }
     if (!fits(placed, item, grid)) return false;
     seenItems.add(item.id);
     placed.push(item);
