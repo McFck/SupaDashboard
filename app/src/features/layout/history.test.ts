@@ -331,7 +331,7 @@ describe('settings history', () => {
       settings.appletLayouts = duplicated.appletLayouts;
       const copiedAppletItem = settings.appletLayouts.subway[duplicated.page.id].strip[0];
       expect(copiedAppletItem.id).not.toBe('applet-history-item');
-      expect(copiedAppletItem.control).not.toBe(appletControl.id);
+      expect(copiedAppletItem.control).toBe(appletControl.id);
       expect(settings.appletLayouts.unavailable[duplicated.page.id].removed).toEqual([]);
       record('Duplicate page');
       settings.deck.pages = reorderPage(settings.deck.pages, secondPage.id, 0)!.pages;
