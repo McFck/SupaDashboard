@@ -1,7 +1,6 @@
 //! Installing, updating and removing plugins in `<app data>/plugins`. A new file lands in a `.staging` file and is
 //! checked there; the current file is kept as `.old-<id>.sdplugin` until the new one is in place and checked again,
-//! and comes back on any failure. The plugin's data (`plugin-data/<id>`) is never touched. The frontend reloads both
-//! windows after.
+//! and comes back on any failure. The plugin's data (`plugin-data/<id>`) is never touched.
 // ponytail: file work (copy, hash, rename) runs on the async worker; move it to spawn_blocking if installs of the
 // largest plugins visibly stall other commands.
 use std::fs;
@@ -9,7 +8,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use tauri::{State, WebviewWindow};
+use tauri::{Manager, State, WebviewWindow};
 
 use super::archive::MAX_PLUGIN;
 use super::catalogue::{Entry, Source};
@@ -17,7 +16,7 @@ use super::manifest::{Manifest, PLUGIN_API, valid_id};
 use super::permissions::Permissions;
 use super::secure::{sha256_hex, valid_sha256};
 use super::trust::Trust;
-use super::{Plugin, PluginHost, load};
+use super::{Plugin, PluginHost, load, notify_changed};
 use crate::panel::require_panel;
 
 fn remove_file(path: &Path) -> Result<(), String> {
@@ -142,21 +141,21 @@ impl PluginHost {
             }
         };
         let root = self.root();
-        let fresh = approve_initial
-            && self.get(&id).is_none()
+        let fresh = self.get(&id).is_none()
             && !installed(&root, &id).exists()
             && !previous(&root, &id).exists();
         // Closes the current file, unless a scheme read holds it a moment longer; then the swap fails cleanly.
         self.take(&id);
         match place(&root, &id, staged, |path| {
             let plugin = load(path).and_then(check)?;
-            if fresh {
+            if fresh && approve_initial {
                 let mut approvals = self.approvals();
                 let store = approvals.as_mut().map_err(|error| error.clone())?;
                 if store.get(&id).is_none() {
                     store.approve(&self.legacy, &id, &plugin.manifest.permissions)?;
                 }
             }
+            self.change_state(|state| state.record_install(&id, fresh))?;
             Ok(plugin)
         }) {
             Ok(plugin) => self.add(plugin),
@@ -247,7 +246,6 @@ pub async fn plugin_install(
     host: State<'_, PluginHost>,
     id: String,
 ) -> Result<(), String> {
-    let _changing = host.changing.lock().await;
     host.require_installed_source(&id)?;
     let source = Source::new();
     let entries = source.catalogue().await?;
@@ -259,14 +257,16 @@ pub async fn plugin_install(
     if bytes.len() as u64 != entry.size || sha256_hex(&bytes)? != entry.sha256 {
         return Err("Plugin file does not match the catalogue".into());
     }
+    let _changing = host.changing.lock().await;
     let staged = host.stage(&bytes, ".staging.sdplugin")?;
-    host.put(
+    let installed = host.put(
         &staged,
         Some(&id),
         require_panel(&window).is_ok(),
         |plugin| matches_catalogue(entry, &plugin.manifest, plugin.trust),
-    )
-    .map(|_| ())
+    );
+    notify_changed(window.app_handle());
+    installed.map(|_| ())
 }
 
 /// A plugin file the user picked, dropped or opened, as the install confirmation shows it. `sha256` names the staged
@@ -318,7 +318,9 @@ pub async fn plugin_install_file(
 ) -> Result<String, String> {
     require_panel(&window)?;
     let _changing = host.changing.lock().await;
-    host.install_inspected(&sha256)
+    let installed = host.install_inspected(&sha256);
+    notify_changed(window.app_handle());
+    installed
 }
 
 /// Deletes the plugin's file; its data, settings and `plugins.json` entry stay.
@@ -334,14 +336,24 @@ pub async fn plugin_uninstall(
     }
     let _changing = host.changing.lock().await;
     host.require_installed_source(&id)?;
+    let enabled = host.state().as_ref().is_ok_and(|state| state.enabled(&id));
+    host.change_state(|state| {
+        state.set_enabled(&id, false);
+        Ok(())
+    })?;
     host.take(&id);
     let path = installed(&host.root(), &id);
     let removed = remove_file(&path);
-    if removed.is_err()
-        && let Ok(plugin) = load(&path)
-    {
-        host.add(plugin);
+    if removed.is_err() {
+        if let Ok(plugin) = load(&path) {
+            host.add(plugin);
+        }
+        host.change_state(|state| {
+            state.set_enabled(&id, enabled);
+            Ok(())
+        })?;
     }
+    notify_changed(window.app_handle());
     removed
 }
 
@@ -380,6 +392,7 @@ mod tests {
                 &legacy,
                 Default::default,
             )),
+            state: std::sync::Mutex::new(Ok(Default::default())),
             legacy,
             changing: Default::default(),
             caps: Default::default(),
@@ -407,7 +420,7 @@ mod tests {
             ..Default::default()
         };
         assert!(host.installed("spike").is_err());
-        assert!(host.ui_file("spike", "ui/index.js").is_none());
+        assert!(host.ui_file("spike", "ui/index.js", None).is_none());
         assert!(host.approve("spike", &Permissions::default()).is_err());
 
         install(&host, "3.0.0", r#"{"displays":true,"process":["app.exe"]}"#);
@@ -420,11 +433,52 @@ mod tests {
         let granted = host.installed("spike").unwrap();
         assert!(granted.manifest.permissions.displays);
         drop(granted);
-        assert!(host.ui_file("spike", "ui/index.js").is_some());
+        assert!(host.ui_file("spike", "ui/index.js", None).is_some());
         install(&host, "5.0.0", "{}");
         let granted = host.installed("spike").unwrap();
         assert!(!granted.manifest.permissions.displays);
         drop(granted);
+        drop(host);
+        fs::remove_dir_all(legacy).unwrap();
+    }
+
+    #[test]
+    fn a_disabled_install_cannot_serve_assets_or_grant_capabilities_even_after_an_update() {
+        let legacy = temp("disabled-install");
+        let host = host(legacy.clone());
+        let install = |version| {
+            let staged = host
+                .stage(&plugin(version, PLUGIN_API), ".staging.sdplugin")
+                .unwrap();
+            host.put(&staged, None, true, |_| Ok(())).unwrap();
+        };
+        install("1.0.0");
+        let generation = host
+            .installed("spike")
+            .unwrap()
+            .revision
+            .load(std::sync::atomic::Ordering::Relaxed);
+        host.change_state(|state| {
+            state.set_enabled("spike", false);
+            Ok(())
+        })
+        .unwrap();
+        install("2.0.0");
+        assert!(host.installed("spike").is_err());
+        assert!(host.ui_file("spike", "ui/index.js", None).is_none());
+        assert!(
+            !super::super::PluginState::load(&legacy)
+                .unwrap()
+                .enabled("spike")
+        );
+        host.take("spike");
+        fs::remove_file(installed(&host.root(), "spike")).unwrap();
+        install("2.0.0");
+        assert!(host.ui_file("spike", "ui/index.js", None).is_some());
+        assert!(
+            host.ui_file("spike", "ui/index.js", Some(generation))
+                .is_none()
+        );
         drop(host);
         fs::remove_dir_all(legacy).unwrap();
     }

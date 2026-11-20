@@ -157,6 +157,7 @@ pub async fn plugin_pipe_open(
     events: Channel<PipeEvent>,
 ) -> Result<u32, String> {
     let host = app.state::<PluginHost>();
+    let _changing = host.changing.lock().await;
     let installed = host.installed(&plugin)?;
     let prefix = prefix(&installed.manifest.permissions, &name)?.to_owned();
     let client = ClientOptions::new()

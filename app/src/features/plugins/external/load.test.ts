@@ -27,6 +27,8 @@ describe('external plugin boundary', () => {
       permissions: { http: ['example.com'] },
       size: 3,
       updated: 0,
+      revision: 1,
+      enabled: true,
     };
     expect(() => listedPlugins({})).toThrow();
     const listed = listedPlugins([
@@ -37,6 +39,8 @@ describe('external plugin boundary', () => {
       { ...spike, api: null },
       { ...spike, trust: 'tampered' },
       { ...spike, version: undefined },
+      { ...spike, revision: '1&other=x' },
+      { ...spike, enabled: 'false' },
       { ...spike, permissions: undefined },
       { ...spike, newPermissions: { displays: 'true' } },
       null,
@@ -57,6 +61,8 @@ describe('external plugin boundary', () => {
         newPermissions: { displays: true },
         size: 3,
         updated: 0,
+        revision: 1,
+        enabled: true,
       },
     ]);
     expect(plugin.consent?.added).toEqual({ displays: true });
@@ -74,6 +80,8 @@ describe('external plugin boundary', () => {
       trust: 'dev',
       size: 0,
       updated: 0,
+      revision: 1,
+      enabled: true,
     };
     const rows = listedPlugins([
       { ...entry, permissions: { browser } },

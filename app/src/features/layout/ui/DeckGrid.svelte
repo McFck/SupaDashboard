@@ -104,7 +104,7 @@
       }
       const control = controlById(item.control);
       const def = control && controlTypes.get(control.type);
-      return control && def ? [{ item, control, def }] : [];
+      return control ? [{ item, control, def }] : [];
     }),
   );
   const selectedEntry = $derived(
@@ -345,7 +345,7 @@
       active.placement.displaced.includes(item.id)
         ? active.placement.items.find((entry) => entry.id === item.id)
         : null}
-    {@const face = faceMap?.[control.type] ?? def.face}
+    {@const face = faceMap?.[control.type] ?? def?.face}
     <div
       use:registerTile={item.id}
       inert={!!chrome.removing[item.id]}
@@ -373,21 +373,29 @@
           class="h-full w-full"
           inert={editing}
         >
-          <def.component
-            {control}
-            {page}
-            pageId={page.id}
-            {pageVisible}
-            {pageRendered}
-            w={renderItem.w}
-            h={renderItem.h}
-            pixelWidth={renderItem.w * pitch - metrics.gap}
-            pixelHeight={renderItem.h * pitch - metrics.gap}
-            {presentation}
-            itemId={item.id}
-            pressFeedbackDisabled={editing || !pageVisible}
-            {...face ? { face, compact } : {}}
-          />
+          {#if def}
+            <def.component
+              {control}
+              {page}
+              pageId={page.id}
+              {pageVisible}
+              {pageRendered}
+              w={renderItem.w}
+              h={renderItem.h}
+              pixelWidth={renderItem.w * pitch - metrics.gap}
+              pixelHeight={renderItem.h * pitch - metrics.gap}
+              {presentation}
+              itemId={item.id}
+              pressFeedbackDisabled={editing || !pageVisible}
+              {...face ? { face, compact } : {}}
+            />
+          {:else}
+            <div
+              class="grid h-full place-items-center rounded-[var(--tile-radius,22px)] bg-white/[.06] p-2 text-center text-sm text-muted-foreground"
+            >
+              {control.name || control.type}<span>Plugin unavailable</span>
+            </div>
+          {/if}
         </div>
         {#if editing}
           {#if isSelected(selected, item.id)}

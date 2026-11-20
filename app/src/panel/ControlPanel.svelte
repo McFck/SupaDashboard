@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { Window } from '@tauri-apps/api/window';
   import { toast } from 'svelte-sonner';
@@ -34,7 +33,7 @@
     { id: 'market', label: 'Market', icon: Store },
   ];
 
-  onMount(promptForPluginPermissions);
+  $effect(promptForPluginPermissions);
 
   $effect(() => {
     if (!isTauri()) {

@@ -34,6 +34,10 @@ export class EventRegistry {
     this.definitions.add(definition.id);
   }
 
+  unregister(id: string) {
+    this.definitions.delete(id);
+  }
+
   async emit(
     id: string,
     parameter: string | undefined,

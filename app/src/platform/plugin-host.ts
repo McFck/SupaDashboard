@@ -113,6 +113,9 @@ export async function callPlugin(
 
 /** Raw `plugin_list`; `features/plugins/external/load.ts` validates it. */
 export const listPlugins = () => invoke<unknown>('plugin_list');
+export const onPluginsChanged = (refresh: () => void) => listen('plugins-changed', refresh);
+export const enablePlugin = (id: string, enabled: boolean) =>
+  invoke<void>('plugin_set_enabled', { id, enabled });
 
 /** Raw signed catalogue entries; `features/plugins/plugin-store.ts` validates them. Throws a short message. */
 export const pluginCatalogue = () => invoke<unknown>('plugin_catalogue');

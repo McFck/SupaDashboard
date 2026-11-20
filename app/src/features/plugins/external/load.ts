@@ -10,9 +10,7 @@ import * as motion from 'svelte/motion';
 import * as reactivity from 'svelte/reactivity';
 import * as store from 'svelte/store';
 import * as transition from 'svelte/transition';
-import { isTauri } from '@tauri-apps/api/core';
 import * as kit from '../../../plugin-kit';
-import { listPlugins } from '../../../platform/plugin-host';
 import { isRecord } from '../../automation/plain-data';
 import type { Plugin } from '../contracts';
 import { pluginPermissions, type PluginPermissions } from '../permissions';
@@ -35,6 +33,8 @@ export interface NativePlugin {
   consent?: { permissions: PluginPermissions; added: Record<string, unknown> };
   size: number;
   updated: number;
+  revision: number;
+  enabled: boolean;
 }
 
 /** `plugin_list` entries, by file id. */
@@ -57,7 +57,11 @@ export function listedPlugins(raw: unknown): NativePlugin[] {
         Number.isSafeInteger(entry.api) &&
         (entry.trust === 'verified' || entry.trust === 'unverified' || entry.trust === 'dev') &&
         Number.isSafeInteger(entry.size) &&
-        Number.isSafeInteger(entry.updated),
+        Number.isSafeInteger(entry.updated) &&
+        typeof entry.revision === 'number' &&
+        Number.isSafeInteger(entry.revision) &&
+        entry.revision > 0 &&
+        typeof entry.enabled === 'boolean',
     )
     .flatMap(({ newPermissions, ...entry }): NativePlugin[] => {
       const permissions = pluginPermissions(entry.permissions);
@@ -100,38 +104,9 @@ function attach(element: HTMLElement) {
   });
 }
 
-async function loadPlugin(id: string) {
-  const base = `${ORIGIN}/${id}/ui/index`;
-  const style = Object.assign(document.createElement('link'), {
-    rel: 'stylesheet',
-    href: `${base}.css`,
-  });
-  const script = Object.assign(document.createElement('script'), { src: `${base}.js` });
-  try {
-    await attach(style);
-    await attach(script);
-    return pluginExport(id, globalThis.__supadashboard.plugin);
-  } catch (error) {
-    style.remove();
-    throw error;
-  } finally {
-    script.remove();
-    delete globalThis.__supadashboard.plugin;
-  }
-}
-
-/**
- * Loads one bundle at a time, since each leaves its export in the same slot; a failing plugin is skipped.
- * `listed` is everything native discovered, including plugins for another plugin API.
- */
-export async function loadExternalPlugins(): Promise<{
-  listed: NativePlugin[];
-  plugins: Plugin[];
-}> {
-  if (!isTauri()) {
-    return { listed: [], plugins: [] };
-  }
-  globalThis.__supadashboard = {
+/** Bundles load serially because they leave their export in one shared slot. */
+export async function loadPlugin({ id, revision }: NativePlugin) {
+  globalThis.__supadashboard ??= {
     svelte,
     'svelte/internal/client': client,
     'svelte/easing': easing,
@@ -141,21 +116,26 @@ export async function loadExternalPlugins(): Promise<{
     'svelte/transition': transition,
     '@supadashboard/kit': kit,
   };
-  const loaded: Plugin[] = [];
-  const listed = listedPlugins(await listPlugins());
-  for (const { id, api, consent } of listed) {
-    if (consent) {
-      continue;
-    }
-    if (api !== kit.PLUGIN_API) {
-      console.warn(`Plugin ${id} needs plugin API ${api}`);
-      continue;
-    }
-    try {
-      loaded.push(await loadPlugin(id));
-    } catch (error) {
-      console.warn(`Plugin ${id}`, error);
-    }
+  const base = `${ORIGIN}/${id}/ui/index`;
+  const style = Object.assign(document.createElement('link'), {
+    rel: 'stylesheet',
+    href: `${base}.css?revision=${revision}`,
+  });
+  const script = Object.assign(document.createElement('script'), {
+    src: `${base}.js?revision=${revision}`,
+  });
+  try {
+    await attach(style);
+    await attach(script);
+    return {
+      plugin: pluginExport(id, globalThis.__supadashboard.plugin),
+      dispose: () => style.remove(),
+    };
+  } catch (error) {
+    style.remove();
+    throw error;
+  } finally {
+    script.remove();
+    delete globalThis.__supadashboard.plugin;
   }
-  return { listed, plugins: loaded };
 }

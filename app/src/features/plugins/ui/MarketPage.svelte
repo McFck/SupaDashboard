@@ -9,7 +9,7 @@
   import { installPluginFromFile } from '../file-install';
   import { reviewPluginPermissions } from '../permission-consent';
   import { catalogEntries, type CatalogEntry } from '../plugin-store';
-  import { compiledPlugins, nativePlugins, pluginsInstalled } from '../registry';
+  import { compiledPlugins, nativePlugins, refreshPlugins } from '../lifecycle';
   import { installPlugin, pluginCatalogue } from '../../../platform/plugin-host';
   import Section from '../../../panel/ui/Section.svelte';
   import MarketDetails from './MarketDetails.svelte';
@@ -22,7 +22,6 @@
   /** Bumped by Retry to fetch the catalogue again. */
   let attempt = $state(0);
   let selected = $state<string | null>(null);
-  /** Set while an install runs; a successful one reloads the window, so it stays set. */
   let busy = $state(false);
   const details = $derived(
     catalogue.kind === 'ready'
@@ -74,14 +73,13 @@
     busy = true;
     try {
       const id = await job();
-      if (id === null) {
-        busy = false;
-        return;
+      if (id !== null) {
+        await refreshPlugins();
       }
-      await pluginsInstalled([id]);
     } catch (error) {
       console.error(error);
       toast.error(failure);
+    } finally {
       busy = false;
     }
   }

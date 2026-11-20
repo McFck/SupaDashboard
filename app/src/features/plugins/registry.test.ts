@@ -1,47 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { pluginPermissions } from './permissions';
-const store = vi.hoisted(() => ({
-  get: vi.fn(),
-  set: vi.fn(),
-  save: vi.fn(),
-  onKeyChange: vi.fn(),
-}));
-vi.mock('@tauri-apps/plugin-store', () => ({ load: vi.fn(async () => store) }));
 
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
-  vi.stubGlobal('location', { reload: vi.fn() });
 });
 
-describe('plugin bookkeeping', () => {
-  it('autoloads dev plugins without making former bundled plugins eligible for restore', async () => {
+describe('plugin registration', () => {
+  it('rejects applet ownership collisions without replacing the existing definitions', async () => {
     const registry = await import('./registry');
-    store.get.mockResolvedValue({ installed: {}, uninstalled: ['spotify'] });
-    const setup = vi.fn();
-    const permissions = pluginPermissions({});
-    if (!permissions) {
-      throw new Error('Invalid test permissions');
-    }
-    await registry.installEnabled(
-      [],
-      [{ id: 'spotify', title: 'Spotify', setup }],
-      [{ id: 'spotify', version: '2.0.0', api: 2, trust: 'dev', permissions, size: 0, updated: 0 }],
-    );
-    expect(setup).toHaveBeenCalledOnce();
-    expect(store.set.mock.calls[0][1]).toEqual({ installed: {}, uninstalled: ['spotify'] });
-    await registry.setPluginEnabled('spotify', true);
-    expect(store.set).toHaveBeenCalledOnce();
-  });
-
-  it('protects plugin installation state and rejects applet ownership collisions', async () => {
-    const registry = await import('./registry');
-    const setup = vi.fn();
     let ownerApi!: import('./contracts').PluginApi;
-    store.get.mockResolvedValue({
-      uninstalled: ['subway', 'spotify'],
-      installed: { spotify: '2025-01-01T00:00:00.000Z' },
-    });
     const spotify = {
       id: 'spotify',
       title: 'Spotify',
@@ -66,8 +33,7 @@ describe('plugin bookkeeping', () => {
         });
       },
     };
-    await registry.installEnabled([spotify, { id: 'subway', title: 'Subway', setup }], [], []);
-    expect(setup).not.toHaveBeenCalled();
+    registry.install(spotify);
     const registeredApplet = registry.applets.get('test.applet')!;
     expect(() =>
       ownerApi.registerApplet({
@@ -76,18 +42,26 @@ describe('plugin bookkeeping', () => {
       }),
     ).toThrow('defaultView');
     expect(registry.applets.get('test.applet')).toBe(registeredApplet);
+    expect(() =>
+      registry.install({
+        id: 'intruder',
+        title: 'Intruder',
+        setup: (api) => {
+          api.registerVariable({
+            id: 'test.applet.view',
+            name: 'Reserved view',
+            type: 'string',
+            initialValue: 'external',
+            persistent: false,
+            readOnly: true,
+          });
+        },
+      }),
+    ).toThrow('test.applet.view');
     registry.install({
       id: 'intruder',
       title: 'Intruder',
       setup: (api) => {
-        api.registerVariable({
-          id: 'test.applet.view',
-          name: 'Reserved view',
-          type: 'string',
-          initialValue: 'external',
-          persistent: false,
-          readOnly: true,
-        });
         api.registerApplet({
           id: 'test.other',
           title: 'Intruder applet',
@@ -99,7 +73,6 @@ describe('plugin bookkeeping', () => {
         });
       },
     });
-    expect(() => ownerApi.registerApplet(registeredApplet)).toThrow('test.applet.view');
     expect(() =>
       ownerApi.registerApplet({
         ...registeredApplet,
@@ -109,14 +82,6 @@ describe('plugin bookkeeping', () => {
       }),
     ).toThrow('test.other.view');
     expect(registry.applets.get('test.applet')).toBe(registeredApplet);
-    expect(store.set.mock.calls[0][1].installed.spotify).toBe('2025-01-01T00:00:00.000Z');
-    expect(Number.isFinite(Date.parse(store.set.mock.calls[0][1].installed.subway))).toBe(true);
-    await registry.setPluginEnabled('spotify', false);
-    expect(location.reload).not.toHaveBeenCalled();
-    await registry.setPluginEnabled('subway', true);
-    expect(store.set.mock.calls.at(-1)![1].uninstalled).not.toContain('subway');
-    expect(store.save).toHaveBeenCalled();
-    expect(location.reload).toHaveBeenCalledOnce();
   });
 
   it('skips a plugin whose setup throws without stopping the plugins after it', async () => {
@@ -130,7 +95,7 @@ describe('plugin bookkeeping', () => {
     };
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     registry.installEach([broken, { id: 'after', title: 'After', setup: vi.fn() }]);
-    expect(registry.plugins.map((entry) => entry.id)).toEqual(['after']);
+    expect([...registry.plugins.keys()]).toEqual(['after']);
   });
 });
 

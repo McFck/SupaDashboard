@@ -254,6 +254,20 @@ export class VariableStore {
     this.changed(current.definition.persistent);
   }
 
+  /** Match the state after a restart with the plugin absent, preserving its saved values. */
+  undefine(id: string, owner: string) {
+    const current = this.records.get(id);
+    if (!current || current.definition.owner !== owner) {
+      return;
+    }
+    if (current.definition.persistent) {
+      current.definition.available = false;
+    } else {
+      this.records.delete(id);
+    }
+    this.changed(false);
+  }
+
   set(id: string, value: unknown, actor: string = 'user') {
     const current = this.mustGet(id);
     this.assertWritable(current, actor);

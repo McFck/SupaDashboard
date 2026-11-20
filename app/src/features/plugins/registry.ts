@@ -1,14 +1,10 @@
-// Host registry: the registered extension points, plugin installation and persistence.
-import { get, writable } from 'svelte/store';
-import { load } from '@tauri-apps/plugin-store';
-import { uninstallPlugin } from '../../platform/plugin-host';
-import type { NativePlugin } from './external/load';
+// Host registry: extension points and the lifetime of each registered plugin.
+import { SvelteMap } from 'svelte/reactivity';
 import type {
   ActionContext,
   ActionDef,
   ActionRef,
   ControlTypeDef,
-  EventAncestry,
   EventDef,
   MediaSource,
   Plugin,
@@ -21,13 +17,13 @@ import type {
 import { controlById, settings } from '../settings/state.svelte';
 import type { VariableRecord, VariableStore } from '../automation/variables';
 import { TRIGGERS, type Trigger } from '../automation/scenario';
-import { normalizePluginState, type PluginState } from './plugin-store';
+import { inPluginSetup } from './setup-scope';
 import { validateAppletDefinition, withQuickActionSettings } from '../applets/definition';
 import { type AppletDef as AppletDefinition } from '../applets/contracts';
 
-export const actions = new Map<string, ActionDef>();
-export const values = new Map<string, ValueDef>();
-export const controlTypes = new Map<string, ControlTypeDef>();
+export const actions = new SvelteMap<string, ActionDef>();
+export const values = new SvelteMap<string, ValueDef>();
+export const controlTypes = new SvelteMap<string, ControlTypeDef>();
 /** Triggers a control type offers and runs; saved lists for any other trigger stay inert. */
 export const controlTriggers = (type: string): readonly Trigger[] =>
   controlTypes.get(type)?.triggers ?? TRIGGERS;
@@ -42,25 +38,18 @@ export function runsTrigger({
   const type = controlById(controlId)?.type;
   return trigger === 'event' || !type || controlTriggers(type).includes(trigger);
 }
-export const applets = new Map<string, AppletDefinition>();
-export const mediaSources = new Map<string, MediaSource>();
-export const statusSources = new Map<string, StatusSourceDef>();
-export const customIcons = new Map<string, string>();
-export const appIcons = new Map<string, string>();
+export const applets = new SvelteMap<string, AppletDefinition>();
+export const mediaSources = new SvelteMap<string, MediaSource>();
+export const statusSources = new SvelteMap<string, StatusSourceDef>();
+export const customIcons = new SvelteMap<string, string>();
+export const appIcons = new SvelteMap<string, string>();
 /** Which plugin registered each app, so app pickers can show the plugin mark. */
-export const appOwners = new Map<string, string>();
-export const plugins: Plugin[] = [];
-/** Every plugin known at start-up, compiled or external, installed or turned off. */
-export const bundledPlugins: Plugin[] = [];
-/** Ids of the plugins compiled into the app; they are SupaDashboard's own and verified. */
-export const compiledPlugins = new Set<string>();
-/** `plugin_list` at start-up by id: native parts and external plugins on disk, with version, size and trust. */
-export const nativePlugins = new Map<string, NativePlugin>();
-export const pluginTrust = (id: string): NativePlugin['trust'] =>
-  nativePlugins.get(id)?.trust ?? (compiledPlugins.has(id) ? 'verified' : 'unverified');
-export const pluginState = writable<PluginState>(normalizePluginState(null));
+export const appOwners = new SvelteMap<string, string>();
+export const plugins = new SvelteMap<string, Plugin>();
+const iconOwners = new Map<string, string>();
+const instances = new Map<string, { abort: AbortController; cleanups: Set<() => void> }>();
 const variableDefinitions = new Map<string, { owner: string; definition: PluginVariableDef }>();
-const eventDefinitions = new Map<string, EventDef>();
+const eventDefinitions = new SvelteMap<string, EventDef>();
 const appletVariableIds = new Map<string, string>();
 export function registeredEvents(
   variables: readonly VariableRecord[] = variableMirror ?? [],
@@ -96,12 +85,8 @@ export function registeredEvents(
 export type RegistryRuntime = {
   variables: VariableStore;
   registerEvent(definition: EventDef): void;
-  emitEvent(
-    id: string,
-    parameter?: string,
-    payload?: unknown,
-    ancestry?: EventAncestry,
-  ): Promise<void>;
+  unregisterEvent(id: string): void;
+  registrationsChanged(): void;
 };
 let registryRuntime: RegistryRuntime | undefined;
 let variableMirror: VariableRecord[] | undefined;
@@ -120,9 +105,15 @@ function copyEvent(event: EventDef): EventDef {
 }
 
 function defineVariable(owner: string, definition: PluginVariableDef) {
+  if (
+    variableDefinitions.has(definition.id) &&
+    variableDefinitions.get(definition.id)?.owner !== owner
+  ) {
+    throw new Error(`Variable "${definition.id}" belongs to another plugin`);
+  }
   const entry = { owner, definition: structuredClone(definition) };
-  variableDefinitions.set(definition.id, entry);
   registryRuntime?.variables.define({ ...entry.definition, owner }, owner);
+  variableDefinitions.set(definition.id, entry);
 }
 
 function namesOf(definition: PluginVariableDef) {
@@ -178,6 +169,9 @@ function registerApplet(owner: string, d: AppletDefinition) {
     names.add(name);
   }
   for (const event of d.events ?? []) {
+    if (event.id === 'page.changed' || event.id === 'variables.changed') {
+      throw new Error(`Applet event "${event.id}" belongs to the host`);
+    }
     const current = eventDefinitions.get(event.id);
     if (current && current.plugin !== owner)
       throw new Error(`Applet event "${event.id}" belongs to another plugin`);
@@ -229,15 +223,43 @@ export function notifyTrigger(trigger: Trigger) {
   }
 }
 
-function createApi(owner: string): PluginApi {
+function createApi(owner: string, signal: AbortSignal, cleanups: Set<() => void>): PluginApi {
+  const active = () => !signal.aborted;
+  function register<D extends { plugin?: string }>(map: Map<string, D>, id: string, definition: D) {
+    if (!active()) {
+      return;
+    }
+    if (map.has(id) && map.get(id)?.plugin !== owner) {
+      throw new Error(`Registration "${id}" belongs to another plugin`);
+    }
+    map.set(id, { ...definition, plugin: owner });
+  }
+  function icon(map: Map<string, string>, owners: Map<string, string>, key: string, path: string) {
+    if (active() && (!owners.has(key) || owners.get(key) === owner)) {
+      owners.set(key, owner);
+      map.set(key, path);
+    }
+  }
   return {
-    registerAction: (d) => void actions.set(d.id, { ...d, plugin: owner }),
-    registerValue: (d) => void values.set(d.id, { ...d, plugin: owner }),
-    registerControl: (d) => void controlTypes.set(d.type, { ...d, plugin: owner }),
-    registerApplet: (d) => registerApplet(owner, d),
-    registerMediaSource: (d) => void mediaSources.set(d.id, { ...d, plugin: owner }),
-    registerStatusSource: (d) => registerStatusSource(owner, d),
-    registerVariable: (definition) => defineVariable(owner, definition),
+    registerAction: (d) => register(actions, d.id, d),
+    registerValue: (d) => register(values, d.id, d),
+    registerControl: (d) => register(controlTypes, d.type, d),
+    registerApplet: (d) => {
+      if (active()) {
+        registerApplet(owner, d);
+      }
+    },
+    registerMediaSource: (d) => register(mediaSources, d.id, d),
+    registerStatusSource: (d) => {
+      if (active()) {
+        registerStatusSource(owner, d);
+      }
+    },
+    registerVariable: (d) => {
+      if (active()) {
+        defineVariable(owner, d);
+      }
+    },
     listVariables: () =>
       registryRuntime
         ? Object.values(registryRuntime.variables.snapshot().records).map((record) =>
@@ -254,22 +276,29 @@ function createApi(owner: string): PluginApi {
               value: structuredClone(entry.definition.initialValue),
             })),
     setVariable: async (id, value) => {
-      if (!registryRuntime) throw new Error('Variable runtime is unavailable');
+      if (!active() || !registryRuntime) throw new Error('Variable runtime is unavailable');
       return registryRuntime.variables.set(id, value, owner);
     },
     runAction: (id, args = {}) => {
       // Best effort: the target plugin may be uninstalled, and its failure must not break the caller.
-      void Promise.resolve(actions.get(id)?.run(args)).catch(() => {});
+      if (active()) {
+        void runAction({ id, args }).catch(() => {});
+      }
     },
     onTrigger: (listener) => {
-      triggerListeners.add(listener);
-      return () => void triggerListeners.delete(listener);
+      const receive = (trigger: Trigger) => listener(trigger);
+      const stop = () => {
+        triggerListeners.delete(receive);
+        cleanups.delete(stop);
+      };
+      if (active()) {
+        triggerListeners.add(receive);
+        cleanups.add(stop);
+      }
+      return stop;
     },
-    registerIcon: (name, path) => void customIcons.set(name, path),
-    registerAppIcon: (app, icon) => {
-      appIcons.set(app.toLowerCase(), icon);
-      appOwners.set(app.toLowerCase(), owner);
-    },
+    registerIcon: (name, path) => icon(customIcons, iconOwners, name, path),
+    registerAppIcon: (app, path) => icon(appIcons, appOwners, app.toLowerCase(), path),
   };
 }
 
@@ -285,32 +314,84 @@ export function setRegistryRuntime(runtime: RegistryRuntime) {
 
 export function install(...list: Plugin[]) {
   for (const p of list) {
-    if (plugins.some((x) => x.id === p.id)) continue;
-    p.setup(createApi(p.id));
-    plugins.push(p);
+    if (instances.has(p.id)) {
+      continue;
+    }
+    const abort = new AbortController();
+    const cleanups = new Set<() => void>();
+    instances.set(p.id, { abort, cleanups });
+    try {
+      inPluginSetup(cleanups, () => {
+        const cleanup = p.setup(createApi(p.id, abort.signal, cleanups));
+        if (typeof cleanup === 'function') {
+          cleanups.add(cleanup);
+        }
+      });
+      plugins.set(p.id, p);
+      registryRuntime?.registrationsChanged();
+    } catch (error) {
+      unregister(p.id);
+      throw error;
+    }
+  }
+}
+
+export function unregister(owner: string) {
+  const instance = instances.get(owner);
+  if (!instance) {
+    return;
+  }
+  instances.delete(owner);
+  instance.abort.abort();
+  plugins.delete(owner);
+  for (const entries of [actions, values, controlTypes, applets, mediaSources, statusSources]) {
+    for (const [id, entry] of entries) {
+      if (entry.plugin === owner) {
+        entries.delete(id);
+      }
+    }
+  }
+  for (const [owners, icons] of [
+    [iconOwners, customIcons],
+    [appOwners, appIcons],
+  ]) {
+    for (const [name, plugin] of owners) {
+      if (plugin === owner) {
+        owners.delete(name);
+        icons.delete(name);
+      }
+    }
+  }
+  for (const [id, event] of eventDefinitions) {
+    if (event.plugin === owner) {
+      eventDefinitions.delete(id);
+      registryRuntime?.unregisterEvent(id);
+    }
+  }
+  registryRuntime?.registrationsChanged();
+  for (const cleanup of [...instance.cleanups].reverse()) {
+    try {
+      cleanup();
+    } catch (error) {
+      console.warn(`Could not stop plugin ${owner}`, error);
+    }
+  }
+  for (const [id, entry] of variableDefinitions) {
+    if (entry.owner === owner) {
+      variableDefinitions.delete(id);
+      appletVariableIds.delete(id);
+      registryRuntime?.variables.undefine(id, owner);
+    }
   }
 }
 
 export const actionsByPlugin = () =>
-  plugins
+  [...plugins.values()]
     .map((plugin) => ({
       plugin,
       actions: [...actions.values()].filter((action) => action.plugin === plugin.id),
     }))
     .filter((group) => group.actions.length);
-
-let pluginStore: Awaited<ReturnType<typeof load>> | undefined;
-let lastPluginState = '';
-const browserPluginKey = 'plugin-store';
-
-async function persistPlugins(state: PluginState) {
-  lastPluginState = JSON.stringify(state);
-  if (pluginStore) {
-    await pluginStore.set('plugin-store', state);
-    await pluginStore.save();
-  } else localStorage.setItem(browserPluginKey, lastPluginState);
-  pluginState.set(state);
-}
 
 /** Installs each plugin on its own: one whose setup throws is skipped and cannot stop the rest. */
 export function installEach(list: Plugin[]) {
@@ -323,105 +404,15 @@ export function installEach(list: Plugin[]) {
   }
 }
 
-/**
- * Load the separate plugin store before registering plugins in either window. `compiled` are part of the app
- * bundle; `external` were loaded from their `.sdplugin` files; `listed` is everything native found on disk.
- */
-export async function installEnabled(
-  compiled: Plugin[],
-  external: Plugin[],
-  listed: NativePlugin[],
-) {
-  const list = [...compiled, ...external];
-  bundledPlugins.splice(0, bundledPlugins.length, ...list);
-  compiledPlugins.clear();
-  compiled.forEach((plugin) => compiledPlugins.add(plugin.id));
-  nativePlugins.clear();
-  listed.forEach((entry) => nativePlugins.set(entry.id, entry));
-  let saved: unknown;
-  try {
-    pluginStore = await load('plugins.json', { defaults: {}, autoSave: false });
-    saved = await pluginStore.get('plugin-store');
-  } catch {
-    try {
-      saved = JSON.parse(localStorage.getItem(browserPluginKey) ?? 'null');
-    } catch {
-      saved = null;
-    }
-  }
-  const state = normalizePluginState(saved);
-  for (const plugin of list) {
-    if (pluginTrust(plugin.id) !== 'dev' && !state.installed[plugin.id]) {
-      state.installed[plugin.id] = new Date().toISOString();
-    }
-  }
-  await persistPlugins(state);
-  installEach(
-    list.filter(
-      (plugin) =>
-        plugin.builtin ||
-        plugin.default ||
-        pluginTrust(plugin.id) === 'dev' ||
-        !state.uninstalled.includes(plugin.id),
-    ),
-  );
-  if (pluginStore)
-    await pluginStore.onKeyChange('plugin-store', (raw) => {
-      if (JSON.stringify(normalizePluginState(raw)) !== lastPluginState) {
-        // Reload both windows so bundled registrations are applied consistently.
-        setTimeout(() => location.reload(), 250);
-      }
-    });
-  else
-    window.addEventListener('storage', (event) => {
-      if (event.key === browserPluginKey) location.reload();
-    });
-}
-
-export async function setPluginEnabled(id: string, enabled: boolean) {
-  const plugin = bundledPlugins.find((p) => p.id === id);
-  const pending = nativePlugins.get(id)?.consent;
-  if (
-    (!plugin && !pending) ||
-    pluginTrust(id) === 'dev' ||
-    (!enabled && (plugin?.builtin || plugin?.default))
-  ) {
-    return;
-  }
-  const state = structuredClone(get(pluginState));
-  state.uninstalled = state.uninstalled.filter((entry) => entry !== id);
-  if (!enabled) state.uninstalled.push(id);
-  state.installed[id] ??= new Date().toISOString();
-  await persistPlugins(state);
-  location.reload();
-}
-
-/**
- * After installs or updates of `ids`: one that was not on disk at start-up is turned on, an update keeps its state.
- * The new installation dates change the store, which reloads the other window onto the new files too.
- */
-export async function pluginsInstalled(ids: readonly string[]) {
-  const state = structuredClone(get(pluginState));
-  state.uninstalled = state.uninstalled.filter((id) => !ids.includes(id) || nativePlugins.has(id));
-  for (const id of ids) {
-    state.installed[id] = new Date().toISOString();
-  }
-  await persistPlugins(state);
-  location.reload();
-}
-
-/** An external plugin's file is deleted; a compiled one can only be turned off. */
-export async function removePlugin(id: string) {
-  if (!compiledPlugins.has(id)) {
-    await uninstallPlugin(id);
-  }
-  await setPluginEnabled(id, false);
-}
-
 export async function runAction(ref: ActionRef, context?: ActionContext) {
   const def = actions.get(ref.id);
   if (!def) throw new Error(`Unknown action "${ref.id}"`);
-  return def.run(ref.args ?? {}, context);
+  const lifetime = def.plugin && instances.get(def.plugin)?.abort.signal;
+  const actionContext =
+    context && lifetime
+      ? { ...context, signal: AbortSignal.any([context.signal, lifetime]) }
+      : context;
+  return def.run(ref.args ?? {}, actionContext);
 }
 
 export function value(ref: ValueRef) {

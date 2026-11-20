@@ -221,6 +221,7 @@ pub async fn plugin_signin_open(
     visible: bool,
 ) -> Result<u64, String> {
     let host = app.state::<PluginHost>();
+    let changing = host.changing.lock().await;
     let signin = declared(&host, &plugin, &name)?;
     if !visible && !host.data(&plugin).join(&signin.profile).exists() {
         return Err(SIGNED_OUT.into());
@@ -254,8 +255,9 @@ pub async fn plugin_signin_open(
             let attempts = if visible { 600 } else { 45 };
             let token = capture(&window.0, &signin, previous.as_deref(), attempts).await?;
             let expires_at = token.expires_at.saturating_mul(1000);
-            app.state::<PluginHost>()
-                .caps
+            let host = app.state::<PluginHost>();
+            let _changing = host.changing.lock().await;
+            host.caps
                 .signed_in
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
@@ -266,6 +268,7 @@ pub async fn plugin_signin_open(
     let abort = task.inner().abort_handle();
     host.caps
         .with(&plugin, &label, |owned| owned.signins.insert(name, abort));
+    drop(changing);
     task.await.map_err(|_| "Sign-in canceled".to_owned())?
 }
 

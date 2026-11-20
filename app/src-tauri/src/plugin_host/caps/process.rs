@@ -225,7 +225,7 @@ fn spawn(
 }
 
 #[tauri::command]
-pub fn plugin_process_spawn(
+pub async fn plugin_process_spawn(
     webview: Webview,
     host: State<'_, PluginHost>,
     plugin: String,
@@ -233,6 +233,7 @@ pub fn plugin_process_spawn(
     args: Vec<String>,
     events: Channel<ProcessEvent>,
 ) -> Result<u32, String> {
+    let _changing = host.changing.lock().await;
     let armed = checked(&host, &plugin, &program, args)?;
     spawn(&host.caps, &plugin, webview.label(), &armed, events)
 }
@@ -279,7 +280,7 @@ pub fn plugin_process_kill(
 /// Arms (or with `args: null` disarms) the plugin's command for when the PC sleeps or shuts down, replacing one armed
 /// from another of its pages.
 #[tauri::command]
-pub fn plugin_process_on_power_off(
+pub async fn plugin_process_on_power_off(
     app: AppHandle,
     webview: Webview,
     plugin: String,
@@ -287,6 +288,7 @@ pub fn plugin_process_on_power_off(
     args: Option<Vec<String>>,
 ) -> Result<(), String> {
     let host = app.state::<PluginHost>();
+    let _changing = host.changing.lock().await;
     let armed = args
         .map(|args| checked(&host, &plugin, &program, args))
         .transpose()?;

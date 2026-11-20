@@ -271,5 +271,6 @@ export type Plugin = {
   settingsSection?: Component;
   /** Markdown shown by the plugin page's How to use button: what the plugin is for and how to set it up. */
   guide?: string;
-  setup(api: PluginApi): void;
+  /** May return a disposer for resources created during setup. */
+  setup(api: PluginApi): void | (() => void);
 };

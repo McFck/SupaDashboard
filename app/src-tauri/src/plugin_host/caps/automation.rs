@@ -343,7 +343,12 @@ pub async fn plugin_automation_watch(
     exe: String,
     events: Channel<Snapshot>,
 ) -> Result<(), String> {
-    check(&host.installed(&plugin)?.manifest.permissions, &exe)?;
+    let installed = host.installed(&plugin)?;
+    let generation = installed
+        .revision
+        .load(std::sync::atomic::Ordering::Relaxed);
+    check(&installed.manifest.permissions, &exe)?;
+    drop(installed);
     let (requests, receiver) = mpsc::channel();
     let (ready, started) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
@@ -355,6 +360,11 @@ pub async fn plugin_automation_watch(
         .map_err(|_| "Could not watch the program")?
         .map_err(|_| "Could not watch the program")??;
     let watcher = Watcher { thread, requests };
+    let _changing = host.changing.lock().await;
+    let current = host.installed(&plugin)?;
+    if current.revision.load(std::sync::atomic::Ordering::Relaxed) != generation {
+        return Err("Plugin changed while starting its watcher".into());
+    }
     let replaced = host.caps.with(&plugin, webview.label(), |owned| {
         owned.watcher.replace(watcher)
     });
