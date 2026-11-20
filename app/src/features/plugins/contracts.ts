@@ -31,6 +31,8 @@ export type PluginBrowserSnapshot =
       activeTab: number | null;
       media: { tab: number; paused: boolean; rate: number; fullscreen: boolean } | null;
       suspended: boolean;
+      /** Displays of the browser's machine; `windows` are the browser windows centred on each. */
+      displays: { id: string; name: string; windows: number[] }[];
     };
 
 export type PluginBrowserScrollFrame =
@@ -43,6 +45,7 @@ export type PluginBrowserAction =
   | { kind: 'select_tab' | 'close_tab'; tab: number }
   | { kind: 'move_tab'; tab: number; anchor: number; side: 'before' | 'after' }
   | { kind: 'group'; group: number; collapsed: boolean }
+  | { kind: 'move_tab_to_display'; tab: number; display: string }
   | { kind: 'open'; url: string; destination: 'new' | 'current' }
   | { kind: 'window_fullscreen' }
   | { kind: 'suspend'; mode: 'toggle' | 'on' | 'off' }

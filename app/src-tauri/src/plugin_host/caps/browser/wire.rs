@@ -89,6 +89,22 @@ struct MediaState {
     fullscreen: bool,
 }
 
+#[derive(Clone, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Display {
+    id: String,
+    name: String,
+    /// Browser windows whose centre lies on this display.
+    windows: Vec<i32>,
+}
+
+pub(super) fn display_id(value: &str) -> bool {
+    (1..=32).contains(&value.len())
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+}
+
 #[derive(Clone, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct State {
@@ -99,6 +115,8 @@ pub struct State {
     media: Option<MediaState>,
     #[serde(default)]
     suspended: bool,
+    #[serde(default)]
+    displays: Vec<Display>,
 }
 
 impl State {
@@ -126,6 +144,7 @@ impl State {
             || self
                 .active_tab
                 .is_some_and(|id| !self.tabs.iter().any(|tab| tab.id == id && tab.active))
+            || !self.valid_displays()
             || self.media.as_ref().is_some_and(|media| {
                 !ids.contains(&media.tab)
                     || (media.rate != 0.0 && !(0.0625..=16.0).contains(&media.rate))
@@ -134,6 +153,22 @@ impl State {
             return Err("Invalid browser state");
         }
         Ok(())
+    }
+
+    fn valid_displays(&self) -> bool {
+        let mut ids = std::collections::HashSet::new();
+        self.displays.len() <= 16
+            && self.displays.iter().all(|display| {
+                display_id(&display.id)
+                    && display.name.len() <= 256
+                    && display.windows.len() <= 256
+                    && display.windows.iter().all(|window| *window >= 0)
+                    && ids.insert(display.id.as_str())
+            })
+    }
+
+    pub(super) fn has_display(&self, id: &str) -> bool {
+        self.displays.iter().any(|display| display.id == id)
     }
 
     pub(super) fn has_media(&self) -> bool {
@@ -320,6 +355,34 @@ mod tests {
             let mut bad = good.clone();
             bad["groups"][0][field] = value;
             assert!(check(bad).is_err(), "{field}");
+        }
+    }
+
+    #[test]
+    fn displays_need_unique_short_ids_and_bounded_fields() {
+        let check = |displays: serde_json::Value| {
+            serde_json::from_value::<State>(
+                json!({"tabs": [], "activeTab": null, "displays": displays}),
+            )
+            .map_err(|_| "Invalid browser message")?
+            .validate()
+        };
+        let good = json!({"id": "2528732444", "name": "DELL U2720Q", "windows": [1, 2]});
+        assert_eq!(check(json!([good])), Ok(()));
+        for bad in [
+            json!([good, good]),
+            json!([{"id": "", "name": "A", "windows": []}]),
+            json!([{"id": "../1", "name": "A", "windows": []}]),
+            json!([{"id": "1", "name": "x".repeat(257), "windows": []}]),
+            json!([{"id": "1", "name": "A", "windows": [-1]}]),
+            json!([{"id": "1", "name": "A", "windows": [], "bounds": 0}]),
+            json!(
+                (0..17)
+                    .map(|i| json!({"id": i.to_string(), "name": "A", "windows": []}))
+                    .collect::<Vec<_>>()
+            ),
+        ] {
+            assert!(check(bad.clone()).is_err(), "{bad}");
         }
     }
 
